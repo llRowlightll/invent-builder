@@ -15,6 +15,7 @@ import { Route as LocaleIndexRouteImport } from './routes/$locale/index'
 import { Route as LocaleSignupRouteImport } from './routes/$locale/signup'
 import { Route as LocaleLoginRouteImport } from './routes/$locale/login'
 import { Route as LocaleAppRouteImport } from './routes/$locale/app'
+import { Route as ApiPublicNotifyRfqRouteImport } from './routes/api/public/notify/rfq'
 
 const LocaleRoute = LocaleRouteImport.update({
   id: '/$locale',
@@ -46,6 +47,11 @@ const LocaleAppRoute = LocaleAppRouteImport.update({
   path: '/app',
   getParentRoute: () => LocaleRoute,
 } as any)
+const ApiPublicNotifyRfqRoute = ApiPublicNotifyRfqRouteImport.update({
+  id: '/api/public/notify/rfq',
+  path: '/api/public/notify/rfq',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,6 +60,7 @@ export interface FileRoutesByFullPath {
   '/$locale/login': typeof LocaleLoginRoute
   '/$locale/signup': typeof LocaleSignupRoute
   '/$locale/': typeof LocaleIndexRoute
+  '/api/public/notify/rfq': typeof ApiPublicNotifyRfqRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/$locale/login': typeof LocaleLoginRoute
   '/$locale/signup': typeof LocaleSignupRoute
   '/$locale': typeof LocaleIndexRoute
+  '/api/public/notify/rfq': typeof ApiPublicNotifyRfqRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -70,6 +78,7 @@ export interface FileRoutesById {
   '/$locale/login': typeof LocaleLoginRoute
   '/$locale/signup': typeof LocaleSignupRoute
   '/$locale/': typeof LocaleIndexRoute
+  '/api/public/notify/rfq': typeof ApiPublicNotifyRfqRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -80,8 +89,15 @@ export interface FileRouteTypes {
     | '/$locale/login'
     | '/$locale/signup'
     | '/$locale/'
+    | '/api/public/notify/rfq'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$locale/app' | '/$locale/login' | '/$locale/signup' | '/$locale'
+  to:
+    | '/'
+    | '/$locale/app'
+    | '/$locale/login'
+    | '/$locale/signup'
+    | '/$locale'
+    | '/api/public/notify/rfq'
   id:
     | '__root__'
     | '/'
@@ -90,11 +106,13 @@ export interface FileRouteTypes {
     | '/$locale/login'
     | '/$locale/signup'
     | '/$locale/'
+    | '/api/public/notify/rfq'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LocaleRoute: typeof LocaleRouteWithChildren
+  ApiPublicNotifyRfqRoute: typeof ApiPublicNotifyRfqRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -141,6 +159,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAppRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/api/public/notify/rfq': {
+      id: '/api/public/notify/rfq'
+      path: '/api/public/notify/rfq'
+      fullPath: '/api/public/notify/rfq'
+      preLoaderRoute: typeof ApiPublicNotifyRfqRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -164,7 +189,18 @@ const LocaleRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LocaleRoute: LocaleRouteWithChildren,
+  ApiPublicNotifyRfqRoute: ApiPublicNotifyRfqRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
