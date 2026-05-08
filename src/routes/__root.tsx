@@ -4,11 +4,14 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import { AuthProvider } from "@/lib/auth-context";
+import { isLocale, DEFAULT_LOCALE } from "@/lib/i18n";
 
 function NotFoundComponent() {
   return (
@@ -35,29 +38,26 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
           This page didn't load
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
               router.invalidate();
               reset();
             }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             Try again
           </button>
           <a
             href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent"
           >
             Go home
           </a>
@@ -72,21 +72,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "LifeMap Industrial — AI-assisted automation configurator" },
+      {
+        name: "description",
+        content:
+          "Specify, validate and order Festo, SMC and Siemens automation in minutes. AI-assisted configurator with live validation, BOM and RFQ.",
+      },
+      { property: "og:title", content: "LifeMap Industrial" },
+      { property: "og:description", content: "AI-assisted industrial automation configurator." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
-    links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
-    ],
+    links: [{ rel: "stylesheet", href: appCss }],
   }),
   shellComponent: RootShell,
   component: RootComponent,
@@ -95,8 +92,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: React.ReactNode }) {
+  // Best-effort SSR lang from URL
+  const lang = DEFAULT_LOCALE;
   return (
-    <html lang="en">
+    <html lang={lang} suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
@@ -108,12 +107,24 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+function LangSync() {
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  const seg = path.split("/")[1];
+  const lang = isLocale(seg) ? seg : DEFAULT_LOCALE;
+  if (typeof document !== "undefined") {
+    document.documentElement.lang = lang;
+  }
+  return null;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <AuthProvider>
+        <LangSync />
+        <Outlet />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

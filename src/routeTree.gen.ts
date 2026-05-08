@@ -9,38 +9,103 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as LocaleRouteImport } from './routes/$locale'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as LocaleIndexRouteImport } from './routes/$locale/index'
+import { Route as LocaleSignupRouteImport } from './routes/$locale/signup'
+import { Route as LocaleLoginRouteImport } from './routes/$locale/login'
+import { Route as LocaleAppRouteImport } from './routes/$locale/app'
 
+const LocaleRoute = LocaleRouteImport.update({
+  id: '/$locale',
+  path: '/$locale',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LocaleIndexRoute = LocaleIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleSignupRoute = LocaleSignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleLoginRoute = LocaleLoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleAppRoute = LocaleAppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => LocaleRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/$locale': typeof LocaleRouteWithChildren
+  '/$locale/app': typeof LocaleAppRoute
+  '/$locale/login': typeof LocaleLoginRoute
+  '/$locale/signup': typeof LocaleSignupRoute
+  '/$locale/': typeof LocaleIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/$locale/app': typeof LocaleAppRoute
+  '/$locale/login': typeof LocaleLoginRoute
+  '/$locale/signup': typeof LocaleSignupRoute
+  '/$locale': typeof LocaleIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/$locale': typeof LocaleRouteWithChildren
+  '/$locale/app': typeof LocaleAppRoute
+  '/$locale/login': typeof LocaleLoginRoute
+  '/$locale/signup': typeof LocaleSignupRoute
+  '/$locale/': typeof LocaleIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/$locale'
+    | '/$locale/app'
+    | '/$locale/login'
+    | '/$locale/signup'
+    | '/$locale/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/$locale/app' | '/$locale/login' | '/$locale/signup' | '/$locale'
+  id:
+    | '__root__'
+    | '/'
+    | '/$locale'
+    | '/$locale/app'
+    | '/$locale/login'
+    | '/$locale/signup'
+    | '/$locale/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  LocaleRoute: typeof LocaleRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/$locale': {
+      id: '/$locale'
+      path: '/$locale'
+      fullPath: '/$locale'
+      preLoaderRoute: typeof LocaleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +113,58 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$locale/': {
+      id: '/$locale/'
+      path: '/'
+      fullPath: '/$locale/'
+      preLoaderRoute: typeof LocaleIndexRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/signup': {
+      id: '/$locale/signup'
+      path: '/signup'
+      fullPath: '/$locale/signup'
+      preLoaderRoute: typeof LocaleSignupRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/login': {
+      id: '/$locale/login'
+      path: '/login'
+      fullPath: '/$locale/login'
+      preLoaderRoute: typeof LocaleLoginRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/app': {
+      id: '/$locale/app'
+      path: '/app'
+      fullPath: '/$locale/app'
+      preLoaderRoute: typeof LocaleAppRouteImport
+      parentRoute: typeof LocaleRoute
+    }
   }
 }
 
+interface LocaleRouteChildren {
+  LocaleAppRoute: typeof LocaleAppRoute
+  LocaleLoginRoute: typeof LocaleLoginRoute
+  LocaleSignupRoute: typeof LocaleSignupRoute
+  LocaleIndexRoute: typeof LocaleIndexRoute
+}
+
+const LocaleRouteChildren: LocaleRouteChildren = {
+  LocaleAppRoute: LocaleAppRoute,
+  LocaleLoginRoute: LocaleLoginRoute,
+  LocaleSignupRoute: LocaleSignupRoute,
+  LocaleIndexRoute: LocaleIndexRoute,
+}
+
+const LocaleRouteWithChildren =
+  LocaleRoute._addFileChildren(LocaleRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LocaleRoute: LocaleRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
