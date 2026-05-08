@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LocaleRouteImport } from './routes/$locale'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LocaleIndexRouteImport } from './routes/$locale/index'
+import { Route as LocaleSignupRouteImport } from './routes/$locale/signup'
 import { Route as LocaleLoginRouteImport } from './routes/$locale/login'
 
 const LocaleRoute = LocaleRouteImport.update({
@@ -29,6 +30,11 @@ const LocaleIndexRoute = LocaleIndexRouteImport.update({
   path: '/',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocaleSignupRoute = LocaleSignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => LocaleRoute,
+} as any)
 const LocaleLoginRoute = LocaleLoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -39,11 +45,13 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$locale': typeof LocaleRouteWithChildren
   '/$locale/login': typeof LocaleLoginRoute
+  '/$locale/signup': typeof LocaleSignupRoute
   '/$locale/': typeof LocaleIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$locale/login': typeof LocaleLoginRoute
+  '/$locale/signup': typeof LocaleSignupRoute
   '/$locale': typeof LocaleIndexRoute
 }
 export interface FileRoutesById {
@@ -51,14 +59,26 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$locale': typeof LocaleRouteWithChildren
   '/$locale/login': typeof LocaleLoginRoute
+  '/$locale/signup': typeof LocaleSignupRoute
   '/$locale/': typeof LocaleIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$locale' | '/$locale/login' | '/$locale/'
+  fullPaths:
+    | '/'
+    | '/$locale'
+    | '/$locale/login'
+    | '/$locale/signup'
+    | '/$locale/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$locale/login' | '/$locale'
-  id: '__root__' | '/' | '/$locale' | '/$locale/login' | '/$locale/'
+  to: '/' | '/$locale/login' | '/$locale/signup' | '/$locale'
+  id:
+    | '__root__'
+    | '/'
+    | '/$locale'
+    | '/$locale/login'
+    | '/$locale/signup'
+    | '/$locale/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -89,6 +109,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleIndexRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/signup': {
+      id: '/$locale/signup'
+      path: '/signup'
+      fullPath: '/$locale/signup'
+      preLoaderRoute: typeof LocaleSignupRouteImport
+      parentRoute: typeof LocaleRoute
+    }
     '/$locale/login': {
       id: '/$locale/login'
       path: '/login'
@@ -101,11 +128,13 @@ declare module '@tanstack/react-router' {
 
 interface LocaleRouteChildren {
   LocaleLoginRoute: typeof LocaleLoginRoute
+  LocaleSignupRoute: typeof LocaleSignupRoute
   LocaleIndexRoute: typeof LocaleIndexRoute
 }
 
 const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleLoginRoute: LocaleLoginRoute,
+  LocaleSignupRoute: LocaleSignupRoute,
   LocaleIndexRoute: LocaleIndexRoute,
 }
 
