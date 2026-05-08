@@ -36,6 +36,13 @@
   --color-success-deep: var(--success-deep);
   --color-warning: var(--warning);
   --color-warning-strong: var(--warning-strong);
+  --color-teal: var(--teal);
+  --color-teal-deep: var(--teal-deep);
+  --color-copper: var(--copper);
+  --color-rust: var(--rust);
+  --color-steel: var(--steel);
+  --color-concrete: var(--concrete);
+  --color-graphite: var(--graphite);
 }
 
 :root {
@@ -75,6 +82,15 @@
   --warning-strong: oklch(0.74 0.16 60); /* #F2994A */
   --destructive: oklch(0.62 0.22 25);    /* #EB5757 */
   --destructive-foreground: oklch(0.985 0.005 95);
+
+  /* Matte industrial accents */
+  --teal: oklch(0.52 0.07 200);          /* matte teal #2C6E72-ish */
+  --teal-deep: oklch(0.36 0.06 210);     /* deep teal */
+  --copper: oklch(0.66 0.11 45);         /* brushed copper */
+  --rust: oklch(0.55 0.13 40);           /* matte rust */
+  --steel: oklch(0.62 0.015 260);        /* brushed steel */
+  --concrete: oklch(0.88 0.008 90);      /* warm concrete */
+  --graphite: oklch(0.28 0.015 260);     /* graphite */
 
   --border: oklch(0.205 0.025 265 / 0.08);
   --input: oklch(0.205 0.025 265 / 0.12);
