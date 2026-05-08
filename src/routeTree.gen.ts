@@ -12,8 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LocaleRouteImport } from './routes/$locale'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LocaleIndexRouteImport } from './routes/$locale/index'
+import { Route as LocaleWizardRouteImport } from './routes/$locale/wizard'
 import { Route as LocaleSignupRouteImport } from './routes/$locale/signup'
 import { Route as LocaleLoginRouteImport } from './routes/$locale/login'
+import { Route as LocaleConvertRouteImport } from './routes/$locale/convert'
+import { Route as LocaleConfiguratorRouteImport } from './routes/$locale/configurator'
+import { Route as LocaleChatRouteImport } from './routes/$locale/chat'
 import { Route as LocaleAppRouteImport } from './routes/$locale/app'
 import { Route as ApiPublicNotifyRfqRouteImport } from './routes/api/public/notify/rfq'
 
@@ -32,6 +36,11 @@ const LocaleIndexRoute = LocaleIndexRouteImport.update({
   path: '/',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocaleWizardRoute = LocaleWizardRouteImport.update({
+  id: '/wizard',
+  path: '/wizard',
+  getParentRoute: () => LocaleRoute,
+} as any)
 const LocaleSignupRoute = LocaleSignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -40,6 +49,21 @@ const LocaleSignupRoute = LocaleSignupRouteImport.update({
 const LocaleLoginRoute = LocaleLoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleConvertRoute = LocaleConvertRouteImport.update({
+  id: '/convert',
+  path: '/convert',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleConfiguratorRoute = LocaleConfiguratorRouteImport.update({
+  id: '/configurator',
+  path: '/configurator',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleChatRoute = LocaleChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
   getParentRoute: () => LocaleRoute,
 } as any)
 const LocaleAppRoute = LocaleAppRouteImport.update({
@@ -57,16 +81,24 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$locale': typeof LocaleRouteWithChildren
   '/$locale/app': typeof LocaleAppRoute
+  '/$locale/chat': typeof LocaleChatRoute
+  '/$locale/configurator': typeof LocaleConfiguratorRoute
+  '/$locale/convert': typeof LocaleConvertRoute
   '/$locale/login': typeof LocaleLoginRoute
   '/$locale/signup': typeof LocaleSignupRoute
+  '/$locale/wizard': typeof LocaleWizardRoute
   '/$locale/': typeof LocaleIndexRoute
   '/api/public/notify/rfq': typeof ApiPublicNotifyRfqRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$locale/app': typeof LocaleAppRoute
+  '/$locale/chat': typeof LocaleChatRoute
+  '/$locale/configurator': typeof LocaleConfiguratorRoute
+  '/$locale/convert': typeof LocaleConvertRoute
   '/$locale/login': typeof LocaleLoginRoute
   '/$locale/signup': typeof LocaleSignupRoute
+  '/$locale/wizard': typeof LocaleWizardRoute
   '/$locale': typeof LocaleIndexRoute
   '/api/public/notify/rfq': typeof ApiPublicNotifyRfqRoute
 }
@@ -75,8 +107,12 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$locale': typeof LocaleRouteWithChildren
   '/$locale/app': typeof LocaleAppRoute
+  '/$locale/chat': typeof LocaleChatRoute
+  '/$locale/configurator': typeof LocaleConfiguratorRoute
+  '/$locale/convert': typeof LocaleConvertRoute
   '/$locale/login': typeof LocaleLoginRoute
   '/$locale/signup': typeof LocaleSignupRoute
+  '/$locale/wizard': typeof LocaleWizardRoute
   '/$locale/': typeof LocaleIndexRoute
   '/api/public/notify/rfq': typeof ApiPublicNotifyRfqRoute
 }
@@ -86,16 +122,24 @@ export interface FileRouteTypes {
     | '/'
     | '/$locale'
     | '/$locale/app'
+    | '/$locale/chat'
+    | '/$locale/configurator'
+    | '/$locale/convert'
     | '/$locale/login'
     | '/$locale/signup'
+    | '/$locale/wizard'
     | '/$locale/'
     | '/api/public/notify/rfq'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/$locale/app'
+    | '/$locale/chat'
+    | '/$locale/configurator'
+    | '/$locale/convert'
     | '/$locale/login'
     | '/$locale/signup'
+    | '/$locale/wizard'
     | '/$locale'
     | '/api/public/notify/rfq'
   id:
@@ -103,8 +147,12 @@ export interface FileRouteTypes {
     | '/'
     | '/$locale'
     | '/$locale/app'
+    | '/$locale/chat'
+    | '/$locale/configurator'
+    | '/$locale/convert'
     | '/$locale/login'
     | '/$locale/signup'
+    | '/$locale/wizard'
     | '/$locale/'
     | '/api/public/notify/rfq'
   fileRoutesById: FileRoutesById
@@ -138,6 +186,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleIndexRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/wizard': {
+      id: '/$locale/wizard'
+      path: '/wizard'
+      fullPath: '/$locale/wizard'
+      preLoaderRoute: typeof LocaleWizardRouteImport
+      parentRoute: typeof LocaleRoute
+    }
     '/$locale/signup': {
       id: '/$locale/signup'
       path: '/signup'
@@ -150,6 +205,27 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/$locale/login'
       preLoaderRoute: typeof LocaleLoginRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/convert': {
+      id: '/$locale/convert'
+      path: '/convert'
+      fullPath: '/$locale/convert'
+      preLoaderRoute: typeof LocaleConvertRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/configurator': {
+      id: '/$locale/configurator'
+      path: '/configurator'
+      fullPath: '/$locale/configurator'
+      preLoaderRoute: typeof LocaleConfiguratorRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/chat': {
+      id: '/$locale/chat'
+      path: '/chat'
+      fullPath: '/$locale/chat'
+      preLoaderRoute: typeof LocaleChatRouteImport
       parentRoute: typeof LocaleRoute
     }
     '/$locale/app': {
@@ -171,15 +247,23 @@ declare module '@tanstack/react-router' {
 
 interface LocaleRouteChildren {
   LocaleAppRoute: typeof LocaleAppRoute
+  LocaleChatRoute: typeof LocaleChatRoute
+  LocaleConfiguratorRoute: typeof LocaleConfiguratorRoute
+  LocaleConvertRoute: typeof LocaleConvertRoute
   LocaleLoginRoute: typeof LocaleLoginRoute
   LocaleSignupRoute: typeof LocaleSignupRoute
+  LocaleWizardRoute: typeof LocaleWizardRoute
   LocaleIndexRoute: typeof LocaleIndexRoute
 }
 
 const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleAppRoute: LocaleAppRoute,
+  LocaleChatRoute: LocaleChatRoute,
+  LocaleConfiguratorRoute: LocaleConfiguratorRoute,
+  LocaleConvertRoute: LocaleConvertRoute,
   LocaleLoginRoute: LocaleLoginRoute,
   LocaleSignupRoute: LocaleSignupRoute,
+  LocaleWizardRoute: LocaleWizardRoute,
   LocaleIndexRoute: LocaleIndexRoute,
 }
 
@@ -194,3 +278,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
