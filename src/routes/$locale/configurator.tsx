@@ -45,11 +45,7 @@ function ConfiguratorPage() {
     mode: "best",
   });
 
-  useEffect(() => {
-    if (!loading && !user) navigate({ to: "/$locale/login", params: { locale } });
-  }, [user, loading, navigate, locale]);
-
-  useEffect(() => {
+useEffect(() => {
     loadCatalog().then(setCatalog).catch(console.error);
   }, []);
 
@@ -91,7 +87,7 @@ function ConfiguratorPage() {
     }
   }
 
-  if (loading || !user || !catalog || !result)
+  if (!catalog || !result)
     return <div className="container-page py-16 text-sm text-muted-foreground">{t("common.loading")}</div>;
 
   const hasErrors = result.validation.some((v) => v.level === "error");

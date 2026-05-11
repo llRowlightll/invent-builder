@@ -184,6 +184,106 @@ export type Database = {
           },
         ]
       }
+      config_bom_mapping: {
+        Row: {
+          bom_mapping_json: Json
+          created_at: string
+          id: string
+          schema_id: string
+        }
+        Insert: {
+          bom_mapping_json: Json
+          created_at?: string
+          id?: string
+          schema_id: string
+        }
+        Update: {
+          bom_mapping_json?: Json
+          created_at?: string
+          id?: string
+          schema_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_bom_mapping_schema_id_fkey"
+            columns: ["schema_id"]
+            isOneToOne: true
+            referencedRelation: "config_schemas"
+            referencedColumns: ["schema_id"]
+          },
+        ]
+      }
+      config_rules: {
+        Row: {
+          created_at: string
+          goto_step: string | null
+          id: string
+          if_json: Json
+          message_en: string
+          message_sv: string
+          schema_id: string
+          severity: string
+        }
+        Insert: {
+          created_at?: string
+          goto_step?: string | null
+          id?: string
+          if_json: Json
+          message_en: string
+          message_sv: string
+          schema_id: string
+          severity?: string
+        }
+        Update: {
+          created_at?: string
+          goto_step?: string | null
+          id?: string
+          if_json?: Json
+          message_en?: string
+          message_sv?: string
+          schema_id?: string
+          severity?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_rules_schema_id_fkey"
+            columns: ["schema_id"]
+            isOneToOne: false
+            referencedRelation: "config_schemas"
+            referencedColumns: ["schema_id"]
+          },
+        ]
+      }
+      config_schemas: {
+        Row: {
+          category_slug: string | null
+          created_at: string
+          id: string
+          schema_id: string
+          schema_json: Json
+          title_en: string
+          title_sv: string
+        }
+        Insert: {
+          category_slug?: string | null
+          created_at?: string
+          id?: string
+          schema_id: string
+          schema_json: Json
+          title_en: string
+          title_sv: string
+        }
+        Update: {
+          category_slug?: string | null
+          created_at?: string
+          id?: string
+          schema_id?: string
+          schema_json?: Json
+          title_en?: string
+          title_sv?: string
+        }
+        Relationships: []
+      }
       config_sessions: {
         Row: {
           created_at: string
@@ -268,6 +368,36 @@ export type Database = {
           id?: string
           notes?: string | null
           version?: string
+        }
+        Relationships: []
+      }
+      inquiries: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          locale: string
+          message: string
+          name: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          locale?: string
+          message: string
+          name: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          locale?: string
+          message?: string
+          name?: string
+          status?: string
         }
         Relationships: []
       }
@@ -520,6 +650,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      use_case_map: {
+        Row: {
+          category_slug: string
+          created_at: string
+          description_en: string | null
+          description_sv: string | null
+          id: string
+          recommended_skus: string[]
+          sort_order: number
+          title_en: string
+          title_sv: string
+          use_case_slug: string
+        }
+        Insert: {
+          category_slug: string
+          created_at?: string
+          description_en?: string | null
+          description_sv?: string | null
+          id?: string
+          recommended_skus?: string[]
+          sort_order?: number
+          title_en: string
+          title_sv: string
+          use_case_slug: string
+        }
+        Update: {
+          category_slug?: string
+          created_at?: string
+          description_en?: string | null
+          description_sv?: string | null
+          id?: string
+          recommended_skus?: string[]
+          sort_order?: number
+          title_en?: string
+          title_sv?: string
+          use_case_slug?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {

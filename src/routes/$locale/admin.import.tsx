@@ -117,6 +117,59 @@ function ImportPage() {
       </div>
     );
 
+  // ---- Use case map (CSV) ----
+  const [ucCsv, setUcCsv] = useState("");
+  async function importUseCases() {
+    setLog((l) => [...l, "— use_case_map —"]);
+    const parsed = Papa.parse<{
+      category_slug: string;
+      use_case_slug: string;
+      title_en: string;
+      title_sv: string;
+      description_en?: string;
+      description_sv?: string;
+      recommended_skus?: string;
+      sort_order?: string;
+    }>(ucCsv, { header: true, skipEmptyLines: true });
+    const rows = parsed.data.filter((r) => r.category_slug && r.use_case_slug).map((r) => ({
+      category_slug: r.category_slug.trim(),
+      use_case_slug: r.use_case_slug.trim(),
+      title_en: r.title_en,
+      title_sv: r.title_sv,
+      description_en: r.description_en || null,
+      description_sv: r.description_sv || null,
+      recommended_skus: r.recommended_skus ? r.recommended_skus.split("|").map((s) => s.trim()).filter(Boolean) : [],
+      sort_order: r.sort_order ? Number(r.sort_order) : 0,
+    }));
+    if (!rows.length) return setLog((l) => [...l, "No valid rows."]);
+    const { error } = await supabase.from("use_case_map").upsert(rows, { onConflict: "category_slug,use_case_slug" });
+    setLog((l) => [...l, error ? `Error: ${error.message}` : `Upserted ${rows.length} use cases`]);
+  }
+
+  // ---- Config JSON imports ----
+  const [cfgJson, setCfgJson] = useState("");
+  async function importConfigJson() {
+    setLog((l) => [...l, "— config json —"]);
+    let parsed: { schemas?: unknown[]; rules?: unknown[]; bom_mappings?: unknown[] };
+    try {
+      parsed = JSON.parse(cfgJson);
+    } catch (e) {
+      return setLog((l) => [...l, `Parse error: ${(e as Error).message}`]);
+    }
+    if (parsed.schemas?.length) {
+      const { error } = await supabase.from("config_schemas").upsert(parsed.schemas as never, { onConflict: "schema_id" });
+      setLog((l) => [...l, error ? `schemas error: ${error.message}` : `${parsed.schemas!.length} schemas`]);
+    }
+    if (parsed.rules?.length) {
+      const { error } = await supabase.from("config_rules").insert(parsed.rules as never);
+      setLog((l) => [...l, error ? `rules error: ${error.message}` : `${parsed.rules!.length} rules inserted`]);
+    }
+    if (parsed.bom_mappings?.length) {
+      const { error } = await supabase.from("config_bom_mapping").upsert(parsed.bom_mappings as never, { onConflict: "schema_id" });
+      setLog((l) => [...l, error ? `bom_mappings error: ${error.message}` : `${parsed.bom_mappings!.length} bom mappings`]);
+    }
+  }
+
   return (
     <div className="container-page py-10 max-w-3xl">
       <Link to="/$locale/app" params={{ locale }} className="text-xs underline text-muted-foreground">
@@ -136,7 +189,7 @@ function ImportPage() {
       <textarea
         value={csv}
         onChange={(e) => setCsv(e.target.value)}
-        rows={12}
+        rows={10}
         placeholder="sku,name,brand_slug,category_slug,..."
         className="mt-3 w-full px-3 py-2 rounded-md border border-input bg-background text-sm font-mono"
       />
@@ -144,10 +197,43 @@ function ImportPage() {
         onClick={importNow}
         className="mt-3 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm"
       >
-        Validate & import
+        Validate & import products
       </button>
 
-      <div className="mt-4 rounded-md border border-border bg-card p-3 text-xs font-mono space-y-1">
+      <div className="mt-10">
+        <h2 className="text-lg font-semibold">Use case map (CSV)</h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          Headers: <span className="font-mono">category_slug, use_case_slug, title_en, title_sv, description_en, description_sv, recommended_skus (pipe-separated), sort_order</span>
+        </p>
+        <textarea
+          value={ucCsv}
+          onChange={(e) => setUcCsv(e.target.value)}
+          rows={6}
+          className="mt-2 w-full px-3 py-2 rounded-md border border-input bg-background text-sm font-mono"
+        />
+        <button onClick={importUseCases} className="mt-2 px-4 py-2 rounded-md bg-foreground text-background text-sm">
+          Import use cases
+        </button>
+      </div>
+
+      <div className="mt-10">
+        <h2 className="text-lg font-semibold">Configurator JSON</h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          One JSON object with optional keys <span className="font-mono">schemas[]</span>, <span className="font-mono">rules[]</span>, <span className="font-mono">bom_mappings[]</span>.
+        </p>
+        <textarea
+          value={cfgJson}
+          onChange={(e) => setCfgJson(e.target.value)}
+          rows={8}
+          placeholder='{"schemas":[{"schema_id":"X","title_en":"…","title_sv":"…","schema_json":{}}],"rules":[],"bom_mappings":[]}'
+          className="mt-2 w-full px-3 py-2 rounded-md border border-input bg-background text-sm font-mono"
+        />
+        <button onClick={importConfigJson} className="mt-2 px-4 py-2 rounded-md bg-foreground text-background text-sm">
+          Import configurator JSON
+        </button>
+      </div>
+
+      <div className="mt-6 rounded-md border border-border bg-card p-3 text-xs font-mono space-y-1">
         {log.length === 0 ? (
           <p className="text-muted-foreground">No log yet.</p>
         ) : (

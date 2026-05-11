@@ -60,13 +60,19 @@ async function callGateway(messages: { role: string; content: string }[]): Promi
   }
 }
 
+function langInstruction(locale?: string) {
+  return locale === "sv"
+    ? "Respond ONLY in Swedish. Never mix languages."
+    : "Respond ONLY in English. Never mix languages.";
+}
+
 export const aiExtractRequirements = createServerFn({ method: "POST" })
-  .inputValidator((d: { text: string }) => d)
+  .inputValidator((d: { text: string; locale?: string }) => d)
   .handler(async ({ data }): Promise<ExtractedReqs & { source: "ai" | "fallback" }> => {
     const fb = fallbackExtract(data.text);
-    const prompt = `Extract industrial linear axis requirements from the user's text. Return ONLY valid JSON with these optional keys: stroke_mm (number, mm), force_n (number, Newtons), voltage ("230VAC"|"400VAC"), fieldbus ("PROFINET"|"EthernetIP"|"none"), feedback ("incremental"|"absolute"), ip ("IP54"|"IP65"|"IP67"), followups (array of short strings asking for missing critical info: stroke, force, voltage). No prose.\n\nUser: ${data.text}`;
+    const prompt = `Extract industrial linear axis requirements from the user's text. Return ONLY valid JSON with these optional keys: stroke_mm (number, mm), force_n (number, Newtons), voltage ("230VAC"|"400VAC"), fieldbus ("PROFINET"|"EthernetIP"|"none"), feedback ("incremental"|"absolute"), ip ("IP54"|"IP65"|"IP67"), followups (array of 2-5 short strings asking for missing critical info — write the followups in ${data.locale === "sv" ? "Swedish" : "English"}). No prose.\n\nUser: ${data.text}`;
     const raw = await callGateway([
-      { role: "system", content: "You extract structured requirements. JSON only." },
+      { role: "system", content: `You extract structured requirements. JSON only. ${langInstruction(data.locale)}` },
       { role: "user", content: prompt },
     ]);
     if (!raw) return { ...fb, source: "fallback" };
@@ -80,20 +86,20 @@ export const aiExtractRequirements = createServerFn({ method: "POST" })
   });
 
 export const aiExplain = createServerFn({ method: "POST" })
-  .inputValidator((d: { context: string; question?: string }) => d)
+  .inputValidator((d: { context: string; question?: string; locale?: string }) => d)
   .handler(async ({ data }): Promise<{ text: string; source: "ai" | "fallback" }> => {
     const q = data.question ?? "Explain this bill of materials in 4-6 sentences for a maintenance engineer.";
     const raw = await callGateway([
       {
         role: "system",
         content:
-          "You are a senior automation engineer. Be concise, technical, and never invent SKUs that aren't in the context.",
+          `You are a senior automation engineer. Be concise, technical, and never invent SKUs that aren't in the context. ${langInstruction(data.locale)}`,
       },
       { role: "user", content: `Context:\n${data.context}\n\nTask: ${q}` },
     ]);
     if (raw) return { text: raw.trim(), source: "ai" };
-    return {
-      text: "This bundle pairs the actuator with a matching servo drive, 24V power supply, PLC and feedback. Cables and mounting accessories complete the assembly. Spares are added in BEST mode for uptime.",
-      source: "fallback",
-    };
+    const fb = data.locale === "sv"
+      ? "Detta paket parar aktuatorn med en matchande servodrift, 24 V-strömförsörjning, PLC och återkoppling. Kablar och monteringstillbehör kompletterar enheten. Reservdelar ingår i BÄSTA-läget för drifttid."
+      : "This bundle pairs the actuator with a matching servo drive, 24V power supply, PLC and feedback. Cables and mounting accessories complete the assembly. Spares are added in BEST mode for uptime.";
+    return { text: fb, source: "fallback" };
   });

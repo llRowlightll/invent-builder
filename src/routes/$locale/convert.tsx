@@ -28,10 +28,7 @@ function ConvertPage() {
   const [best, setBest] = useState<SelectionResult | null>(null);
   const [cheap, setCheap] = useState<SelectionResult | null>(null);
 
-  useEffect(() => {
-    if (!loading && !user) navigate({ to: "/$locale/login", params: { locale } });
-  }, [user, loading, navigate, locale]);
-  useEffect(() => {
+useEffect(() => {
     loadCatalog().then(setCatalog).catch(console.error);
   }, []);
 
@@ -50,10 +47,7 @@ function ConvertPage() {
     setCheap(runSelection(catalog, { ...base, mode: "cheapest" }));
   }
 
-  if (loading || !user)
-    return <div className="container-page py-16 text-sm text-muted-foreground">{t("common.loading")}</div>;
-
-  const force = pneumaticToForce(pressure, bore, margin);
+const force = pneumaticToForce(pressure, bore, margin);
 
   return (
     <div className="container-page py-10 grid lg:grid-cols-12 gap-6">

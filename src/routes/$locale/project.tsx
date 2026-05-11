@@ -1,42 +1,50 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { makeT, type Locale } from "@/lib/i18n";
-import { useAuth } from "@/lib/auth-context";
 import { loadCatalog } from "@/lib/catalog";
 import { runSelection } from "@/lib/selection";
 import type { ProductRow, SelectionInput, SelectionResult } from "@/lib/types";
 import { BomTable, ValidationList } from "@/components/Bom";
 import { aiExtractRequirements, aiExplain } from "@/lib/ai.functions";
 
-export const Route = createFileRoute("/$locale/chat")({
+export const Route = createFileRoute("/$locale/project")({
   head: ({ params }) => {
     const t = makeT(params.locale as Locale);
-    return { meta: [{ title: `${t("nav.chat")} — ${t("common.appName")}` }] };
+    return {
+      meta: [
+        { title: `${t("project.title")} — ${t("common.appName")}` },
+        { name: "description", content: t("project.intro") },
+      ],
+    };
   },
-  component: ChatPage,
+  component: ProjectPage,
 });
 
 interface Msg { role: "user" | "assistant"; text: string }
 
-function ChatPage() {
+function ProjectPage() {
   const { locale } = Route.useParams();
   const t = makeT(locale as Locale);
-  const navigate = useNavigate();
-  const { user, loading } = useAuth();
   const extract = useServerFn(aiExtractRequirements);
   const explain = useServerFn(aiExplain);
   const [catalog, setCatalog] = useState<ProductRow[] | null>(null);
   const [text, setText] = useState("");
   const [msgs, setMsgs] = useState<Msg[]>([
-    { role: "assistant", text: "Hi! Describe what you need to move and I'll propose a Best and a Cheapest bundle." },
+    {
+      role: "assistant",
+      text:
+        locale === "sv"
+          ? "Hej! Beskriv vad du vill flytta så föreslår jag en Bästa och en Billigaste lösning."
+          : "Hi! Describe what you need to move and I'll propose a Best and a Cheapest bundle.",
+    },
   ]);
   const [best, setBest] = useState<SelectionResult | null>(null);
   const [cheap, setCheap] = useState<SelectionResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [explanation, setExplanation] = useState<string | null>(null);
 
-useEffect(() => {
+  useEffect(() => {
     loadCatalog().then(setCatalog).catch(console.error);
   }, []);
 
@@ -47,14 +55,11 @@ useEffect(() => {
     setMsgs((m) => [...m, { role: "user", text: q }]);
     setBusy(true);
     try {
-      const r = await extract({ data: { text: q } });
+      const r = await extract({ data: { text: q, locale } });
       const followups = r.followups ?? [];
       const haveCore = r.stroke_mm && r.force_n;
       if (!haveCore && followups.length) {
-        setMsgs((m) => [
-          ...m,
-          { role: "assistant", text: `I need a bit more: ${followups.join(" ")}` },
-        ]);
+        setMsgs((m) => [...m, { role: "assistant", text: followups.join(" ") }]);
       } else {
         const baseInput: SelectionInput = {
           stroke_mm: r.stroke_mm ?? 500,
@@ -73,11 +78,14 @@ useEffect(() => {
           ...m,
           {
             role: "assistant",
-            text: `Generated BEST and CHEAPEST bundles (source: ${r.source}). Order codes ${b.orderCode} / ${c.orderCode}.`,
+            text:
+              locale === "sv"
+                ? `Genererat BÄSTA och BILLIGASTE paket. Orderkoder ${b.orderCode} / ${c.orderCode}.`
+                : `Generated BEST and CHEAPEST bundles. Order codes ${b.orderCode} / ${c.orderCode}.`,
           },
         ]);
         const ctx = `BEST:\n${b.items.map((i) => `${i.role} ${i.product.sku}`).join("\n")}\n\nCHEAPEST:\n${c.items.map((i) => `${i.role} ${i.product.sku}`).join("\n")}`;
-        const exp = await explain({ data: { context: ctx } });
+        const exp = await explain({ data: { context: ctx, locale } });
         setExplanation(exp.text);
       }
     } catch (e) {
@@ -88,11 +96,12 @@ useEffect(() => {
     }
   }
 
-return (
+  return (
     <div className="container-page py-10 grid lg:grid-cols-12 gap-6">
       <section className="lg:col-span-5">
-        <h1 className="text-2xl font-semibold tracking-tight">{t("nav.chat")}</h1>
-        <div className="mt-6 rounded-lg border border-border bg-card p-4 h-[480px] overflow-y-auto space-y-3 text-sm">
+        <h1 className="text-2xl font-semibold tracking-tight">{t("project.title")}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{t("project.intro")}</p>
+        <div className="mt-6 rounded-lg border border-border bg-card p-4 h-[460px] overflow-y-auto space-y-3 text-sm">
           {msgs.map((m, i) => (
             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : ""}`}>
               <div
@@ -113,7 +122,7 @@ return (
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder="e.g. I need a 500mm electric axis pushing 800N on PROFINET, 230V"
+            placeholder={t("project.placeholder")}
             className="flex-1 px-3 py-2 rounded-md border border-input bg-background text-sm"
           />
           <button
@@ -121,7 +130,7 @@ return (
             disabled={busy}
             className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm"
           >
-            Send
+            {t("common.send")}
           </button>
         </div>
       </section>
@@ -130,7 +139,7 @@ return (
         {explanation && (
           <div className="rounded-md border border-border bg-card p-4 text-sm">
             <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">
-              AI explanation
+              {t("project.why")}
             </div>
             {explanation}
           </div>
@@ -139,7 +148,7 @@ return (
           <div>
             <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
               <span className="size-2 rounded-full bg-gold" />
-              BEST · <span className="font-mono text-xs">{best.orderCode}</span>
+              {t("project.best")} · <span className="font-mono text-xs">{best.orderCode}</span>
             </h2>
             <ValidationList items={best.validation} />
             <BomTable result={best} />
@@ -149,19 +158,21 @@ return (
           <div>
             <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
               <span className="size-2 rounded-full bg-teal" />
-              CHEAPEST · <span className="font-mono text-xs">{cheap.orderCode}</span>
+              {t("project.cheapest")} · <span className="font-mono text-xs">{cheap.orderCode}</span>
             </h2>
             <ValidationList items={cheap.validation} />
             <BomTable result={cheap} />
           </div>
         )}
-        <Link
-          to="/$locale/configurator"
-          params={{ locale }}
-          className="inline-block text-sm underline text-muted-foreground"
-        >
-          Open configurator with these inputs →
-        </Link>
+        {(best || cheap) && (
+          <Link
+            to="/$locale/configurator/$schemaId"
+            params={{ locale, schemaId: "EA-LINEAR-AXIS" }}
+            className="inline-block text-sm rounded-md bg-foreground text-background px-4 py-2"
+          >
+            {t("project.openConfigurator")} →
+          </Link>
+        )}
       </section>
     </div>
   );

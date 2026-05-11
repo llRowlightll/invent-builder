@@ -14,16 +14,24 @@
     "language": "Language",
     "english": "English",
     "swedish": "Svenska",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "send": "Send",
+    "submit": "Submit",
+    "configure": "Configure",
+    "compare": "Compare",
+    "requestCustom": "Request custom solution"
   },
   "nav": {
+    "project": "Project",
+    "components": "Components",
+    "compare": "Compare",
+    "talk": "Talk to engineer",
     "dashboard": "Dashboard",
     "chat": "Ask the Engineer",
     "wizard": "Requirements Wizard",
     "convert": "Pneumatics → EA",
     "products": "Products",
     "configurator": "Configurator",
-    "compare": "Compare",
     "orders": "RFQs",
     "admin": "Admin",
     "settings": "Settings"
@@ -31,8 +39,8 @@
   "landing": {
     "heroTitle": "Specify, validate and order industrial automation in minutes.",
     "heroSubtitle": "An AI-assisted configurator for Festo, SMC and Siemens. From a sentence to a complete, validated bill of materials with spares and an RFQ — ready to send.",
-    "ctaPrimary": "Open the app",
-    "ctaSecondary": "Start a free account",
+    "ctaPrimary": "Start a project",
+    "ctaSecondary": "Browse components",
     "feature1Title": "Ask the Engineer",
     "feature1Body": "Describe what you need. The system asks the right follow-ups and returns a Best and a Cheapest solution.",
     "feature2Title": "Festo-style configurator",
@@ -56,6 +64,45 @@
     "loginHere": "Sign in",
     "errorGeneric": "Something went wrong. Please try again.",
     "checkEmail": "Check your inbox to confirm your email, then sign in."
+  },
+  "project": {
+    "title": "Project",
+    "intro": "Describe what you want to do. I'll ask 2–5 questions and return a Best and a Cheapest solution with spares and an explanation.",
+    "placeholder": "e.g. I need to move a 30 kg load 500 mm horizontally on PROFINET",
+    "best": "Best solution",
+    "cheapest": "Cheapest solution",
+    "why": "Why this selection",
+    "openConfigurator": "Configure this bundle"
+  },
+  "components": {
+    "title": "Components",
+    "lead": "Pick a category, then tell us what you want to do. We'll show 3–5 recommended families — not 1000 SKUs.",
+    "chooseUseCase": "What do you want to do?",
+    "recommended": "Recommended families",
+    "addons": "Add-ons",
+    "spares": "Spares",
+    "noResults": "No recommendations yet for this combination."
+  },
+  "talk": {
+    "title": "Talk to engineer",
+    "lead": "Get help fast — chat with the AI engineer or send a message to a human.",
+    "tabAi": "AI engineer",
+    "tabHuman": "Human engineer",
+    "name": "Your name",
+    "email": "Email",
+    "message": "Message",
+    "sent": "Thanks — we'll get back to you within one business day.",
+    "submit": "Send message"
+  },
+  "configurator": {
+    "title": "Configurator",
+    "step": "Step",
+    "ofSteps": "of",
+    "overview": "Overview",
+    "orderCode": "Order code",
+    "exportCsv": "Export CSV",
+    "rfqBlocked": "Resolve errors before requesting a quote.",
+    "requestRfq": "Request custom solution"
   },
   "app": {
     "welcome": "Welcome",

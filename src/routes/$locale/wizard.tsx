@@ -34,10 +34,7 @@ function WizardPage() {
     null,
   );
 
-  useEffect(() => {
-    if (!loading && !user) navigate({ to: "/$locale/login", params: { locale } });
-  }, [user, loading, navigate, locale]);
-  useEffect(() => {
+useEffect(() => {
     loadCatalog().then(setCatalog).catch(console.error);
   }, []);
 
@@ -49,10 +46,7 @@ function WizardPage() {
     });
   }
 
-  if (loading || !user)
-    return <div className="container-page py-16 text-sm text-muted-foreground">{t("common.loading")}</div>;
-
-  return (
+return (
     <div className="container-page py-10 grid lg:grid-cols-12 gap-6">
       <section className="lg:col-span-4">
         <h1 className="text-2xl font-semibold tracking-tight">{t("nav.wizard")}</h1>
