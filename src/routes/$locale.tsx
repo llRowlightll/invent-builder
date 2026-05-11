@@ -54,17 +54,19 @@ function LocaleLayout() {
             <span className="inline-block size-2 rounded-full bg-gold" />
             {t("common.appName")}
           </Link>
-          <nav className="hidden md:flex items-center gap-4 text-sm text-muted-foreground">
-            {user && (
-              <Link
-                to="/$locale/app"
-                params={{ locale }}
-                activeProps={{ className: "text-foreground font-medium" }}
-                className="hover:text-foreground"
-              >
-                {t("nav.dashboard")}
-              </Link>
-            )}
+          <nav className="hidden md:flex items-center gap-5 text-sm text-muted-foreground">
+            <Link to="/$locale/project" params={{ locale }} activeProps={{ className: "text-foreground font-medium" }} className="hover:text-foreground">
+              {t("nav.project")}
+            </Link>
+            <Link to="/$locale/components" params={{ locale }} activeProps={{ className: "text-foreground font-medium" }} className="hover:text-foreground">
+              {t("nav.components")}
+            </Link>
+            <Link to="/$locale/compare" params={{ locale }} activeProps={{ className: "text-foreground font-medium" }} className="hover:text-foreground">
+              {t("nav.compare")}
+            </Link>
+            <Link to="/$locale/talk" params={{ locale }} activeProps={{ className: "text-foreground font-medium" }} className="hover:text-foreground">
+              {t("nav.talk")}
+            </Link>
           </nav>
           <div className="ml-auto flex items-center gap-2">
             <div className="flex rounded-md border border-border overflow-hidden text-xs">
