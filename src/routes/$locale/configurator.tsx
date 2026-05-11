@@ -87,7 +87,7 @@ useEffect(() => {
     }
   }
 
-  if (loading || !user || !catalog || !result)
+  if (!catalog || !result)
     return <div className="container-page py-16 text-sm text-muted-foreground">{t("common.loading")}</div>;
 
   const hasErrors = result.validation.some((v) => v.level === "error");
