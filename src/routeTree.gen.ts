@@ -13,18 +13,22 @@ import { Route as LocaleRouteImport } from './routes/$locale'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LocaleIndexRouteImport } from './routes/$locale/index'
 import { Route as LocaleWizardRouteImport } from './routes/$locale/wizard'
+import { Route as LocaleTalkRouteImport } from './routes/$locale/talk'
 import { Route as LocaleSignupRouteImport } from './routes/$locale/signup'
 import { Route as LocaleSettingsRouteImport } from './routes/$locale/settings'
+import { Route as LocaleProjectRouteImport } from './routes/$locale/project'
 import { Route as LocaleProductsRouteImport } from './routes/$locale/products'
 import { Route as LocaleOrdersRouteImport } from './routes/$locale/orders'
 import { Route as LocaleLoginRouteImport } from './routes/$locale/login'
 import { Route as LocaleConvertRouteImport } from './routes/$locale/convert'
 import { Route as LocaleConfiguratorRouteImport } from './routes/$locale/configurator'
+import { Route as LocaleComponentsRouteImport } from './routes/$locale/components'
 import { Route as LocaleCompareRouteImport } from './routes/$locale/compare'
 import { Route as LocaleChatRouteImport } from './routes/$locale/chat'
 import { Route as LocaleAppRouteImport } from './routes/$locale/app'
 import { Route as LocaleRfqRfqIdRouteImport } from './routes/$locale/rfq.$rfqId'
 import { Route as LocaleProductSkuRouteImport } from './routes/$locale/product.$sku'
+import { Route as LocaleConfiguratorSchemaIdRouteImport } from './routes/$locale/configurator.$schemaId'
 import { Route as LocaleBomBomIdRouteImport } from './routes/$locale/bom.$bomId'
 import { Route as LocaleAdminImportRouteImport } from './routes/$locale/admin.import'
 import { Route as ApiPublicNotifyRfqRouteImport } from './routes/api/public/notify/rfq'
@@ -49,6 +53,11 @@ const LocaleWizardRoute = LocaleWizardRouteImport.update({
   path: '/wizard',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocaleTalkRoute = LocaleTalkRouteImport.update({
+  id: '/talk',
+  path: '/talk',
+  getParentRoute: () => LocaleRoute,
+} as any)
 const LocaleSignupRoute = LocaleSignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -57,6 +66,11 @@ const LocaleSignupRoute = LocaleSignupRouteImport.update({
 const LocaleSettingsRoute = LocaleSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleProjectRoute = LocaleProjectRouteImport.update({
+  id: '/project',
+  path: '/project',
   getParentRoute: () => LocaleRoute,
 } as any)
 const LocaleProductsRoute = LocaleProductsRouteImport.update({
@@ -84,6 +98,11 @@ const LocaleConfiguratorRoute = LocaleConfiguratorRouteImport.update({
   path: '/configurator',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocaleComponentsRoute = LocaleComponentsRouteImport.update({
+  id: '/components',
+  path: '/components',
+  getParentRoute: () => LocaleRoute,
+} as any)
 const LocaleCompareRoute = LocaleCompareRouteImport.update({
   id: '/compare',
   path: '/compare',
@@ -109,6 +128,12 @@ const LocaleProductSkuRoute = LocaleProductSkuRouteImport.update({
   path: '/product/$sku',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocaleConfiguratorSchemaIdRoute =
+  LocaleConfiguratorSchemaIdRouteImport.update({
+    id: '/$schemaId',
+    path: '/$schemaId',
+    getParentRoute: () => LocaleConfiguratorRoute,
+  } as any)
 const LocaleBomBomIdRoute = LocaleBomBomIdRouteImport.update({
   id: '/bom/$bomId',
   path: '/bom/$bomId',
@@ -131,17 +156,21 @@ export interface FileRoutesByFullPath {
   '/$locale/app': typeof LocaleAppRoute
   '/$locale/chat': typeof LocaleChatRoute
   '/$locale/compare': typeof LocaleCompareRoute
-  '/$locale/configurator': typeof LocaleConfiguratorRoute
+  '/$locale/components': typeof LocaleComponentsRoute
+  '/$locale/configurator': typeof LocaleConfiguratorRouteWithChildren
   '/$locale/convert': typeof LocaleConvertRoute
   '/$locale/login': typeof LocaleLoginRoute
   '/$locale/orders': typeof LocaleOrdersRoute
   '/$locale/products': typeof LocaleProductsRoute
+  '/$locale/project': typeof LocaleProjectRoute
   '/$locale/settings': typeof LocaleSettingsRoute
   '/$locale/signup': typeof LocaleSignupRoute
+  '/$locale/talk': typeof LocaleTalkRoute
   '/$locale/wizard': typeof LocaleWizardRoute
   '/$locale/': typeof LocaleIndexRoute
   '/$locale/admin/import': typeof LocaleAdminImportRoute
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
+  '/$locale/configurator/$schemaId': typeof LocaleConfiguratorSchemaIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
   '/api/public/notify/rfq': typeof ApiPublicNotifyRfqRoute
@@ -151,17 +180,21 @@ export interface FileRoutesByTo {
   '/$locale/app': typeof LocaleAppRoute
   '/$locale/chat': typeof LocaleChatRoute
   '/$locale/compare': typeof LocaleCompareRoute
-  '/$locale/configurator': typeof LocaleConfiguratorRoute
+  '/$locale/components': typeof LocaleComponentsRoute
+  '/$locale/configurator': typeof LocaleConfiguratorRouteWithChildren
   '/$locale/convert': typeof LocaleConvertRoute
   '/$locale/login': typeof LocaleLoginRoute
   '/$locale/orders': typeof LocaleOrdersRoute
   '/$locale/products': typeof LocaleProductsRoute
+  '/$locale/project': typeof LocaleProjectRoute
   '/$locale/settings': typeof LocaleSettingsRoute
   '/$locale/signup': typeof LocaleSignupRoute
+  '/$locale/talk': typeof LocaleTalkRoute
   '/$locale/wizard': typeof LocaleWizardRoute
   '/$locale': typeof LocaleIndexRoute
   '/$locale/admin/import': typeof LocaleAdminImportRoute
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
+  '/$locale/configurator/$schemaId': typeof LocaleConfiguratorSchemaIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
   '/api/public/notify/rfq': typeof ApiPublicNotifyRfqRoute
@@ -173,17 +206,21 @@ export interface FileRoutesById {
   '/$locale/app': typeof LocaleAppRoute
   '/$locale/chat': typeof LocaleChatRoute
   '/$locale/compare': typeof LocaleCompareRoute
-  '/$locale/configurator': typeof LocaleConfiguratorRoute
+  '/$locale/components': typeof LocaleComponentsRoute
+  '/$locale/configurator': typeof LocaleConfiguratorRouteWithChildren
   '/$locale/convert': typeof LocaleConvertRoute
   '/$locale/login': typeof LocaleLoginRoute
   '/$locale/orders': typeof LocaleOrdersRoute
   '/$locale/products': typeof LocaleProductsRoute
+  '/$locale/project': typeof LocaleProjectRoute
   '/$locale/settings': typeof LocaleSettingsRoute
   '/$locale/signup': typeof LocaleSignupRoute
+  '/$locale/talk': typeof LocaleTalkRoute
   '/$locale/wizard': typeof LocaleWizardRoute
   '/$locale/': typeof LocaleIndexRoute
   '/$locale/admin/import': typeof LocaleAdminImportRoute
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
+  '/$locale/configurator/$schemaId': typeof LocaleConfiguratorSchemaIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
   '/api/public/notify/rfq': typeof ApiPublicNotifyRfqRoute
@@ -196,17 +233,21 @@ export interface FileRouteTypes {
     | '/$locale/app'
     | '/$locale/chat'
     | '/$locale/compare'
+    | '/$locale/components'
     | '/$locale/configurator'
     | '/$locale/convert'
     | '/$locale/login'
     | '/$locale/orders'
     | '/$locale/products'
+    | '/$locale/project'
     | '/$locale/settings'
     | '/$locale/signup'
+    | '/$locale/talk'
     | '/$locale/wizard'
     | '/$locale/'
     | '/$locale/admin/import'
     | '/$locale/bom/$bomId'
+    | '/$locale/configurator/$schemaId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
     | '/api/public/notify/rfq'
@@ -216,17 +257,21 @@ export interface FileRouteTypes {
     | '/$locale/app'
     | '/$locale/chat'
     | '/$locale/compare'
+    | '/$locale/components'
     | '/$locale/configurator'
     | '/$locale/convert'
     | '/$locale/login'
     | '/$locale/orders'
     | '/$locale/products'
+    | '/$locale/project'
     | '/$locale/settings'
     | '/$locale/signup'
+    | '/$locale/talk'
     | '/$locale/wizard'
     | '/$locale'
     | '/$locale/admin/import'
     | '/$locale/bom/$bomId'
+    | '/$locale/configurator/$schemaId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
     | '/api/public/notify/rfq'
@@ -237,17 +282,21 @@ export interface FileRouteTypes {
     | '/$locale/app'
     | '/$locale/chat'
     | '/$locale/compare'
+    | '/$locale/components'
     | '/$locale/configurator'
     | '/$locale/convert'
     | '/$locale/login'
     | '/$locale/orders'
     | '/$locale/products'
+    | '/$locale/project'
     | '/$locale/settings'
     | '/$locale/signup'
+    | '/$locale/talk'
     | '/$locale/wizard'
     | '/$locale/'
     | '/$locale/admin/import'
     | '/$locale/bom/$bomId'
+    | '/$locale/configurator/$schemaId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
     | '/api/public/notify/rfq'
@@ -289,6 +338,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleWizardRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/talk': {
+      id: '/$locale/talk'
+      path: '/talk'
+      fullPath: '/$locale/talk'
+      preLoaderRoute: typeof LocaleTalkRouteImport
+      parentRoute: typeof LocaleRoute
+    }
     '/$locale/signup': {
       id: '/$locale/signup'
       path: '/signup'
@@ -301,6 +357,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/$locale/settings'
       preLoaderRoute: typeof LocaleSettingsRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/project': {
+      id: '/$locale/project'
+      path: '/project'
+      fullPath: '/$locale/project'
+      preLoaderRoute: typeof LocaleProjectRouteImport
       parentRoute: typeof LocaleRoute
     }
     '/$locale/products': {
@@ -338,6 +401,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleConfiguratorRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/components': {
+      id: '/$locale/components'
+      path: '/components'
+      fullPath: '/$locale/components'
+      preLoaderRoute: typeof LocaleComponentsRouteImport
+      parentRoute: typeof LocaleRoute
+    }
     '/$locale/compare': {
       id: '/$locale/compare'
       path: '/compare'
@@ -373,6 +443,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleProductSkuRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/configurator/$schemaId': {
+      id: '/$locale/configurator/$schemaId'
+      path: '/$schemaId'
+      fullPath: '/$locale/configurator/$schemaId'
+      preLoaderRoute: typeof LocaleConfiguratorSchemaIdRouteImport
+      parentRoute: typeof LocaleConfiguratorRoute
+    }
     '/$locale/bom/$bomId': {
       id: '/$locale/bom/$bomId'
       path: '/bom/$bomId'
@@ -397,17 +474,31 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface LocaleConfiguratorRouteChildren {
+  LocaleConfiguratorSchemaIdRoute: typeof LocaleConfiguratorSchemaIdRoute
+}
+
+const LocaleConfiguratorRouteChildren: LocaleConfiguratorRouteChildren = {
+  LocaleConfiguratorSchemaIdRoute: LocaleConfiguratorSchemaIdRoute,
+}
+
+const LocaleConfiguratorRouteWithChildren =
+  LocaleConfiguratorRoute._addFileChildren(LocaleConfiguratorRouteChildren)
+
 interface LocaleRouteChildren {
   LocaleAppRoute: typeof LocaleAppRoute
   LocaleChatRoute: typeof LocaleChatRoute
   LocaleCompareRoute: typeof LocaleCompareRoute
-  LocaleConfiguratorRoute: typeof LocaleConfiguratorRoute
+  LocaleComponentsRoute: typeof LocaleComponentsRoute
+  LocaleConfiguratorRoute: typeof LocaleConfiguratorRouteWithChildren
   LocaleConvertRoute: typeof LocaleConvertRoute
   LocaleLoginRoute: typeof LocaleLoginRoute
   LocaleOrdersRoute: typeof LocaleOrdersRoute
   LocaleProductsRoute: typeof LocaleProductsRoute
+  LocaleProjectRoute: typeof LocaleProjectRoute
   LocaleSettingsRoute: typeof LocaleSettingsRoute
   LocaleSignupRoute: typeof LocaleSignupRoute
+  LocaleTalkRoute: typeof LocaleTalkRoute
   LocaleWizardRoute: typeof LocaleWizardRoute
   LocaleIndexRoute: typeof LocaleIndexRoute
   LocaleAdminImportRoute: typeof LocaleAdminImportRoute
@@ -420,13 +511,16 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleAppRoute: LocaleAppRoute,
   LocaleChatRoute: LocaleChatRoute,
   LocaleCompareRoute: LocaleCompareRoute,
-  LocaleConfiguratorRoute: LocaleConfiguratorRoute,
+  LocaleComponentsRoute: LocaleComponentsRoute,
+  LocaleConfiguratorRoute: LocaleConfiguratorRouteWithChildren,
   LocaleConvertRoute: LocaleConvertRoute,
   LocaleLoginRoute: LocaleLoginRoute,
   LocaleOrdersRoute: LocaleOrdersRoute,
   LocaleProductsRoute: LocaleProductsRoute,
+  LocaleProjectRoute: LocaleProjectRoute,
   LocaleSettingsRoute: LocaleSettingsRoute,
   LocaleSignupRoute: LocaleSignupRoute,
+  LocaleTalkRoute: LocaleTalkRoute,
   LocaleWizardRoute: LocaleWizardRoute,
   LocaleIndexRoute: LocaleIndexRoute,
   LocaleAdminImportRoute: LocaleAdminImportRoute,
@@ -446,3 +540,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
