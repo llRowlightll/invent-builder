@@ -36,10 +36,7 @@ function ChatPage() {
   const [busy, setBusy] = useState(false);
   const [explanation, setExplanation] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!loading && !user) navigate({ to: "/$locale/login", params: { locale } });
-  }, [user, loading, navigate, locale]);
-  useEffect(() => {
+useEffect(() => {
     loadCatalog().then(setCatalog).catch(console.error);
   }, []);
 
@@ -91,10 +88,7 @@ function ChatPage() {
     }
   }
 
-  if (loading || !user)
-    return <div className="container-page py-16 text-sm text-muted-foreground">{t("common.loading")}</div>;
-
-  return (
+return (
     <div className="container-page py-10 grid lg:grid-cols-12 gap-6">
       <section className="lg:col-span-5">
         <h1 className="text-2xl font-semibold tracking-tight">{t("nav.chat")}</h1>

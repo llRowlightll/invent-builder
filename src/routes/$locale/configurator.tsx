@@ -45,11 +45,7 @@ function ConfiguratorPage() {
     mode: "best",
   });
 
-  useEffect(() => {
-    if (!loading && !user) navigate({ to: "/$locale/login", params: { locale } });
-  }, [user, loading, navigate, locale]);
-
-  useEffect(() => {
+useEffect(() => {
     loadCatalog().then(setCatalog).catch(console.error);
   }, []);
 
