@@ -55,14 +55,14 @@ function Landing() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
-                to="/$locale/app"
+                to="/$locale/project"
                 params={{ locale }}
                 className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-5 py-2.5 text-sm font-medium hover:opacity-90"
               >
                 {t("landing.ctaPrimary")}
               </Link>
               <Link
-                to="/$locale/signup"
+                to="/$locale/components"
                 params={{ locale }}
                 className="inline-flex items-center justify-center rounded-md border border-border bg-card px-5 py-2.5 text-sm font-medium hover:bg-accent"
               >
