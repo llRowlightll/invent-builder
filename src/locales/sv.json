@@ -14,16 +14,24 @@
     "language": "Språk",
     "english": "English",
     "swedish": "Svenska",
-    "signOut": "Logga ut"
+    "signOut": "Logga ut",
+    "send": "Skicka",
+    "submit": "Skicka",
+    "configure": "Konfigurera",
+    "compare": "Jämför",
+    "requestCustom": "Begär anpassad lösning"
   },
   "nav": {
+    "project": "Projekt",
+    "components": "Komponenter",
+    "compare": "Jämför",
+    "talk": "Prata med ingenjör",
     "dashboard": "Översikt",
     "chat": "Fråga ingenjören",
     "wizard": "Kravguide",
     "convert": "Pneumatik → EA",
     "products": "Produkter",
     "configurator": "Konfigurator",
-    "compare": "Jämför",
     "orders": "Offertförfrågningar",
     "admin": "Admin",
     "settings": "Inställningar"
@@ -31,8 +39,8 @@
   "landing": {
     "heroTitle": "Specificera, validera och beställ industriell automation på minuter.",
     "heroSubtitle": "En AI-assisterad konfigurator för Festo, SMC och Siemens. Från en mening till en komplett, validerad styckelista med reservdelar och en offertförfrågan — klar att skickas.",
-    "ctaPrimary": "Öppna appen",
-    "ctaSecondary": "Skapa ett konto",
+    "ctaPrimary": "Starta ett projekt",
+    "ctaSecondary": "Bläddra komponenter",
     "feature1Title": "Fråga ingenjören",
     "feature1Body": "Beskriv vad du behöver. Systemet ställer rätt följdfrågor och ger en Bästa och en Billigaste lösning.",
     "feature2Title": "Festo-liknande konfigurator",
@@ -56,6 +64,45 @@
     "loginHere": "Logga in",
     "errorGeneric": "Något gick fel. Försök igen.",
     "checkEmail": "Kolla din inkorg och bekräfta din mejl, logga sedan in."
+  },
+  "project": {
+    "title": "Projekt",
+    "intro": "Beskriv vad du vill göra. Jag ställer 2–5 frågor och återkommer med en Bästa och en Billigaste lösning med reservdelar och en förklaring.",
+    "placeholder": "t.ex. Jag behöver flytta en last på 30 kg, 500 mm horisontellt på PROFINET",
+    "best": "Bästa lösning",
+    "cheapest": "Billigaste lösning",
+    "why": "Varför detta val",
+    "openConfigurator": "Konfigurera detta paket"
+  },
+  "components": {
+    "title": "Komponenter",
+    "lead": "Välj en kategori och berätta vad du vill göra. Vi visar 3–5 rekommenderade familjer — inte 1000 artiklar.",
+    "chooseUseCase": "Vad vill du göra?",
+    "recommended": "Rekommenderade familjer",
+    "addons": "Tillbehör",
+    "spares": "Reservdelar",
+    "noResults": "Inga rekommendationer för denna kombination ännu."
+  },
+  "talk": {
+    "title": "Prata med ingenjör",
+    "lead": "Få hjälp snabbt — chatta med AI-ingenjören eller skicka ett meddelande till en människa.",
+    "tabAi": "AI-ingenjör",
+    "tabHuman": "Mänsklig ingenjör",
+    "name": "Ditt namn",
+    "email": "E-post",
+    "message": "Meddelande",
+    "sent": "Tack — vi återkommer inom en arbetsdag.",
+    "submit": "Skicka meddelande"
+  },
+  "configurator": {
+    "title": "Konfigurator",
+    "step": "Steg",
+    "ofSteps": "av",
+    "overview": "Översikt",
+    "orderCode": "Orderkod",
+    "exportCsv": "Exportera CSV",
+    "rfqBlocked": "Åtgärda fel innan du begär offert.",
+    "requestRfq": "Begär anpassad lösning"
   },
   "app": {
     "welcome": "Välkommen",
