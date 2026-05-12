@@ -186,7 +186,7 @@ function CtaCard({ title, body, to, locale }: { title: string; body: string; to:
   return (
     <Link
       to={to as never}
-      params={{ locale }}
+      params={{ locale } as never}
       className="rounded-lg border border-border bg-card p-6 hover:border-info hover:shadow-sm transition block"
     >
       <h3 className="font-semibold text-foreground">{title}</h3>

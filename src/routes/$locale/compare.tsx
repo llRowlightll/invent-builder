@@ -23,7 +23,7 @@ function ComparePage() {
 
   const compared = useMemo(() => {
     if (!items || !skus) return [];
-    return skus.split(",").map((s) => items.find((p) => p.sku === s)).filter(Boolean) as ProductRow[];
+    return skus.split(",").map((s: string) => items.find((p) => p.sku === s)).filter(Boolean) as ProductRow[];
   }, [items, skus]);
 
   const allKeys = useMemo(() => {
