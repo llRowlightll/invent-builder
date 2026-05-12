@@ -133,10 +133,10 @@ function RecCard({ p, locale, badge, tone, reason }: { p: ProductRow; locale: st
       {p.description && <p className="mt-3 text-sm text-foreground/80 line-clamp-3">{p.description}</p>}
       <p className="mt-3 text-xs text-info italic">{reason}</p>
       <div className="mt-auto pt-4 flex gap-2">
-        <Link to="/$locale/product/$sku" params={{ locale, sku: p.sku }} className="flex-1 text-center text-sm px-3 py-2 rounded-md bg-info text-primary-foreground hover:opacity-90">
+        <Link to="/$locale/product/$sku" params={{ locale, sku: p.sku } as never} className="flex-1 text-center text-sm px-3 py-2 rounded-md bg-info text-primary-foreground hover:opacity-90">
           Visa detaljer
         </Link>
-        <Link to="/$locale/compare" params={{ locale }} search={{ skus: p.sku }} className="text-sm px-3 py-2 rounded-md border border-border hover:border-info">
+        <Link to="/$locale/compare" params={{ locale } as never} search={{ skus: p.sku }} className="text-sm px-3 py-2 rounded-md border border-border hover:border-info">
           Jämför
         </Link>
       </div>

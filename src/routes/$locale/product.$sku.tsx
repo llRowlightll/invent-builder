@@ -124,7 +124,7 @@ function Row({ k, v }: { k: string; v: string }) {
 function ProductMini({ p, locale }: { p: ProductRow; locale: string }) {
   return (
     <li className="rounded-md border border-border bg-card p-3 hover:border-info">
-      <Link to="/$locale/product/$sku" params={{ locale, sku: p.sku }} className="block">
+      <Link to="/$locale/product/$sku" params={{ locale, sku: p.sku } as never} className="block">
         <div className="text-xs text-muted-foreground">{p.brand.name}</div>
         <div className="font-medium text-foreground text-sm mt-0.5 line-clamp-2">{p.name}</div>
         <div className="font-mono text-[10px] text-muted-foreground mt-1">{p.sku}</div>

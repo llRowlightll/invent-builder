@@ -4,6 +4,7 @@ import {
   Link,
   useNavigate,
   useRouterState,
+  redirect,
 } from "@tanstack/react-router";
 import { useState } from "react";
 import { isLocale, makeT, setLocaleCookie, type Locale } from "@/lib/i18n";
@@ -12,7 +13,7 @@ import { useAuth } from "@/lib/auth-context";
 export const Route = createFileRoute("/$locale")({
   parseParams: (params) => {
     if (!isLocale(params.locale)) {
-      throw new Error("Unsupported locale");
+      throw redirect({ to: "/$locale", params: { locale: "sv" } } as never);
     }
     return { locale: params.locale };
   },

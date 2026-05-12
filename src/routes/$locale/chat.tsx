@@ -357,7 +357,7 @@ function ProductCard({
       </div>
       <Link
         to="/$locale/product/$sku"
-        params={{ locale, sku: p.sku }}
+        params={{ locale, sku: p.sku } as never}
         className="mt-1 font-medium text-sm text-foreground hover:text-info line-clamp-2 transition"
       >
         {p.name}
@@ -386,7 +386,7 @@ function ProductCard({
         </span>
         <Link
           to="/$locale/product/$sku"
-          params={{ locale, sku: p.sku }}
+          params={{ locale, sku: p.sku } as never}
           className="text-xs text-info hover:underline"
         >
           Datablad →
