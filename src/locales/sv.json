@@ -1,7 +1,7 @@
 {
   "common": {
-    "appName": "LifeMap Industrial",
-    "tagline": "AI-assisterad komponent- och lösningskonfigurator",
+    "appName": "Maskinval",
+    "tagline": "Hitta rätt industrikomponent — snabbt",
     "loading": "Laddar…",
     "save": "Spara",
     "cancel": "Avbryt",
@@ -27,7 +27,7 @@
     "compare": "Jämför",
     "talk": "Prata med ingenjör",
     "dashboard": "Översikt",
-    "chat": "Fråga ingenjören",
+    "chat": "AI-ingenjören",
     "wizard": "Kravguide",
     "convert": "Pneumatik → EA",
     "products": "Produkter",
@@ -35,19 +35,14 @@
     "configurator": "Konfigurator",
     "orders": "Offertförfrågningar",
     "admin": "Admin",
-    "settings": "Inställningar"
+    "settings": "Inställningar",
+    "machineBuilder": "Bygg maskin"
   },
   "landing": {
-    "heroTitle": "Specificera, validera och beställ industriell automation på minuter.",
-    "heroSubtitle": "En AI-assisterad konfigurator för Festo, SMC och Siemens. Från en mening till en komplett, validerad styckelista med reservdelar och en offertförfrågan — klar att skickas.",
-    "ctaPrimary": "Starta ett projekt",
-    "ctaSecondary": "Bläddra komponenter",
-    "feature1Title": "Fråga ingenjören",
-    "feature1Body": "Beskriv vad du behöver. Systemet ställer rätt följdfrågor och ger en Bästa och en Billigaste lösning.",
-    "feature2Title": "Festo-liknande konfigurator",
-    "feature2Body": "Levande orderkod, riktiga valideringsmeddelanden, offert spärras tills konfigurationen är ren.",
-    "feature3Title": "Pneumatik → Elektrisk",
-    "feature3Body": "Omvandla en pneumatikcylinder till ett komplett EA-paket med drift, PSU, styrning, återkoppling och kablar."
+    "heroTitle": "Hitta rätt industrikomponent. Snabbt.",
+    "heroSubtitle": "AI-assisterad sökning tvärs över Festo, SMC, Parker, Bosch Rexroth och Norgren. Beskriv din applikation — vi hittar rätt.",
+    "ctaPrimary": "Sök med AI",
+    "ctaSecondary": "Bläddra katalogen"
   },
   "auth": {
     "loginTitle": "Logga in",
@@ -108,8 +103,8 @@
   "app": {
     "welcome": "Välkommen",
     "dashboardLead": "Välj ett verktyg för att börja.",
-    "tileChatTitle": "Fråga ingenjören",
-    "tileChatBody": "Chattbaserad kravinsamling och lösningsgenerering.",
+    "tileChatTitle": "AI-ingenjören",
+    "tileChatBody": "Beskriv vad du behöver — AI:n hittar och förklarar rätt komponenter.",
     "tileWizardTitle": "Guidad kravguide",
     "tileWizardBody": "Formulärsdrivna krav med samma motor.",
     "tileConvertTitle": "Pneumatik → EA",

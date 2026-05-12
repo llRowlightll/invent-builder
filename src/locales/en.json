@@ -1,7 +1,7 @@
 {
   "common": {
-    "appName": "LifeMap Industrial",
-    "tagline": "AI-assisted component & solution configurator",
+    "appName": "Maskinval",
+    "tagline": "Find the right industrial component — fast",
     "loading": "Loading…",
     "save": "Save",
     "cancel": "Cancel",
@@ -27,7 +27,7 @@
     "compare": "Compare",
     "talk": "Talk to engineer",
     "dashboard": "Dashboard",
-    "chat": "Ask the Engineer",
+    "chat": "AI Engineer",
     "wizard": "Requirements Wizard",
     "convert": "Pneumatics → EA",
     "products": "Products",
@@ -35,19 +35,14 @@
     "orders": "RFQs",
     "admin": "Admin",
     "settings": "Settings",
-    "advisor": "Advisor"
+    "advisor": "Advisor",
+    "machineBuilder": "Build machine"
   },
   "landing": {
-    "heroTitle": "Specify, validate and order industrial automation in minutes.",
-    "heroSubtitle": "An AI-assisted configurator for Festo, SMC and Siemens. From a sentence to a complete, validated bill of materials with spares and an RFQ — ready to send.",
-    "ctaPrimary": "Start a project",
-    "ctaSecondary": "Browse components",
-    "feature1Title": "Ask the Engineer",
-    "feature1Body": "Describe what you need. The system asks the right follow-ups and returns a Best and a Cheapest solution.",
-    "feature2Title": "Festo-style configurator",
-    "feature2Body": "Live order code, real validation messages, RFQ blocked until the configuration is clean.",
-    "feature3Title": "Pneumatics → Electric",
-    "feature3Body": "Convert a pneumatic cylinder spec to a complete EA bundle with drive, PSU, control, feedback and cables."
+    "heroTitle": "Find the right industrial component. Fast.",
+    "heroSubtitle": "AI-assisted search across Festo, SMC, Parker, Bosch Rexroth and Norgren. Describe your application — we find the right match.",
+    "ctaPrimary": "Search with AI",
+    "ctaSecondary": "Browse catalog"
   },
   "auth": {
     "loginTitle": "Sign in",
@@ -108,8 +103,8 @@
   "app": {
     "welcome": "Welcome",
     "dashboardLead": "Pick a tool to get started.",
-    "tileChatTitle": "Ask the Engineer",
-    "tileChatBody": "Chat-first requirements capture and solution generation.",
+    "tileChatTitle": "AI Engineer",
+    "tileChatBody": "Describe what you need — AI finds and explains the right components.",
     "tileWizardTitle": "Guided Wizard",
     "tileWizardBody": "Form-driven requirements with the same engine.",
     "tileConvertTitle": "Pneumatics → EA",
