@@ -533,6 +533,81 @@ function SpecChip({ label, value }: { label: string; value: string }) {
   );
 }
 
+// ── Export helpers ──────────────────────────────────────────────────────────
+function exportBomCsv(bom: BomLine[], title: string) {
+  const header = "SKU,Namn,Antal,Roll,Motivering";
+  const rows = bom.map(l =>
+    [l.sku, `"${(l.product?.name ?? "").replace(/"/g, '""')}"`, l.quantity, `"${l.role}"`, `"${l.reason}"`].join(",")
+  );
+  const blob = new Blob([header + "\n" + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `stycklista-${title.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportBomPdf(bom: BomLine[], title: string, explanation: string, selected: ActuatorOption) {
+  const rows = bom.map(l => `
+    <tr>
+      <td>${l.sku}</td>
+      <td>${l.product?.name ?? "<em>Ej i katalog</em>"}</td>
+      <td style="text-align:center">${l.quantity}</td>
+      <td>${l.role}</td>
+      <td>${l.reason}</td>
+    </tr>`).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8"/>
+<title>Stycklista — ${title}</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 32px; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .meta { color: #666; font-size: 11px; margin-bottom: 20px; }
+  .chip { display:inline-block; background:#f0f0f0; border-radius:4px; padding:2px 8px; font-size:11px; margin-right:6px; }
+  table { width:100%; border-collapse:collapse; margin-top:16px; }
+  th { background:#1e2a45; color:#fff; text-align:left; padding:8px 10px; font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
+  td { padding:7px 10px; border-bottom:1px solid #e5e7eb; vertical-align:top; }
+  tr:nth-child(even) td { background:#f9fafb; }
+  .footer { margin-top:32px; font-size:10px; color:#999; border-top:1px solid #e5e7eb; padding-top:12px; }
+  @media print { body { margin: 16px; } }
+</style>
+</head>
+<body>
+<h1>Stycklista — ${title}</h1>
+<div class="meta">
+  Genererad ${new Date().toLocaleDateString("sv-SE")} &nbsp;·&nbsp; Maskinval
+</div>
+<p style="margin-bottom:16px;font-size:12px;color:#444;">${explanation}</p>
+<div>
+  <span class="chip">Huvudkomponent: ${selected.name}</span>
+  <span class="chip">${selected.sku}</span>
+  ${selected.bore_mm ? `<span class="chip">Kolvdiameter: ${selected.bore_mm} mm</span>` : ""}
+  ${selected.stroke_mm ? `<span class="chip">Slag: ${selected.stroke_mm} mm</span>` : ""}
+  ${selected.force_n ? `<span class="chip">Kraft: ${selected.force_n} N</span>` : ""}
+</div>
+<table>
+  <thead>
+    <tr>
+      <th>SKU</th><th>Namn</th><th style="text-align:center">Antal</th><th>Roll</th><th>Motivering</th>
+    </tr>
+  </thead>
+  <tbody>${rows}</tbody>
+</table>
+<div class="footer">
+  ${bom.length} artiklar totalt &nbsp;·&nbsp; maskinval.se
+</div>
+<script>window.onload = function() { window.print(); }</script>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank");
+  if (win) { win.document.write(html); win.document.close(); }
+}
+
 // ── Result Step ─────────────────────────────────────────────────────────────
 function ResultStep({ isSv, locale, title, explanation, selected, bom, description, answers,
   rfqName, rfqEmail, rfqSent, setRfqName, setRfqEmail, setRfqSent, onRestart }: {
@@ -596,10 +671,16 @@ function ResultStep({ isSv, locale, title, explanation, selected, bom, descripti
               </Link>
             )}
             <button
-              onClick={() => navigator.clipboard.writeText(bom.map(l => `${l.sku}\t${l.quantity}\t${l.role}`).join("\n"))}
+              onClick={() => exportBomCsv(bom, title)}
               className="text-xs px-3 py-1.5 rounded-md border border-border hover:border-info transition"
             >
-              {isSv ? "Kopiera SKU" : "Copy SKUs"}
+              ↓ CSV
+            </button>
+            <button
+              onClick={() => exportBomPdf(bom, title, explanation, selected)}
+              className="text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:opacity-90 transition"
+            >
+              ↓ PDF
             </button>
           </div>
         </div>
