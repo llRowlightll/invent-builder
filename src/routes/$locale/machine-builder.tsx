@@ -402,6 +402,19 @@ function QuestionsStep({ isSv, summary, questions, answers, setAnswers, onSubmit
                 ))}
               </div>
             )}
+            {q.type === "number" && (
+              <div className="ml-7 flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  value={answers[q.id] ?? ""}
+                  onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
+                  placeholder="0"
+                  className="w-32 px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
+                />
+                {q.unit && <span className="text-sm text-muted-foreground">{q.unit}</span>}
+              </div>
+            )}
           </div>
         ))}
       </div>
