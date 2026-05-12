@@ -5,6 +5,7 @@ import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
 import { aiSearchProducts, aiExplain, type AiSearchResult } from "@/lib/ai.functions";
 import type { ProductRow } from "@/lib/types";
+import { getProductImage } from "@/lib/product-images";
 
 export const Route = createFileRoute("/$locale/chat")({
   head: ({ params }) => {
@@ -337,10 +338,20 @@ function ProductCard({
   const fast = lt != null && lt <= 7;
   return (
     <div
-      className={`rounded-lg border bg-background p-3 flex flex-col transition ${
+      className={`rounded-lg border bg-background flex flex-col transition overflow-hidden ${
         inCompare ? "border-info shadow-sm" : "border-border hover:border-info"
       }`}
     >
+      <div className="relative h-28 overflow-hidden bg-surface-alt">
+        <img
+          src={getProductImage(p, true)}
+          alt={p.category.name}
+          className="w-full h-full object-cover"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent" />
+      </div>
+      <div className="p-3 flex flex-col flex-1">
       <div className="flex justify-between items-start gap-1">
         <div className="text-[10px] text-info font-medium uppercase tracking-wider">{p.brand.name}</div>
         <button
@@ -391,6 +402,7 @@ function ProductCard({
         >
           Datablad →
         </Link>
+      </div>
       </div>
     </div>
   );

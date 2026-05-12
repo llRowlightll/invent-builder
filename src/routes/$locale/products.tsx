@@ -6,6 +6,7 @@ import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
 import { aiSearchProducts, type AiSearchResult } from "@/lib/ai.functions";
 import type { ProductRow } from "@/lib/types";
+import { getProductImage } from "@/lib/product-images";
 
 export const Route = createFileRoute("/$locale/products")({
   validateSearch: z.object({
@@ -348,10 +349,29 @@ function ProductsPage() {
             return (
               <li
                 key={p.id}
-                className={`group rounded-lg border bg-card p-4 flex flex-col transition ${
+                className={`group rounded-lg border bg-card flex flex-col transition overflow-hidden ${
                   inCompare ? "border-info shadow-sm" : "border-border hover:border-info"
                 }`}
               >
+                <div className="relative h-36 overflow-hidden bg-surface-alt">
+                  <img
+                    src={getProductImage(p)}
+                    alt={p.category.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-card/60 to-transparent" />
+                  <div className="absolute top-2 right-2">
+                    <input
+                      type="checkbox"
+                      checked={inCompare}
+                      onChange={() => toggleCompare(p.sku)}
+                      aria-label="Lägg till i jämförelse"
+                      className="accent-[var(--info)]"
+                    />
+                  </div>
+                </div>
+                <div className="p-4 flex flex-col flex-1">
                 <div className="flex justify-between items-start gap-2">
                   <Link
                     to="/$locale/product/$sku"
@@ -360,13 +380,6 @@ function ProductsPage() {
                   >
                     {p.name}
                   </Link>
-                  <input
-                    type="checkbox"
-                    checked={inCompare}
-                    onChange={() => toggleCompare(p.sku)}
-                    aria-label="Lägg till i jämförelse"
-                    className="mt-1 accent-[var(--info)] shrink-0"
-                  />
                 </div>
 
                 <div className="mt-2 flex items-center gap-2 flex-wrap">
@@ -416,6 +429,7 @@ function ProductsPage() {
                       Datablad →
                     </Link>
                   </div>
+                </div>
                 </div>
               </li>
             );

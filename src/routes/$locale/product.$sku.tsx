@@ -4,6 +4,7 @@ import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
 import { supabase } from "@/integrations/supabase/client";
 import type { ProductRow } from "@/lib/types";
+import { getProductImage } from "@/lib/product-images";
 
 export const Route = createFileRoute("/$locale/product/$sku")({
   head: ({ params }) => ({
@@ -54,6 +55,13 @@ function ProductDetail() {
 
       <div className="mt-4 grid md:grid-cols-[1fr_280px] gap-6">
         <div>
+          <div className="rounded-xl overflow-hidden border border-border mb-5 aspect-[16/7] bg-surface-alt">
+            <img
+              src={getProductImage(product)}
+              alt={product.category.name}
+              className="w-full h-full object-cover"
+            />
+          </div>
           <div className="text-xs uppercase tracking-[0.18em] text-info font-medium">{product.brand.name}</div>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{product.name}</h1>
           <div className="mt-2 font-mono text-xs text-muted-foreground">{product.sku}</div>

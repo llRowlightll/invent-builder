@@ -6,6 +6,7 @@ import { loadCatalog } from "@/lib/catalog";
 import type { ProductRow } from "@/lib/types";
 import heroImg from "@/assets/hero-industrial.jpg";
 import featureImg from "@/assets/feature-component.jpg";
+import { getProductImage, getCategoryImage } from "@/lib/product-images";
 
 export const Route = createFileRoute("/$locale/")({
   head: ({ params }) => {
@@ -171,17 +172,27 @@ function Landing() {
                 key={p.id}
                 to="/$locale/product/$sku"
                 params={{ locale, sku: p.sku }}
-                className="group rounded-lg border border-border bg-card p-4 hover:border-info hover:shadow-sm transition flex flex-col"
+                className="group rounded-lg border border-border bg-card hover:border-info hover:shadow-sm transition flex flex-col overflow-hidden"
               >
-                <div className="text-[10px] uppercase tracking-wider text-info font-medium">{p.brand.name}</div>
-                <div className="mt-2 font-medium text-foreground group-hover:text-info line-clamp-2 transition">{p.name}</div>
-                <div className="mt-1 text-xs text-muted-foreground">{p.category.name}</div>
-                <div className="mt-3 font-mono text-[10px] text-muted-foreground">{p.sku}</div>
-                <div className="mt-auto pt-3 border-t border-border mt-3 flex items-center justify-between">
-                  <span className="text-[10px] text-muted-foreground">
-                    {p.lead_time_days != null ? (p.lead_time_days <= 7 ? "På lager" : `${p.lead_time_days}d`) : "—"}
-                  </span>
-                  <span className="text-xs text-info">Visa →</span>
+                <div className="relative h-40 overflow-hidden bg-surface-alt">
+                  <img
+                    src={getProductImage(p)}
+                    alt={p.category.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-card/70 to-transparent" />
+                </div>
+                <div className="p-4 flex flex-col flex-1">
+                  <div className="text-[10px] uppercase tracking-wider text-info font-medium">{p.brand.name}</div>
+                  <div className="mt-1.5 font-medium text-foreground group-hover:text-info line-clamp-2 transition">{p.name}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{p.category.name}</div>
+                  <div className="mt-auto pt-3 border-t border-border mt-3 flex items-center justify-between">
+                    <span className="text-[10px] text-muted-foreground">
+                      {p.lead_time_days != null ? (p.lead_time_days <= 7 ? "På lager" : `${p.lead_time_days}d`) : "—"}
+                    </span>
+                    <span className="text-xs text-info">Visa →</span>
+                  </div>
                 </div>
               </Link>
             ))}
@@ -208,11 +219,21 @@ function Landing() {
                 to="/$locale/products"
                 params={{ locale }}
                 search={{ category: c.slug }}
-                className="group rounded-lg border border-border bg-card p-5 hover:border-info hover:shadow-sm transition"
+                className="group rounded-lg border border-border bg-card hover:border-info hover:shadow-sm transition overflow-hidden relative"
               >
-                <div className="text-2xl" style={{ color: "var(--info)" }}>{CAT_ICONS[c.slug] ?? "▣"}</div>
-                <div className="mt-3 font-medium text-foreground group-hover:text-info transition">{c.name}</div>
-                <div className="mt-1 text-xs text-muted-foreground">Visa familjer →</div>
+                <div className="h-24 overflow-hidden">
+                  <img
+                    src={getCategoryImage(c.slug)}
+                    alt={c.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-70"
+                    loading="lazy"
+                  />
+                </div>
+                <div className="p-3">
+                  <div className="text-lg" style={{ color: "var(--info)" }}>{CAT_ICONS[c.slug] ?? "▣"}</div>
+                  <div className="mt-1 font-medium text-foreground group-hover:text-info transition text-sm">{c.name}</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">Visa →</div>
+                </div>
               </Link>
             ))}
           </div>
