@@ -48,7 +48,7 @@ function LocaleLayout() {
     { to: "/$locale/chat", label: t("nav.chat") },
     { to: "/$locale/advisor", label: t("nav.advisor") },
     { to: "/$locale/compare", label: t("nav.compare") },
-    { to: "/$locale/configurator", label: t("nav.configurator") },
+    { to: "/$locale/machine-builder", label: t("nav.machineBuilder") },
   ];
 
   return (
@@ -88,7 +88,7 @@ function LocaleLayout() {
           <div className="ml-auto flex items-center gap-2">
             {/* Build machine CTA */}
             <Link
-              to="/$locale/chat"
+              to="/$locale/machine-builder"
               params={{ locale }}
               className="hidden sm:inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-gold text-primary font-semibold hover:opacity-90 transition"
             >
@@ -160,7 +160,7 @@ function LocaleLayout() {
               </Link>
             ))}
             <Link
-              to="/$locale/chat"
+              to="/$locale/machine-builder"
               params={{ locale }}
               onClick={() => setMenuOpen(false)}
               className="block px-3 py-2 rounded-md text-sm font-semibold text-gold hover:bg-primary-foreground/10"
@@ -207,6 +207,7 @@ function LocaleLayout() {
               <li><Link to="/$locale/chat" params={{ locale }} className="hover:text-info">{t("nav.chat")}</Link></li>
               <li><Link to="/$locale/compare" params={{ locale }} className="hover:text-info">{t("nav.compare")}</Link></li>
               <li><Link to="/$locale/advisor" params={{ locale }} className="hover:text-info">{t("nav.advisor")}</Link></li>
+              <li><Link to="/$locale/machine-builder" params={{ locale }} className="hover:text-info">{t("nav.machineBuilder")}</Link></li>
             </ul>
           </div>
           <div>

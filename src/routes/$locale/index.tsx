@@ -297,9 +297,9 @@ function Landing() {
           />
           <CtaCard
             icon="✦"
-            title="Konfigurator"
-            body="Steg-för-steg guide med levande orderkod och validering."
-            to="/$locale/configurator"
+            title="Bygg maskin"
+            body="Beskriv din applikation — AI genererar komplett stycklista och du skickar offert med ett klick."
+            to="/$locale/machine-builder"
             locale={locale}
           />
         </div>
