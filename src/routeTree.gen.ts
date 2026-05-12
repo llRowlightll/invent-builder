@@ -26,6 +26,7 @@ import { Route as LocaleComponentsRouteImport } from './routes/$locale/component
 import { Route as LocaleCompareRouteImport } from './routes/$locale/compare'
 import { Route as LocaleChatRouteImport } from './routes/$locale/chat'
 import { Route as LocaleAppRouteImport } from './routes/$locale/app'
+import { Route as LocaleAdvisorRouteImport } from './routes/$locale/advisor'
 import { Route as LocaleRfqRfqIdRouteImport } from './routes/$locale/rfq.$rfqId'
 import { Route as LocaleProductSkuRouteImport } from './routes/$locale/product.$sku'
 import { Route as LocaleConfiguratorSchemaIdRouteImport } from './routes/$locale/configurator.$schemaId'
@@ -118,6 +119,11 @@ const LocaleAppRoute = LocaleAppRouteImport.update({
   path: '/app',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocaleAdvisorRoute = LocaleAdvisorRouteImport.update({
+  id: '/advisor',
+  path: '/advisor',
+  getParentRoute: () => LocaleRoute,
+} as any)
 const LocaleRfqRfqIdRoute = LocaleRfqRfqIdRouteImport.update({
   id: '/rfq/$rfqId',
   path: '/rfq/$rfqId',
@@ -153,6 +159,7 @@ const ApiPublicNotifyRfqRoute = ApiPublicNotifyRfqRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$locale': typeof LocaleRouteWithChildren
+  '/$locale/advisor': typeof LocaleAdvisorRoute
   '/$locale/app': typeof LocaleAppRoute
   '/$locale/chat': typeof LocaleChatRoute
   '/$locale/compare': typeof LocaleCompareRoute
@@ -177,6 +184,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/$locale/advisor': typeof LocaleAdvisorRoute
   '/$locale/app': typeof LocaleAppRoute
   '/$locale/chat': typeof LocaleChatRoute
   '/$locale/compare': typeof LocaleCompareRoute
@@ -203,6 +211,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$locale': typeof LocaleRouteWithChildren
+  '/$locale/advisor': typeof LocaleAdvisorRoute
   '/$locale/app': typeof LocaleAppRoute
   '/$locale/chat': typeof LocaleChatRoute
   '/$locale/compare': typeof LocaleCompareRoute
@@ -230,6 +239,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$locale'
+    | '/$locale/advisor'
     | '/$locale/app'
     | '/$locale/chat'
     | '/$locale/compare'
@@ -254,6 +264,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/$locale/advisor'
     | '/$locale/app'
     | '/$locale/chat'
     | '/$locale/compare'
@@ -279,6 +290,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/$locale'
+    | '/$locale/advisor'
     | '/$locale/app'
     | '/$locale/chat'
     | '/$locale/compare'
@@ -429,6 +441,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAppRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/advisor': {
+      id: '/$locale/advisor'
+      path: '/advisor'
+      fullPath: '/$locale/advisor'
+      preLoaderRoute: typeof LocaleAdvisorRouteImport
+      parentRoute: typeof LocaleRoute
+    }
     '/$locale/rfq/$rfqId': {
       id: '/$locale/rfq/$rfqId'
       path: '/rfq/$rfqId'
@@ -486,6 +505,7 @@ const LocaleConfiguratorRouteWithChildren =
   LocaleConfiguratorRoute._addFileChildren(LocaleConfiguratorRouteChildren)
 
 interface LocaleRouteChildren {
+  LocaleAdvisorRoute: typeof LocaleAdvisorRoute
   LocaleAppRoute: typeof LocaleAppRoute
   LocaleChatRoute: typeof LocaleChatRoute
   LocaleCompareRoute: typeof LocaleCompareRoute
@@ -508,6 +528,7 @@ interface LocaleRouteChildren {
 }
 
 const LocaleRouteChildren: LocaleRouteChildren = {
+  LocaleAdvisorRoute: LocaleAdvisorRoute,
   LocaleAppRoute: LocaleAppRoute,
   LocaleChatRoute: LocaleChatRoute,
   LocaleCompareRoute: LocaleCompareRoute,

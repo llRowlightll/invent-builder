@@ -2,6 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
+import { supabase } from "@/integrations/supabase/client";
 import type { ProductRow } from "@/lib/types";
 
 export const Route = createFileRoute("/$locale/product/$sku")({
@@ -10,71 +11,124 @@ export const Route = createFileRoute("/$locale/product/$sku")({
   }),
   component: ProductDetail,
   notFoundComponent: () => (
-    <div className="container-page py-16 text-sm">Product not found.</div>
+    <div className="container-page py-16 text-sm">Produkt hittades inte.</div>
   ),
 });
 
 function ProductDetail() {
   const { locale, sku } = Route.useParams();
   const t = makeT(locale as Locale);
-  const [product, setProduct] = useState<ProductRow | null>(null);
+  const [catalog, setCatalog] = useState<ProductRow[] | null>(null);
+  const [related, setRelated] = useState<ProductRow[]>([]);
+  const [competitors, setCompetitors] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadCatalog().then((c) => {
-      const p = c.find((x) => x.sku === sku) ?? null;
-      setProduct(p);
+    (async () => {
+      const cat = await loadCatalog();
+      setCatalog(cat);
+      const product = cat.find((x) => x.sku === sku);
+      if (product) {
+        const [{ data: rels }, { data: comps }] = await Promise.all([
+          supabase.from("product_relations").select("related_product_id,relation_type").eq("product_id", product.id),
+          supabase.from("competitor_map").select("competitor_product_id").eq("product_id", product.id),
+        ]);
+        const relIds = new Set((rels ?? []).map((r) => r.related_product_id));
+        const compIds = new Set((comps ?? []).map((r) => r.competitor_product_id));
+        setRelated(cat.filter((p) => relIds.has(p.id)));
+        setCompetitors(cat.filter((p) => compIds.has(p.id)));
+      }
       setLoading(false);
-    });
+    })();
   }, [sku]);
 
-  if (loading)
-    return <div className="container-page py-16 text-sm text-muted-foreground">{t("common.loading")}</div>;
-  if (!product) {
-    throw notFound();
-  }
+  if (loading) return <div className="container-page py-16 text-sm text-muted-foreground">{t("common.loading")}</div>;
+  const product = catalog?.find((x) => x.sku === sku);
+  if (!product) throw notFound();
 
   return (
-    <div className="container-page py-10 max-w-3xl">
-      <Link to="/$locale/products" params={{ locale }} className="text-xs underline text-muted-foreground">
+    <div className="container-page py-8 max-w-5xl">
+      <Link to="/$locale/products" params={{ locale }} className="text-xs text-muted-foreground hover:text-info">
         ← {t("nav.products")}
       </Link>
-      <h1 className="mt-4 text-2xl font-semibold tracking-tight">{product.name}</h1>
-      <div className="mt-1 text-sm text-muted-foreground">
-        {product.brand.name} · <span className="capitalize">{product.category.slug}</span>
-      </div>
-      <div className="mt-2 font-mono text-xs">{product.sku}</div>
-      {product.description && <p className="mt-4 text-sm">{product.description}</p>}
 
-      <h2 className="mt-8 text-sm font-semibold uppercase tracking-widest text-muted-foreground">Specifications</h2>
-      <table className="mt-3 w-full text-sm border border-border rounded-md overflow-hidden">
-        <tbody>
-          {Object.entries(product.specs).map(([k, v]) => (
-            <tr key={k} className="border-b border-border last:border-0">
-              <td className="p-2.5 capitalize text-muted-foreground w-1/2">{k.replace(/_/g, " ")}</td>
-              <td className="p-2.5">
-                {v.value} {v.unit ?? ""}
-              </td>
-            </tr>
-          ))}
-          <tr className="border-b border-border">
-            <td className="p-2.5 text-muted-foreground">Lead time</td>
-            <td className="p-2.5">{product.lead_time_days ?? "—"} days</td>
-          </tr>
-          {product.ip_rating && (
-            <tr className="border-b border-border">
-              <td className="p-2.5 text-muted-foreground">IP rating</td>
-              <td className="p-2.5">{product.ip_rating}</td>
-            </tr>
-          )}
-          {product.fieldbus && (
-            <tr className="border-b border-border">
-              <td className="p-2.5 text-muted-foreground">Fieldbus</td>
-              <td className="p-2.5">{product.fieldbus}</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      <div className="mt-4 grid md:grid-cols-[1fr_280px] gap-6">
+        <div>
+          <div className="text-xs uppercase tracking-[0.18em] text-info font-medium">{product.brand.name}</div>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{product.name}</h1>
+          <div className="mt-2 font-mono text-xs text-muted-foreground">{product.sku}</div>
+          {product.description && <p className="mt-4 text-sm text-foreground/80 leading-relaxed">{product.description}</p>}
+        </div>
+        <aside className="rounded-lg border border-border bg-surface-alt p-4 space-y-3 text-sm">
+          <Row k="Kategori" v={product.category.name} />
+          <Row k="Leveranstid" v={`${product.lead_time_days ?? "—"} dagar`} />
+          {product.ip_rating && <Row k="IP-klass" v={product.ip_rating} />}
+          {product.fieldbus && <Row k="Fältbuss" v={product.fieldbus} />}
+          {product.voltage && <Row k="Spänning" v={product.voltage} />}
+          <Link
+            to="/$locale/compare"
+            params={{ locale }}
+            search={{ skus: product.sku }}
+            className="block text-center mt-2 px-3 py-2 rounded-md bg-info text-primary-foreground text-sm hover:opacity-90"
+          >
+            Lägg till i jämförelse
+          </Link>
+        </aside>
+      </div>
+
+      {Object.keys(product.specs).length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">Specifikation</h2>
+          <table className="mt-3 w-full text-sm border border-border rounded-md overflow-hidden">
+            <tbody>
+              {Object.entries(product.specs).map(([k, v]) => (
+                <tr key={k} className="border-b border-border last:border-0 odd:bg-surface-alt/50">
+                  <td className="p-3 capitalize text-muted-foreground w-1/2">{k.replace(/_/g, " ")}</td>
+                  <td className="p-3 font-medium">{v.value} {v.unit ?? ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {related.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-3">Tillbehör & relaterat</h2>
+          <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {related.map((r) => <ProductMini key={r.id} p={r} locale={locale} />)}
+          </ul>
+        </section>
+      )}
+
+      {competitors.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-3">Alternativ från andra varumärken</h2>
+          <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {competitors.map((r) => <ProductMini key={r.id} p={r} locale={locale} />)}
+          </ul>
+        </section>
+      )}
     </div>
+  );
+}
+
+function Row({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <span className="text-muted-foreground">{k}</span>
+      <span className="font-medium text-right">{v}</span>
+    </div>
+  );
+}
+function ProductMini({ p, locale }: { p: ProductRow; locale: string }) {
+  return (
+    <li className="rounded-md border border-border bg-card p-3 hover:border-info">
+      <Link to="/$locale/product/$sku" params={{ locale, sku: p.sku }} className="block">
+        <div className="text-xs text-muted-foreground">{p.brand.name}</div>
+        <div className="font-medium text-foreground text-sm mt-0.5 line-clamp-2">{p.name}</div>
+        <div className="font-mono text-[10px] text-muted-foreground mt-1">{p.sku}</div>
+      </Link>
+    </li>
   );
 }
