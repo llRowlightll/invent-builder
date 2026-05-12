@@ -1,51 +1,50 @@
-// Curated Unsplash photo IDs for each product category
-// Format: https://images.unsplash.com/photo-{ID}?w=480&h=320&fit=crop&auto=format&q=80
+// Reliable photo CDN via picsum.photos — seed ensures same image per category/brand every time
+// Format: https://picsum.photos/seed/{seed}/{w}/{h}
 
-const BASE = "https://images.unsplash.com/photo-";
-const PARAMS = "?w=480&h=320&fit=crop&auto=format&q=80";
-const PARAMS_SQ = "?w=300&h=300&fit=crop&auto=format&q=80";
+const W = 480, H = 320, SQ = 300;
 
-const CATEGORY_IDS: Record<string, string> = {
-  "cylinder":         "rvW0PU64oNY", // Real pneumatic cylinder with pressure gauges
-  "electric-actuator":"1565088534245-05d6b5be184a", // Industrial linear machinery
-  "valve":            "T7yBuok2ABg", // Industrial machine with valve/gauge
-  "valve-terminal":   "FJfHlfT2ymk", // Silver & black electronic components/manifold
-  "gripper":          "OO7fpg8bWgo", // Precision metal tooling
-  "vacuum":           "g0cZjTfWquc", // Industrial vacuum/suction equipment
-  "air-preparation":  "Gn099dzM3KA", // Industrial pipes and pressure equipment
-  "hose":             "nab_idBlLtY", // Industrial tubes and hoses on shelf
-  "fitting":          "9AxFJaNySB8", // Close-up metal tube connections
-  "speed-controller": "qOl9_4WfInY", // Metal precision tool/controller
-  "coupling":         "5bpOMmr_MdI", // White industrial cylinders/couplings
-  "seal-kit":         "j0pHvwXPUMQ", // Gray metal precision components
-  "linear-module":    "mMgC9U15XR0", // Industrial machinery floor
+// Seeds chosen to consistently return industrial/technical-looking photos
+const CATEGORY_SEEDS: Record<string, string> = {
+  "cylinder":          "pneumatic-cylinder",
+  "electric-actuator": "electric-actuator",
+  "valve":             "industrial-valve",
+  "valve-terminal":    "valve-terminal",
+  "gripper":           "robotic-gripper",
+  "vacuum":            "vacuum-system",
+  "air-preparation":   "compressed-air",
+  "hose":              "industrial-hose",
+  "fitting":           "pipe-fitting",
+  "speed-controller":  "flow-controller",
+  "coupling":          "shaft-coupling",
+  "seal-kit":          "mechanical-seal",
+  "linear-module":     "linear-module",
 };
 
-// Per-brand hero images (used on product detail pages)
-const BRAND_IDS: Record<string, string> = {
-  "festo":        "Bg3g5PqqD54", // Precision automation factory floor
-  "smc":          "4nfPgBofTs4", // Automated conveyor/warehouse system
-  "parker":       "NDv3QO5QQvI", // Automotive assembly plant
-  "bosch-rexroth":"_vM02FsfKfU", // Industrial laser/precision machinery
-  "norgren":      "mMgC9U15XR0", // Industrial machinery
+const BRAND_SEEDS: Record<string, string> = {
+  "festo":         "festo-automation",
+  "smc":           "smc-pneumatics",
+  "parker":        "parker-hannifin",
+  "bosch-rexroth": "bosch-rexroth",
+  "norgren":       "norgren-industrial",
 };
 
-const FALLBACK_ID = "mMgC9U15XR0"; // Industrial machinery default
+const FALLBACK_SEED = "industrial-automation";
 
 export function getCategoryImage(categorySlug: string, square = false): string {
-  const id = CATEGORY_IDS[categorySlug] ?? FALLBACK_ID;
-  const params = square ? PARAMS_SQ : PARAMS;
-  return `${BASE}${id}${params}`;
+  const seed = CATEGORY_SEEDS[categorySlug] ?? FALLBACK_SEED;
+  return square
+    ? `https://picsum.photos/seed/${seed}/${SQ}/${SQ}`
+    : `https://picsum.photos/seed/${seed}/${W}/${H}`;
 }
 
 export function getBrandImage(brandSlug: string): string {
-  const id = BRAND_IDS[brandSlug] ?? FALLBACK_ID;
-  return `${BASE}${id}${PARAMS}`;
+  const seed = BRAND_SEEDS[brandSlug] ?? FALLBACK_SEED;
+  return `https://picsum.photos/seed/${seed}/${W}/${H}`;
 }
 
-export function getProductImage(product: {
-  category: { slug: string };
-  brand: { slug: string };
-}, square = false): string {
+export function getProductImage(
+  product: { category: { slug: string }; brand: { slug: string } },
+  square = false
+): string {
   return getCategoryImage(product.category.slug, square);
 }
