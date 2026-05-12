@@ -384,7 +384,7 @@ function QuestionsStep({ isSv, summary, questions, answers, setAnswers, onSubmit
                 {q.hint && <div className="text-xs text-muted-foreground mt-0.5">{q.hint}</div>}
               </div>
             </div>
-            {q.type === "choice" && q.options && (
+            {q.type === "choice" && q.options?.length ? (
               <div className="flex flex-wrap gap-2 ml-7">
                 {q.options.map(opt => (
                   <button
@@ -401,16 +401,16 @@ function QuestionsStep({ isSv, summary, questions, answers, setAnswers, onSubmit
                   </button>
                 ))}
               </div>
-            )}
-            {q.type === "number" && (
+            ) : (
+              /* Fallback for number, text, or any other type Groq returns */
               <div className="ml-7 flex items-center gap-2">
                 <input
-                  type="number"
-                  min={0}
+                  type={q.type === "number" ? "number" : "text"}
+                  min={q.type === "number" ? 0 : undefined}
                   value={answers[q.id] ?? ""}
                   onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
-                  placeholder="0"
-                  className="w-32 px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
+                  placeholder={q.type === "number" ? "0" : isSv ? "Skriv ditt svar…" : "Type your answer…"}
+                  className="w-48 px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
                 />
                 {q.unit && <span className="text-sm text-muted-foreground">{q.unit}</span>}
               </div>
