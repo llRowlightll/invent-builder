@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as LocaleRouteImport } from './routes/$locale'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LocaleIndexRouteImport } from './routes/$locale/index'
@@ -35,6 +36,11 @@ import { Route as LocaleBomBomIdRouteImport } from './routes/$locale/bom.$bomId'
 import { Route as LocaleAdminImportRouteImport } from './routes/$locale/admin.import'
 import { Route as ApiPublicNotifyRfqRouteImport } from './routes/api/public/notify/rfq'
 
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LocaleRoute = LocaleRouteImport.update({
   id: '/$locale',
   path: '/$locale',
@@ -165,6 +171,7 @@ const ApiPublicNotifyRfqRoute = ApiPublicNotifyRfqRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$locale': typeof LocaleRouteWithChildren
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/$locale/advisor': typeof LocaleAdvisorRoute
   '/$locale/app': typeof LocaleAppRoute
   '/$locale/chat': typeof LocaleChatRoute
@@ -191,6 +198,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/$locale/advisor': typeof LocaleAdvisorRoute
   '/$locale/app': typeof LocaleAppRoute
   '/$locale/chat': typeof LocaleChatRoute
@@ -219,6 +227,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$locale': typeof LocaleRouteWithChildren
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/$locale/advisor': typeof LocaleAdvisorRoute
   '/$locale/app': typeof LocaleAppRoute
   '/$locale/chat': typeof LocaleChatRoute
@@ -248,6 +257,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$locale'
+    | '/sitemap.xml'
     | '/$locale/advisor'
     | '/$locale/app'
     | '/$locale/chat'
@@ -274,6 +284,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/sitemap.xml'
     | '/$locale/advisor'
     | '/$locale/app'
     | '/$locale/chat'
@@ -301,6 +312,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/$locale'
+    | '/sitemap.xml'
     | '/$locale/advisor'
     | '/$locale/app'
     | '/$locale/chat'
@@ -329,11 +341,19 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LocaleRoute: typeof LocaleRouteWithChildren
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiPublicNotifyRfqRoute: typeof ApiPublicNotifyRfqRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$locale': {
       id: '/$locale'
       path: '/$locale'
@@ -577,6 +597,7 @@ const LocaleRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LocaleRoute: LocaleRouteWithChildren,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiPublicNotifyRfqRoute: ApiPublicNotifyRfqRoute,
 }
 export const routeTree = rootRouteImport

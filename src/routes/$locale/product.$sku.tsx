@@ -6,10 +6,31 @@ import { supabase } from "@/integrations/supabase/client";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
 
+const SITE = "https://maskinval.lovable.app";
+
 export const Route = createFileRoute("/$locale/product/$sku")({
-  head: ({ params }) => ({
-    meta: [{ title: `${params.sku} — ${makeT(params.locale as Locale)("common.appName")}` }],
-  }),
+  head: ({ params }) => {
+    const t = makeT(params.locale as Locale);
+    const { locale, sku } = params;
+    const canonical = `${SITE}/${locale}/product/${sku}`;
+    const altSv = `${SITE}/sv/product/${sku}`;
+    const altEn = `${SITE}/en/product/${sku}`;
+    return {
+      meta: [
+        { title: `${sku} — ${t("common.appName")}` },
+        { name: "description", content: `${sku} — industriell automationskomponent. Jämför spec, leveranstid och beställ via Maskinval.` },
+        { property: "og:title", content: `${sku} — ${t("common.appName")}` },
+        { property: "og:type", content: "product" },
+        { property: "og:url", content: canonical },
+      ],
+      links: [
+        { rel: "canonical", href: canonical },
+        { rel: "alternate", hreflang: "sv", href: altSv },
+        { rel: "alternate", hreflang: "en", href: altEn },
+        { rel: "alternate", hreflang: "x-default", href: altSv },
+      ],
+    };
+  },
   component: ProductDetail,
   notFoundComponent: () => (
     <div className="container-page py-16 text-sm">Produkt hittades inte.</div>
@@ -47,8 +68,35 @@ function ProductDetail() {
   const product = catalog?.find((x) => x.sku === sku);
   if (!product) throw notFound();
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    sku: product.sku,
+    description: product.description ?? undefined,
+    brand: { "@type": "Brand", name: product.brand.name },
+    category: product.category.name,
+    offers: {
+      "@type": "Offer",
+      availability: "https://schema.org/InStock",
+      priceCurrency: "SEK",
+      seller: { "@type": "Organization", name: "Maskinval" },
+    },
+    ...(Object.keys(product.specs).length > 0 && {
+      additionalProperty: Object.entries(product.specs).map(([k, v]) => ({
+        "@type": "PropertyValue",
+        name: k.replace(/_/g, " "),
+        value: `${v.value}${v.unit ? " " + v.unit : ""}`,
+      })),
+    }),
+  };
+
   return (
     <div className="container-page py-8 max-w-5xl">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <Link to="/$locale/products" params={{ locale }} className="text-xs text-muted-foreground hover:text-info">
         ← {t("nav.products")}
       </Link>

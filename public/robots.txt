@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://maskinval.lovable.app/sitemap.xml

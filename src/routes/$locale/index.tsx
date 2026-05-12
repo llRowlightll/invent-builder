@@ -11,12 +11,22 @@ import { getProductImage, getCategoryImage } from "@/lib/product-images";
 export const Route = createFileRoute("/$locale/")({
   head: ({ params }) => {
     const t = makeT(params.locale as Locale);
+    const locale = params.locale;
+    const canonical = `https://maskinval.lovable.app/${locale}`;
     return {
       meta: [
-        { title: `${t("common.appName")} — Industriell automation` },
-        { name: "description", content: "Beställ industriella automationskomponenter — Festo, SMC, Siemens, Phoenix, LAPP, Weidmüller. Konfigurera, jämför och offertförfråga." },
-        { property: "og:title", content: t("common.appName") },
+        { title: `${t("common.appName")} — Pneumatik, cylindrar & automation` },
+        { name: "description", content: "Sök industriella automationskomponenter från Festo, SMC, Parker, Bosch Rexroth och Norgren. AI-sökning, spec-jämförelse och komplett stycklista direkt." },
+        { property: "og:title", content: `${t("common.appName")} — Industriell automation` },
+        { property: "og:description", content: "AI-driven komponentväljare för maskinbyggare. Pneumatik, elektriska aktuatorer, ventiler och mer." },
         { property: "og:image", content: heroImg },
+        { property: "og:url", content: canonical },
+      ],
+      links: [
+        { rel: "canonical", href: canonical },
+        { rel: "alternate", hreflang: "sv", href: "https://maskinval.lovable.app/sv" },
+        { rel: "alternate", hreflang: "en", href: "https://maskinval.lovable.app/en" },
+        { rel: "alternate", hreflang: "x-default", href: "https://maskinval.lovable.app/sv" },
       ],
     };
   },

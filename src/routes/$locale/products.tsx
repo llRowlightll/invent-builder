@@ -17,10 +17,20 @@ export const Route = createFileRoute("/$locale/products")({
   }),
   head: ({ params }) => {
     const t = makeT(params.locale as Locale);
+    const locale = params.locale;
+    const canonical = `https://maskinval.lovable.app/${locale}/products`;
     return {
       meta: [
-        { title: `${t("nav.products")} — ${t("common.appName")}` },
-        { name: "description", content: "Sök industriella automationskomponenter — pneumatiska cylindrar, elektriska aktuatorer, ventilärer, grippers. Festo, SMC, Parker, Bosch Rexroth, Norgren." },
+        { title: `Produktkatalog — Pneumatik & automation | ${t("common.appName")}` },
+        { name: "description", content: "Komplett katalog: pneumatiska cylindrar, elektriska aktuatorer, ventiler, grippers, vakuumsystem och mer. Festo, SMC, Parker, Bosch Rexroth, Norgren. Filtrera, jämför och beställ." },
+        { property: "og:title", content: `Produktkatalog — ${t("common.appName")}` },
+        { property: "og:url", content: canonical },
+      ],
+      links: [
+        { rel: "canonical", href: canonical },
+        { rel: "alternate", hreflang: "sv", href: "https://maskinval.lovable.app/sv/products" },
+        { rel: "alternate", hreflang: "en", href: "https://maskinval.lovable.app/en/products" },
+        { rel: "alternate", hreflang: "x-default", href: "https://maskinval.lovable.app/sv/products" },
       ],
     };
   },
