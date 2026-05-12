@@ -19,6 +19,7 @@ import { Route as LocaleSettingsRouteImport } from './routes/$locale/settings'
 import { Route as LocaleProjectRouteImport } from './routes/$locale/project'
 import { Route as LocaleProductsRouteImport } from './routes/$locale/products'
 import { Route as LocaleOrdersRouteImport } from './routes/$locale/orders'
+import { Route as LocaleMachineBuilderRouteImport } from './routes/$locale/machine-builder'
 import { Route as LocaleLoginRouteImport } from './routes/$locale/login'
 import { Route as LocaleConvertRouteImport } from './routes/$locale/convert'
 import { Route as LocaleConfiguratorRouteImport } from './routes/$locale/configurator'
@@ -82,6 +83,11 @@ const LocaleProductsRoute = LocaleProductsRouteImport.update({
 const LocaleOrdersRoute = LocaleOrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleMachineBuilderRoute = LocaleMachineBuilderRouteImport.update({
+  id: '/machine-builder',
+  path: '/machine-builder',
   getParentRoute: () => LocaleRoute,
 } as any)
 const LocaleLoginRoute = LocaleLoginRouteImport.update({
@@ -167,6 +173,7 @@ export interface FileRoutesByFullPath {
   '/$locale/configurator': typeof LocaleConfiguratorRouteWithChildren
   '/$locale/convert': typeof LocaleConvertRoute
   '/$locale/login': typeof LocaleLoginRoute
+  '/$locale/machine-builder': typeof LocaleMachineBuilderRoute
   '/$locale/orders': typeof LocaleOrdersRoute
   '/$locale/products': typeof LocaleProductsRoute
   '/$locale/project': typeof LocaleProjectRoute
@@ -192,6 +199,7 @@ export interface FileRoutesByTo {
   '/$locale/configurator': typeof LocaleConfiguratorRouteWithChildren
   '/$locale/convert': typeof LocaleConvertRoute
   '/$locale/login': typeof LocaleLoginRoute
+  '/$locale/machine-builder': typeof LocaleMachineBuilderRoute
   '/$locale/orders': typeof LocaleOrdersRoute
   '/$locale/products': typeof LocaleProductsRoute
   '/$locale/project': typeof LocaleProjectRoute
@@ -219,6 +227,7 @@ export interface FileRoutesById {
   '/$locale/configurator': typeof LocaleConfiguratorRouteWithChildren
   '/$locale/convert': typeof LocaleConvertRoute
   '/$locale/login': typeof LocaleLoginRoute
+  '/$locale/machine-builder': typeof LocaleMachineBuilderRoute
   '/$locale/orders': typeof LocaleOrdersRoute
   '/$locale/products': typeof LocaleProductsRoute
   '/$locale/project': typeof LocaleProjectRoute
@@ -247,6 +256,7 @@ export interface FileRouteTypes {
     | '/$locale/configurator'
     | '/$locale/convert'
     | '/$locale/login'
+    | '/$locale/machine-builder'
     | '/$locale/orders'
     | '/$locale/products'
     | '/$locale/project'
@@ -272,6 +282,7 @@ export interface FileRouteTypes {
     | '/$locale/configurator'
     | '/$locale/convert'
     | '/$locale/login'
+    | '/$locale/machine-builder'
     | '/$locale/orders'
     | '/$locale/products'
     | '/$locale/project'
@@ -298,6 +309,7 @@ export interface FileRouteTypes {
     | '/$locale/configurator'
     | '/$locale/convert'
     | '/$locale/login'
+    | '/$locale/machine-builder'
     | '/$locale/orders'
     | '/$locale/products'
     | '/$locale/project'
@@ -390,6 +402,13 @@ declare module '@tanstack/react-router' {
       path: '/orders'
       fullPath: '/$locale/orders'
       preLoaderRoute: typeof LocaleOrdersRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/machine-builder': {
+      id: '/$locale/machine-builder'
+      path: '/machine-builder'
+      fullPath: '/$locale/machine-builder'
+      preLoaderRoute: typeof LocaleMachineBuilderRouteImport
       parentRoute: typeof LocaleRoute
     }
     '/$locale/login': {
@@ -513,6 +532,7 @@ interface LocaleRouteChildren {
   LocaleConfiguratorRoute: typeof LocaleConfiguratorRouteWithChildren
   LocaleConvertRoute: typeof LocaleConvertRoute
   LocaleLoginRoute: typeof LocaleLoginRoute
+  LocaleMachineBuilderRoute: typeof LocaleMachineBuilderRoute
   LocaleOrdersRoute: typeof LocaleOrdersRoute
   LocaleProductsRoute: typeof LocaleProductsRoute
   LocaleProjectRoute: typeof LocaleProjectRoute
@@ -536,6 +556,7 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleConfiguratorRoute: LocaleConfiguratorRouteWithChildren,
   LocaleConvertRoute: LocaleConvertRoute,
   LocaleLoginRoute: LocaleLoginRoute,
+  LocaleMachineBuilderRoute: LocaleMachineBuilderRoute,
   LocaleOrdersRoute: LocaleOrdersRoute,
   LocaleProductsRoute: LocaleProductsRoute,
   LocaleProjectRoute: LocaleProjectRoute,
@@ -561,3 +582,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
