@@ -34,14 +34,17 @@ const CAT_ICONS: Record<string, string> = {
   "air-preparation": "◈",
   vacuum: "◎",
   "linear-module": "⟶",
-  accessory: "◇",
-  spare: "◈",
+  hose: "〰",
+  fitting: "⊕",
+  "speed-controller": "◑",
+  coupling: "⊗",
+  "seal-kit": "○",
 };
 
 const STATS = [
-  { value: "59+", label: "Produkter" },
+  { value: "91+", label: "Produkter" },
   { value: "5", label: "Varumärken" },
-  { value: "8", label: "Kategorier" },
+  { value: "13", label: "Kategorier" },
   { value: "24h", label: "Snabbast leverans" },
 ];
 
@@ -61,7 +64,7 @@ function Landing() {
     loadCatalog().then((catalog) => {
       setTotalProducts(catalog.length);
       // Pick a representative mix: a Festo cylinder, SMC compact, Parker, Bosch
-      const picks = ["DSBC-50-100-PPSA-N3", "CQ2B50-50D", "P1D-S050MS-0200", "0822419904"];
+      const picks = ["FESTO-DSBC", "SMC-CQ2", "PARKER-P1D", "FESTO-HGPP"];
       const found = picks
         .map((sku) => catalog.find((p) => p.sku === sku))
         .filter(Boolean) as ProductRow[];
@@ -142,7 +145,7 @@ function Landing() {
           <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl">
             {STATS.map((s, i) => (
               <div key={i} className="border border-primary-foreground/15 rounded-md px-4 py-3 bg-primary-foreground/5 backdrop-blur-sm">
-                <div className="text-2xl font-semibold" style={{ color: "var(--gold)" }}>{s.value === "59+" ? `${totalProducts}+` : s.value}</div>
+                <div className="text-2xl font-semibold" style={{ color: "var(--gold)" }}>{s.value === "91+" ? `${totalProducts}+` : s.value}</div>
                 <div className="text-[11px] uppercase tracking-wider text-primary-foreground/50 mt-0.5">{s.label}</div>
               </div>
             ))}
