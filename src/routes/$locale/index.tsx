@@ -245,16 +245,20 @@ function Landing() {
         <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground text-center">
           Varumärken vi arbetar med
         </p>
-        <div className="mt-6 grid grid-cols-3 md:grid-cols-5 gap-3">
+        <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
           {brands.map((b) => (
             <Link
               key={b.slug}
               to="/$locale/products"
               params={{ locale }}
               search={{ brand: b.slug }}
-              className="rounded-md bg-card border border-border py-5 text-center text-sm font-medium text-foreground/70 hover:text-foreground hover:border-info transition"
+              className="group rounded-xl bg-card border border-border hover:border-info hover:shadow-md transition-all overflow-hidden flex flex-col"
             >
-              {b.name}
+              <BrandLogo slug={b.slug} name={b.name} />
+              <div className="px-3 py-2.5 text-center">
+                <div className="text-xs font-semibold text-foreground group-hover:text-info transition">{b.name}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">Visa produkter →</div>
+              </div>
             </Link>
           ))}
         </div>
@@ -325,6 +329,33 @@ function Landing() {
           />
         </div>
       </section>
+    </div>
+  );
+}
+
+const BRAND_META: Record<string, { bg: string; text: string; accent: string; abbr?: string }> = {
+  "festo":         { bg: "#00B4E6", text: "#fff",     accent: "#003C78", abbr: "FE" },
+  "smc":           { bg: "#003087", text: "#fff",     accent: "#E31E24", abbr: "SMC" },
+  "parker":        { bg: "#FF6900", text: "#fff",     accent: "#000",    abbr: "PH" },
+  "bosch-rexroth": { bg: "#E20015", text: "#fff",     accent: "#000",    abbr: "BR" },
+  "norgren":       { bg: "#005EB8", text: "#fff",     accent: "#E20613", abbr: "NO" },
+};
+
+function BrandLogo({ slug, name }: { slug: string; name: string }) {
+  const m = BRAND_META[slug] ?? { bg: "#64748b", text: "#fff", accent: "#334155", abbr: name.slice(0,2).toUpperCase() };
+  return (
+    <div className="h-20 flex items-center justify-center relative overflow-hidden" style={{ background: m.bg }}>
+      {/* accent stripe */}
+      <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ background: m.accent }} />
+      <div className="absolute right-0 top-0 bottom-0 w-1.5" style={{ background: m.accent }} />
+      {/* subtle pattern */}
+      <div className="absolute inset-0 opacity-10"
+        style={{ backgroundImage: "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)", backgroundSize: "12px 12px" }}
+      />
+      {/* brand name styled as logo */}
+      <span className="relative font-black text-xl tracking-tight select-none" style={{ color: m.text, letterSpacing: "-0.02em", textShadow: "0 1px 3px rgba(0,0,0,.2)" }}>
+        {name.toUpperCase()}
+      </span>
     </div>
   );
 }
