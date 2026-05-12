@@ -34,7 +34,8 @@
     "configurator": "Configurator",
     "orders": "RFQs",
     "admin": "Admin",
-    "settings": "Settings"
+    "settings": "Settings",
+    "advisor": "Advisor"
   },
   "landing": {
     "heroTitle": "Specify, validate and order industrial automation in minutes.",
