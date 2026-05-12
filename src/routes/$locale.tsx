@@ -44,41 +44,44 @@ function LocaleLayout() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="border-b border-border bg-card/80 backdrop-blur sticky top-0 z-30">
-        <div className="container-page flex items-center gap-6 h-14">
+      <header className="bg-primary text-primary-foreground sticky top-0 z-30 shadow-sm">
+        <div className="container-page flex items-center gap-6 h-16">
           <Link
             to="/$locale"
             params={{ locale }}
-            className="font-semibold tracking-tight text-foreground flex items-center gap-2"
+            className="font-semibold tracking-tight flex items-center gap-2 text-primary-foreground"
           >
-            <span className="inline-block size-2 rounded-full bg-gold" />
+            <span className="inline-block size-2 rounded-sm bg-gold" />
             {t("common.appName")}
           </Link>
-          <nav className="hidden md:flex items-center gap-5 text-sm text-muted-foreground">
-            <Link to="/$locale/project" params={{ locale }} activeProps={{ className: "text-foreground font-medium" }} className="hover:text-foreground">
-              {t("nav.project")}
+          <nav className="hidden md:flex items-center gap-5 text-sm text-primary-foreground/75">
+            <Link to="/$locale/products" params={{ locale }} activeProps={{ className: "text-primary-foreground font-medium" }} className="hover:text-primary-foreground">
+              {t("nav.products")}
             </Link>
-            <Link to="/$locale/components" params={{ locale }} activeProps={{ className: "text-foreground font-medium" }} className="hover:text-foreground">
+            <Link to="/$locale/components" params={{ locale }} activeProps={{ className: "text-primary-foreground font-medium" }} className="hover:text-primary-foreground">
               {t("nav.components")}
             </Link>
-            <Link to="/$locale/compare" params={{ locale }} activeProps={{ className: "text-foreground font-medium" }} className="hover:text-foreground">
+            <Link to="/$locale/advisor" params={{ locale }} activeProps={{ className: "text-primary-foreground font-medium" }} className="hover:text-primary-foreground">
+              {t("nav.advisor")}
+            </Link>
+            <Link to="/$locale/compare" params={{ locale }} activeProps={{ className: "text-primary-foreground font-medium" }} className="hover:text-primary-foreground">
               {t("nav.compare")}
             </Link>
-            <Link to="/$locale/talk" params={{ locale }} activeProps={{ className: "text-foreground font-medium" }} className="hover:text-foreground">
+            <Link to="/$locale/talk" params={{ locale }} activeProps={{ className: "text-primary-foreground font-medium" }} className="hover:text-primary-foreground">
               {t("nav.talk")}
             </Link>
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <div className="flex rounded-md border border-border overflow-hidden text-xs">
+            <div className="flex rounded-md border border-primary-foreground/25 overflow-hidden text-xs">
               <button
                 onClick={() => switchLocale("en")}
-                className={`px-2.5 py-1 ${locale === "en" ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:text-foreground"}`}
+                className={`px-2.5 py-1 ${locale === "en" ? "bg-primary-foreground text-primary" : "text-primary-foreground/80 hover:text-primary-foreground"}`}
               >
                 EN
               </button>
               <button
                 onClick={() => switchLocale("sv")}
-                className={`px-2.5 py-1 ${locale === "sv" ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:text-foreground"}`}
+                className={`px-2.5 py-1 ${locale === "sv" ? "bg-primary-foreground text-primary" : "text-primary-foreground/80 hover:text-primary-foreground"}`}
               >
                 SV
               </button>
@@ -89,7 +92,7 @@ function LocaleLayout() {
                   await signOut();
                   navigate({ to: "/$locale", params: { locale } });
                 }}
-                className="text-sm px-3 py-1.5 rounded-md border border-border hover:bg-accent"
+                className="text-sm px-3 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10"
               >
                 {t("common.signOut")}
               </button>
@@ -97,7 +100,7 @@ function LocaleLayout() {
               <Link
                 to="/$locale/login"
                 params={{ locale }}
-                className="text-sm px-3 py-1.5 rounded-md border border-border hover:bg-accent"
+                className="text-sm px-3 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10"
               >
                 {t("auth.submitLogin")}
               </Link>
