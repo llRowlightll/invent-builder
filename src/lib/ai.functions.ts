@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const AI_SEARCH_EDGE = "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/ai-search";
 
 interface ExtractedReqs {
   stroke_mm?: number;
@@ -113,58 +114,21 @@ export const aiExplain = createServerFn({ method: "POST" })
     return { text: fb, source: "fallback" };
   });
 
-// Maps user description to catalog filter criteria using Gemini
+// Maps user description to catalog filter criteria — calls Supabase Edge Function (Gemini)
 export const aiSearchProducts = createServerFn({ method: "POST" })
   .inputValidator((d: { query: string; locale?: string }) => d)
   .handler(async ({ data }): Promise<AiSearchResult> => {
-    const isSv = data.locale === "sv";
-
-    const CATEGORY_SLUGS = [
-      "cylinder",
-      "electric-actuator",
-      "valve-terminal",
-      "valve",
-      "gripper",
-      "air-preparation",
-      "vacuum",
-      "linear-module",
-    ];
-    const BRAND_SLUGS = ["festo", "smc", "parker", "bosch-rexroth", "norgren"];
-
-    const systemPrompt = `Du är en senior automationsingenjör specialiserad på industriell pneumatik och elektriska aktuatorer.
-Katalogen innehåller produkter med dessa kategorier: ${CATEGORY_SLUGS.join(", ")}.
-Varumärken: ${BRAND_SLUGS.join(", ")}.
-Produkter har specifikationer som: bore_mm, stroke_mm, force_n, operating_pressure_bar, flow_rate_lpm, voltage, fieldbus, ip_rating.
-
-Din uppgift: tolka användarens sökfråga och returnera ENBART giltig JSON (inget annat) med dessa fält:
-{
-  "explanation": "Kort ${isSv ? "svensk" : "english"} förklaring av vad du förstod (1-2 meningar)",
-  "category_slug": "en av kategorierna ovan eller null",
-  "brand_slug": "ett av varumärkena ovan eller null",
-  "keywords": ["relevanta", "sökord", "från", "frågan"],
-  "spec_filters": [
-    { "key": "bore_mm", "min": 40, "max": 63 },
-    { "key": "stroke_mm", "min": 100 }
-  ],
-  "followup": "En följdfråga om något kritiskt saknas, annars null"
-}
-${langInstruction(data.locale)}`;
-
-    const raw = await callGateway([
-      { role: "system", content: systemPrompt },
-      { role: "user", content: data.query },
-    ]);
-
-    if (!raw) {
-      return fallbackSearch(data.query, isSv);
-    }
-
     try {
-      const cleaned = raw.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(cleaned);
-      return { ...parsed, source: "ai" };
-    } catch {
-      return fallbackSearch(data.query, isSv);
+      const res = await fetch(AI_SEARCH_EDGE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: data.query, locale: data.locale ?? "sv" }),
+      });
+      if (!res.ok) throw new Error(`Edge fn ${res.status}`);
+      return await res.json();
+    } catch (e) {
+      console.error("aiSearchProducts edge fn failed", e);
+      return fallbackSearch(data.query, data.locale === "sv");
     }
   });
 
