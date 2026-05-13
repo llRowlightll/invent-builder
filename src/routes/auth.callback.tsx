@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getCookie, detectBrowserLocale } from "@/lib/i18n";
 
-export const Route = createFileRoute("/auth/callback" as never)({
+export const Route = createFileRoute("/auth/callback")({
   component: AuthCallback,
 });
 

@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { makeT, type Locale } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 
-export const Route = createFileRoute("/$locale/profile" as never)({
+export const Route = createFileRoute("/$locale/profile")({
   component: ProfilePage,
 });
 
