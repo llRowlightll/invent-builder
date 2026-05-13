@@ -80,6 +80,8 @@ function LocaleLayout() {
     { to: "/$locale/machine-builder", label: t("nav.machineBuilder") },
   ];
 
+  const isAdmin = user?.email?.endsWith("@maskinval.se") || user?.app_metadata?.role === "admin";
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-primary text-primary-foreground sticky top-0 z-30 shadow-sm">
@@ -155,15 +157,24 @@ function LocaleLayout() {
 
             {/* Auth */}
             {user ? (
-              <button
-                onClick={async () => {
-                  await signOut();
-                  navigate({ to: "/$locale", params: { locale } });
-                }}
-                className="hidden sm:block text-sm px-3 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10"
-              >
-                {t("common.signOut")}
-              </button>
+              <div className="hidden sm:flex items-center gap-2">
+                {isAdmin && (
+                  <Link to={"/$locale/admin/crm" as never} params={{ locale } as never}
+                    className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
+                    CRM
+                  </Link>
+                )}
+                <Link to={"/$locale/profile" as never} params={{ locale } as never}
+                  className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
+                  Profil
+                </Link>
+                <button
+                  onClick={async () => { await signOut(); navigate({ to: "/$locale", params: { locale } }); }}
+                  className="text-sm px-3 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10"
+                >
+                  {t("common.signOut")}
+                </button>
+              </div>
             ) : (
               <Link
                 to="/$locale/login"
@@ -211,19 +222,25 @@ function LocaleLayout() {
             </Link>
             <div className="pt-2 border-t border-primary-foreground/15">
               {user ? (
-                <button
-                  onClick={async () => { await signOut(); navigate({ to: "/$locale", params: { locale } }); setMenuOpen(false); }}
-                  className="block w-full text-left px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground"
-                >
-                  {t("common.signOut")}
-                </button>
+                <>
+                  <Link to={"/$locale/profile" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
+                    className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
+                    Profil
+                  </Link>
+                  {isAdmin && (
+                    <Link to={"/$locale/admin/crm" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
+                      className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
+                      CRM
+                    </Link>
+                  )}
+                  <button onClick={async () => { await signOut(); navigate({ to: "/$locale", params: { locale } }); setMenuOpen(false); }}
+                    className="block w-full text-left px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
+                    {t("common.signOut")}
+                  </button>
+                </>
               ) : (
-                <Link
-                  to="/$locale/login"
-                  params={{ locale }}
-                  onClick={() => setMenuOpen(false)}
-                  className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground"
-                >
+                <Link to="/$locale/login" params={{ locale }} onClick={() => setMenuOpen(false)}
+                  className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                   {t("auth.submitLogin")}
                 </Link>
               )}
