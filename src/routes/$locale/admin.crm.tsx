@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-export const Route = createFileRoute("/$locale/admin/crm" as never)({
+export const Route = createFileRoute("/$locale/admin/crm")({
   component: CrmPage,
 });
 
