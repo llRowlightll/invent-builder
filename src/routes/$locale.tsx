@@ -80,7 +80,7 @@ function LocaleLayout() {
     { to: "/$locale/machine-builder", label: t("nav.machineBuilder") },
   ];
 
-  const isAdmin = user?.email?.endsWith("@maskinval.se") || user?.app_metadata?.role === "admin";
+  const isAdmin = user?.email === "alexandropeer@gmail.com" || user?.app_metadata?.role === "admin";
 
   return (
     <div className="min-h-screen flex flex-col">

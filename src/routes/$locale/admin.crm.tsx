@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+const FUNCTION_URL = "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/welcome-email";
+
 export const Route = createFileRoute("/$locale/admin/crm")({
   component: CrmPage,
 });
@@ -38,6 +40,35 @@ export default function CrmPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [testEmail, setTestEmail] = useState("alexandropeer@gmail.com");
+  const [testSending, setTestSending] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+
+  async function sendTestEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setTestSending(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-hook-secret": "maskinval-welcome",
+        },
+        body: JSON.stringify({
+          email: testEmail,
+          name: "Alexander",
+          customer_number: "MV-2026-0001",
+          locale,
+        }),
+      });
+      const data = await res.json();
+      setTestResult(res.ok ? "✓ Testemejl skickat!" : `Fel: ${JSON.stringify(data)}`);
+    } catch (err) {
+      setTestResult(`Fel: ${err}`);
+    }
+    setTestSending(false);
+  }
 
   useEffect(() => {
     supabase
@@ -80,6 +111,35 @@ export default function CrmPage() {
           <h1 className="text-2xl font-semibold tracking-tight">CRM — Kunder</h1>
           <p className="text-sm text-muted-foreground mt-1">{profiles.length} registrerade · snitt {avgScore} poäng · {complete} fullständiga profiler</p>
         </div>
+      </div>
+
+      {/* Test welcome email panel */}
+      <div className="rounded-xl border border-border bg-card p-5 mb-6">
+        <p className="text-[11px] uppercase tracking-widest text-muted-foreground mb-3">📧 Skicka testemejl</p>
+        <form onSubmit={sendTestEmail} className="flex gap-2 flex-wrap">
+          <input
+            type="email"
+            required
+            value={testEmail}
+            onChange={(e) => setTestEmail(e.target.value)}
+            className="flex-1 min-w-[220px] px-3 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
+          />
+          <button
+            type="submit"
+            disabled={testSending}
+            className="px-4 py-2 rounded-md bg-info text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
+          >
+            {testSending ? "Skickar…" : "Skicka välkomstmejl"}
+          </button>
+        </form>
+        {testResult && (
+          <p className={`mt-2 text-sm ${testResult.startsWith("✓") ? "text-[oklch(0.55_0.15_155)]" : "text-destructive"}`}>
+            {testResult}
+          </p>
+        )}
+        <p className="mt-2 text-xs text-muted-foreground">
+          Kräver att <code className="bg-surface-alt px-1 rounded">RESEND_API_KEY</code> är satt i Supabase Edge Function Secrets.
+        </p>
       </div>
 
       {/* KPI tiles */}
