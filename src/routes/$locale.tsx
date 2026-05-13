@@ -6,8 +6,8 @@ import {
   useRouterState,
   redirect,
 } from "@tanstack/react-router";
-import { useState } from "react";
-import { isLocale, makeT, setLocaleCookie, type Locale } from "@/lib/i18n";
+import { useEffect, useRef, useState } from "react";
+import { isLocale, makeT, setLocaleCookie, getCookie, type Locale } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 
 export const Route = createFileRoute("/$locale")({
@@ -30,6 +30,13 @@ export const Route = createFileRoute("/$locale")({
   ),
 });
 
+const LOCALE_META: Record<Locale, { flag: string; label: string }> = {
+  sv: { flag: "🇸🇪", label: "SV" },
+  en: { flag: "🇬🇧", label: "EN" },
+  de: { flag: "🇩🇪", label: "DE" },
+  es: { flag: "🇪🇸", label: "ES" },
+};
+
 function LocaleLayout() {
   const { locale } = Route.useParams();
   const t = makeT(locale as Locale);
@@ -37,10 +44,31 @@ function LocaleLayout() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const { user, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [langOpen, setLangOpen] = useState(false);
+  const [cookieConsent, setCookieConsent] = useState<string | null>(null);
+  const langRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setCookieConsent(getCookie("mv_cookie_consent"));
+    function onClickOutside(e: MouseEvent) {
+      if (langRef.current && !langRef.current.contains(e.target as Node)) {
+        setLangOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  function acceptCookies(type: "all" | "necessary") {
+    const oneYear = 60 * 60 * 24 * 365;
+    document.cookie = `mv_cookie_consent=${type}; Max-Age=${oneYear}; Path=/; SameSite=Lax`;
+    setCookieConsent(type);
+  }
 
   function switchLocale(next: Locale) {
     setLocaleCookie(next);
-    const rest = path.replace(/^\/(en|sv)/, "");
+    setLangOpen(false);
+    const rest = path.replace(/^\/(en|sv|de|es)/, "");
     navigate({ to: `/${next}${rest || ""}` as never, replace: true });
   }
 
@@ -96,20 +124,33 @@ function LocaleLayout() {
               ✦ {t("nav.machineBuilder")}
             </Link>
 
-            {/* Language toggle */}
-            <div className="flex rounded-md border border-primary-foreground/25 overflow-hidden text-xs">
+            {/* Language dropdown */}
+            <div className="relative" ref={langRef}>
               <button
-                onClick={() => switchLocale("sv")}
-                className={`px-2.5 py-1 ${locale === "sv" ? "bg-primary-foreground text-primary" : "text-primary-foreground/80 hover:text-primary-foreground"}`}
+                onClick={() => setLangOpen((o) => !o)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-primary-foreground/25 text-xs text-primary-foreground/90 hover:text-primary-foreground hover:bg-primary-foreground/10 transition"
               >
-                SV
+                <span>{LOCALE_META[locale as Locale]?.flag ?? "🌐"}</span>
+                <span className="font-medium">{LOCALE_META[locale as Locale]?.label ?? locale.toUpperCase()}</span>
+                <span className="text-primary-foreground/50">▾</span>
               </button>
-              <button
-                onClick={() => switchLocale("en")}
-                className={`px-2.5 py-1 ${locale === "en" ? "bg-primary-foreground text-primary" : "text-primary-foreground/80 hover:text-primary-foreground"}`}
-              >
-                EN
-              </button>
+              {langOpen && (
+                <div className="absolute right-0 top-full mt-1 z-50 rounded-lg border border-border bg-card shadow-lg py-1 min-w-[120px]">
+                  {(["sv", "en", "de", "es"] as Locale[]).map((loc) => (
+                    <button
+                      key={loc}
+                      onClick={() => switchLocale(loc)}
+                      className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-surface-alt transition ${
+                        loc === locale ? "text-info font-medium" : "text-foreground"
+                      }`}
+                    >
+                      <span>{LOCALE_META[loc].flag}</span>
+                      <span>{LOCALE_META[loc].label}</span>
+                      {loc === locale && <span className="ml-auto text-info text-xs">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Auth */}
@@ -194,6 +235,31 @@ function LocaleLayout() {
       <main className="flex-1">
         <Outlet />
       </main>
+
+      {/* Cookie consent banner */}
+      {!cookieConsent && (
+        <div className="fixed bottom-0 inset-x-0 z-50 bg-card border-t border-border shadow-lg">
+          <div className="container-page py-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <p className="text-sm text-muted-foreground flex-1">
+              {t("cookies.message")}
+            </p>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => acceptCookies("necessary")}
+                className="text-xs px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:border-info hover:text-foreground transition"
+              >
+                {t("cookies.necessary")}
+              </button>
+              <button
+                onClick={() => acceptCookies("all")}
+                className="text-xs px-4 py-1.5 rounded-md bg-info text-primary-foreground hover:opacity-90 transition font-medium"
+              >
+                {t("cookies.accept")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer className="border-t border-border py-8">
         <div className="container-page grid sm:grid-cols-3 gap-6 text-xs text-muted-foreground">

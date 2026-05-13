@@ -13,21 +13,21 @@ export const Route = createFileRoute("/$locale/product/$sku")({
     const t = makeT(params.locale as Locale);
     const { locale, sku } = params;
     const canonical = `${SITE}/${locale}/product/${sku}`;
-    const altSv = `${SITE}/sv/product/${sku}`;
-    const altEn = `${SITE}/en/product/${sku}`;
     return {
       meta: [
         { title: `${sku} — ${t("common.appName")}` },
-        { name: "description", content: `${sku} — industriell automationskomponent. Jämför spec, leveranstid och beställ via Maskinval.` },
+        { name: "description", content: `${sku} — industrial automation component. Compare specs, lead time and order via Maskinval.` },
         { property: "og:title", content: `${sku} — ${t("common.appName")}` },
         { property: "og:type", content: "product" },
         { property: "og:url", content: canonical },
       ],
       links: [
         { rel: "canonical", href: canonical },
-        { rel: "alternate", hreflang: "sv", href: altSv },
-        { rel: "alternate", hreflang: "en", href: altEn },
-        { rel: "alternate", hreflang: "x-default", href: altSv },
+        { rel: "alternate", hreflang: "sv", href: `${SITE}/sv/product/${sku}` },
+        { rel: "alternate", hreflang: "en", href: `${SITE}/en/product/${sku}` },
+        { rel: "alternate", hreflang: "de", href: `${SITE}/de/product/${sku}` },
+        { rel: "alternate", hreflang: "es", href: `${SITE}/es/product/${sku}` },
+        { rel: "alternate", hreflang: "x-default", href: `${SITE}/sv/product/${sku}` },
       ],
     };
   },
@@ -42,7 +42,7 @@ function ProductDetail() {
   const t = makeT(locale as Locale);
   const [catalog, setCatalog] = useState<ProductRow[] | null>(null);
   const [related, setRelated] = useState<ProductRow[]>([]);
-  const [competitors, setCompetitors] = useState<ProductRow[]>([]);
+  const [alternatives, setAlternatives] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -51,14 +51,17 @@ function ProductDetail() {
       setCatalog(cat);
       const product = cat.find((x) => x.sku === sku);
       if (product) {
-        const [{ data: rels }, { data: comps }] = await Promise.all([
-          supabase.from("product_relations").select("related_product_id,relation_type").eq("product_id", product.id),
-          supabase.from("competitor_map").select("competitor_product_id").eq("product_id", product.id),
-        ]);
+        const { data: rels } = await supabase
+          .from("product_relations")
+          .select("related_product_id,relation_type")
+          .eq("product_id", product.id);
         const relIds = new Set((rels ?? []).map((r) => r.related_product_id));
-        const compIds = new Set((comps ?? []).map((r) => r.competitor_product_id));
         setRelated(cat.filter((p) => relIds.has(p.id)));
-        setCompetitors(cat.filter((p) => compIds.has(p.id)));
+        // Dynamic alternatives: same category, different brand, max 6
+        const alts = cat
+          .filter((p) => p.category.slug === product.category.slug && p.brand.slug !== product.brand.slug && p.sku !== product.sku)
+          .slice(0, 6);
+        setAlternatives(alts);
       }
       setLoading(false);
     })();
@@ -116,25 +119,27 @@ function ProductDetail() {
           {product.description && <p className="mt-4 text-sm text-foreground/80 leading-relaxed">{product.description}</p>}
         </div>
         <aside className="rounded-lg border border-border bg-surface-alt p-4 space-y-3 text-sm">
-          <Row k="Kategori" v={product.category.name} />
-          <Row k="Leveranstid" v={`${product.lead_time_days ?? "—"} dagar`} />
-          {product.ip_rating && <Row k="IP-klass" v={product.ip_rating} />}
-          {product.fieldbus && <Row k="Fältbuss" v={product.fieldbus} />}
-          {product.voltage && <Row k="Spänning" v={product.voltage} />}
+          <Row k={locale === "sv" ? "Kategori" : locale === "de" ? "Kategorie" : locale === "es" ? "Categoría" : "Category"} v={product.category.name} />
+          <Row k={locale === "sv" ? "Leveranstid" : locale === "de" ? "Lieferzeit" : locale === "es" ? "Plazo entrega" : "Lead time"} v={`${product.lead_time_days ?? "—"} ${locale === "sv" ? "dagar" : locale === "de" ? "Tage" : locale === "es" ? "días" : "days"}`} />
+          {product.ip_rating && <Row k="IP" v={product.ip_rating} />}
+          {product.fieldbus && <Row k={locale === "sv" ? "Fältbuss" : "Fieldbus"} v={product.fieldbus} />}
+          {product.voltage && <Row k={locale === "sv" ? "Spänning" : locale === "de" ? "Spannung" : locale === "es" ? "Tensión" : "Voltage"} v={product.voltage} />}
           <Link
             to="/$locale/compare"
             params={{ locale }}
             search={{ skus: product.sku }}
             className="block text-center mt-2 px-3 py-2 rounded-md bg-info text-primary-foreground text-sm hover:opacity-90"
           >
-            Lägg till i jämförelse
+            {t("common.compare")}
           </Link>
         </aside>
       </div>
 
       {Object.keys(product.specs).length > 0 && (
         <section className="mt-10">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">Specifikation</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            {locale === "sv" ? "Specifikation" : locale === "de" ? "Spezifikation" : locale === "es" ? "Especificación" : "Specification"}
+          </h2>
           <table className="mt-3 w-full text-sm border border-border rounded-md overflow-hidden">
             <tbody>
               {Object.entries(product.specs).map(([k, v]) => (
@@ -150,18 +155,32 @@ function ProductDetail() {
 
       {related.length > 0 && (
         <section className="mt-10">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-3">Tillbehör & relaterat</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-3">
+            {locale === "sv" ? "Tillbehör & relaterat" : locale === "de" ? "Zubehör & Verwandtes" : locale === "es" ? "Accesorios & relacionados" : "Accessories & related"}
+          </h2>
           <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {related.map((r) => <ProductMini key={r.id} p={r} locale={locale} />)}
           </ul>
         </section>
       )}
 
-      {competitors.length > 0 && (
+      {alternatives.length > 0 && (
         <section className="mt-10">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-3">Alternativ från andra varumärken</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {t("nav.compare")} — {product.category.name}
+            </h2>
+            <Link
+              to="/$locale/compare"
+              params={{ locale }}
+              search={{ skus: [product.sku, ...alternatives.slice(0, 3).map((a) => a.sku)].join(",") }}
+              className="text-xs px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:border-info hover:text-info transition"
+            >
+              {t("common.compare")} alla →
+            </Link>
+          </div>
           <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {competitors.map((r) => <ProductMini key={r.id} p={r} locale={locale} />)}
+            {alternatives.map((r) => <ProductMini key={r.id} p={r} locale={locale} />)}
           </ul>
         </section>
       )}

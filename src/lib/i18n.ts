@@ -1,11 +1,13 @@
 import en from "@/locales/en.json";
 import sv from "@/locales/sv.json";
+import de from "@/locales/de.json";
+import es from "@/locales/es.json";
 
-export const SUPPORTED_LOCALES = ["en", "sv"] as const;
+export const SUPPORTED_LOCALES = ["en", "sv", "de", "es"] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = "en";
 
-const dictionaries = { en, sv } as const;
+const dictionaries = { en, sv, de, es } as const;
 
 export function isLocale(value: string | undefined | null): value is Locale {
   return !!value && (SUPPORTED_LOCALES as readonly string[]).includes(value);
@@ -14,7 +16,10 @@ export function isLocale(value: string | undefined | null): value is Locale {
 export function detectBrowserLocale(): Locale {
   if (typeof navigator === "undefined") return DEFAULT_LOCALE;
   const lang = (navigator.language || "en").toLowerCase();
-  return lang.startsWith("sv") ? "sv" : "en";
+  if (lang.startsWith("sv")) return "sv";
+  if (lang.startsWith("de")) return "de";
+  if (lang.startsWith("es")) return "es";
+  return "en";
 }
 
 export function getCookie(name: string): string | null {

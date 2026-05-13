@@ -8,6 +8,8 @@ import { aiSearchProducts, type AiSearchResult } from "@/lib/ai.functions";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
 
+type FilterKey = "brands" | "cats" | "grades";
+
 export const Route = createFileRoute("/$locale/products")({
   validateSearch: z.object({
     q: z.string().optional(),
@@ -30,6 +32,8 @@ export const Route = createFileRoute("/$locale/products")({
         { rel: "canonical", href: canonical },
         { rel: "alternate", hreflang: "sv", href: "https://maskinval.lovable.app/sv/products" },
         { rel: "alternate", hreflang: "en", href: "https://maskinval.lovable.app/en/products" },
+        { rel: "alternate", hreflang: "de", href: "https://maskinval.lovable.app/de/products" },
+        { rel: "alternate", hreflang: "es", href: "https://maskinval.lovable.app/es/products" },
         { rel: "alternate", hreflang: "x-default", href: "https://maskinval.lovable.app/sv/products" },
       ],
     };
@@ -189,170 +193,166 @@ function ProductsPage() {
     </div>
   );
 
+  const activeFilterCount = brands.size + cats.size + grades.size;
+
   return (
     <div className="container-page py-8">
-      {/* Header + AI search bar */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{t("nav.products")}</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {filtered.length} av {items.length} komponenter
-            </p>
-          </div>
-          {compare.length > 0 && (
-            <Link
-              to="/$locale/compare"
-              params={{ locale }}
-              search={{ skus: compare.join(",") }}
-              className="text-sm px-4 py-2 rounded-md bg-info text-primary-foreground hover:opacity-90"
-            >
-              Jämför {compare.length} produkter →
-            </Link>
-          )}
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("nav.products")}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {filtered.length} {t("products.of")} {items.length} {t("products.count")}
+          </p>
         </div>
-
-        {/* AI search bar */}
-        <div className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-[10px] uppercase tracking-[0.18em] font-medium text-info">
-              ✦ AI-sökning
-            </span>
-            <span className="text-[10px] text-muted-foreground">
-              — beskriv din applikation på svenska eller engelska
-            </span>
-          </div>
-          <form onSubmit={handleAiSubmit} className="flex gap-2">
-            <input
-              ref={inputRef}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onFocus={() => setAiMode(true)}
-              placeholder="t.ex. &quot;cylinder 50mm kolvdiameter med 200mm slag för livsmedel&quot; eller &quot;SMC kompakt pneumatisk&quot;"
-              className="flex-1 px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
-            />
-            <button
-              type="submit"
-              disabled={aiLoading}
-              className="px-4 py-2.5 rounded-md bg-info text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
-            >
-              {aiLoading ? (
-                <>
-                  <span className="size-3 rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground animate-spin" />
-                  Analyserar…
-                </>
-              ) : (
-                <>✦ Sök</>
-              )}
-            </button>
-            {(aiResult || cats.size > 0 || brands.size > 0) && (
-              <button
-                type="button"
-                onClick={clearAi}
-                className="px-3 py-2.5 rounded-md border border-border text-sm text-muted-foreground hover:border-info hover:text-foreground"
-              >
-                Rensa
-              </button>
-            )}
-          </form>
-
-          {/* AI explanation banner */}
-          {aiResult && (
-            <div className={`mt-3 rounded-md px-3 py-2.5 text-sm flex items-start gap-2 ${
-              aiResult.source === "ai"
-                ? "bg-info/8 border border-info/20"
-                : "bg-surface-alt border border-border"
-            }`}>
-              <span className="text-info mt-0.5 shrink-0">{aiResult.source === "ai" ? "✦" : "◎"}</span>
-              <div>
-                <span className="text-foreground">{aiResult.explanation}</span>
-                {aiResult.followup && (
-                  <p className="mt-1 text-muted-foreground text-xs italic">{aiResult.followup}</p>
-                )}
-                {aiResult.source === "ai" && (aiResult.category_slug || aiResult.brand_slug || aiResult.spec_filters?.length > 0) && (
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {aiResult.category_slug && (
-                      <span className="text-[10px] bg-info/10 text-info px-2 py-0.5 rounded-full">
-                        Kategori: {aiResult.category_slug}
-                      </span>
-                    )}
-                    {aiResult.brand_slug && (
-                      <span className="text-[10px] bg-info/10 text-info px-2 py-0.5 rounded-full">
-                        Varumärke: {aiResult.brand_slug}
-                      </span>
-                    )}
-                    {aiResult.spec_filters?.map((f, i) => (
-                      <span key={i} className="text-[10px] bg-surface-alt text-muted-foreground px-2 py-0.5 rounded-full">
-                        {f.key}: {f.min != null && f.max != null ? `${f.min}–${f.max}` : f.min != null ? `≥${f.min}` : `≤${f.max}`}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Quick examples when empty */}
-          {!aiResult && !q && (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {[
-                "Festo cylinder 50mm",
-                "SMC kompakt cylinder",
-                "vakuumgrepp för glas",
-                "PROFINET ventilö",
-                "Parker pneumatisk",
-              ].map((ex) => (
-                <button
-                  key={ex}
-                  type="button"
-                  onClick={() => { setQ(ex); setAiMode(true); }}
-                  className="text-[11px] px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:border-info hover:text-info transition"
-                >
-                  {ex}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        {compare.length > 0 && (
+          <Link
+            to="/$locale/compare"
+            params={{ locale }}
+            search={{ skus: compare.join(",") }}
+            className="text-sm px-4 py-2 rounded-md bg-info text-primary-foreground hover:opacity-90"
+          >
+            {t("common.compare")} {compare.length} →
+          </Link>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6">
-        {/* Sidebar */}
-        <aside className="space-y-5">
-          <FilterGroup label="Varumärke">
+      {/* AI search bar */}
+      <div className="rounded-xl border border-border bg-card p-4 mb-4">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-[10px] uppercase tracking-[0.18em] font-medium text-info">✦ AI-sökning</span>
+          <span className="text-[10px] text-muted-foreground">— beskriv din applikation</span>
+        </div>
+        <form onSubmit={handleAiSubmit} className="flex gap-2">
+          <input
+            ref={inputRef}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onFocus={() => setAiMode(true)}
+            placeholder="t.ex. &quot;cylinder 50mm kolvdiameter med 200mm slag&quot;"
+            className="flex-1 px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
+          />
+          <button
+            type="submit"
+            disabled={aiLoading}
+            className="px-4 py-2.5 rounded-md bg-info text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
+          >
+            {aiLoading ? (
+              <><span className="size-3 rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground animate-spin" />Analyserar…</>
+            ) : <>✦ {t("common.search")}</>}
+          </button>
+          {(aiResult || activeFilterCount > 0) && (
+            <button type="button" onClick={clearAi}
+              className="px-3 py-2.5 rounded-md border border-border text-sm text-muted-foreground hover:border-info hover:text-foreground">
+              {t("products.clearFilters")}
+            </button>
+          )}
+        </form>
+
+        {aiResult && (
+          <div className={`mt-3 rounded-md px-3 py-2.5 text-sm flex items-start gap-2 ${
+            aiResult.source === "ai" ? "bg-info/8 border border-info/20" : "bg-surface-alt border border-border"
+          }`}>
+            <span className="text-info mt-0.5 shrink-0">{aiResult.source === "ai" ? "✦" : "◎"}</span>
+            <div>
+              <span className="text-foreground">{aiResult.explanation}</span>
+              {aiResult.followup && <p className="mt-1 text-muted-foreground text-xs italic">{aiResult.followup}</p>}
+              {aiResult.source === "ai" && (aiResult.category_slug || aiResult.brand_slug || aiResult.spec_filters?.length > 0) && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {aiResult.category_slug && <span className="text-[10px] bg-info/10 text-info px-2 py-0.5 rounded-full">Kategori: {aiResult.category_slug}</span>}
+                  {aiResult.brand_slug && <span className="text-[10px] bg-info/10 text-info px-2 py-0.5 rounded-full">Varumärke: {aiResult.brand_slug}</span>}
+                  {aiResult.spec_filters?.map((f, i) => (
+                    <span key={i} className="text-[10px] bg-surface-alt text-muted-foreground px-2 py-0.5 rounded-full">
+                      {f.key}: {f.min != null && f.max != null ? `${f.min}–${f.max}` : f.min != null ? `≥${f.min}` : `≤${f.max}`}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {!aiResult && !q && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {["Festo cylinder 50mm", "SMC kompakt", "vakuumgrepp glas", "PROFINET ventil", "Parker pneumatisk"].map((ex) => (
+              <button key={ex} type="button" onClick={() => { setQ(ex); setAiMode(true); }}
+                className="text-[11px] px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:border-info hover:text-info transition">
+                {ex}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Top collapsible filter dropdowns */}
+      <div className="flex flex-wrap gap-2 mb-5">
+        <AccordionFilter
+          label={t("products.brand")}
+          count={brands.size}
+        >
+          <div className="space-y-1.5 p-3">
             {allBrands.map(([slug, name]) => (
-              <Check
-                key={slug}
-                label={name}
-                checked={brands.has(slug)}
-                onChange={() => toggleSet(brands, slug, setBrands)}
-              />
+              <Check key={slug} label={name} checked={brands.has(slug)} onChange={() => toggleSet(brands, slug, setBrands)} />
             ))}
-          </FilterGroup>
-          <FilterGroup label="Kategori">
+          </div>
+        </AccordionFilter>
+
+        <AccordionFilter
+          label={t("products.category")}
+          count={cats.size}
+        >
+          <div className="space-y-1.5 p-3 max-h-64 overflow-y-auto">
             {allCats.map(([slug, name]) => (
-              <Check
-                key={slug}
-                label={name}
-                checked={cats.has(slug)}
-                onChange={() => toggleSet(cats, slug, setCats)}
-              />
+              <Check key={slug} label={name} checked={cats.has(slug)} onChange={() => toggleSet(cats, slug, setCats)} />
             ))}
-          </FilterGroup>
-          <FilterGroup label="Tillgänglighet">
+          </div>
+        </AccordionFilter>
+
+        <AccordionFilter
+          label={t("products.availability")}
+          count={grades.size}
+        >
+          <div className="space-y-1.5 p-3">
             {(["HIGH", "MEDIUM", "LOW"] as Grade[]).map((g) => (
               <Check
                 key={g}
-                label={g === "HIGH" ? "Lager / snabbt" : g === "MEDIUM" ? "Standard (≤21d)" : "Beställning"}
+                label={g === "HIGH" ? t("products.inStock") : g === "MEDIUM" ? t("products.standard") : t("products.onOrder")}
                 checked={grades.has(g)}
                 onChange={() => toggleSet(grades, g, setGrades)}
               />
             ))}
-          </FilterGroup>
-        </aside>
+          </div>
+        </AccordionFilter>
 
-        {/* Product grid */}
-        <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        {/* Active filter chips */}
+        {brands.size > 0 && Array.from(brands).map((b) => {
+          const name = allBrands.find(([s]) => s === b)?.[1] ?? b;
+          return (
+            <button key={b} onClick={() => toggleSet(brands, b, setBrands)}
+              className="text-xs px-3 py-1.5 rounded-full bg-info/10 text-info border border-info/30 hover:bg-info/20 transition flex items-center gap-1">
+              {name} ×
+            </button>
+          );
+        })}
+        {cats.size > 0 && Array.from(cats).map((c) => {
+          const name = allCats.find(([s]) => s === c)?.[1] ?? c;
+          return (
+            <button key={c} onClick={() => toggleSet(cats, c, setCats)}
+              className="text-xs px-3 py-1.5 rounded-full bg-info/10 text-info border border-info/30 hover:bg-info/20 transition flex items-center gap-1">
+              {name} ×
+            </button>
+          );
+        })}
+        {grades.size > 0 && Array.from(grades).map((g) => (
+          <button key={g} onClick={() => toggleSet(grades, g, setGrades)}
+            className="text-xs px-3 py-1.5 rounded-full bg-info/10 text-info border border-info/30 hover:bg-info/20 transition flex items-center gap-1">
+            {g === "HIGH" ? t("products.inStock") : g === "MEDIUM" ? t("products.standard") : t("products.onOrder")} ×
+          </button>
+        ))}
+      </div>
+
+      {/* Product grid */}
+      <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
           {filtered.map((p) => {
             const g = gradeOf(p);
             const inCompare = compare.includes(p.sku);
@@ -453,18 +453,46 @@ function ProductsPage() {
             </li>
           )}
         </ul>
-      </div>
     </div>
   );
 }
 
-function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
+function AccordionFilter({ label, count, children }: { label: string; count: number; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, []);
+
   return (
-    <div>
-      <h3 className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground font-medium mb-2">
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition ${
+          open || count > 0
+            ? "border-info bg-info/8 text-info"
+            : "border-border bg-card text-foreground hover:border-info hover:text-info"
+        }`}
+      >
         {label}
-      </h3>
-      <div className="space-y-1.5">{children}</div>
+        {count > 0 && (
+          <span className="inline-flex items-center justify-center size-5 rounded-full bg-info text-primary-foreground text-[10px] font-bold">
+            {count}
+          </span>
+        )}
+        <span className="text-xs opacity-60">{open ? "▴" : "▾"}</span>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-30 bg-card border border-border rounded-lg shadow-lg min-w-[180px]">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -472,12 +500,7 @@ function FilterGroup({ label, children }: { label: string; children: React.React
 function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) {
   return (
     <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer hover:text-info group">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        className="accent-[var(--info)]"
-      />
+      <input type="checkbox" checked={checked} onChange={onChange} className="accent-[var(--info)]" />
       <span className="capitalize group-hover:text-info transition">{label}</span>
     </label>
   );

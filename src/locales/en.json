@@ -14,6 +14,8 @@
     "language": "Language",
     "english": "English",
     "swedish": "Svenska",
+    "german": "Deutsch",
+    "spanish": "Español",
     "signOut": "Sign out",
     "send": "Send",
     "submit": "Submit",
@@ -99,6 +101,23 @@
     "exportCsv": "Export CSV",
     "rfqBlocked": "Resolve errors before requesting a quote.",
     "requestRfq": "Request custom solution"
+  },
+  "cookies": {
+    "message": "We use cookies to improve your experience. By continuing you accept our use of cookies.",
+    "accept": "Accept all",
+    "necessary": "Necessary only",
+    "policy": "Cookie policy"
+  },
+  "products": {
+    "brand": "Brand",
+    "category": "Category",
+    "availability": "Availability",
+    "inStock": "In stock / fast",
+    "standard": "Standard (≤21d)",
+    "onOrder": "On order",
+    "clearFilters": "Clear filters",
+    "count": "products",
+    "of": "of"
   },
   "app": {
     "welcome": "Welcome",

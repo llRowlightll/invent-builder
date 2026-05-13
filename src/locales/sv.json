@@ -14,6 +14,8 @@
     "language": "Språk",
     "english": "English",
     "swedish": "Svenska",
+    "german": "Deutsch",
+    "spanish": "Español",
     "signOut": "Logga ut",
     "send": "Skicka",
     "submit": "Skicka",
@@ -99,6 +101,23 @@
     "exportCsv": "Exportera CSV",
     "rfqBlocked": "Åtgärda fel innan du begär offert.",
     "requestRfq": "Begär anpassad lösning"
+  },
+  "cookies": {
+    "message": "Vi använder cookies för att förbättra din upplevelse. Genom att fortsätta godkänner du vår användning av cookies.",
+    "accept": "Acceptera alla",
+    "necessary": "Endast nödvändiga",
+    "policy": "Cookiepolicy"
+  },
+  "products": {
+    "brand": "Varumärke",
+    "category": "Kategori",
+    "availability": "Tillgänglighet",
+    "inStock": "Lager / snabbt",
+    "standard": "Standard (≤21d)",
+    "onOrder": "Beställning",
+    "clearFilters": "Rensa filter",
+    "count": "produkter",
+    "of": "av"
   },
   "app": {
     "welcome": "Välkommen",
