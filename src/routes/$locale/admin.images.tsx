@@ -21,26 +21,34 @@ type Product = {
   category: string | null;
 };
 
-type Provider = "fal" | "dalle" | "replicate";
+type Provider = "pollinations" | "fal" | "dalle" | "replicate";
 
 const PROVIDER_META: Record<
   Provider,
-  { label: string; placeholder: string; link: string; price: string }
+  { label: string; free: boolean; placeholder?: string; link?: string; price: string }
 > = {
+  pollinations: {
+    label: "Pollinations.ai – FLUX",
+    free: true,
+    price: "Gratis · ingen nyckel",
+  },
   fal: {
     label: "fal.ai – FLUX schnell",
+    free: false,
     placeholder: "fal_key_...",
     link: "https://fal.ai/dashboard/keys",
-    price: "~$0.003/bild",
+    price: "~$0.003/bild · $1 gratis vid signup",
   },
   dalle: {
     label: "OpenAI – DALL-E 3",
+    free: false,
     placeholder: "sk-...",
     link: "https://platform.openai.com/api-keys",
     price: "~$0.04/bild",
   },
   replicate: {
     label: "Replicate – FLUX schnell",
+    free: false,
     placeholder: "r8_...",
     link: "https://replicate.com/account/api-tokens",
     price: "~$0.003/bild",
@@ -50,7 +58,7 @@ const PROVIDER_META: Record<
 export default function AdminImagesPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [provider, setProvider] = useState<Provider>("fal");
+  const [provider, setProvider] = useState<Provider>("pollinations");
   const [apiKey, setApiKey] = useState("");
   const [batchSize, setBatchSize] = useState(5);
   const [running, setRunning] = useState(false);
@@ -85,27 +93,33 @@ export default function AdminImagesPage() {
   useEffect(() => { fetchProducts(); }, []);
 
   async function callFunction(opts: Record<string, unknown>) {
+    const body: Record<string, unknown> = { provider, ...opts };
+    if (!PROVIDER_META[provider].free && apiKey) body.api_key = apiKey;
     const res = await fetch(FUNCTION_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-hook-secret": HOOK_SECRET },
-      body: JSON.stringify({ provider, api_key: apiKey || undefined, ...opts }),
+      body: JSON.stringify(body),
     });
     return res.json();
   }
 
   async function generateBatch() {
-    if (!apiKey) { addLog("⚠ Ange en API-nyckel först."); return; }
+    if (!PROVIDER_META[provider].free && !apiKey) {
+      addLog("⚠ Ange en API-nyckel för vald provider.");
+      return;
+    }
     setRunning(true);
-    addLog(`▶ Startar batch (${batchSize} produkter, ${PROVIDER_META[provider].label})…`);
+    addLog(`▶ Genererar ${batchSize} bilder via ${PROVIDER_META[provider].label}…`);
     try {
       const data = await callFunction({ batch_size: batchSize });
-      if (data.error) { addLog(`✗ Fel: ${data.error}`); }
-      else {
+      if (data.error) {
+        addLog(`✗ Fel: ${data.error}`);
+      } else {
         for (const r of data.results ?? []) {
-          if (r.status === "ok") addLog(`✓ ${r.sku} → bild genererad`);
+          if (r.status === "ok") addLog(`✓ ${r.sku} → klar`);
           else addLog(`✗ ${r.sku}: ${r.error}`);
         }
-        addLog(`━ Klart: ${data.processed} produkter bearbetade.`);
+        addLog(`━ ${data.processed} produkter klara.`);
         await fetchProducts();
       }
     } catch (err) {
@@ -115,9 +129,12 @@ export default function AdminImagesPage() {
   }
 
   async function generateSingle(product_id: string, sku: string) {
-    if (!apiKey) { addLog("⚠ Ange en API-nyckel först."); return; }
+    if (!PROVIDER_META[provider].free && !apiKey) {
+      addLog("⚠ Ange en API-nyckel för vald provider.");
+      return;
+    }
     setSingleRunning(product_id);
-    addLog(`▶ Genererar bild för ${sku}…`);
+    addLog(`▶ ${sku}…`);
     try {
       const data = await callFunction({ product_id });
       const r = data.results?.[0];
@@ -137,6 +154,7 @@ export default function AdminImagesPage() {
   const missing = products.length - withImage;
   const pct = products.length ? Math.round((withImage / products.length) * 100) : 0;
   const meta = PROVIDER_META[provider];
+  const needsKey = !meta.free;
 
   if (loading) return <div className="container-page py-16 text-sm text-muted-foreground">Laddar…</div>;
 
@@ -145,18 +163,14 @@ export default function AdminImagesPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Produktbilder – AI-generering</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {withImage}/{products.length} produkter har bild · {missing} saknas
+          {withImage}/{products.length} har bild · {missing} saknas
         </p>
-        {/* Progress bar */}
         <div className="w-full h-2 rounded-full bg-border mt-3 overflow-hidden">
-          <div
-            className="h-full bg-info rounded-full transition-all"
-            style={{ width: `${pct}%` }}
-          />
+          <div className="h-full bg-info rounded-full transition-all" style={{ width: `${pct}%` }} />
         </div>
       </div>
 
-      {/* Config panel */}
+      {/* Config */}
       <div className="rounded-xl border border-border bg-card p-5 mb-6 space-y-4">
         <p className="text-[11px] uppercase tracking-widest text-muted-foreground">⚙ Konfiguration</p>
 
@@ -173,61 +187,62 @@ export default function AdminImagesPage() {
               }`}
             >
               {PROVIDER_META[p].label}
+              {PROVIDER_META[p].free && (
+                <span className="ml-1.5 bg-[oklch(0.55_0.15_155)]/15 text-[oklch(0.45_0.15_155)] px-1 py-0.5 rounded text-[10px] font-semibold">
+                  GRATIS
+                </span>
+              )}
             </button>
           ))}
         </div>
 
-        {/* API key input */}
-        <div className="flex gap-2 flex-wrap items-end">
-          <div className="flex-1 min-w-[240px]">
-            <label className="block text-xs text-muted-foreground mb-1">
-              API-nyckel{" "}
-              <a
-                href={meta.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-info hover:underline"
-              >
-                Hämta nyckel →
-              </a>
-            </label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={meta.placeholder}
-              className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50 font-mono"
-            />
+        <p className="text-xs text-muted-foreground">{meta.price}</p>
+
+        {/* API key — only shown for paid providers */}
+        {needsKey && (
+          <div className="flex gap-2 flex-wrap items-end">
+            <div className="flex-1 min-w-[240px]">
+              <label className="block text-xs text-muted-foreground mb-1">
+                API-nyckel{" "}
+                {meta.link && (
+                  <a href={meta.link} target="_blank" rel="noopener noreferrer" className="text-info hover:underline">
+                    Hämta nyckel →
+                  </a>
+                )}
+              </label>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={meta.placeholder}
+                className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50 font-mono"
+              />
+            </div>
           </div>
-          <div className="w-28">
-            <label className="block text-xs text-muted-foreground mb-1">Batch-storlek</label>
-            <select
-              value={batchSize}
-              onChange={(e) => setBatchSize(Number(e.target.value))}
-              className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-            >
-              {[1, 3, 5, 10, 20].map((n) => (
-                <option key={n} value={n}>{n} st</option>
-              ))}
-            </select>
-          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-2 flex-wrap items-center">
+          <select
+            value={batchSize}
+            onChange={(e) => setBatchSize(Number(e.target.value))}
+            className="px-3 py-2 rounded-md border border-input bg-background text-sm w-28"
+          >
+            {[1, 3, 5, 10, 20].map((n) => (
+              <option key={n} value={n}>{n} st åt gången</option>
+            ))}
+          </select>
           <button
             onClick={generateBatch}
-            disabled={running || !apiKey}
-            className="px-5 py-2 rounded-md bg-info text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 shrink-0"
+            disabled={running || (needsKey && !apiKey)}
+            className="px-5 py-2 rounded-md bg-info text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
           >
             {running ? "Genererar…" : `Generera nästa ${batchSize}`}
           </button>
+          {missing === 0 && (
+            <span className="text-sm text-[oklch(0.55_0.15_155)]">✓ Alla produkter har bilder!</span>
+          )}
         </div>
-
-        <p className="text-xs text-muted-foreground">
-          Pris: <strong>{meta.price}</strong> · Totalt för {missing} saknade:{" "}
-          <strong>
-            {provider === "dalle"
-              ? `~$${(missing * 0.04).toFixed(2)}`
-              : `~$${(missing * 0.003).toFixed(2)}`}
-          </strong>
-        </p>
       </div>
 
       {/* Log */}
@@ -237,12 +252,20 @@ export default function AdminImagesPage() {
           className="rounded-lg border border-border bg-[oklch(0.12_0.01_240)] text-[oklch(0.85_0.05_155)] font-mono text-xs p-4 mb-6 max-h-48 overflow-y-auto space-y-0.5"
         >
           {log.map((line, i) => (
-            <div key={i} className={line.startsWith("✗") ? "text-destructive" : line.startsWith("━") ? "text-info" : ""}>{line}</div>
+            <div
+              key={i}
+              className={
+                line.startsWith("✗") ? "text-destructive" :
+                line.startsWith("━") ? "text-info font-semibold" : ""
+              }
+            >
+              {line}
+            </div>
           ))}
         </div>
       )}
 
-      {/* Product table */}
+      {/* Table */}
       <div className="rounded-xl border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -253,16 +276,13 @@ export default function AdminImagesPage() {
                 <th className="px-4 py-3">Namn</th>
                 <th className="px-4 py-3">Varumärke</th>
                 <th className="px-4 py-3">Kategori</th>
-                <th className="px-4 py-3 w-28">Status</th>
+                <th className="px-4 py-3 w-24">Status</th>
                 <th className="px-4 py-3 w-24"></th>
               </tr>
             </thead>
             <tbody>
               {products.map((p) => (
-                <tr
-                  key={p.id}
-                  className="border-b border-border last:border-0 hover:bg-surface-alt/50 transition"
-                >
+                <tr key={p.id} className="border-b border-border last:border-0 hover:bg-surface-alt/50 transition">
                   <td className="px-4 py-2">
                     {p.image_url ? (
                       <img
@@ -278,8 +298,8 @@ export default function AdminImagesPage() {
                   </td>
                   <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{p.sku}</td>
                   <td className="px-4 py-2">
-                    <div className="font-medium text-sm">{p.family ?? p.name}</div>
-                    <div className="text-xs text-muted-foreground truncate max-w-[220px]">{p.name}</div>
+                    <div className="font-medium">{p.family ?? p.name}</div>
+                    <div className="text-xs text-muted-foreground truncate max-w-[200px]">{p.name}</div>
                   </td>
                   <td className="px-4 py-2 text-xs">{p.brand ?? "—"}</td>
                   <td className="px-4 py-2 text-xs">{p.category ?? "—"}</td>
@@ -297,25 +317,18 @@ export default function AdminImagesPage() {
                     )}
                   </td>
                   <td className="px-4 py-2">
-                    {!p.image_url && (
-                      <button
-                        onClick={() => generateSingle(p.id, p.sku)}
-                        disabled={!!singleRunning || running || !apiKey}
-                        className="text-[11px] px-2.5 py-1 rounded border border-info/50 text-info hover:bg-info/10 disabled:opacity-40 transition"
-                      >
-                        {singleRunning === p.id ? "…" : "Generera"}
-                      </button>
-                    )}
-                    {p.image_url && (
-                      <button
-                        onClick={() => generateSingle(p.id, p.sku)}
-                        disabled={!!singleRunning || running || !apiKey}
-                        className="text-[11px] px-2.5 py-1 rounded border border-border text-muted-foreground hover:border-info/50 hover:text-info disabled:opacity-40 transition"
-                        title="Generera om"
-                      >
-                        {singleRunning === p.id ? "…" : "↺"}
-                      </button>
-                    )}
+                    <button
+                      onClick={() => generateSingle(p.id, p.sku)}
+                      disabled={!!singleRunning || running || (needsKey && !apiKey)}
+                      className={`text-[11px] px-2.5 py-1 rounded border transition disabled:opacity-40 ${
+                        p.image_url
+                          ? "border-border text-muted-foreground hover:border-info/50 hover:text-info"
+                          : "border-info/50 text-info hover:bg-info/10"
+                      }`}
+                      title={p.image_url ? "Generera om" : "Generera"}
+                    >
+                      {singleRunning === p.id ? "…" : p.image_url ? "↺" : "Generera"}
+                    </button>
                   </td>
                 </tr>
               ))}
