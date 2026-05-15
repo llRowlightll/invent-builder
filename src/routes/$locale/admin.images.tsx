@@ -128,6 +128,37 @@ export default function AdminImagesPage() {
     setRunning(false);
   }
 
+  async function generateAll() {
+    if (!PROVIDER_META[provider].free && !apiKey) {
+      addLog("⚠ Ange en API-nyckel för vald provider.");
+      return;
+    }
+    setRunning(true);
+    const totalMissing = products.filter((p) => !p.image_url).length;
+    addLog(`▶ Startar generering av alla ${totalMissing} saknade bilder via ${PROVIDER_META[provider].label}…`);
+    let done = 0;
+    while (true) {
+      try {
+        const data = await callFunction({ batch_size: 5 });
+        if (data.error) { addLog(`✗ Fel: ${data.error}`); break; }
+        const batch = data.results ?? [];
+        if (batch.length === 0) break;
+        for (const r of batch) {
+          if (r.status === "ok") { done++; addLog(`✓ [${done}/${totalMissing}] ${r.sku}`); }
+          else addLog(`✗ ${r.sku}: ${r.error}`);
+        }
+        await fetchProducts();
+        // If fewer than 5 returned, we've hit the end
+        if (batch.length < 5) break;
+      } catch (err) {
+        addLog(`✗ Nätverksfel: ${err}`);
+        break;
+      }
+    }
+    addLog(`━ Klar! ${done} bilder genererade.`);
+    setRunning(false);
+  }
+
   async function generateSingle(product_id: string, sku: string) {
     if (!PROVIDER_META[provider].free && !apiKey) {
       addLog("⚠ Ange en API-nyckel för vald provider.");
@@ -238,6 +269,13 @@ export default function AdminImagesPage() {
             className="px-5 py-2 rounded-md bg-info text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
           >
             {running ? "Genererar…" : `Generera nästa ${batchSize}`}
+          </button>
+          <button
+            onClick={generateAll}
+            disabled={running || missing === 0 || (needsKey && !apiKey)}
+            className="px-5 py-2 rounded-md border border-info text-info text-sm font-medium hover:bg-info/10 disabled:opacity-50 transition"
+          >
+            {running ? "Genererar…" : `Generera alla (${missing})`}
           </button>
           {missing === 0 && (
             <span className="text-sm text-[oklch(0.55_0.15_155)]">✓ Alla produkter har bilder!</span>
