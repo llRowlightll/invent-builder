@@ -14,6 +14,7 @@ export interface ProductRow {
   ip_rating: string | null;
   fieldbus: string | null;
   voltage: string | null;
+  image_url: string | null;
   specs: Record<string, { value: string; unit: string | null }>;
 }
 

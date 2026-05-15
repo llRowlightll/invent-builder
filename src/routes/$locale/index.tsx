@@ -364,37 +364,62 @@ function Landing() {
   );
 }
 
-const BRAND_LOGO_DOMAIN: Record<string, { domain: string; bg: string }> = {
-  "festo":         { domain: "festo.com",          bg: "#f8fafc" },
-  "smc":           { domain: "smcworld.com",        bg: "#f8fafc" },
-  "parker":        { domain: "parker.com",          bg: "#f8fafc" },
-  "bosch-rexroth": { domain: "boschrexroth.com",    bg: "#f8fafc" },
-  "norgren":       { domain: "norgren.com",         bg: "#f8fafc" },
+// Inline SVG brand logos — no external requests, always visible
+const BRAND_SVGS: Record<string, { svg: string; bg: string }> = {
+  "festo": {
+    bg: "#003366",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 60">
+      <rect width="160" height="60" fill="#003366"/>
+      <text x="80" y="42" font-family="Arial,sans-serif" font-size="32" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="2">FESTO</text>
+    </svg>`,
+  },
+  "smc": {
+    bg: "#00529b",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 60">
+      <rect width="160" height="60" fill="#00529b"/>
+      <text x="80" y="43" font-family="Arial,sans-serif" font-size="36" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="3">SMC</text>
+    </svg>`,
+  },
+  "parker": {
+    bg: "#ffa500",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 60">
+      <rect width="160" height="60" fill="#ffa500"/>
+      <text x="80" y="42" font-family="Arial,sans-serif" font-size="28" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="1">PARKER</text>
+    </svg>`,
+  },
+  "bosch-rexroth": {
+    bg: "#e2001a",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 60">
+      <rect width="160" height="60" fill="#e2001a"/>
+      <text x="80" y="35" font-family="Arial,sans-serif" font-size="18" font-weight="900" fill="#ffffff" text-anchor="middle">BOSCH</text>
+      <text x="80" y="54" font-family="Arial,sans-serif" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle" letter-spacing="1">REXROTH</text>
+    </svg>`,
+  },
+  "norgren": {
+    bg: "#002d72",
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 60">
+      <rect width="160" height="60" fill="#002d72"/>
+      <text x="80" y="42" font-family="Arial,sans-serif" font-size="26" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="2">NORGREN</text>
+    </svg>`,
+  },
 };
 
 function BrandLogo({ slug, name }: { slug: string; name: string }) {
-  const [imgError, setImgError] = useState(false);
-  const meta = BRAND_LOGO_DOMAIN[slug];
-  const logoUrl = meta ? `https://logo.clearbit.com/${meta.domain}` : null;
+  const meta = BRAND_SVGS[slug];
   const bg = meta?.bg ?? "#f8fafc";
+  const dataUrl = meta
+    ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(meta.svg)}`
+    : null;
 
   return (
     <div
       className="h-20 flex items-center justify-center p-4 overflow-hidden"
       style={{ background: bg }}
     >
-      {logoUrl && !imgError ? (
-        <img
-          src={logoUrl}
-          alt={name}
-          onError={() => setImgError(true)}
-          className="max-h-12 max-w-full object-contain"
-          loading="lazy"
-        />
+      {dataUrl ? (
+        <img src={dataUrl} alt={name} className="max-h-12 max-w-full object-contain" />
       ) : (
-        <span className="font-bold text-base tracking-tight text-gray-700 select-none">
-          {name}
-        </span>
+        <span className="font-bold text-base tracking-tight text-white select-none">{name}</span>
       )}
     </div>
   );

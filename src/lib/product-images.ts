@@ -270,8 +270,9 @@ export function getBrandImage(_brandSlug: string): string {
 }
 
 export function getProductImage(
-  product: { category: { slug: string }; brand: { slug: string } },
+  product: { category: { slug: string }; brand: { slug: string }; image_url?: string | null },
   square = false
 ): string {
+  if (product.image_url) return product.image_url;
   return getCategoryImage(product.category.slug, square);
 }
