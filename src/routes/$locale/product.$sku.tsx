@@ -135,6 +135,26 @@ function ProductDetail() {
         </aside>
       </div>
 
+      <section className="mt-6 rounded-lg border border-border bg-card p-4 space-y-2 text-sm">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-3">Pris & Leverans</h2>
+        {product.purchase_price != null && (
+          <Row
+            k="Försäljningspris"
+            v={`${(product.purchase_price * (1 + (product.margin ?? 0.35))).toFixed(2)} kr`}
+          />
+        )}
+        <Row
+          k="Estimerad leverans"
+          v={
+            product.availability === "stock"
+              ? "1–2 arbetsdagar"
+              : product.availability === "fast"
+              ? "3–5 arbetsdagar"
+              : `${product.lead_time_days ?? 14} dagar`
+          }
+        />
+      </section>
+
       {Object.keys(product.specs).length > 0 && (
         <section className="mt-10">
           <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">

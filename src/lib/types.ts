@@ -11,6 +11,9 @@ export interface ProductRow {
   category: { slug: string; name: string };
   lead_time_days: number | null;
   availability: string | null;
+  purchase_price: number | null;
+  margin: number | null;
+  weight_kg: number | null;
   ip_rating: string | null;
   fieldbus: string | null;
   voltage: string | null;

@@ -39,6 +39,7 @@ import { Route as LocaleAdminIntegrationsRouteImport } from './routes/$locale/ad
 import { Route as LocaleAdminImportRouteImport } from './routes/$locale/admin.import'
 import { Route as LocaleAdminImagesRouteImport } from './routes/$locale/admin.images'
 import { Route as LocaleAdminCrmRouteImport } from './routes/$locale/admin.crm'
+import { Route as LocaleAdminAuditRouteImport } from './routes/$locale/admin.audit'
 import { Route as ApiPublicNotifyRfqRouteImport } from './routes/api/public/notify/rfq'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -192,6 +193,11 @@ const LocaleAdminCrmRoute = LocaleAdminCrmRouteImport.update({
   path: '/admin/crm',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocaleAdminAuditRoute = LocaleAdminAuditRouteImport.update({
+  id: '/admin/audit',
+  path: '/admin/audit',
+  getParentRoute: () => LocaleRoute,
+} as any)
 const ApiPublicNotifyRfqRoute = ApiPublicNotifyRfqRouteImport.update({
   id: '/api/public/notify/rfq',
   path: '/api/public/notify/rfq',
@@ -221,6 +227,7 @@ export interface FileRoutesByFullPath {
   '/$locale/wizard': typeof LocaleWizardRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/$locale/': typeof LocaleIndexRoute
+  '/$locale/admin/audit': typeof LocaleAdminAuditRoute
   '/$locale/admin/crm': typeof LocaleAdminCrmRoute
   '/$locale/admin/images': typeof LocaleAdminImagesRoute
   '/$locale/admin/import': typeof LocaleAdminImportRoute
@@ -253,6 +260,7 @@ export interface FileRoutesByTo {
   '/$locale/wizard': typeof LocaleWizardRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/$locale': typeof LocaleIndexRoute
+  '/$locale/admin/audit': typeof LocaleAdminAuditRoute
   '/$locale/admin/crm': typeof LocaleAdminCrmRoute
   '/$locale/admin/images': typeof LocaleAdminImagesRoute
   '/$locale/admin/import': typeof LocaleAdminImportRoute
@@ -287,6 +295,7 @@ export interface FileRoutesById {
   '/$locale/wizard': typeof LocaleWizardRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/$locale/': typeof LocaleIndexRoute
+  '/$locale/admin/audit': typeof LocaleAdminAuditRoute
   '/$locale/admin/crm': typeof LocaleAdminCrmRoute
   '/$locale/admin/images': typeof LocaleAdminImagesRoute
   '/$locale/admin/import': typeof LocaleAdminImportRoute
@@ -322,6 +331,7 @@ export interface FileRouteTypes {
     | '/$locale/wizard'
     | '/auth/callback'
     | '/$locale/'
+    | '/$locale/admin/audit'
     | '/$locale/admin/crm'
     | '/$locale/admin/images'
     | '/$locale/admin/import'
@@ -354,6 +364,7 @@ export interface FileRouteTypes {
     | '/$locale/wizard'
     | '/auth/callback'
     | '/$locale'
+    | '/$locale/admin/audit'
     | '/$locale/admin/crm'
     | '/$locale/admin/images'
     | '/$locale/admin/import'
@@ -387,6 +398,7 @@ export interface FileRouteTypes {
     | '/$locale/wizard'
     | '/auth/callback'
     | '/$locale/'
+    | '/$locale/admin/audit'
     | '/$locale/admin/crm'
     | '/$locale/admin/images'
     | '/$locale/admin/import'
@@ -611,6 +623,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAdminImagesRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/admin/audit': {
+      id: '/$locale/admin/audit'
+      path: '/admin/audit'
+      fullPath: '/$locale/admin/audit'
+      preLoaderRoute: typeof LocaleAdminAuditRouteImport
+      parentRoute: typeof LocaleRoute
+    }
     '/$locale/admin/crm': {
       id: '/$locale/admin/crm'
       path: '/admin/crm'
@@ -658,6 +677,7 @@ interface LocaleRouteChildren {
   LocaleTalkRoute: typeof LocaleTalkRoute
   LocaleWizardRoute: typeof LocaleWizardRoute
   LocaleIndexRoute: typeof LocaleIndexRoute
+  LocaleAdminAuditRoute: typeof LocaleAdminAuditRoute
   LocaleAdminCrmRoute: typeof LocaleAdminCrmRoute
   LocaleAdminImagesRoute: typeof LocaleAdminImagesRoute
   LocaleAdminImportRoute: typeof LocaleAdminImportRoute
@@ -686,6 +706,7 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleTalkRoute: LocaleTalkRoute,
   LocaleWizardRoute: LocaleWizardRoute,
   LocaleIndexRoute: LocaleIndexRoute,
+  LocaleAdminAuditRoute: LocaleAdminAuditRoute,
   LocaleAdminCrmRoute: LocaleAdminCrmRoute,
   LocaleAdminImagesRoute: LocaleAdminImagesRoute,
   LocaleAdminImportRoute: LocaleAdminImportRoute,

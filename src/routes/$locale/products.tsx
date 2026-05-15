@@ -422,6 +422,7 @@ function ProductsPage() {
                   <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${GRADE_STYLE[g]}`}>
                     {g === "HIGH" ? t("productsPage.inStock") : `${p.lead_time_days ?? "—"}d`}
                   </span>
+                  <DeliveryBadge availability={p.availability} leadTimeDays={p.lead_time_days} />
                   <div className="flex items-center gap-2">
                     <Link
                       to="/$locale/compare"
@@ -495,6 +496,16 @@ function AccordionFilter({ label, count, children }: { label: string; count: num
       )}
     </div>
   );
+}
+
+function DeliveryBadge({ availability, leadTimeDays }: { availability: string | null; leadTimeDays: number | null }) {
+  if (availability === "stock" || (leadTimeDays != null && leadTimeDays <= 3)) {
+    return <span className="text-[10px] px-2 py-0.5 rounded-full bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)] font-medium">På lager</span>;
+  }
+  if (leadTimeDays != null && leadTimeDays <= 10) {
+    return <span className="text-[10px] px-2 py-0.5 rounded-full bg-[oklch(0.94_0.08_85)] text-[oklch(0.38_0.12_75)] font-medium">~{leadTimeDays}d</span>;
+  }
+  return <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">{leadTimeDays ?? "?"}d</span>;
 }
 
 function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) {
