@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 80" width="300" height="80">
-  <text x="12" y="36" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="700" fill="#E2001A" letter-spacing="-0.5">Bosch</text>
-  <text x="12" y="66" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="700" fill="#E2001A" letter-spacing="-0.5">Rexroth</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 100">
+  <!-- Colored squares above the "r" -->
+  <rect x="0"  y="0" width="14" height="14" fill="#006B8F"/>
+  <rect x="16" y="0" width="14" height="14" fill="#5BC4E8"/>
+  <rect x="32" y="0" width="14" height="14" fill="#E2001A"/>
+  <!-- rexroth in dark navy lowercase -->
+  <text x="0" y="72" font-family="Arial,Helvetica,sans-serif" font-size="48" font-weight="700" fill="#1B2A5E" letter-spacing="-1">rexroth</text>
+  <!-- A Bosch Company -->
+  <text x="2" y="92" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="400" fill="#1B2A5E" letter-spacing="0.5">A Bosch Company</text>
 </svg>
