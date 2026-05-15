@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { makeT, type Locale } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
@@ -46,39 +46,87 @@ function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [edit, setEdit] = useState<Partial<Profile>>({});
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFirstLoad = useRef(true);
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) { navigate({ to: "/$locale/login" as never, params: { locale } as never, replace: true }); return; }
+
     (supabase as any)
       .from("company_profiles")
       .select("*")
       .eq("id", user.id)
       .maybeSingle()
-      .then(({ data }: { data: any }) => {
+      .then(async ({ data }: { data: any }) => {
+        // Check for pending signup profile data saved before email confirmation
+        const pendingRaw = localStorage.getItem("mv_pending_profile");
+        const pending = pendingRaw ? JSON.parse(pendingRaw) : null;
+
         if (data) {
-          setProfile(data as Profile);
-          setEdit(data as Profile);
+          // Profile exists — merge any pending signup data into empty fields
+          let merged = { ...data };
+          if (pending) {
+            const fields: (keyof Profile)[] = [
+              "display_name","company_name","org_number","industry","role",
+              "employees","phone","address_street","address_postal","address_city","address_country","locale",
+            ];
+            for (const f of fields) {
+              if (!merged[f] && pending[f]) merged[f] = pending[f];
+            }
+            if (!data.profile_complete && pending.profile_complete) {
+              merged.profile_complete = true;
+            }
+            // Persist merged data back to DB and clear localStorage
+            await (supabase as any).from("company_profiles").upsert({ id: user.id, ...merged });
+            localStorage.removeItem("mv_pending_profile");
+          }
+          setProfile(merged as Profile);
+          setEdit(merged as Profile);
+        } else if (pending) {
+          // No profile in DB yet — create it from pending signup data
+          const newProfile = { id: user.id, email: user.email, ...pending };
+          await (supabase as any).from("company_profiles").upsert(newProfile);
+          localStorage.removeItem("mv_pending_profile");
+          const { data: created } = await (supabase as any)
+            .from("company_profiles").select("*").eq("id", user.id).maybeSingle();
+          if (created) { setProfile(created as Profile); setEdit(created as Profile); }
         }
         setLoading(false);
       });
   }, [user, authLoading]);
 
-  async function saveProfile(e: React.FormEvent) {
-    e.preventDefault();
+  // Auto-save on edit change (debounced 1.5 s) — skip the very first population
+  useEffect(() => {
+    if (isFirstLoad.current) { isFirstLoad.current = false; return; }
+    if (!user || !profile) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      persistProfile(edit);
+    }, 1500);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [edit]);
+
+  async function persistProfile(data: Partial<Profile>) {
     if (!user) return;
     setSaving(true);
-    const complete = !!(edit.company_name && edit.industry && edit.role && edit.employees);
+    const complete = !!(data.company_name && data.industry && data.role && data.employees);
     await (supabase as any).from("company_profiles").upsert({
       id: user.id,
-      ...edit,
+      ...data,
       profile_complete: complete,
     });
-    const { data } = await (supabase as any).from("company_profiles").select("*").eq("id", user.id).maybeSingle();
-    if (data) { setProfile(data as Profile); setEdit(data as Profile); }
+    const { data: updated } = await (supabase as any).from("company_profiles").select("*").eq("id", user.id).maybeSingle();
+    if (updated) setProfile(updated as Profile);
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
+  }
+
+  async function saveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    await persistProfile(edit);
   }
 
   if (loading || authLoading) {
@@ -246,11 +294,9 @@ function ProfilePage() {
             className="px-6 py-2.5 rounded-md bg-info text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50">
             {saving ? "Sparar…" : "Spara profil"}
           </button>
-          {saved && <span className="text-sm text-[oklch(0.55_0.15_155)]">✓ Sparad!</span>}
-          <Link to="/$locale/app" params={{ locale } as never}
-            className="ml-auto text-sm text-muted-foreground hover:text-info">
-            Gå till appen →
-          </Link>
+          {saving && <span className="text-sm text-muted-foreground">Sparar…</span>}
+          {saved && !saving && <span className="text-sm text-[oklch(0.55_0.15_155)]">✓ Sparad!</span>}
+          <span className="ml-auto text-[11px] text-muted-foreground">Sparas automatiskt</span>
         </div>
       </form>
     </div>

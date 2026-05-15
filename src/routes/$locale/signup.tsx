@@ -97,6 +97,26 @@ function SignupPage() {
     setError(null);
     setLoading(true);
 
+    // Always persist profile data to localStorage so profile page can apply it
+    // after email confirmation (when no session exists yet during signup)
+    const pendingProfile = {
+      display_name:    displayName,
+      email,
+      company_name:    companyName   || null,
+      org_number:      orgNumber     || null,
+      industry:        industry      || null,
+      role:            role          || null,
+      employees:       employees     || null,
+      phone:           phone         || null,
+      address_street:  addressStreet || null,
+      address_postal:  addressPostal || null,
+      address_city:    addressCity   || null,
+      address_country: country,
+      locale,
+      profile_complete: !!(companyName && industry && role && employees),
+    };
+    localStorage.setItem("mv_pending_profile", JSON.stringify(pendingProfile));
+
     const callbackUrl = `${window.location.origin}/auth/callback`;
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
@@ -108,33 +128,21 @@ function SignupPage() {
     });
     if (signUpError) { setError(signUpError.message); setLoading(false); return; }
 
-    // If confirmed immediately (e.g. email confirmations disabled), save profile and go
+    // If session exists (email confirmation disabled) save profile immediately
     const userId = data.user?.id;
-    if (userId) {
+    if (userId && data.session) {
       await (supabase as any).from("company_profiles").upsert({
         id: userId,
-        display_name: displayName,
-        email,
-        company_name:   companyName  || null,
-        org_number:     orgNumber    || null,
-        industry:       industry     || null,
-        role:           role         || null,
-        employees:      employees    || null,
-        phone:          phone        || null,
-        address_street: addressStreet || null,
-        address_postal: addressPostal || null,
-        address_city:   addressCity   || null,
-        address_country: country,
-        locale,
-        profile_complete: !!(companyName && industry && role && employees),
+        ...pendingProfile,
       });
+      localStorage.removeItem("mv_pending_profile");
     }
 
     setLoading(false);
     if (data.session) {
       window.location.href = `/${locale}/profile`;
     } else {
-      setInfo("Kolla din inkorg! Klicka bekräftelselänken och kom sedan tillbaka hit.");
+      setInfo("Kolla din inkorg! Klicka bekräftelselänken och logga sedan in — din profil är redan ifylld.");
     }
   }
 
