@@ -273,6 +273,5 @@ export function getProductImage(
   product: { category: { slug: string }; brand: { slug: string }; image_url?: string | null },
   square = false
 ): string {
-  if (product.image_url) return product.image_url;
   return getCategoryImage(product.category.slug, square);
 }
