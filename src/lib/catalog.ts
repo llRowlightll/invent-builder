@@ -12,7 +12,7 @@ export async function loadCatalog(): Promise<ProductRow[]> {
       supabase
         .from("products")
         .select(
-          "id,sku,name,description,family,lead_time_days,availability,ip_rating,fieldbus,voltage,brand:brands(slug,name),category:categories(slug,name)",
+          "id,sku,name,description,family,lead_time_days,availability,ip_rating,fieldbus,voltage,image_url,brand:brands(slug,name),category:categories(slug,name)",
         )
         .eq("status", "active"),
       supabase.from("product_specs").select("product_id,key,value,unit"),

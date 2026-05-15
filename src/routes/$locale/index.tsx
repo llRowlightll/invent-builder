@@ -67,7 +67,7 @@ function Landing() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [q, setQ] = useState("");
   const [featured, setFeatured] = useState<ProductRow[]>([]);
-  const [totalProducts, setTotalProducts] = useState(59);
+  const [totalProducts, setTotalProducts] = useState(91);
 
   useEffect(() => {
     supabase.from("categories").select("slug,name").order("name").then(({ data }) => setCats(data ?? []));
