@@ -14,8 +14,9 @@ export async function loadCatalog(): Promise<ProductRow[]> {
         .select(
           "id,sku,name,description,family,lead_time_days,availability,ip_rating,fieldbus,voltage,image_url,brand:brands(slug,name),category:categories(slug,name)",
         )
-        .eq("status", "active"),
-      supabase.from("product_specs").select("product_id,key,value,unit"),
+        .eq("status", "active")
+        .limit(1000),
+      supabase.from("product_specs").select("product_id,key,value,unit").limit(5000),
     ]);
     if (error || !products) throw error ?? new Error("No products");
     const specMap = new Map<string, ProductRow["specs"]>();

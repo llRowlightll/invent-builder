@@ -70,10 +70,16 @@ function Landing() {
   const [totalProducts, setTotalProducts] = useState(91);
 
   useEffect(() => {
+    // Fetch exact count directly — never depends on catalog page size
+    supabase
+      .from("products")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "active")
+      .then(({ count }) => { if (count !== null) setTotalProducts(count); });
+
     supabase.from("categories").select("slug,name").order("name").then(({ data }) => setCats(data ?? []));
     supabase.from("brands").select("slug,name").order("name").then(({ data }) => setBrands(data ?? []));
     loadCatalog().then((catalog) => {
-      setTotalProducts(catalog.length);
       // Pick a representative mix: a Festo cylinder, SMC compact, Parker, Bosch
       const picks = ["FESTO-DSBC", "SMC-CQ2", "PARKER-P1D", "FESTO-HGPP"];
       const found = picks
