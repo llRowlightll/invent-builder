@@ -50,12 +50,12 @@ function ProfilePage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { navigate({ to: "/$locale/login" as never, params: { locale } as never, replace: true }); return; }
-    supabase
+    (supabase as any)
       .from("company_profiles")
       .select("*")
       .eq("id", user.id)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         if (data) {
           setProfile(data as Profile);
           setEdit(data as Profile);
