@@ -1,4 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 70" width="280" height="70">
-  <text x="14" y="50" font-family="Arial,Helvetica,sans-serif" font-size="40" font-weight="900" fill="#E05A00" letter-spacing="-1">norgren</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 80">
+  <!-- Norgren globe icon (dark red) -->
+  <g transform="translate(8,8)">
+    <!-- Outer circle -->
+    <circle cx="32" cy="32" r="30" fill="none" stroke="#8B0000" stroke-width="3.5"/>
+    <!-- Horizontal lines (latitude) -->
+    <ellipse cx="32" cy="32" rx="30" ry="12" fill="none" stroke="#8B0000" stroke-width="2.5"/>
+    <!-- Vertical center line (longitude) -->
+    <ellipse cx="32" cy="32" rx="12" ry="30" fill="none" stroke="#8B0000" stroke-width="2.5"/>
+    <!-- Arrow/N diagonal -->
+    <path d="M14 14 L50 50" stroke="#8B0000" stroke-width="4" stroke-linecap="round"/>
+    <path d="M14 14 L14 32 M50 32 L50 50" stroke="#8B0000" stroke-width="3.5" stroke-linecap="round"/>
+  </g>
+  <!-- NORGREN text -->
+  <text x="78" y="54" font-family="Arial Black,Arial,sans-serif" font-size="30" font-weight="900" fill="#8B0000" letter-spacing="1">NORGREN</text>
 </svg>
