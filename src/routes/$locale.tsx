@@ -77,7 +77,6 @@ function LocaleLayout() {
     { to: "/$locale/chat", label: t("nav.chat") },
     { to: "/$locale/advisor", label: t("nav.advisor") },
     { to: "/$locale/compare", label: t("nav.compare") },
-    { to: "/$locale/machine-builder", label: t("nav.machineBuilder") },
   ];
 
   const isAdmin = user?.email === "alexandropeer@gmail.com" || user?.app_metadata?.role === "admin";

@@ -53,10 +53,10 @@ const CAT_ICONS: Record<string, string> = {
 };
 
 const STATS = [
-  { value: "91+", label: "Produkter" },
-  { value: "5", label: "Varumärken" },
-  { value: "13", label: "Kategorier" },
-  { value: "24h", label: "Snabbast leverans" },
+  { value: "91+", label: "Produkter", key: "products" },
+  { value: "5", label: "Varumärken", key: "brands" },
+  { value: "13", label: "Kategorier", key: "categories" },
+  { value: "24h", label: "Snabbast leverans", key: "lead" },
 ];
 
 function Landing() {
@@ -68,6 +68,7 @@ function Landing() {
   const [q, setQ] = useState("");
   const [featured, setFeatured] = useState<ProductRow[]>([]);
   const [totalProducts, setTotalProducts] = useState(91);
+  const [totalBrands, setTotalBrands] = useState(5);
 
   useEffect(() => {
     // Fetch exact count directly — never depends on catalog page size
@@ -78,7 +79,10 @@ function Landing() {
       .then(({ count }) => { if (count !== null) setTotalProducts(count); });
 
     supabase.from("categories").select("slug,name").order("name").then(({ data }) => setCats(data ?? []));
-    supabase.from("brands").select("slug,name").order("name").then(({ data }) => setBrands(data ?? []));
+    supabase.from("brands").select("slug,name").order("name").then(({ data }) => {
+      setBrands(data ?? []);
+      if (data && data.length > 0) setTotalBrands(data.length);
+    });
     loadCatalog().then((catalog) => {
       // Pick a representative mix: a Festo cylinder, SMC compact, Parker, Bosch
       const picks = ["FESTO-DSBC", "SMC-CQ2", "PARKER-P1D", "FESTO-HGPP"];
@@ -162,7 +166,9 @@ function Landing() {
           <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl">
             {STATS.map((s, i) => (
               <div key={i} className="border border-primary-foreground/15 rounded-md px-4 py-3 bg-primary-foreground/5 backdrop-blur-sm">
-                <div className="text-2xl font-semibold" style={{ color: "var(--gold)" }}>{s.value === "91+" ? `${totalProducts}+` : s.value}</div>
+                <div className="text-2xl font-semibold" style={{ color: "var(--gold)" }}>
+                  {s.key === "products" ? `${totalProducts}+` : s.key === "brands" ? `${totalBrands}` : s.value}
+                </div>
                 <div className="text-[11px] uppercase tracking-wider text-primary-foreground/50 mt-0.5">{s.label}</div>
               </div>
             ))}
@@ -259,7 +265,7 @@ function Landing() {
       {/* BRANDS */}
       <section className="container-page py-12">
         <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground text-center">
-          Varumärken vi arbetar med
+          {totalBrands} varumärken vi arbetar med
         </p>
         <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
           {brands.map((b) => (
@@ -349,29 +355,38 @@ function Landing() {
   );
 }
 
-const BRAND_META: Record<string, { bg: string; text: string; accent: string; abbr?: string }> = {
-  "festo":         { bg: "#00B4E6", text: "#fff",     accent: "#003C78", abbr: "FE" },
-  "smc":           { bg: "#003087", text: "#fff",     accent: "#E31E24", abbr: "SMC" },
-  "parker":        { bg: "#FF6900", text: "#fff",     accent: "#000",    abbr: "PH" },
-  "bosch-rexroth": { bg: "#E20015", text: "#fff",     accent: "#000",    abbr: "BR" },
-  "norgren":       { bg: "#005EB8", text: "#fff",     accent: "#E20613", abbr: "NO" },
+const BRAND_LOGO_DOMAIN: Record<string, { domain: string; bg: string }> = {
+  "festo":         { domain: "festo.com",          bg: "#f8fafc" },
+  "smc":           { domain: "smcworld.com",        bg: "#f8fafc" },
+  "parker":        { domain: "parker.com",          bg: "#f8fafc" },
+  "bosch-rexroth": { domain: "boschrexroth.com",    bg: "#f8fafc" },
+  "norgren":       { domain: "norgren.com",         bg: "#f8fafc" },
 };
 
 function BrandLogo({ slug, name }: { slug: string; name: string }) {
-  const m = BRAND_META[slug] ?? { bg: "#64748b", text: "#fff", accent: "#334155", abbr: name.slice(0,2).toUpperCase() };
+  const [imgError, setImgError] = useState(false);
+  const meta = BRAND_LOGO_DOMAIN[slug];
+  const logoUrl = meta ? `https://logo.clearbit.com/${meta.domain}` : null;
+  const bg = meta?.bg ?? "#f8fafc";
+
   return (
-    <div className="h-20 flex items-center justify-center relative overflow-hidden" style={{ background: m.bg }}>
-      {/* accent stripe */}
-      <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ background: m.accent }} />
-      <div className="absolute right-0 top-0 bottom-0 w-1.5" style={{ background: m.accent }} />
-      {/* subtle pattern */}
-      <div className="absolute inset-0 opacity-10"
-        style={{ backgroundImage: "repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)", backgroundSize: "12px 12px" }}
-      />
-      {/* brand name styled as logo */}
-      <span className="relative font-black text-xl tracking-tight select-none" style={{ color: m.text, letterSpacing: "-0.02em", textShadow: "0 1px 3px rgba(0,0,0,.2)" }}>
-        {name.toUpperCase()}
-      </span>
+    <div
+      className="h-20 flex items-center justify-center p-4 overflow-hidden"
+      style={{ background: bg }}
+    >
+      {logoUrl && !imgError ? (
+        <img
+          src={logoUrl}
+          alt={name}
+          onError={() => setImgError(true)}
+          className="max-h-12 max-w-full object-contain"
+          loading="lazy"
+        />
+      ) : (
+        <span className="font-bold text-base tracking-tight text-gray-700 select-none">
+          {name}
+        </span>
+      )}
     </div>
   );
 }
