@@ -220,8 +220,8 @@ function ProductsPage() {
       {/* AI search bar */}
       <div className="rounded-xl border border-border bg-card p-4 mb-4">
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-[10px] uppercase tracking-[0.18em] font-medium text-info">✦ AI-sökning</span>
-          <span className="text-[10px] text-muted-foreground">— beskriv din applikation</span>
+          <span className="text-[10px] uppercase tracking-[0.18em] font-medium text-info">{t("productsPage.aiSearchLabel")}</span>
+          <span className="text-[10px] text-muted-foreground">{t("productsPage.aiSearchDesc")}</span>
         </div>
         <form onSubmit={handleAiSubmit} className="flex gap-2">
           <input
@@ -229,7 +229,7 @@ function ProductsPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onFocus={() => setAiMode(true)}
-            placeholder="t.ex. &quot;cylinder 50mm kolvdiameter med 200mm slag&quot;"
+            placeholder={t("productsPage.aiSearchPlaceholder")}
             className="flex-1 px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
           />
           <button
@@ -238,7 +238,7 @@ function ProductsPage() {
             className="px-4 py-2.5 rounded-md bg-info text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
           >
             {aiLoading ? (
-              <><span className="size-3 rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground animate-spin" />Analyserar…</>
+              <><span className="size-3 rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground animate-spin" />{t("productsPage.analyzing")}</>
             ) : <>✦ {t("common.search")}</>}
           </button>
           {(aiResult || activeFilterCount > 0) && (
@@ -259,8 +259,8 @@ function ProductsPage() {
               {aiResult.followup && <p className="mt-1 text-muted-foreground text-xs italic">{aiResult.followup}</p>}
               {aiResult.source === "ai" && (aiResult.category_slug || aiResult.brand_slug || aiResult.spec_filters?.length > 0) && (
                 <div className="mt-1.5 flex flex-wrap gap-1">
-                  {aiResult.category_slug && <span className="text-[10px] bg-info/10 text-info px-2 py-0.5 rounded-full">Kategori: {aiResult.category_slug}</span>}
-                  {aiResult.brand_slug && <span className="text-[10px] bg-info/10 text-info px-2 py-0.5 rounded-full">Varumärke: {aiResult.brand_slug}</span>}
+                  {aiResult.category_slug && <span className="text-[10px] bg-info/10 text-info px-2 py-0.5 rounded-full">{t("productsPage.filterCategory")} {aiResult.category_slug}</span>}
+                  {aiResult.brand_slug && <span className="text-[10px] bg-info/10 text-info px-2 py-0.5 rounded-full">{t("productsPage.filterBrand")} {aiResult.brand_slug}</span>}
                   {aiResult.spec_filters?.map((f, i) => (
                     <span key={i} className="text-[10px] bg-surface-alt text-muted-foreground px-2 py-0.5 rounded-full">
                       {f.key}: {f.min != null && f.max != null ? `${f.min}–${f.max}` : f.min != null ? `≥${f.min}` : `≤${f.max}`}
@@ -376,7 +376,7 @@ function ProductsPage() {
                       type="checkbox"
                       checked={inCompare}
                       onChange={() => toggleCompare(p.sku)}
-                      aria-label="Lägg till i jämförelse"
+                      aria-label={t("productsPage.addToCompare")}
                       className="accent-[var(--info)]"
                     />
                   </div>
@@ -420,7 +420,7 @@ function ProductsPage() {
 
                 <div className="mt-auto pt-3 border-t border-border flex items-center justify-between gap-2">
                   <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${GRADE_STYLE[g]}`}>
-                    {g === "HIGH" ? "På lager" : `${p.lead_time_days ?? "—"}d`}
+                    {g === "HIGH" ? t("productsPage.inStock") : `${p.lead_time_days ?? "—"}d`}
                   </span>
                   <div className="flex items-center gap-2">
                     <Link
@@ -429,14 +429,14 @@ function ProductsPage() {
                       search={{ skus: p.sku }}
                       className="text-[11px] text-muted-foreground hover:text-info transition"
                     >
-                      Jämför
+                      {t("productsPage.compareLink")}
                     </Link>
                     <Link
                       to="/$locale/product/$sku"
                       params={{ locale, sku: p.sku }}
                       className="text-xs text-info hover:underline"
                     >
-                      Datablad →
+                      {t("productsPage.datasheet")}
                     </Link>
                   </div>
                 </div>
@@ -448,8 +448,8 @@ function ProductsPage() {
             <li className="col-span-full text-center py-16 text-sm text-muted-foreground">
               <div className="text-2xl mb-3">◎</div>
               {aiResult
-                ? "Inga produkter matchade AI-sökningen. Prova att justera din beskrivning."
-                : "Inga produkter matchade. Justera filter eller sökterm."}
+                ? t("productsPage.noResultsAi")
+                : t("productsPage.noResultsManual")}
             </li>
           )}
         </ul>

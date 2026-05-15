@@ -54,7 +54,7 @@ const force = pneumaticToForce(pressure, bore, margin);
       <section className="lg:col-span-4 space-y-4">
         <h1 className="text-2xl font-semibold tracking-tight">{t("nav.convert")}</h1>
         <p className="text-sm text-muted-foreground">
-          Pneumatic cylinder → equivalent electric axis bundle. Force = P · π · (d/2)² × margin.
+          {t("convertPage.subtitle")}
         </p>
         <div className="rounded-lg border border-border bg-card p-4 space-y-3">
           <Field label="Bore Ø (mm)" value={bore} onChange={setBore} />
@@ -62,13 +62,13 @@ const force = pneumaticToForce(pressure, bore, margin);
           <Field label="Pressure (bar)" value={pressure} onChange={setPressure} />
           <Field label="Safety margin" value={margin} step={0.1} onChange={setMargin} />
           <div className="text-sm pt-2 border-t border-border">
-            Computed force: <strong>{force} N</strong>
+            {t("convertPage.computedForce")} <strong>{force} N</strong>
           </div>
           <button
             onClick={generate}
             className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm"
           >
-            Generate EA bundle
+            {t("convertPage.generateButton")}
           </button>
         </div>
       </section>
@@ -78,7 +78,7 @@ const force = pneumaticToForce(pressure, bore, margin);
           <div>
             <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
               <span className="size-2 rounded-full bg-gold" />
-              BEST · <span className="font-mono text-xs">{best.orderCode}</span>
+              BEST · <span className="font-mono text-xs">{best?.orderCode}</span>
             </h2>
             <ValidationList items={best.validation} />
             <BomTable result={best} />
@@ -95,7 +95,7 @@ const force = pneumaticToForce(pressure, bore, margin);
           </div>
         )}
         {!best && (
-          <div className="text-sm text-muted-foreground">Set values and click Generate.</div>
+          <div className="text-sm text-muted-foreground">{t("convertPage.setValues")}</div>
         )}
       </section>
     </div>

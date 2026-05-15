@@ -58,7 +58,7 @@ return (
           <Sel label="Feedback" v={input.feedback} on={(s) => setInput({ ...input, feedback: s as SelectionInput["feedback"] })} opts={["incremental", "absolute"]} />
           <Sel label="IP" v={input.ip} on={(s) => setInput({ ...input, ip: s as SelectionInput["ip"] })} opts={["IP54", "IP65", "IP67"]} />
           <button onClick={generate} className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm">
-            Generate
+            {t("wizardPage.generateButton")}
           </button>
         </div>
       </section>
@@ -68,7 +68,7 @@ return (
             <div>
               <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
                 <span className="size-2 rounded-full bg-gold" />
-                BEST · <span className="font-mono text-xs">{results.best.orderCode}</span>
+                {t("wizardPage.best")} · <span className="font-mono text-xs">{results.best.orderCode}</span>
               </h2>
               <ValidationList items={results.best.validation} />
               <BomTable result={results.best} />
@@ -76,14 +76,14 @@ return (
             <div>
               <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
                 <span className="size-2 rounded-full bg-teal" />
-                CHEAPEST · <span className="font-mono text-xs">{results.cheap.orderCode}</span>
+                {t("wizardPage.cheapest")} · <span className="font-mono text-xs">{results.cheap.orderCode}</span>
               </h2>
               <ValidationList items={results.cheap.validation} />
               <BomTable result={results.cheap} />
             </div>
           </>
         ) : (
-          <p className="text-sm text-muted-foreground">Adjust inputs and click Generate.</p>
+          <p className="text-sm text-muted-foreground">{t("wizardPage.adjustInputs")}</p>
         )}
       </section>
     </div>

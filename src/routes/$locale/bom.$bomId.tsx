@@ -39,7 +39,7 @@ function BomPage() {
         .select("role,qty,product_id,notes")
         .eq("bom_id", bomId);
       if (!bom || !lines) return;
-      setBomMeta(bom);
+      setBomMeta({ mode: bom.mode ?? "best", order_code: bom.order_code });
       const items = lines
         .map((l) => {
           const p = catalog.find((x: ProductRow) => x.id === l.product_id);
@@ -109,7 +109,7 @@ function BomPage() {
         BOM <span className="font-mono text-base">{result.orderCode}</span>
       </h1>
       <div className="text-sm text-muted-foreground">
-        Mode: <span className="capitalize">{bomMeta?.mode}</span> · {result.items.length} items
+        {t("bomPage.mode")} <span className="capitalize">{bomMeta?.mode}</span> · {result.items.length} {t("bomPage.items")}
       </div>
 
       <div className="mt-6">
@@ -122,25 +122,25 @@ function BomPage() {
           disabled={busy}
           className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50"
         >
-          Create RFQ
+          {t("bomPage.createRfq")}
         </button>
         <button
           onClick={() => downloadCsv(`${result.orderCode}.csv`, bomToCsv(result))}
           className="px-4 py-2 rounded-md border border-border text-sm"
         >
-          Download CSV
+          {t("bomPage.downloadCsv")}
         </button>
         <button
           onClick={() => setEmailVisible((v) => !v)}
           className="px-4 py-2 rounded-md border border-border text-sm"
         >
-          {emailVisible ? "Hide" : "Show"} email text
+          {emailVisible ? t("bomPage.hideEmailText") : t("bomPage.showEmailText")}
         </button>
         <button
           onClick={() => navigator.clipboard.writeText(emailText)}
           className="px-4 py-2 rounded-md border border-border text-sm"
         >
-          Copy email
+          {t("bomPage.copyEmail")}
         </button>
       </div>
 

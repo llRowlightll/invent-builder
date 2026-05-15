@@ -50,7 +50,7 @@ function ComparePage() {
     return (
       <div className="container-page py-16">
         <h1 className="text-2xl font-semibold tracking-tight">{t("nav.compare")}</h1>
-        <p className="mt-3 text-sm text-muted-foreground">Inga produkter valda. Bläddra till katalogen och kryssa i 2–4 produkter.</p>
+        <p className="mt-3 text-sm text-muted-foreground">{t("comparePage.noProducts")}</p>
         <Link to="/$locale/products" params={{ locale }} className="mt-4 inline-block text-sm text-info hover:underline">
           ← {t("nav.products")}
         </Link>
@@ -63,13 +63,13 @@ function ComparePage() {
   return (
     <div className="container-page py-8">
       <h1 className="text-2xl font-semibold tracking-tight">{t("nav.compare")}</h1>
-      <p className="text-sm text-muted-foreground mt-1">Jämför {cols} produkter — bästa värde per rad är markerat.</p>
+      <p className="text-sm text-muted-foreground mt-1">{t("comparePage.comparing")} {cols} {t("comparePage.productsLabel")}</p>
 
       <div className="mt-6 overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead className="bg-primary text-primary-foreground">
             <tr>
-              <th className="text-left p-3 text-xs uppercase tracking-wider font-medium w-44">Egenskap</th>
+              <th className="text-left p-3 text-xs uppercase tracking-wider font-medium w-44">{t("comparePage.property")}</th>
               {compared.map((p) => (
                 <th key={p.sku} className="text-left p-3 align-top">
                   <Link to="/$locale/product/$sku" params={{ locale, sku: p.sku }} className="hover:underline font-medium">
@@ -81,18 +81,19 @@ function ComparePage() {
             </tr>
           </thead>
           <tbody>
-            <CompareRow label="Varumärke" cells={compared.map((p) => p.brand.name)} />
-            <CompareRow label="Kategori" cells={compared.map((p) => p.category.name)} />
+            <CompareRow label={t("comparePage.brand")} cells={compared.map((p) => p.brand.name)} />
+            <CompareRow label={t("comparePage.category")} cells={compared.map((p) => p.category.name)} />
             <CompareRow
-              label="Leveranstid (dagar)"
+              label={t("comparePage.leadTimeDays")}
               cells={compared.map((p) => p.lead_time_days?.toString() ?? "—")}
               bestIdx={leadIdx}
+              bestLabel={t("comparePage.best")}
             />
             {allKeys.map((k) => {
               const cells = compared.map((p) => p.specs[k] ? `${p.specs[k].value}${p.specs[k].unit ? " " + p.specs[k].unit : ""}` : "—");
               const numericVals = compared.map((p) => p.specs[k]?.value);
               const best = bestIndex(numericVals, true);
-              return <CompareRow key={k} label={k.replace(/_/g, " ")} cells={cells} bestIdx={best} />;
+              return <CompareRow key={k} label={k.replace(/_/g, " ")} cells={cells} bestIdx={best} bestLabel={t("comparePage.best")} />;
             })}
           </tbody>
         </table>
@@ -101,7 +102,7 @@ function ComparePage() {
   );
 }
 
-function CompareRow({ label, cells, bestIdx }: { label: string; cells: string[]; bestIdx?: number | null }) {
+function CompareRow({ label, cells, bestIdx, bestLabel }: { label: string; cells: string[]; bestIdx?: number | null; bestLabel?: string }) {
   return (
     <tr className="border-t border-border odd:bg-surface-alt/40">
       <td className="p-3 text-muted-foreground capitalize">{label}</td>
@@ -111,7 +112,7 @@ function CompareRow({ label, cells, bestIdx }: { label: string; cells: string[];
           className={`p-3 ${bestIdx === i ? "bg-[oklch(0.94_0.06_155)] text-[oklch(0.32_0.12_155)] font-semibold" : ""}`}
         >
           {c}
-          {bestIdx === i && <span className="ml-2 text-[10px] uppercase">★ Bäst</span>}
+          {bestIdx === i && <span className="ml-2 text-[10px] uppercase">{bestLabel ?? "★"}</span>}
         </td>
       ))}
     </tr>

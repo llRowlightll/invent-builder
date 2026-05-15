@@ -58,17 +58,17 @@ function AdvisorPage() {
 
   return (
     <div className="container-page py-10 max-w-4xl">
-      <h1 className="text-3xl font-semibold tracking-tight">Rådgivare</h1>
-      <p className="mt-2 text-muted-foreground">Vad är din applikation? Vi rekommenderar Bästa och Billigaste paketet.</p>
+      <h1 className="text-3xl font-semibold tracking-tight">{t("advisorPage.title")}</h1>
+      <p className="mt-2 text-muted-foreground">{t("advisorPage.subtitle")}</p>
 
       <div className="mt-8">
-        <label className="block text-sm font-medium mb-2">Användningsområde</label>
+        <label className="block text-sm font-medium mb-2">{t("advisorPage.useCase")}</label>
         <select
           value={selected}
           onChange={(e) => setSelected(e.target.value)}
           className="w-full px-3 py-3 rounded-md border border-input bg-background text-sm"
         >
-          <option value="">— Välj —</option>
+          <option value="">{t("advisorPage.chooseUseCase")}</option>
           {Array.from(grouped.entries()).map(([cat, list]) => (
             <optgroup key={cat} label={cat.toUpperCase()}>
               {list.map((u) => (
@@ -87,18 +87,18 @@ function AdvisorPage() {
 
           {recommended.length === 0 ? (
             <div className="mt-6 rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              Inga rekommenderade produkter ännu för {isSv ? current.title_sv : current.title_en}.
+              {t("advisorPage.noProducts")} {isSv ? current.title_sv : current.title_en}.
             </div>
           ) : (
             <div className="mt-6 grid md:grid-cols-2 gap-4">
-              {best && <RecCard p={best} locale={locale} badge="Bästa val" tone="navy" reason="Vald för bästa balans mellan prestanda och kvalitet" />}
+              {best && <RecCard p={best} locale={locale} badge={t("advisorPage.bestBadge")} tone="navy" reason={t("advisorPage.bestReason")} />}
               {cheapest && cheapest.sku !== best?.sku && (
-                <RecCard p={cheapest} locale={locale} badge="Billigast" tone="green" reason="Kortast leveranstid och bäst pris" />
+                <RecCard p={cheapest} locale={locale} badge={t("advisorPage.cheapestBadge")} tone="green" reason={t("advisorPage.cheapestReason")} />
               )}
               {!cheapest || cheapest.sku === best?.sku ? null : null}
               {recommended.length > 2 && (
                 <div className="md:col-span-2 mt-2">
-                  <h3 className="text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">Alla rekommendationer</h3>
+                  <h3 className="text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">{t("advisorPage.allRecommendations")}</h3>
                   <ul className="grid sm:grid-cols-2 gap-2">
                     {recommended.map((p) => (
                       <li key={p.id}>
@@ -120,6 +120,7 @@ function AdvisorPage() {
 }
 
 function RecCard({ p, locale, badge, tone, reason }: { p: ProductRow; locale: string; badge: string; tone: "navy" | "green"; reason: string }) {
+  const tRec = makeT(locale as Locale);
   const badgeCls =
     tone === "navy"
       ? "bg-primary text-primary-foreground"
@@ -134,10 +135,10 @@ function RecCard({ p, locale, badge, tone, reason }: { p: ProductRow; locale: st
       <p className="mt-3 text-xs text-info italic">{reason}</p>
       <div className="mt-auto pt-4 flex gap-2">
         <Link to="/$locale/product/$sku" params={{ locale, sku: p.sku } as never} className="flex-1 text-center text-sm px-3 py-2 rounded-md bg-info text-primary-foreground hover:opacity-90">
-          Visa detaljer
+          {tRec("advisorPage.viewDetails")}
         </Link>
         <Link to="/$locale/compare" params={{ locale } as never} search={{ skus: p.sku }} className="text-sm px-3 py-2 rounded-md border border-border hover:border-info">
-          Jämför
+          {tRec("advisorPage.compare")}
         </Link>
       </div>
     </article>

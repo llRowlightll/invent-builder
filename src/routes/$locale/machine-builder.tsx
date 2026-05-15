@@ -115,7 +115,7 @@ function MachineBuilderPage() {
       setAnswers({});
       setStep("questions");
     } catch {
-      setError(isSv ? "Något gick fel. Försök igen." : "Something went wrong. Please try again.");
+      setError(t("machineBuilder.errorGeneric"));
       setStep("describe");
     }
   }
@@ -133,7 +133,7 @@ function MachineBuilderPage() {
       setOptionsSummary(data.summary ?? "");
       setStep("options");
     } catch {
-      setError(isSv ? "Något gick fel. Försök igen." : "Something went wrong. Please try again.");
+      setError(t("machineBuilder.errorGeneric"));
       setStep("questions");
     }
   }
@@ -151,7 +151,7 @@ function MachineBuilderPage() {
       setBomExplanation(data.explanation ?? "");
       setStep("result");
     } catch {
-      setError(isSv ? "Något gick fel. Försök igen." : "Something went wrong. Please try again.");
+      setError(t("machineBuilder.errorGeneric"));
       setStep("options");
     }
   }
@@ -176,20 +176,18 @@ function MachineBuilderPage() {
       <div className="mb-8">
         <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground mb-2">
           <span className="text-info">✦</span>
-          {isSv ? "AI-driven maskinbyggare" : "AI-powered machine builder"}
+          {t("machineBuilder.aiLabel")}
         </div>
         <h1 className="text-3xl font-semibold tracking-tight">
-          {isSv ? "Bygg din maskin" : "Build your machine"}
+          {t("machineBuilder.title")}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground max-w-xl">
-          {isSv
-            ? "Beskriv vad du vill bygga — AI ställer rätt frågor, föreslår bästa komponenter och genererar komplett stycklista."
-            : "Describe what you want to build — AI asks the right questions, suggests the best components, and generates a complete BOM."}
+          {t("machineBuilder.subtitle")}
         </p>
       </div>
 
       {/* Progress bar */}
-      <StepIndicator step={step} isSv={isSv} />
+      <StepIndicator step={step} t={t} />
 
       {error && (
         <div className="my-4 px-4 py-3 rounded-md bg-destructive/10 text-destructive text-sm">{error}</div>
@@ -198,7 +196,7 @@ function MachineBuilderPage() {
       {/* ── Step: Describe ── */}
       {step === "describe" && (
         <DescribeStep
-          isSv={isSv}
+          t={t}
           description={description}
           setDescription={setDescription}
           onSubmit={handleDescribe}
@@ -206,12 +204,12 @@ function MachineBuilderPage() {
       )}
 
       {/* ── Step: Loading questions ── */}
-      {step === "q_loading" && <LoadingCard isSv={isSv} message={isSv ? "Analyserar din applikation…" : "Analysing your application…"} />}
+      {step === "q_loading" && <LoadingCard message={t("machineBuilder.analysingApp")} />}
 
       {/* ── Step: Questions ── */}
       {step === "questions" && (
         <QuestionsStep
-          isSv={isSv}
+          t={t}
           summary={qSummary}
           questions={questions}
           answers={answers}
@@ -222,12 +220,12 @@ function MachineBuilderPage() {
       )}
 
       {/* ── Step: Loading options ── */}
-      {step === "o_loading" && <LoadingCard isSv={isSv} message={isSv ? "Söker bästa komponenter för din applikation…" : "Finding the best components for your application…"} />}
+      {step === "o_loading" && <LoadingCard message={t("machineBuilder.searchingComponents")} />}
 
       {/* ── Step: Options ── */}
       {step === "options" && (
         <OptionsStep
-          isSv={isSv}
+          t={t}
           summary={optionsSummary}
           options={options}
           onSelect={handleSelect}
@@ -236,12 +234,12 @@ function MachineBuilderPage() {
       )}
 
       {/* ── Step: Loading BOM ── */}
-      {step === "bom_loading" && <LoadingCard isSv={isSv} message={isSv ? "Sätter ihop komplett stycklista…" : "Building complete bill of materials…"} />}
+      {step === "bom_loading" && <LoadingCard message={t("machineBuilder.buildingBom")} />}
 
       {/* ── Step: Result ── */}
       {step === "result" && selected && (
         <ResultStep
-          isSv={isSv}
+          t={t}
           locale={locale}
           title={bomTitle}
           explanation={bomExplanation}
@@ -263,12 +261,12 @@ function MachineBuilderPage() {
 }
 
 // ── Step Indicator ──────────────────────────────────────────────────────────
-function StepIndicator({ step, isSv }: { step: Step; isSv: boolean }) {
+function StepIndicator({ step, t }: { step: Step; t: (key: import("@/lib/i18n").TKey) => string }) {
   const steps = [
-    { key: "describe", label: isSv ? "Beskriv" : "Describe" },
-    { key: "questions", label: isSv ? "Frågor" : "Questions" },
-    { key: "options", label: isSv ? "Välj" : "Select" },
-    { key: "result", label: isSv ? "Resultat" : "Result" },
+    { key: "describe", label: t("machineBuilder.stepDescribe") },
+    { key: "questions", label: t("machineBuilder.stepQuestions") },
+    { key: "options", label: t("machineBuilder.stepSelect") },
+    { key: "result", label: t("machineBuilder.stepResult") },
   ];
   const order: Record<string, number> = {
     describe: 0, q_loading: 0,
@@ -304,40 +302,38 @@ function StepIndicator({ step, isSv }: { step: Step; isSv: boolean }) {
 }
 
 // ── Describe Step ───────────────────────────────────────────────────────────
-function DescribeStep({ isSv, description, setDescription, onSubmit }: {
-  isSv: boolean; description: string; setDescription: (v: string) => void; onSubmit: () => void;
+function DescribeStep({ t, description, setDescription, onSubmit }: {
+  t: (key: import("@/lib/i18n").TKey) => string; description: string; setDescription: (v: string) => void; onSubmit: () => void;
 }) {
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-border bg-card p-6">
         <label className="block text-sm font-medium text-foreground mb-3">
-          {isSv ? "Beskriv vad du vill bygga eller automatisera:" : "Describe what you want to build or automate:"}
+          {t("machineBuilder.describeLabel")}
         </label>
         <textarea
           value={description}
           onChange={e => setDescription(e.target.value)}
           onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") onSubmit(); }}
-          placeholder={isSv
-            ? "T.ex. \"Jag behöver ett stoppdon som stoppar kartonger på ett transportband. Kartongerna väger ca 5 kg och bandet körs i 0.5 m/s.\""
-            : "E.g. \"I need a stop gate that halts boxes on a conveyor belt. Boxes weigh about 5 kg and belt runs at 0.5 m/s.\""}
+          placeholder={t("machineBuilder.describePlaceholder")}
           rows={5}
           className="w-full px-4 py-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50 resize-none"
         />
         <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
-          <span className="text-[11px] text-muted-foreground">{isSv ? "⌘+Enter för att fortsätta" : "⌘+Enter to continue"}</span>
+          <span className="text-[11px] text-muted-foreground">{t("machineBuilder.cmdEnterHint")}</span>
           <button
             onClick={onSubmit}
             disabled={!description.trim()}
             className="px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition flex items-center gap-2"
           >
-            {isSv ? "Analysera →" : "Analyse →"}
+            {t("machineBuilder.analyse")}
           </button>
         </div>
       </div>
 
       {/* Examples */}
       <div>
-        <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground mb-3">{isSv ? "Prova ett exempel:" : "Try an example:"}</p>
+        <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground mb-3">{t("machineBuilder.tryExample")}</p>
         <div className="flex flex-col gap-2">
           {EXAMPLES.map(ex => (
             <button
@@ -355,8 +351,8 @@ function DescribeStep({ isSv, description, setDescription, onSubmit }: {
 }
 
 // ── Questions Step ──────────────────────────────────────────────────────────
-function QuestionsStep({ isSv, summary, questions, answers, setAnswers, onSubmit, onBack }: {
-  isSv: boolean; summary: string; questions: Question[]; answers: Record<string, string>;
+function QuestionsStep({ t, summary, questions, answers, setAnswers, onSubmit, onBack }: {
+  t: (key: import("@/lib/i18n").TKey) => string; summary: string; questions: Question[]; answers: Record<string, string>;
   setAnswers: (a: Record<string, string>) => void; onSubmit: () => void; onBack: () => void;
 }) {
   const allAnswered = questions.length > 0 && questions.every(q => answers[q.id]);
@@ -372,7 +368,7 @@ function QuestionsStep({ isSv, summary, questions, answers, setAnswers, onSubmit
 
       <div className="rounded-xl border border-border bg-card p-6 space-y-6">
         <div className="text-sm font-medium text-foreground">
-          {isSv ? "Svara på dessa frågor så hittar jag rätt komponenter:" : "Answer these questions so I can find the right components:"}
+          {t("machineBuilder.answerQuestions")}
         </div>
 
         {questions.map((q, i) => (
@@ -409,7 +405,7 @@ function QuestionsStep({ isSv, summary, questions, answers, setAnswers, onSubmit
                   min={q.type === "number" ? 0 : undefined}
                   value={answers[q.id] ?? ""}
                   onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
-                  placeholder={q.type === "number" ? "0" : isSv ? "Skriv ditt svar…" : "Type your answer…"}
+                  placeholder={q.type === "number" ? "0" : t("machineBuilder.typeAnswer")}
                   className="w-48 px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
                 />
                 {q.unit && <span className="text-sm text-muted-foreground">{q.unit}</span>}
@@ -421,14 +417,14 @@ function QuestionsStep({ isSv, summary, questions, answers, setAnswers, onSubmit
 
       <div className="flex items-center justify-between">
         <button onClick={onBack} className="text-sm text-muted-foreground hover:text-foreground transition">
-          ← {isSv ? "Tillbaka" : "Back"}
+          ← {t("machineBuilder.back")}
         </button>
         <button
           onClick={onSubmit}
           disabled={!allAnswered}
           className="px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition"
         >
-          {isSv ? "Hitta komponenter →" : "Find components →"}
+          {t("machineBuilder.findComponents")}
         </button>
       </div>
     </div>
@@ -436,8 +432,8 @@ function QuestionsStep({ isSv, summary, questions, answers, setAnswers, onSubmit
 }
 
 // ── Options Step ────────────────────────────────────────────────────────────
-function OptionsStep({ isSv, summary, options, onSelect, onBack }: {
-  isSv: boolean; summary: string; options: ActuatorOption[]; onSelect: (o: ActuatorOption) => void; onBack: () => void;
+function OptionsStep({ t, summary, options, onSelect, onBack }: {
+  t: (key: import("@/lib/i18n").TKey) => string; summary: string; options: ActuatorOption[]; onSelect: (o: ActuatorOption) => void; onBack: () => void;
 }) {
   const BADGE_COLORS: Record<string, string> = {
     "Bästa valet": "bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)]",
@@ -460,7 +456,7 @@ function OptionsStep({ isSv, summary, options, onSelect, onBack }: {
       )}
 
       <p className="text-sm text-muted-foreground font-medium">
-        {isSv ? "Välj den huvudkomponent som passar dig bäst:" : "Select the main component that fits you best:"}
+        {t("machineBuilder.selectMain")}
       </p>
 
       <div className="space-y-3">
@@ -479,16 +475,16 @@ function OptionsStep({ isSv, summary, options, onSelect, onBack }: {
                 <span className="font-mono text-xs text-muted-foreground">{opt.sku}</span>
               </div>
               <span className="text-info text-sm font-medium shrink-0">
-                {isSv ? "Välj →" : "Select →"}
+                {t("machineBuilder.select")}
               </span>
             </div>
 
             {/* Specs */}
             {(opt.bore_mm || opt.stroke_mm || opt.force_n) && (
               <div className="flex flex-wrap gap-2 mt-3">
-                {opt.bore_mm ? <SpecChip label={isSv ? "Kolvdiameter" : "Bore"} value={`${opt.bore_mm} mm`} /> : null}
-                {opt.stroke_mm ? <SpecChip label={isSv ? "Max slag" : "Max stroke"} value={`${opt.stroke_mm} mm`} /> : null}
-                {opt.force_n ? <SpecChip label={isSv ? "Kraft @ 6 bar" : "Force @ 6 bar"} value={`${opt.force_n} N`} /> : null}
+                {opt.bore_mm ? <SpecChip label="Bore" value={`${opt.bore_mm} mm`} /> : null}
+                {opt.stroke_mm ? <SpecChip label="Max stroke" value={`${opt.stroke_mm} mm`} /> : null}
+                {opt.force_n ? <SpecChip label="Force @ 6 bar" value={`${opt.force_n} N`} /> : null}
               </div>
             )}
 
@@ -518,7 +514,7 @@ function OptionsStep({ isSv, summary, options, onSelect, onBack }: {
 
       <div className="flex items-center justify-start pt-1">
         <button onClick={onBack} className="text-sm text-muted-foreground hover:text-foreground transition">
-          ← {isSv ? "Tillbaka" : "Back"}
+          ← {t("machineBuilder.back")}
         </button>
       </div>
     </div>
@@ -609,9 +605,9 @@ function exportBomPdf(bom: BomLine[], title: string, explanation: string, select
 }
 
 // ── Result Step ─────────────────────────────────────────────────────────────
-function ResultStep({ isSv, locale, title, explanation, selected, bom, description, answers,
+function ResultStep({ t, locale, title, explanation, selected, bom, description, answers,
   rfqName, rfqEmail, rfqSent, setRfqName, setRfqEmail, setRfqSent, onRestart }: {
-  isSv: boolean; locale: string; title: string; explanation: string;
+  t: (key: import("@/lib/i18n").TKey) => string; locale: string; title: string; explanation: string;
   selected: ActuatorOption; bom: BomLine[]; description: string; answers: Record<string, string>;
   rfqName: string; rfqEmail: string; rfqSent: boolean;
   setRfqName: (v: string) => void; setRfqEmail: (v: string) => void; setRfqSent: (v: boolean) => void;
@@ -631,7 +627,7 @@ function ResultStep({ isSv, locale, title, explanation, selected, bom, descripti
       {/* Title */}
       <div className="rounded-xl border border-info/30 bg-info/5 px-5 py-4">
         <div className="text-[11px] uppercase tracking-[0.14em] text-info font-medium mb-1">
-          {isSv ? "Din maskinlösning" : "Your machine solution"}
+          {t("machineBuilder.yourSolution")}
         </div>
         <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
         <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{explanation}</p>
@@ -643,9 +639,9 @@ function ResultStep({ isSv, locale, title, explanation, selected, bom, descripti
           <div className="px-4 py-3 border-b border-border flex items-center justify-between">
             <div className="text-sm font-medium flex items-center gap-2">
               <span className="text-info">◈</span>
-              {isSv ? "3D-visualisering" : "3D Visualization"}
+              {t("machineBuilder.visualization3d")}
             </div>
-            <span className="text-[11px] text-muted-foreground">{isSv ? "Dra för att rotera" : "Drag to rotate"}</span>
+            <span className="text-[11px] text-muted-foreground">{t("machineBuilder.dragRotate")}</span>
           </div>
           <MachineVisualizer
             selected={selected}
@@ -658,7 +654,7 @@ function ResultStep({ isSv, locale, title, explanation, selected, bom, descripti
       {/* BOM Table */}
       <div className="rounded-xl border border-border overflow-hidden">
         <div className="px-4 py-3 bg-muted/40 border-b border-border flex items-center justify-between flex-wrap gap-2">
-          <div className="text-sm font-semibold">{isSv ? "Stycklista (BOM)" : "Bill of Materials"}</div>
+          <div className="text-sm font-semibold">{t("machineBuilder.bomTitle")}</div>
           <div className="flex items-center gap-2">
             {compareSkus && (
               <Link
@@ -667,7 +663,7 @@ function ResultStep({ isSv, locale, title, explanation, selected, bom, descripti
                 search={{ skus: compareSkus }}
                 className="text-xs px-3 py-1.5 rounded-md border border-border hover:border-info transition"
               >
-                ⇔ {isSv ? "Jämför" : "Compare"}
+                ⇔ {t("machineBuilder.compareBom")}
               </Link>
             )}
             <button
@@ -689,10 +685,10 @@ function ResultStep({ isSv, locale, title, explanation, selected, bom, descripti
             <thead>
               <tr className="border-b border-border bg-muted/20">
                 <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">SKU</th>
-                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{isSv ? "Namn" : "Name"}</th>
-                <th className="text-center px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{isSv ? "Antal" : "Qty"}</th>
-                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{isSv ? "Roll" : "Role"}</th>
-                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">{isSv ? "Motivering" : "Reason"}</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("machineBuilder.nameCol")}</th>
+                <th className="text-center px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("machineBuilder.qtyCol")}</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("machineBuilder.roleCol")}</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">{t("machineBuilder.reasonCol")}</th>
               </tr>
             </thead>
             <tbody>
@@ -710,7 +706,7 @@ function ResultStep({ isSv, locale, title, explanation, selected, bom, descripti
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm text-foreground">
-                    {line.product?.name ?? <span className="text-muted-foreground italic">{isSv ? "Ej i katalog" : "Not in catalog"}</span>}
+                    {line.product?.name ?? <span className="text-muted-foreground italic">{t("machineBuilder.notInCatalog")}</span>}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span className="inline-flex items-center justify-center size-6 rounded bg-muted text-xs font-semibold">{line.quantity}</span>
@@ -723,32 +719,32 @@ function ResultStep({ isSv, locale, title, explanation, selected, bom, descripti
           </table>
         </div>
         <div className="px-4 py-2 bg-muted/20 border-t border-border text-xs text-muted-foreground">
-          {bom.length} {isSv ? "artiklar totalt" : "articles total"}
+          {bom.length} {t("machineBuilder.articlesTotal")}
         </div>
       </div>
 
       {/* RFQ */}
       <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="font-semibold text-foreground mb-1">{isSv ? "Skicka offertförfrågan" : "Send quote request"}</h3>
+        <h3 className="font-semibold text-foreground mb-1">{t("machineBuilder.sendQuote")}</h3>
         <p className="text-sm text-muted-foreground mb-4">
-          {isSv ? "Vi skickar en offert med dessa artiklar inom 24 timmar." : "We'll send a quote with these items within 24 hours."}
+          {t("machineBuilder.sendQuoteBody")}
         </p>
         {rfqSent ? (
           <div className="rounded-lg bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)] px-4 py-3 text-sm font-medium">
-            ✓ {isSv ? "Tack! Vi återkommer inom 24 timmar." : "Thank you! We'll get back to you within 24 hours."}
+            {t("machineBuilder.quoteThankYou")}
           </div>
         ) : (
           <div className="flex flex-col sm:flex-row gap-2">
             <input
               value={rfqName}
               onChange={e => setRfqName(e.target.value)}
-              placeholder={isSv ? "Ditt namn" : "Your name"}
+              placeholder={t("machineBuilder.yourNamePlaceholder")}
               className="flex-1 px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
             />
             <input
               value={rfqEmail}
               onChange={e => setRfqEmail(e.target.value)}
-              placeholder={isSv ? "E-postadress" : "Email address"}
+              placeholder={t("machineBuilder.emailPlaceholder")}
               type="email"
               className="flex-1 px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
             />
@@ -757,7 +753,7 @@ function ResultStep({ isSv, locale, title, explanation, selected, bom, descripti
               disabled={!rfqName || !rfqEmail}
               className="px-4 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition whitespace-nowrap"
             >
-              {isSv ? "Skicka →" : "Send →"}
+              {t("machineBuilder.sendButton")}
             </button>
           </div>
         )}
@@ -766,14 +762,14 @@ function ResultStep({ isSv, locale, title, explanation, selected, bom, descripti
       {/* Actions */}
       <div className="flex items-center justify-between flex-wrap gap-3 pt-2">
         <button onClick={onRestart} className="text-sm text-muted-foreground hover:text-foreground transition">
-          ↺ {isSv ? "Börja om" : "Start over"}
+          {t("machineBuilder.startOver")}
         </button>
         <Link
           to="/$locale/products"
           params={{ locale } as never}
           className="text-sm text-info hover:underline"
         >
-          {isSv ? "Bläddra hela katalogen →" : "Browse full catalog →"}
+          {t("machineBuilder.browseCatalog")}
         </Link>
       </div>
     </div>
@@ -1147,7 +1143,7 @@ function labelAt(
 }
 
 // ── Loading Card ────────────────────────────────────────────────────────────
-function LoadingCard({ isSv, message }: { isSv: boolean; message: string }) {
+function LoadingCard({ message }: { message: string }) {
   return (
     <div className="rounded-xl border border-border bg-card p-12 flex flex-col items-center gap-4">
       <div className="flex gap-1.5">

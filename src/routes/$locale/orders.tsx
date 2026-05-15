@@ -49,9 +49,9 @@ function OrdersPage() {
   return (
     <div className="container-page py-10 grid lg:grid-cols-2 gap-8">
       <section>
-        <h1 className="text-xl font-semibold mb-4">My BOMs</h1>
+        <h1 className="text-xl font-semibold mb-4">{t("ordersPage.myBoms")}</h1>
         {boms.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No BOMs yet.</p>
+          <p className="text-sm text-muted-foreground">{t("ordersPage.noBoms")}</p>
         ) : (
           <ul className="space-y-2">
             {boms.map((b) => (
@@ -63,7 +63,7 @@ function OrdersPage() {
                 >
                   <div className="font-mono text-xs">{b.order_code ?? b.id.slice(0, 8)}</div>
                   <div className="text-xs text-muted-foreground">
-                    {b.mode} · {b.total_items} items · {new Date(b.created_at).toLocaleString()}
+                    {b.mode} · {b.total_items} {t("ordersPage.items")} · {new Date(b.created_at).toLocaleString()}
                   </div>
                 </Link>
               </li>
@@ -72,9 +72,9 @@ function OrdersPage() {
         )}
       </section>
       <section>
-        <h1 className="text-xl font-semibold mb-4">My RFQs</h1>
+        <h1 className="text-xl font-semibold mb-4">{t("ordersPage.myRfqs")}</h1>
         {rfqs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No RFQs yet.</p>
+          <p className="text-sm text-muted-foreground">{t("ordersPage.noRfqs")}</p>
         ) : (
           <ul className="space-y-2">
             {rfqs.map((r) => (

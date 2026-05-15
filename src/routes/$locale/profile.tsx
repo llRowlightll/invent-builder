@@ -69,7 +69,7 @@ function ProfilePage() {
           if (pending) {
             const fields: (keyof Profile)[] = [
               "display_name","company_name","org_number","industry","role",
-              "employees","phone","address_street","address_postal","address_city","address_country","locale",
+              "employees","phone","address_street","address_postal","address_city","address_country",
             ];
             for (const f of fields) {
               if (!merged[f] && pending[f]) merged[f] = pending[f];
@@ -141,10 +141,10 @@ function ProfilePage() {
     <div className="container-page py-10 max-w-3xl">
       <div className="flex items-start justify-between flex-wrap gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Min profil</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("profilePage.title")}</h1>
           {profile?.customer_number && (
             <p className="text-xs font-mono text-muted-foreground mt-1">
-              Kundnr: <span className="text-foreground font-medium">{profile.customer_number}</span>
+              {t("profilePage.customerNumber")} <span className="text-foreground font-medium">{profile.customer_number}</span>
             </p>
           )}
         </div>
@@ -169,22 +169,22 @@ function ProfilePage() {
       {/* Score breakdown */}
       {Object.keys(breakdown).length > 1 && (
         <div className="rounded-lg border border-border bg-card p-4 mb-8">
-          <p className="text-[11px] uppercase tracking-widest text-muted-foreground mb-3">Poängfördelning</p>
+          <p className="text-[11px] uppercase tracking-widest text-muted-foreground mb-3">{t("profilePage.scoreBreakdown")}</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {[
-              { key: "domain",   label: "E-postdomän",  max: 12 },
-              { key: "size",     label: "Bolagsstorlek", max: 20 },
-              { key: "industry", label: "Bransch",       max: 22 },
-              { key: "role",     label: "Roll",          max: 16 },
-              { key: "country",  label: "Land",          max: 18 },
-              { key: "complete", label: "Fullständig",   max: 12 },
-            ].map(({ key, label, max }) => {
+              { key: "domain",   labelKey: "profilePage.scoreEmailDomain" as const,  max: 12 },
+              { key: "size",     labelKey: "profilePage.scoreCompanySize" as const, max: 20 },
+              { key: "industry", labelKey: "profilePage.scoreIndustry" as const,       max: 22 },
+              { key: "role",     labelKey: "profilePage.scoreRole" as const,          max: 16 },
+              { key: "country",  labelKey: "profilePage.scoreCountry" as const,          max: 18 },
+              { key: "complete", labelKey: "profilePage.scoreComplete" as const,   max: 12 },
+            ].map(({ key, labelKey, max }) => {
               const pts = (breakdown[key] ?? 0) as number;
               const pct = Math.round((pts / max) * 100);
               return (
                 <div key={key} className="space-y-1">
                   <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">{label}</span>
+                    <span className="text-muted-foreground">{t(labelKey)}</span>
                     <span className="font-medium">{pts}/{max}</span>
                   </div>
                   <div className="h-1 rounded-full bg-border overflow-hidden">
@@ -196,7 +196,7 @@ function ProfilePage() {
           </div>
           {!profile?.profile_complete && (
             <p className="text-xs text-info mt-3">
-              💡 Fyll i alla obligatoriska fält nedan för att få +12 poäng.
+              {t("profilePage.scoreCompleteHint")}
             </p>
           )}
         </div>
@@ -205,17 +205,17 @@ function ProfilePage() {
       {/* Edit form */}
       <form onSubmit={saveProfile} className="space-y-6">
         <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">Kontaktuppgifter</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">{t("profilePage.contactDetails")}</h2>
           <div className="grid sm:grid-cols-2 gap-4">
-            <Field label="Namn">
+            <Field label={t("profilePage.name")}>
               <input value={edit.display_name ?? ""} onChange={(e) => setEdit({ ...edit, display_name: e.target.value })}
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
             </Field>
-            <Field label="E-post">
+            <Field label={t("profilePage.email")}>
               <input type="email" value={edit.email ?? ""} disabled
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm opacity-60 cursor-not-allowed" />
             </Field>
-            <Field label="Telefon">
+            <Field label={t("profilePage.phone")}>
               <input value={edit.phone ?? ""} onChange={(e) => setEdit({ ...edit, phone: e.target.value })}
                 placeholder="+46 70 123 45 67"
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
@@ -224,66 +224,66 @@ function ProfilePage() {
         </section>
 
         <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">Företag *</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">{t("profilePage.company")}</h2>
           <div className="grid sm:grid-cols-2 gap-4">
-            <Field label="Företagsnamn">
+            <Field label={t("profilePage.companyName")}>
               <input value={edit.company_name ?? ""} onChange={(e) => setEdit({ ...edit, company_name: e.target.value })}
                 placeholder="Acme AB"
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
             </Field>
-            <Field label="Org.nr / VAT">
+            <Field label={t("profilePage.orgNumber")}>
               <input value={edit.org_number ?? ""} onChange={(e) => setEdit({ ...edit, org_number: e.target.value })}
                 placeholder="556123-4567"
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
             </Field>
-            <Field label="Bransch">
+            <Field label={t("profilePage.industry")}>
               <select value={edit.industry ?? ""} onChange={(e) => setEdit({ ...edit, industry: e.target.value })}
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm">
-                <option value="">Välj…</option>
-                {[["automation","Automation & robotics"],["manufacturing","Tillverkning"],["automotive","Fordon"],["food","Livsmedel"],["pharma","Pharma & medtech"],["energy","Energi"],["aerospace","Aerospace"],["marine","Marin"],["other","Annat"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                <option value="">{t("profilePage.choose")}</option>
+                {([["automation", t("profilePage.industryAutomation")],["manufacturing", t("profilePage.industryManufacturing")],["automotive", t("profilePage.industryAutomotive")],["food", t("profilePage.industryFood")],["pharma", t("profilePage.industryPharma")],["energy", t("profilePage.industryEnergy")],["aerospace", t("profilePage.industryAerospace")],["marine", t("profilePage.industryMarine")],["other", t("profilePage.industryOther")]] as [string,string][]).map(([v,l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </Field>
-            <Field label="Din roll">
+            <Field label={t("profilePage.role")}>
               <select value={edit.role ?? ""} onChange={(e) => setEdit({ ...edit, role: e.target.value })}
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm">
-                <option value="">Välj…</option>
-                {[["engineer","Konstruktör"],["buyer","Inköp"],["manager","Chef"],["technician","Tekniker"],["designer","Designer"],["student","Student"],["other","Annat"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                <option value="">{t("profilePage.choose")}</option>
+                {([["engineer", t("profilePage.roleEngineer")],["buyer", t("profilePage.roleBuyer")],["manager", t("profilePage.roleManager")],["technician", t("profilePage.roleTechnician")],["designer", t("profilePage.roleDesigner")],["student", t("profilePage.roleStudent")],["other", t("profilePage.roleOther")]] as [string,string][]).map(([v,l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </Field>
-            <Field label="Antal anställda">
+            <Field label={t("profilePage.employees")}>
               <select value={edit.employees ?? ""} onChange={(e) => setEdit({ ...edit, employees: e.target.value })}
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm">
-                <option value="">Välj…</option>
-                {[["1","Bara jag"],["2-10","2–10"],["11-50","11–50"],["51-200","51–200"],["201+","201+"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                <option value="">{t("profilePage.choose")}</option>
+                {([["1", t("profilePage.justMe")],["2-10","2–10"],["11-50","11–50"],["51-200","51–200"],["201+","201+"]] as [string,string][]).map(([v,l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </Field>
           </div>
         </section>
 
         <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">Fakturaadress</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">{t("profilePage.billingAddress")}</h2>
           <div className="space-y-3">
-            <Field label="Gatuadress">
+            <Field label={t("profilePage.streetAddress")}>
               <input value={edit.address_street ?? ""} onChange={(e) => setEdit({ ...edit, address_street: e.target.value })}
                 placeholder="Industrivägen 12"
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
             </Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Postnummer">
+              <Field label={t("profilePage.postalCode")}>
                 <input value={edit.address_postal ?? ""} onChange={(e) => setEdit({ ...edit, address_postal: e.target.value })}
                   placeholder="12345"
                   className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
               </Field>
-              <Field label="Stad">
+              <Field label={t("profilePage.city")}>
                 <input value={edit.address_city ?? ""} onChange={(e) => setEdit({ ...edit, address_city: e.target.value })}
                   placeholder="Stockholm"
                   className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
               </Field>
             </div>
-            <Field label="Land">
+            <Field label={t("profilePage.country")}>
               <select value={edit.address_country ?? "SE"} onChange={(e) => setEdit({ ...edit, address_country: e.target.value })}
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm">
-                {[["SE","Sverige"],["DE","Deutschland"],["NO","Norge"],["DK","Danmark"],["FI","Finland"],["NL","Netherlands"],["GB","United Kingdom"],["AT","Österreich"],["CH","Schweiz"],["FR","France"],["ES","España"],["IT","Italia"],["PL","Polska"],["OTHER","Annan"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                {([["SE","Sverige"],["DE","Deutschland"],["NO","Norge"],["DK","Danmark"],["FI","Finland"],["NL","Netherlands"],["GB","United Kingdom"],["AT","Österreich"],["CH","Schweiz"],["FR","France"],["ES","España"],["IT","Italia"],["PL","Polska"],["OTHER", t("profilePage.countryOther")]] as [string,string][]).map(([v,l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </Field>
           </div>
@@ -292,11 +292,11 @@ function ProfilePage() {
         <div className="flex items-center gap-3 pt-2">
           <button type="submit" disabled={saving}
             className="px-6 py-2.5 rounded-md bg-info text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50">
-            {saving ? "Sparar…" : "Spara profil"}
+            {saving ? t("profilePage.saving") : t("profilePage.saveProfile")}
           </button>
-          {saving && <span className="text-sm text-muted-foreground">Sparar…</span>}
-          {saved && !saving && <span className="text-sm text-[oklch(0.55_0.15_155)]">✓ Sparad!</span>}
-          <span className="ml-auto text-[11px] text-muted-foreground">Sparas automatiskt</span>
+          {saving && <span className="text-sm text-muted-foreground">{t("profilePage.saving")}</span>}
+          {saved && !saving && <span className="text-sm text-[oklch(0.55_0.15_155)]">{t("profilePage.saved")}</span>}
+          <span className="ml-auto text-[11px] text-muted-foreground">{t("profilePage.autoSave")}</span>
         </div>
       </form>
     </div>

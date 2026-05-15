@@ -50,9 +50,7 @@ function ChatPage() {
   const [msgs, setMsgs] = useState<Msg[]>([
     {
       role: "assistant",
-      text: isSv
-        ? "Hej! Beskriv vad du behöver och jag hittar rätt komponenter åt dig. Du kan t.ex. skriva \"cylinder 50mm kolvdiameter för 20kg last\" eller \"vakuumgrepp för glasytor\"."
-        : "Hi! Describe what you need and I'll find the right components for you. For example: \"50mm bore cylinder for 20kg load\" or \"vacuum gripper for glass surfaces\".",
+      text: t("chatPage.greetingSv"),
     },
   ]);
   const [busy, setBusy] = useState(false);
@@ -115,9 +113,7 @@ function ChatPage() {
         ...(matches.length === 0
           ? [{
               role: "assistant" as MsgRole,
-              text: isSv
-                ? "Jag hittade inga exakta matchningar. Försök med ett annat sökord, t.ex. produktnamn eller kategori."
-                : "No exact matches found. Try a different keyword, e.g. product name or category.",
+              text: t("chatPage.noMatchSv"),
             }]
           : []),
         ...(result.followup
@@ -143,7 +139,7 @@ function ChatPage() {
         ...m,
         {
           role: "assistant",
-          text: isSv ? "Något gick fel. Försök igen." : "Something went wrong. Please try again.",
+          text: t("chatPage.errorSv"),
         },
       ]);
     } finally {
@@ -165,9 +161,7 @@ function ChatPage() {
             {t("nav.chat")}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {isSv
-              ? "Beskriv vad du behöver — jag söker i hela katalogen och förklarar varför."
-              : "Describe what you need — I search the full catalog and explain why."}
+            {t("chatPage.leadSv")}
           </p>
         </div>
         {compare.length > 0 && (
@@ -177,7 +171,7 @@ function ChatPage() {
             search={{ skus: compare.join(",") }}
             className="text-sm px-4 py-2 rounded-md bg-info text-primary-foreground hover:opacity-90"
           >
-            Jämför {compare.length} →
+            {t("chatPage.compareCount")} {compare.length} →
           </Link>
         )}
       </div>
@@ -226,7 +220,7 @@ function ChatPage() {
               <span className="size-6 rounded-full bg-info/15 text-info text-xs flex items-center justify-center shrink-0">✦</span>
               <div className="bg-surface-alt border border-border rounded-xl px-4 py-2.5 text-sm text-muted-foreground flex items-center gap-2">
                 <span className="size-3 rounded-full border-2 border-info/40 border-t-info animate-spin" />
-                {isSv ? "Analyserar katalogen…" : "Searching catalog…"}
+                {t("chatPage.analyzingSv")}
               </div>
             </div>
           )}
@@ -237,7 +231,7 @@ function ChatPage() {
         {msgs.length === 1 && (
           <div className="px-4 pb-3 border-t border-border pt-3">
             <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground mb-2">
-              {isSv ? "Prova ett exempel" : "Try an example"}
+              {t("chatPage.tryExample")}
             </p>
             <div className="flex flex-wrap gap-1.5">
               {EXAMPLE_QUERIES.map((q) => (
@@ -260,11 +254,7 @@ function ChatPage() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
-            placeholder={
-              isSv
-                ? "Beskriv vad du behöver, t.ex. \"cylinder 63mm för 40kg last\"…"
-                : "Describe what you need, e.g. \"63mm bore cylinder for 40kg load\"…"
-            }
+            placeholder={t("chatPage.inputPlaceholder")}
             className="flex-1 px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
           />
           <button
@@ -277,7 +267,7 @@ function ChatPage() {
             ) : (
               <span>↑</span>
             )}
-            {isSv ? "Skicka" : "Send"}
+            {t("chatPage.sendButton")}
           </button>
         </div>
       </div>
@@ -292,7 +282,7 @@ function ChatPage() {
           <span className="text-info text-lg">⊞</span>
           <div>
             <div className="font-medium">{t("nav.products")}</div>
-            <div className="text-xs text-muted-foreground">{isSv ? "Bläddra hela katalogen" : "Browse full catalog"}</div>
+            <div className="text-xs text-muted-foreground">{t("chatPage.browseCatalog")}</div>
           </div>
         </Link>
         <Link
@@ -303,7 +293,7 @@ function ChatPage() {
           <span className="text-info text-lg">◎</span>
           <div>
             <div className="font-medium">{t("nav.advisor")}</div>
-            <div className="text-xs text-muted-foreground">{isSv ? "Bästa vs. billigaste" : "Best vs. cheapest"}</div>
+            <div className="text-xs text-muted-foreground">{t("chatPage.bestVsCheapest")}</div>
           </div>
         </Link>
         <Link
@@ -315,7 +305,7 @@ function ChatPage() {
           <span className="text-info text-lg">⇔</span>
           <div>
             <div className="font-medium">{t("nav.compare")}</div>
-            <div className="text-xs text-muted-foreground">{isSv ? "Jämför spec för spec" : "Compare spec by spec"}</div>
+            <div className="text-xs text-muted-foreground">{t("chatPage.compareSpecBySpec")}</div>
           </div>
         </Link>
       </div>
@@ -334,6 +324,7 @@ function ProductCard({
   inCompare: boolean;
   onCompare: () => void;
 }) {
+  const tCard = makeT(locale as Locale);
   const lt = p.lead_time_days;
   const fast = lt != null && lt <= 7;
   return (
@@ -356,7 +347,7 @@ function ProductCard({
         <div className="text-[10px] text-info font-medium uppercase tracking-wider">{p.brand.name}</div>
         <button
           onClick={onCompare}
-          title="Jämför"
+          title={tCard("productsPage.compareLink")}
           className={`text-[10px] px-1.5 py-0.5 rounded border transition ${
             inCompare
               ? "border-info bg-info/10 text-info"
@@ -393,14 +384,14 @@ function ProductCard({
               : "bg-muted text-muted-foreground"
           }`}
         >
-          {fast ? "På lager" : lt != null ? `${lt}d` : "—"}
+          {fast ? tCard("productsPage.inStock") : lt != null ? `${lt}d` : "—"}
         </span>
         <Link
           to="/$locale/product/$sku"
           params={{ locale, sku: p.sku } as never}
           className="text-xs text-info hover:underline"
         >
-          Datablad →
+          {tCard("chatPage.datasheet")}
         </Link>
       </div>
       </div>

@@ -72,16 +72,14 @@ function TalkPage() {
       {tab === "ai" ? (
         <div className="mt-6 rounded-lg border border-border bg-card p-6">
           <p className="text-sm text-muted-foreground">
-            {locale === "sv"
-              ? "Vår AI-ingenjör finns i Projekt-vyn. Beskriv vad du vill göra så får du Bästa + Billigaste lösning."
-              : "Our AI engineer lives in the Project view. Describe what you want and get a Best + Cheapest solution."}
+            {t("talkPage.aiEngineerBody")}
           </p>
           <Link
             to="/$locale/project"
             params={{ locale }}
             className="mt-4 inline-block text-sm rounded-md bg-primary text-primary-foreground px-4 py-2"
           >
-            {locale === "sv" ? "Öppna Projekt" : "Open Project"} →
+            {t("talkPage.aiEngineerProject")}
           </Link>
         </div>
       ) : (

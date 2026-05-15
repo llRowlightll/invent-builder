@@ -87,7 +87,7 @@ function SignupPage() {
 
   async function onStep1(e: React.FormEvent) {
     e.preventDefault();
-    if (password.length < 6) { setError("Lösenordet måste vara minst 6 tecken."); return; }
+    if (password.length < 6) { setError(t("signupPage.passwordMinLength")); return; }
     setError(null);
     setStep(2);
   }
@@ -142,7 +142,7 @@ function SignupPage() {
     if (data.session) {
       window.location.href = `/${locale}/profile`;
     } else {
-      setInfo("Kolla din inkorg! Klicka bekräftelselänken och logga sedan in — din profil är redan ifylld.");
+      setInfo(t("signupPage.checkEmailBody"));
     }
   }
 
@@ -150,10 +150,10 @@ function SignupPage() {
     return (
       <div className="container-page py-16 max-w-md text-center space-y-4">
         <div className="text-5xl">📬</div>
-        <h1 className="text-2xl font-semibold">Bekräfta din e-post</h1>
+        <h1 className="text-2xl font-semibold">{t("signupPage.checkEmailTitle")}</h1>
         <p className="text-sm text-muted-foreground">{info}</p>
         <p className="text-xs text-muted-foreground">
-          Länken tar dig direkt till din profil. Inget mer att göra just nu.
+          {t("signupPage.checkEmailNote")}
         </p>
       </div>
     );
@@ -174,7 +174,7 @@ function SignupPage() {
           </div>
         ))}
         <span className="ml-2 text-xs text-muted-foreground">
-          {step === 1 ? "Kontouppgifter" : "Företagsinformation"}
+          {step === 1 ? t("signupPage.step1Label") : t("signupPage.step2Label")}
         </span>
       </div>
 
@@ -183,7 +183,7 @@ function SignupPage() {
           <h1 className="text-2xl font-semibold tracking-tight">{t("auth.signupTitle")}</h1>
           <p className="text-sm text-muted-foreground mt-1">{t("auth.signupSubtitle")}</p>
           <form onSubmit={onStep1} className="mt-8 space-y-4">
-            <Field label="Ditt namn">
+            <Field label={t("signupPage.yourName")}>
               <input required value={displayName} onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Anna Lindgren"
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
@@ -195,13 +195,13 @@ function SignupPage() {
             </Field>
             <Field label={t("auth.password")}>
               <input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)}
-                placeholder="Minst 6 tecken"
+                placeholder={t("signupPage.passwordPlaceholder")}
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
             </Field>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <button type="submit"
               className="w-full rounded-md bg-info text-primary-foreground py-2.5 text-sm font-medium hover:opacity-90">
-              Nästa steg →
+              {t("signupPage.nextStep")}
             </button>
           </form>
         </>
@@ -209,16 +209,16 @@ function SignupPage() {
 
       {step === 2 && (
         <>
-          <h1 className="text-2xl font-semibold tracking-tight">Ditt företag</h1>
-          <p className="text-sm text-muted-foreground mt-1">Hjälper oss skräddarsy produkter & offerter för dig.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("signupPage.companyTitle")}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t("signupPage.companySubtitle")}</p>
           <form onSubmit={onStep2} className="mt-8 space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
-              <Field label="Företagsnamn *">
+              <Field label={t("signupPage.companyName")}>
                 <input required value={companyName} onChange={(e) => setCompanyName(e.target.value)}
                   placeholder="Acme AB"
                   className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
               </Field>
-              <Field label="Org.nr / VAT-nr">
+              <Field label={t("signupPage.orgNumber")}>
                 <input value={orgNumber} onChange={(e) => setOrgNumber(e.target.value)}
                   placeholder="556123-4567"
                   className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
@@ -226,31 +226,31 @@ function SignupPage() {
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
-              <Field label="Bransch *">
+              <Field label={t("signupPage.industry")}>
                 <select required value={industry} onChange={(e) => setIndustry(e.target.value)}
                   className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm">
-                  <option value="">Välj bransch…</option>
+                  <option value="">{t("signupPage.chooseIndustry")}</option>
                   {INDUSTRIES.map((i) => <option key={i.v} value={i.v}>{i.l}</option>)}
                 </select>
               </Field>
-              <Field label="Din roll *">
+              <Field label={t("signupPage.yourRole")}>
                 <select required value={role} onChange={(e) => setRole(e.target.value)}
                   className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm">
-                  <option value="">Välj roll…</option>
+                  <option value="">{t("signupPage.chooseRole")}</option>
                   {ROLES.map((r) => <option key={r.v} value={r.v}>{r.l}</option>)}
                 </select>
               </Field>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
-              <Field label="Antal anställda *">
+              <Field label={t("signupPage.employees")}>
                 <select required value={employees} onChange={(e) => setEmployees(e.target.value)}
                   className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm">
-                  <option value="">Välj…</option>
+                  <option value="">{t("signupPage.choose")}</option>
                   {SIZES.map((s) => <option key={s.v} value={s.v}>{s.l}</option>)}
                 </select>
               </Field>
-              <Field label="Telefon">
+              <Field label={t("signupPage.phone")}>
                 <input value={phone} onChange={(e) => setPhone(e.target.value)}
                   placeholder="+46 70 123 45 67"
                   className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
@@ -258,26 +258,26 @@ function SignupPage() {
             </div>
 
             <div className="border-t border-border pt-4">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Fakturaadress</p>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">{t("signupPage.billingAddress")}</p>
               <div className="space-y-3">
-                <Field label="Gatuadress">
+                <Field label={t("signupPage.streetAddress")}>
                   <input value={addressStreet} onChange={(e) => setAddressStreet(e.target.value)}
                     placeholder="Industrivägen 12"
                     className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
                 </Field>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Postnummer">
+                  <Field label={t("signupPage.postalCode")}>
                     <input value={addressPostal} onChange={(e) => setAddressPostal(e.target.value)}
                       placeholder="12345"
                       className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
                   </Field>
-                  <Field label="Stad">
+                  <Field label={t("signupPage.city")}>
                     <input value={addressCity} onChange={(e) => setAddressCity(e.target.value)}
                       placeholder="Stockholm"
                       className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
                   </Field>
                 </div>
-                <Field label="Land">
+                <Field label={t("signupPage.country")}>
                   <select value={country} onChange={(e) => setCountry(e.target.value)}
                     className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm">
                     {COUNTRIES.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
@@ -290,11 +290,11 @@ function SignupPage() {
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setStep(1)}
                 className="px-4 py-2.5 rounded-md border border-border text-sm text-muted-foreground hover:border-info hover:text-foreground">
-                ← Tillbaka
+                {t("signupPage.back")}
               </button>
               <button type="submit" disabled={loading}
                 className="flex-1 rounded-md bg-info text-primary-foreground py-2.5 text-sm font-medium hover:opacity-90 disabled:opacity-50">
-                {loading ? "Skapar konto…" : "Skapa konto"}
+                {loading ? t("signupPage.creatingAccount") : t("signupPage.createAccount")}
               </button>
             </div>
           </form>

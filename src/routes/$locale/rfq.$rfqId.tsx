@@ -19,7 +19,7 @@ interface RfqRow {
   created_at: string;
   bom_id: string | null;
 }
-interface ItemRow { role: string | null; qty: number; product_id: string | null }
+interface ItemRow { role: string | null; qty: number | null; product_id: string | null }
 
 function RfqPage() {
   const { locale, rfqId } = Route.useParams();

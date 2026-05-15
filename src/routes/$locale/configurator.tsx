@@ -95,8 +95,8 @@ useEffect(() => {
   return (
     <div className="container-page py-10 grid lg:grid-cols-12 gap-8">
       <aside className="lg:col-span-3">
-        <h1 className="text-xl font-semibold tracking-tight">EA Linear Axis</h1>
-        <p className="text-xs text-muted-foreground mt-1">Festo-style configurator</p>
+        <h1 className="text-xl font-semibold tracking-tight">{t("configuratorPage.title")}</h1>
+        <p className="text-xs text-muted-foreground mt-1">{t("configuratorPage.subtitle")}</p>
 
         <ol className="mt-6 space-y-1 text-sm">
           {STEPS.map((s, i) => (
@@ -115,7 +115,7 @@ useEffect(() => {
         </ol>
 
         <div className="mt-6 rounded-md border border-border bg-card p-3">
-          <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Mode</div>
+          <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{t("configuratorPage.mode")}</div>
           <div className="mt-2 grid grid-cols-2 gap-1">
             <button
               onClick={() => setInput((s) => ({ ...s, mode: "best" }))}
@@ -130,7 +130,7 @@ useEffect(() => {
               CHEAPEST
             </button>
           </div>
-          <div className="mt-3 text-[10px] uppercase tracking-widest text-muted-foreground">Order code</div>
+          <div className="mt-3 text-[10px] uppercase tracking-widest text-muted-foreground">{t("configuratorPage.orderCode")}</div>
           <div className="mt-1 font-mono text-xs break-all">{result.orderCode}</div>
         </div>
       </aside>
@@ -177,7 +177,7 @@ useEffect(() => {
         {step === "accessories" && (
           <Group title="4. Accessories">
             <p className="text-sm text-muted-foreground">
-              Accessories and spares are auto-selected based on mode. BEST adds brake, mounting kit and recommended spares; CHEAPEST keeps only the coupling.
+              {t("configuratorPage.accessoriesNote")}
             </p>
           </Group>
         )}
@@ -191,17 +191,17 @@ useEffect(() => {
                 onClick={saveAndExportBom}
                 className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50"
               >
-                {savingBom ? t("common.loading") : "Save BOM & continue to RFQ"}
+                {savingBom ? t("common.loading") : t("configuratorPage.saveBom")}
               </button>
               <button
                 onClick={() => downloadCsv(`${result.orderCode}.csv`, bomToCsv(result))}
                 className="px-4 py-2 rounded-md border border-border text-sm"
               >
-                Download CSV
+                {t("configuratorPage.downloadCsv")}
               </button>
             </div>
             {hasErrors && (
-              <p className="text-xs text-destructive">Resolve errors before saving.</p>
+              <p className="text-xs text-destructive">{t("configuratorPage.resolveErrors")}</p>
             )}
           </Group>
         )}

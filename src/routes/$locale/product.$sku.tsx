@@ -32,9 +32,9 @@ export const Route = createFileRoute("/$locale/product/$sku")({
     };
   },
   component: ProductDetail,
-  notFoundComponent: () => (
-    <div className="container-page py-16 text-sm">Produkt hittades inte.</div>
-  ),
+  notFoundComponent: () => {
+    return <div className="container-page py-16 text-sm">Product not found.</div>;
+  },
 });
 
 function ProductDetail() {
@@ -119,11 +119,11 @@ function ProductDetail() {
           {product.description && <p className="mt-4 text-sm text-foreground/80 leading-relaxed">{product.description}</p>}
         </div>
         <aside className="rounded-lg border border-border bg-surface-alt p-4 space-y-3 text-sm">
-          <Row k={locale === "sv" ? "Kategori" : locale === "de" ? "Kategorie" : locale === "es" ? "Categoría" : "Category"} v={product.category.name} />
-          <Row k={locale === "sv" ? "Leveranstid" : locale === "de" ? "Lieferzeit" : locale === "es" ? "Plazo entrega" : "Lead time"} v={`${product.lead_time_days ?? "—"} ${locale === "sv" ? "dagar" : locale === "de" ? "Tage" : locale === "es" ? "días" : "days"}`} />
+          <Row k={t("productPage.category")} v={product.category.name} />
+          <Row k={t("productPage.leadTime")} v={`${product.lead_time_days ?? "—"} ${t("productPage.days")}`} />
           {product.ip_rating && <Row k="IP" v={product.ip_rating} />}
-          {product.fieldbus && <Row k={locale === "sv" ? "Fältbuss" : "Fieldbus"} v={product.fieldbus} />}
-          {product.voltage && <Row k={locale === "sv" ? "Spänning" : locale === "de" ? "Spannung" : locale === "es" ? "Tensión" : "Voltage"} v={product.voltage} />}
+          {product.fieldbus && <Row k={t("productPage.fieldbus")} v={product.fieldbus} />}
+          {product.voltage && <Row k={t("productPage.voltage")} v={product.voltage} />}
           <Link
             to="/$locale/compare"
             params={{ locale }}
@@ -138,7 +138,7 @@ function ProductDetail() {
       {Object.keys(product.specs).length > 0 && (
         <section className="mt-10">
           <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            {locale === "sv" ? "Specifikation" : locale === "de" ? "Spezifikation" : locale === "es" ? "Especificación" : "Specification"}
+            {t("productPage.specification")}
           </h2>
           <table className="mt-3 w-full text-sm border border-border rounded-md overflow-hidden">
             <tbody>
@@ -156,7 +156,7 @@ function ProductDetail() {
       {related.length > 0 && (
         <section className="mt-10">
           <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-3">
-            {locale === "sv" ? "Tillbehör & relaterat" : locale === "de" ? "Zubehör & Verwandtes" : locale === "es" ? "Accesorios & relacionados" : "Accessories & related"}
+            {t("productPage.accessoriesRelated")}
           </h2>
           <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {related.map((r) => <ProductMini key={r.id} p={r} locale={locale} />)}
@@ -176,7 +176,7 @@ function ProductDetail() {
               search={{ skus: [product.sku, ...alternatives.slice(0, 3).map((a) => a.sku)].join(",") }}
               className="text-xs px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:border-info hover:text-info transition"
             >
-              {t("common.compare")} alla →
+              {t("productPage.compareAll")}
             </Link>
           </div>
           <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
