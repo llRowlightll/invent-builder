@@ -159,10 +159,16 @@ function LocaleLayout() {
             {user ? (
               <div className="hidden sm:flex items-center gap-2">
                 {isAdmin && (
-                  <Link to={"/$locale/admin/crm" as never} params={{ locale } as never}
-                    className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
-                    CRM
-                  </Link>
+                  <>
+                    <Link to={"/$locale/admin/crm" as never} params={{ locale } as never}
+                      className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
+                      CRM
+                    </Link>
+                    <Link to={"/$locale/admin/images" as never} params={{ locale } as never}
+                      className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
+                      Bilder
+                    </Link>
+                  </>
                 )}
                 <Link to={"/$locale/profile" as never} params={{ locale } as never}
                   className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
@@ -228,10 +234,16 @@ function LocaleLayout() {
                     Profil
                   </Link>
                   {isAdmin && (
-                    <Link to={"/$locale/admin/crm" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
-                      className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
-                      CRM
-                    </Link>
+                    <>
+                      <Link to={"/$locale/admin/crm" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
+                        className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
+                        CRM
+                      </Link>
+                      <Link to={"/$locale/admin/images" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
+                        className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
+                        Bilder
+                      </Link>
+                    </>
                   )}
                   <button onClick={async () => { await signOut(); navigate({ to: "/$locale", params: { locale } }); setMenuOpen(false); }}
                     className="block w-full text-left px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
