@@ -69,12 +69,12 @@ function ProfilePage() {
     if (!user) return;
     setSaving(true);
     const complete = !!(edit.company_name && edit.industry && edit.role && edit.employees);
-    await supabase.from("company_profiles").upsert({
+    await (supabase as any).from("company_profiles").upsert({
       id: user.id,
       ...edit,
       profile_complete: complete,
     });
-    const { data } = await supabase.from("company_profiles").select("*").eq("id", user.id).maybeSingle();
+    const { data } = await (supabase as any).from("company_profiles").select("*").eq("id", user.id).maybeSingle();
     if (data) { setProfile(data as Profile); setEdit(data as Profile); }
     setSaving(false);
     setSaved(true);

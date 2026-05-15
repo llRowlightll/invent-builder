@@ -13,11 +13,13 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as LocaleRouteImport } from './routes/$locale'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LocaleIndexRouteImport } from './routes/$locale/index'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as LocaleWizardRouteImport } from './routes/$locale/wizard'
 import { Route as LocaleTalkRouteImport } from './routes/$locale/talk'
 import { Route as LocaleSignupRouteImport } from './routes/$locale/signup'
 import { Route as LocaleSettingsRouteImport } from './routes/$locale/settings'
 import { Route as LocaleProjectRouteImport } from './routes/$locale/project'
+import { Route as LocaleProfileRouteImport } from './routes/$locale/profile'
 import { Route as LocaleProductsRouteImport } from './routes/$locale/products'
 import { Route as LocaleOrdersRouteImport } from './routes/$locale/orders'
 import { Route as LocaleMachineBuilderRouteImport } from './routes/$locale/machine-builder'
@@ -33,7 +35,10 @@ import { Route as LocaleRfqRfqIdRouteImport } from './routes/$locale/rfq.$rfqId'
 import { Route as LocaleProductSkuRouteImport } from './routes/$locale/product.$sku'
 import { Route as LocaleConfiguratorSchemaIdRouteImport } from './routes/$locale/configurator.$schemaId'
 import { Route as LocaleBomBomIdRouteImport } from './routes/$locale/bom.$bomId'
+import { Route as LocaleAdminIntegrationsRouteImport } from './routes/$locale/admin.integrations'
 import { Route as LocaleAdminImportRouteImport } from './routes/$locale/admin.import'
+import { Route as LocaleAdminImagesRouteImport } from './routes/$locale/admin.images'
+import { Route as LocaleAdminCrmRouteImport } from './routes/$locale/admin.crm'
 import { Route as ApiPublicNotifyRfqRouteImport } from './routes/api/public/notify/rfq'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -55,6 +60,11 @@ const LocaleIndexRoute = LocaleIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => LocaleRoute,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const LocaleWizardRoute = LocaleWizardRouteImport.update({
   id: '/wizard',
@@ -79,6 +89,11 @@ const LocaleSettingsRoute = LocaleSettingsRouteImport.update({
 const LocaleProjectRoute = LocaleProjectRouteImport.update({
   id: '/project',
   path: '/project',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleProfileRoute = LocaleProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => LocaleRoute,
 } as any)
 const LocaleProductsRoute = LocaleProductsRouteImport.update({
@@ -157,9 +172,24 @@ const LocaleBomBomIdRoute = LocaleBomBomIdRouteImport.update({
   path: '/bom/$bomId',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocaleAdminIntegrationsRoute = LocaleAdminIntegrationsRouteImport.update({
+  id: '/admin/integrations',
+  path: '/admin/integrations',
+  getParentRoute: () => LocaleRoute,
+} as any)
 const LocaleAdminImportRoute = LocaleAdminImportRouteImport.update({
   id: '/admin/import',
   path: '/admin/import',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleAdminImagesRoute = LocaleAdminImagesRouteImport.update({
+  id: '/admin/images',
+  path: '/admin/images',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleAdminCrmRoute = LocaleAdminCrmRouteImport.update({
+  id: '/admin/crm',
+  path: '/admin/crm',
   getParentRoute: () => LocaleRoute,
 } as any)
 const ApiPublicNotifyRfqRoute = ApiPublicNotifyRfqRouteImport.update({
@@ -183,13 +213,18 @@ export interface FileRoutesByFullPath {
   '/$locale/machine-builder': typeof LocaleMachineBuilderRoute
   '/$locale/orders': typeof LocaleOrdersRoute
   '/$locale/products': typeof LocaleProductsRoute
+  '/$locale/profile': typeof LocaleProfileRoute
   '/$locale/project': typeof LocaleProjectRoute
   '/$locale/settings': typeof LocaleSettingsRoute
   '/$locale/signup': typeof LocaleSignupRoute
   '/$locale/talk': typeof LocaleTalkRoute
   '/$locale/wizard': typeof LocaleWizardRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/$locale/': typeof LocaleIndexRoute
+  '/$locale/admin/crm': typeof LocaleAdminCrmRoute
+  '/$locale/admin/images': typeof LocaleAdminImagesRoute
   '/$locale/admin/import': typeof LocaleAdminImportRoute
+  '/$locale/admin/integrations': typeof LocaleAdminIntegrationsRoute
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
   '/$locale/configurator/$schemaId': typeof LocaleConfiguratorSchemaIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
@@ -210,13 +245,18 @@ export interface FileRoutesByTo {
   '/$locale/machine-builder': typeof LocaleMachineBuilderRoute
   '/$locale/orders': typeof LocaleOrdersRoute
   '/$locale/products': typeof LocaleProductsRoute
+  '/$locale/profile': typeof LocaleProfileRoute
   '/$locale/project': typeof LocaleProjectRoute
   '/$locale/settings': typeof LocaleSettingsRoute
   '/$locale/signup': typeof LocaleSignupRoute
   '/$locale/talk': typeof LocaleTalkRoute
   '/$locale/wizard': typeof LocaleWizardRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/$locale': typeof LocaleIndexRoute
+  '/$locale/admin/crm': typeof LocaleAdminCrmRoute
+  '/$locale/admin/images': typeof LocaleAdminImagesRoute
   '/$locale/admin/import': typeof LocaleAdminImportRoute
+  '/$locale/admin/integrations': typeof LocaleAdminIntegrationsRoute
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
   '/$locale/configurator/$schemaId': typeof LocaleConfiguratorSchemaIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
@@ -239,13 +279,18 @@ export interface FileRoutesById {
   '/$locale/machine-builder': typeof LocaleMachineBuilderRoute
   '/$locale/orders': typeof LocaleOrdersRoute
   '/$locale/products': typeof LocaleProductsRoute
+  '/$locale/profile': typeof LocaleProfileRoute
   '/$locale/project': typeof LocaleProjectRoute
   '/$locale/settings': typeof LocaleSettingsRoute
   '/$locale/signup': typeof LocaleSignupRoute
   '/$locale/talk': typeof LocaleTalkRoute
   '/$locale/wizard': typeof LocaleWizardRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/$locale/': typeof LocaleIndexRoute
+  '/$locale/admin/crm': typeof LocaleAdminCrmRoute
+  '/$locale/admin/images': typeof LocaleAdminImagesRoute
   '/$locale/admin/import': typeof LocaleAdminImportRoute
+  '/$locale/admin/integrations': typeof LocaleAdminIntegrationsRoute
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
   '/$locale/configurator/$schemaId': typeof LocaleConfiguratorSchemaIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
@@ -269,13 +314,18 @@ export interface FileRouteTypes {
     | '/$locale/machine-builder'
     | '/$locale/orders'
     | '/$locale/products'
+    | '/$locale/profile'
     | '/$locale/project'
     | '/$locale/settings'
     | '/$locale/signup'
     | '/$locale/talk'
     | '/$locale/wizard'
+    | '/auth/callback'
     | '/$locale/'
+    | '/$locale/admin/crm'
+    | '/$locale/admin/images'
     | '/$locale/admin/import'
+    | '/$locale/admin/integrations'
     | '/$locale/bom/$bomId'
     | '/$locale/configurator/$schemaId'
     | '/$locale/product/$sku'
@@ -296,13 +346,18 @@ export interface FileRouteTypes {
     | '/$locale/machine-builder'
     | '/$locale/orders'
     | '/$locale/products'
+    | '/$locale/profile'
     | '/$locale/project'
     | '/$locale/settings'
     | '/$locale/signup'
     | '/$locale/talk'
     | '/$locale/wizard'
+    | '/auth/callback'
     | '/$locale'
+    | '/$locale/admin/crm'
+    | '/$locale/admin/images'
     | '/$locale/admin/import'
+    | '/$locale/admin/integrations'
     | '/$locale/bom/$bomId'
     | '/$locale/configurator/$schemaId'
     | '/$locale/product/$sku'
@@ -324,13 +379,18 @@ export interface FileRouteTypes {
     | '/$locale/machine-builder'
     | '/$locale/orders'
     | '/$locale/products'
+    | '/$locale/profile'
     | '/$locale/project'
     | '/$locale/settings'
     | '/$locale/signup'
     | '/$locale/talk'
     | '/$locale/wizard'
+    | '/auth/callback'
     | '/$locale/'
+    | '/$locale/admin/crm'
+    | '/$locale/admin/images'
     | '/$locale/admin/import'
+    | '/$locale/admin/integrations'
     | '/$locale/bom/$bomId'
     | '/$locale/configurator/$schemaId'
     | '/$locale/product/$sku'
@@ -342,6 +402,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LocaleRoute: typeof LocaleRouteWithChildren
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
   ApiPublicNotifyRfqRoute: typeof ApiPublicNotifyRfqRoute
 }
 
@@ -374,6 +435,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/$locale/'
       preLoaderRoute: typeof LocaleIndexRouteImport
       parentRoute: typeof LocaleRoute
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/$locale/wizard': {
       id: '/$locale/wizard'
@@ -408,6 +476,13 @@ declare module '@tanstack/react-router' {
       path: '/project'
       fullPath: '/$locale/project'
       preLoaderRoute: typeof LocaleProjectRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/profile': {
+      id: '/$locale/profile'
+      path: '/profile'
+      fullPath: '/$locale/profile'
+      preLoaderRoute: typeof LocaleProfileRouteImport
       parentRoute: typeof LocaleRoute
     }
     '/$locale/products': {
@@ -515,11 +590,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleBomBomIdRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/admin/integrations': {
+      id: '/$locale/admin/integrations'
+      path: '/admin/integrations'
+      fullPath: '/$locale/admin/integrations'
+      preLoaderRoute: typeof LocaleAdminIntegrationsRouteImport
+      parentRoute: typeof LocaleRoute
+    }
     '/$locale/admin/import': {
       id: '/$locale/admin/import'
       path: '/admin/import'
       fullPath: '/$locale/admin/import'
       preLoaderRoute: typeof LocaleAdminImportRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/admin/images': {
+      id: '/$locale/admin/images'
+      path: '/admin/images'
+      fullPath: '/$locale/admin/images'
+      preLoaderRoute: typeof LocaleAdminImagesRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/admin/crm': {
+      id: '/$locale/admin/crm'
+      path: '/admin/crm'
+      fullPath: '/$locale/admin/crm'
+      preLoaderRoute: typeof LocaleAdminCrmRouteImport
       parentRoute: typeof LocaleRoute
     }
     '/api/public/notify/rfq': {
@@ -555,13 +651,17 @@ interface LocaleRouteChildren {
   LocaleMachineBuilderRoute: typeof LocaleMachineBuilderRoute
   LocaleOrdersRoute: typeof LocaleOrdersRoute
   LocaleProductsRoute: typeof LocaleProductsRoute
+  LocaleProfileRoute: typeof LocaleProfileRoute
   LocaleProjectRoute: typeof LocaleProjectRoute
   LocaleSettingsRoute: typeof LocaleSettingsRoute
   LocaleSignupRoute: typeof LocaleSignupRoute
   LocaleTalkRoute: typeof LocaleTalkRoute
   LocaleWizardRoute: typeof LocaleWizardRoute
   LocaleIndexRoute: typeof LocaleIndexRoute
+  LocaleAdminCrmRoute: typeof LocaleAdminCrmRoute
+  LocaleAdminImagesRoute: typeof LocaleAdminImagesRoute
   LocaleAdminImportRoute: typeof LocaleAdminImportRoute
+  LocaleAdminIntegrationsRoute: typeof LocaleAdminIntegrationsRoute
   LocaleBomBomIdRoute: typeof LocaleBomBomIdRoute
   LocaleProductSkuRoute: typeof LocaleProductSkuRoute
   LocaleRfqRfqIdRoute: typeof LocaleRfqRfqIdRoute
@@ -579,13 +679,17 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleMachineBuilderRoute: LocaleMachineBuilderRoute,
   LocaleOrdersRoute: LocaleOrdersRoute,
   LocaleProductsRoute: LocaleProductsRoute,
+  LocaleProfileRoute: LocaleProfileRoute,
   LocaleProjectRoute: LocaleProjectRoute,
   LocaleSettingsRoute: LocaleSettingsRoute,
   LocaleSignupRoute: LocaleSignupRoute,
   LocaleTalkRoute: LocaleTalkRoute,
   LocaleWizardRoute: LocaleWizardRoute,
   LocaleIndexRoute: LocaleIndexRoute,
+  LocaleAdminCrmRoute: LocaleAdminCrmRoute,
+  LocaleAdminImagesRoute: LocaleAdminImagesRoute,
   LocaleAdminImportRoute: LocaleAdminImportRoute,
+  LocaleAdminIntegrationsRoute: LocaleAdminIntegrationsRoute,
   LocaleBomBomIdRoute: LocaleBomBomIdRoute,
   LocaleProductSkuRoute: LocaleProductSkuRoute,
   LocaleRfqRfqIdRoute: LocaleRfqRfqIdRoute,
@@ -598,18 +702,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LocaleRoute: LocaleRouteWithChildren,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
   ApiPublicNotifyRfqRoute: ApiPublicNotifyRfqRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
