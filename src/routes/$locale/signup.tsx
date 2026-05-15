@@ -111,7 +111,7 @@ function SignupPage() {
     // If confirmed immediately (e.g. email confirmations disabled), save profile and go
     const userId = data.user?.id;
     if (userId) {
-      await supabase.from("company_profiles").upsert({
+      await (supabase as any).from("company_profiles").upsert({
         id: userId,
         display_name: displayName,
         email,
