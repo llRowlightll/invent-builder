@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { makeT, type Locale } from "@/lib/i18n";
 import { supabase } from "@/integrations/supabase/client";
-import { loadCatalog } from "@/lib/catalog";
+import { loadCatalog, clearCatalogCache } from "@/lib/catalog";
 import type { ProductRow } from "@/lib/types";
 import heroImg from "@/assets/hero-industrial.jpg";
 import featureImg from "@/assets/feature-component.jpg";
@@ -71,25 +71,34 @@ function Landing() {
   const [totalBrands, setTotalBrands] = useState(5);
 
   useEffect(() => {
-    // Fetch exact count directly — never depends on catalog page size
+    // Clear any stale module-level cache so we always get a fresh count
+    clearCatalogCache();
+
+    // Primary: exact HEAD count — never returns a filtered/cached subset
     supabase
       .from("products")
       .select("*", { count: "exact", head: true })
       .eq("status", "active")
-      .then(({ count }) => { if (count !== null) setTotalProducts(count); });
+      .then(({ count }) => {
+        if (count !== null && count > 0) {
+          setTotalProducts(count);
+        }
+      });
 
     supabase.from("categories").select("slug,name").order("name").then(({ data }) => setCats(data ?? []));
     supabase.from("brands").select("slug,name").order("name").then(({ data }) => {
       setBrands(data ?? []);
       if (data && data.length > 0) setTotalBrands(data.length);
     });
+
     loadCatalog().then((catalog) => {
-      // Pick a representative mix: a Festo cylinder, SMC compact, Parker, Bosch
+      // Backup: if catalog length is higher than current state, update
+      setTotalProducts((prev) => Math.max(prev, catalog.length));
+
       const picks = ["FESTO-DSBC", "SMC-CQ2", "PARKER-P1D", "FESTO-HGPP"];
       const found = picks
         .map((sku) => catalog.find((p) => p.sku === sku))
         .filter(Boolean) as ProductRow[];
-      // Fallback: take first 4 if picks not found
       setFeatured(found.length >= 2 ? found : catalog.slice(0, 4));
     });
   }, []);
