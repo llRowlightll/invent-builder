@@ -71,11 +71,11 @@ export default function CrmPage() {
   }
 
   useEffect(() => {
-    supabase
+    (supabase as any)
       .from("company_profiles")
       .select("*")
       .order("score", { ascending: false })
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         setProfiles((data ?? []) as Profile[]);
         setLoading(false);
       });
