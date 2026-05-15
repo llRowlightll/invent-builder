@@ -46,12 +46,12 @@ export default function IntegrationsPage() {
 
   async function load() {
     const [{ data: logData }, { data: rfqData }] = await Promise.all([
-      supabase
+      (supabase as any)
         .from("integration_logs")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(50),
-      supabase
+      (supabase as any)
         .from("rfqs")
         .select("id,contact_name,contact_email,company,status,hubspot_contact_id,hubspot_deal_id,fortnox_order_id,integration_error,integration_synced_at,created_at")
         .order("created_at", { ascending: false })
