@@ -168,6 +168,10 @@ function LocaleLayout() {
                       className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
                       Bilder
                     </Link>
+                    <Link to={"/$locale/admin/integrations" as never} params={{ locale } as never}
+                      className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
+                      Integrationer
+                    </Link>
                   </>
                 )}
                 <Link to={"/$locale/profile" as never} params={{ locale } as never}
@@ -242,6 +246,10 @@ function LocaleLayout() {
                       <Link to={"/$locale/admin/images" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
                         className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                         Bilder
+                      </Link>
+                      <Link to={"/$locale/admin/integrations" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
+                        className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
+                        Integrationer
                       </Link>
                     </>
                   )}
