@@ -261,6 +261,35 @@ function toDataUrl(svg: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
+// Real product images extracted from manufacturer PDF catalogs
+// Served from /public/products/ via Cloudflare CDN
+const PRODUCT_IMAGES: Record<string, string> = {
+  // Parker — by family slug
+  "parker:p1d":           "/products/parker-p1d.jpg",
+  "parker:p1d-detail":    "/products/parker-p1d-detail.jpg",
+  "parker:p1f":           "/products/parker-p1d.jpg",
+  "parker:p1p":           "/products/parker-p1p.jpg",
+  "parker:p5t":           "/products/parker-p5t.jpg",
+  "parker:osp-p":         "/products/parker-osp-p.jpg",
+  "parker:parker-sr":     "/products/parker-sr.jpg",
+  "parker:parker-frl":    "/products/parker-frl.jpg",
+  "parker:parker-vacuum": "/products/parker-vacuum.jpg",
+  "parker:parker-gripper":"/products/parker-gripper.jpg",
+  "parker:parker-electro":"/products/parker-electro.jpg",
+  "parker:lp-lpm":        "/products/parker-p1p.jpg",
+  "parker:rm28000":       "/products/parker-sr.jpg",
+  // Bosch Rexroth
+  "bosch-rexroth:pra":    "/products/bosch-pra.jpg",
+  "bosch-rexroth:rtc-hd": "/products/bosch-rtc-hd.jpg",
+  "bosch-rexroth:gpc-bv": "/products/bosch-gpc-bv.jpg",
+  "bosch-rexroth:kpz":    "/products/bosch-kpz.jpg",
+  // Norgren
+  "norgren:lintra-plus":  "/products/norgren-lintra-plus.jpg",
+  "norgren:norgren-nr":   "/products/norgren-nr.jpg",
+  "norgren:sr-srd":       "/products/norgren-roundline.jpg",
+  "norgren:rm-28000":     "/products/norgren-rm28000.jpg",
+};
+
 export function getCategoryImage(categorySlug: string, _square = false): string {
   return toDataUrl(svgs[categorySlug] ?? FALLBACK_SVG);
 }
@@ -270,8 +299,22 @@ export function getBrandImage(_brandSlug: string): string {
 }
 
 export function getProductImage(
-  product: { category: { slug: string }; brand: { slug: string }; image_url?: string | null },
+  product: { category: { slug: string }; brand: { slug: string }; family?: string | null; image_url?: string | null },
   square = false
 ): string {
+  // 1. Use explicit image_url if set on the product
+  if (product.image_url) return product.image_url;
+
+  // 2. Look up by brand + family
+  const brandSlug = product.brand.slug;
+  const family = product.family ?? "";
+  const key = `${brandSlug}:${family}`;
+  if (PRODUCT_IMAGES[key]) return PRODUCT_IMAGES[key];
+
+  // 3. Look up by brand only (first matching entry)
+  const brandMatch = Object.entries(PRODUCT_IMAGES).find(([k]) => k.startsWith(`${brandSlug}:`));
+  if (brandMatch) return brandMatch[1];
+
+  // 4. Fall back to category SVG illustration
   return getCategoryImage(product.category.slug, square);
 }
