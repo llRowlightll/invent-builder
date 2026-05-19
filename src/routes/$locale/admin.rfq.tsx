@@ -300,6 +300,16 @@ export default function AdminRfqPage() {
                   >
                     {saving ? "Sparar…" : "Spara ändringar"}
                   </button>
+
+                  {/* Send quote email */}
+                  {selected.contact_email && (
+                    <a
+                      href={buildQuoteMailto(selected, items, editQuote)}
+                      className="block w-full text-center text-sm font-medium px-4 py-2 rounded-md border border-border hover:border-info hover:text-info transition"
+                    >
+                      ✉ Skicka offert via e-post
+                    </a>
+                  )}
                 </div>
               </div>
             </div>
@@ -308,6 +318,40 @@ export default function AdminRfqPage() {
       </div>
     </div>
   );
+}
+
+function buildQuoteMailto(rfq: Rfq, items: RfqItem[], quoteAmount: string): string {
+  const name = rfq.contact_name ?? rfq.company ?? "Kund";
+  const amount = quoteAmount ? `${Number(quoteAmount).toLocaleString("sv-SE")} SEK` : "se bifogad offert";
+  const productLines = items.length > 0
+    ? items.map(i => `  • ${i.product?.sku ?? "—"} × ${i.qty ?? 1}  ${i.product?.name ?? ""}`).join("\n")
+    : "  (inga produktrader)";
+
+  const body = [
+    `Hej ${name},`,
+    "",
+    `Tack för din offertförfrågan (ref: ${rfq.id.slice(0, 8).toUpperCase()}).`,
+    "",
+    "Vi har granskat dina önskemål och kan erbjuda följande:",
+    "",
+    `Offertbelopp: ${amount}`,
+    "",
+    "Ingående produkter:",
+    productLines,
+    "",
+    rfq.message ? `Din förfrågan: "${rfq.message.slice(0, 200)}"` : "",
+    "",
+    "Betalningsvillkor: 30 dagar netto",
+    "Leveranstid: se respektive produkt",
+    "",
+    "Har du frågor är du välkommen att kontakta oss.",
+    "",
+    "Med vänliga hälsningar",
+    "Maskinval",
+    "info@maskinval.se",
+  ].filter(l => l !== undefined).join("\n");
+
+  return `mailto:${rfq.contact_email}?subject=${encodeURIComponent(`Offert från Maskinval — ref ${rfq.id.slice(0, 8).toUpperCase()}`)}&body=${encodeURIComponent(body)}`;
 }
 
 function Field({ label, value, link }: { label: string; value: string | null | undefined; link?: string }) {

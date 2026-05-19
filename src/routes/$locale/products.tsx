@@ -188,19 +188,19 @@ function ProductsPage() {
   const activeFilterCount = brands.size + cats.size + grades.size;
 
   return (
-    <div className="container-page py-8">
+    <div className="container-page py-6 md:py-8">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("nav.products")}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-xl md:text-2xl font-semibold tracking-tight">{t("nav.products")}</h1>
+          <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
             {filtered.length} {t("products.of")} {items.length} {t("products.count")}
           </p>
         </div>
         <Link
           to="/$locale/compare"
           params={{ locale }}
-          className="text-sm px-4 py-2 rounded-md border border-border text-muted-foreground hover:border-info hover:text-info transition"
+          className="text-xs md:text-sm px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:border-info hover:text-info transition"
         >
           ⟷ {t("nav.compare")}
         </Link>
@@ -395,26 +395,28 @@ function ProductsPage() {
 
                 <div className="mt-3 font-mono text-[11px] text-muted-foreground">{p.sku}</div>
 
-                <div className="mt-auto pt-3 border-t border-border flex items-center justify-between gap-2">
-                  <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${GRADE_STYLE[g]}`}>
-                    {g === "HIGH" ? t("productsPage.inStock") : `${p.lead_time_days ?? "—"}d`}
-                  </span>
-                  <DeliveryBadge availability={p.availability} leadTimeDays={p.lead_time_days} />
-                  <div className="flex items-center gap-2">
+                <div className="mt-auto pt-3 border-t border-border">
+                  <div className="flex items-center justify-between gap-1 flex-wrap">
+                    <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${GRADE_STYLE[g]}`}>
+                      {g === "HIGH" ? t("productsPage.inStock") : `${p.lead_time_days ?? "—"}d`}
+                    </span>
+                    <DeliveryBadge availability={p.availability} leadTimeDays={p.lead_time_days} />
+                  </div>
+                  <div className="flex items-center gap-3 mt-2">
+                    <Link
+                      to="/$locale/product/$sku"
+                      params={{ locale, sku: p.sku }}
+                      className="text-xs text-info hover:underline font-medium"
+                    >
+                      {t("productsPage.datasheet")} →
+                    </Link>
                     <Link
                       to="/$locale/compare"
                       params={{ locale }}
                       search={{ skus: p.sku }}
-                      className="text-[11px] text-muted-foreground hover:text-info transition"
+                      className="text-[11px] text-muted-foreground hover:text-info transition ml-auto"
                     >
                       ⟷ {t("productsPage.compareLink")}
-                    </Link>
-                    <Link
-                      to="/$locale/product/$sku"
-                      params={{ locale, sku: p.sku }}
-                      className="text-xs text-info hover:underline"
-                    >
-                      {t("productsPage.datasheet")}
                     </Link>
                   </div>
                 </div>

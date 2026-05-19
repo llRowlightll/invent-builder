@@ -98,9 +98,9 @@ function ComparePage() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Left: Product picker */}
-        <div className="lg:col-span-1">
-          <div className="rounded-xl border border-border bg-card overflow-hidden sticky top-20">
+        {/* Left: Product picker — shows below on mobile */}
+        <div className="lg:col-span-1 order-2 lg:order-1">
+          <div className="rounded-xl border border-border bg-card overflow-hidden lg:sticky lg:top-20">
             <div className="px-4 py-3 border-b border-border bg-surface-alt/40">
               <h2 className="text-sm font-medium">Välj produkter ({selected.length}/4)</h2>
             </div>
@@ -170,17 +170,17 @@ function ComparePage() {
           </div>
         </div>
 
-        {/* Right: Comparison table */}
-        <div className="lg:col-span-2">
+        {/* Right: Comparison table — shows first on mobile */}
+        <div className="lg:col-span-2 order-1 lg:order-2">
           {compared.length === 0 ? (
             <div className="rounded-xl border border-border bg-card p-12 text-center">
               <div className="text-4xl mb-3 opacity-20">⟷</div>
               <p className="text-sm text-muted-foreground">Välj minst en produkt i listan till vänster</p>
             </div>
           ) : (
-            <div className="rounded-xl border border-border overflow-hidden">
+            <div className="rounded-xl border border-border overflow-hidden overflow-x-auto">
               {/* Product headers with images */}
-              <div className="grid bg-surface-alt border-b border-border" style={{ gridTemplateColumns: `10rem repeat(${compared.length}, 1fr)` }}>
+              <div className="grid bg-surface-alt border-b border-border min-w-[480px]" style={{ gridTemplateColumns: `9rem repeat(${compared.length}, 1fr)` }}>
                 <div className="p-3" />
                 {compared.map((p) => (
                   <div key={p.sku} className="p-3 border-l border-border">
@@ -204,7 +204,7 @@ function ComparePage() {
               </div>
 
               {/* Comparison rows */}
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[480px]">
                 <tbody>
                   <CompareRow
                     label={t("comparePage.brand")}

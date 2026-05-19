@@ -104,7 +104,7 @@ function ProductDetail() {
         ← {t("nav.products")}
       </Link>
 
-      <div className="mt-4 grid md:grid-cols-[1fr_280px] gap-6">
+      <div className="mt-4 grid md:grid-cols-[1fr_260px] gap-4 md:gap-6">
         <div>
           <div className="rounded-xl overflow-hidden border border-border mb-5 aspect-[16/7] bg-surface-alt">
             <img

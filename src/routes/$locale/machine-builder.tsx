@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState, Suspense, lazy } from "react";
+import { useEffect, useRef, useState } from "react";
 import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
+import { supabase } from "@/integrations/supabase/client";
 import type { ProductRow } from "@/lib/types";
 
 export const Route = createFileRoute("/$locale/machine-builder")({
@@ -91,8 +92,11 @@ function MachineBuilderPage() {
   const [catalog, setCatalog] = useState<ProductRow[]>([]);
   const [error, setError] = useState("");
   const [rfqSent, setRfqSent] = useState(false);
+  const [rfqId, setRfqId] = useState("");
   const [rfqName, setRfqName] = useState("");
   const [rfqEmail, setRfqEmail] = useState("");
+  const [rfqCompany, setRfqCompany] = useState("");
+  const [rfqPhone, setRfqPhone] = useState("");
 
   useEffect(() => { loadCatalog().then(setCatalog).catch(() => {}); }, []);
 
@@ -167,18 +171,23 @@ function MachineBuilderPage() {
     setBomTitle("");
     setBomExplanation("");
     setRfqSent(false);
+    setRfqId("");
+    setRfqName("");
+    setRfqEmail("");
+    setRfqCompany("");
+    setRfqPhone("");
     setError("");
   }
 
   return (
-    <div className="container-page py-8 max-w-4xl">
+    <div className="container-page py-6 md:py-8 max-w-4xl">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-6 md:mb-8">
         <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground mb-2">
           <span className="text-info">✦</span>
           {t("machineBuilder.aiLabel")}
         </div>
-        <h1 className="text-3xl font-semibold tracking-tight">
+        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
           {t("machineBuilder.title")}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground max-w-xl">
@@ -245,14 +254,21 @@ function MachineBuilderPage() {
           explanation={bomExplanation}
           selected={selected}
           bom={bom}
+          catalog={catalog}
           description={description}
           answers={answers}
           rfqName={rfqName}
           rfqEmail={rfqEmail}
+          rfqCompany={rfqCompany}
+          rfqPhone={rfqPhone}
           rfqSent={rfqSent}
+          rfqId={rfqId}
           setRfqName={setRfqName}
           setRfqEmail={setRfqEmail}
+          setRfqCompany={setRfqCompany}
+          setRfqPhone={setRfqPhone}
           setRfqSent={setRfqSent}
+          setRfqId={setRfqId}
           onRestart={restart}
         />
       )}
@@ -605,16 +621,78 @@ function exportBomPdf(bom: BomLine[], title: string, explanation: string, select
 }
 
 // ── Result Step ─────────────────────────────────────────────────────────────
-function ResultStep({ t, locale, title, explanation, selected, bom, description, answers,
-  rfqName, rfqEmail, rfqSent, setRfqName, setRfqEmail, setRfqSent, onRestart }: {
+function ResultStep({ t, locale, title, explanation, selected, bom, catalog, description, answers,
+  rfqName, rfqEmail, rfqCompany, rfqPhone, rfqSent, rfqId,
+  setRfqName, setRfqEmail, setRfqCompany, setRfqPhone, setRfqSent, setRfqId, onRestart }: {
   t: (key: import("@/lib/i18n").TKey) => string; locale: string; title: string; explanation: string;
-  selected: ActuatorOption; bom: BomLine[]; description: string; answers: Record<string, string>;
-  rfqName: string; rfqEmail: string; rfqSent: boolean;
-  setRfqName: (v: string) => void; setRfqEmail: (v: string) => void; setRfqSent: (v: boolean) => void;
+  selected: ActuatorOption; bom: BomLine[]; catalog: ProductRow[]; description: string; answers: Record<string, string>;
+  rfqName: string; rfqEmail: string; rfqCompany: string; rfqPhone: string;
+  rfqSent: boolean; rfqId: string;
+  setRfqName: (v: string) => void; setRfqEmail: (v: string) => void;
+  setRfqCompany: (v: string) => void; setRfqPhone: (v: string) => void;
+  setRfqSent: (v: boolean) => void; setRfqId: (v: string) => void;
   onRestart: () => void;
 }) {
   const [mounted, setMounted] = useState(false);
+  const [rfqLoading, setRfqLoading] = useState(false);
+  const [rfqError, setRfqError] = useState("");
   useEffect(() => setMounted(true), []);
+
+  async function submitRfq() {
+    if (!rfqName.trim() || !rfqEmail.trim()) return;
+    setRfqLoading(true);
+    setRfqError("");
+    try {
+      // Build message summary from BOM
+      const bomSummary = bom
+        .slice(0, 8)
+        .map(l => `${l.sku} × ${l.quantity} (${l.role})`)
+        .join(", ");
+      const message = `${description}\n\nStycklista: ${bomSummary}`;
+
+      // Insert RFQ
+      const { data: rfqRow, error: rfqErr } = await supabase
+        .from("rfqs")
+        .insert({
+          user_id: (await supabase.auth.getUser()).data.user?.id ?? "00000000-0000-0000-0000-000000000000",
+          title: title || `Maskinbyggare — ${selected.name}`,
+          contact_name: rfqName.trim(),
+          contact_email: rfqEmail.trim(),
+          contact_phone: rfqPhone.trim() || null,
+          company: rfqCompany.trim() || null,
+          message,
+          status: "new",
+        })
+        .select("id")
+        .single();
+
+      if (rfqErr || !rfqRow) throw rfqErr ?? new Error("No row returned");
+
+      // Insert BOM items
+      const itemRows = bom
+        .map(l => {
+          const product = catalog.find(p => p.sku === l.sku);
+          return product
+            ? { rfq_id: rfqRow.id, product_id: product.id, qty: l.quantity, role: l.role }
+            : null;
+        })
+        .filter(Boolean);
+
+      if (itemRows.length > 0) {
+        await supabase.from("rfq_items").insert(itemRows);
+      }
+
+      setRfqId(rfqRow.id.slice(0, 8).toUpperCase());
+      setRfqSent(true);
+    } catch (e) {
+      console.error(e);
+      setRfqError(locale === "sv"
+        ? "Kunde inte skicka förfrågan. Försök igen."
+        : "Could not submit request. Please try again.");
+    } finally {
+      setRfqLoading(false);
+    }
+  }
 
   const compareSkus = bom
     .filter(l => l.product)
@@ -633,9 +711,9 @@ function ResultStep({ t, locale, title, explanation, selected, bom, description,
         <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{explanation}</p>
       </div>
 
-      {/* 3D Visualizer */}
+      {/* 3D Visualizer — hidden on mobile */}
       {mounted && (
-        <div className="rounded-xl border border-border overflow-hidden bg-card">
+        <div className="hidden sm:block rounded-xl border border-border overflow-hidden bg-card">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between">
             <div className="text-sm font-medium flex items-center gap-2">
               <span className="text-info">◈</span>
@@ -653,9 +731,9 @@ function ResultStep({ t, locale, title, explanation, selected, bom, description,
 
       {/* BOM Table */}
       <div className="rounded-xl border border-border overflow-hidden">
-        <div className="px-4 py-3 bg-muted/40 border-b border-border flex items-center justify-between flex-wrap gap-2">
+        <div className="px-4 py-3 bg-muted/40 border-b border-border flex items-start sm:items-center justify-between flex-wrap gap-2">
           <div className="text-sm font-semibold">{t("machineBuilder.bomTitle")}</div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {compareSkus && (
               <Link
                 to="/$locale/compare"
@@ -730,30 +808,51 @@ function ResultStep({ t, locale, title, explanation, selected, bom, description,
           {t("machineBuilder.sendQuoteBody")}
         </p>
         {rfqSent ? (
-          <div className="rounded-lg bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)] px-4 py-3 text-sm font-medium">
-            {t("machineBuilder.quoteThankYou")}
+          <div className="rounded-lg bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)] px-4 py-4 space-y-1">
+            <div className="font-semibold text-sm">✓ {t("machineBuilder.quoteThankYou")}</div>
+            {rfqId && (
+              <div className="text-xs opacity-80">
+                Referens: <span className="font-mono font-semibold">{rfqId}</span> — vi återkommer inom 1–2 arbetsdagar.
+              </div>
+            )}
           </div>
         ) : (
-          <div className="flex flex-col sm:flex-row gap-2">
-            <input
-              value={rfqName}
-              onChange={e => setRfqName(e.target.value)}
-              placeholder={t("machineBuilder.yourNamePlaceholder")}
-              className="flex-1 px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
-            />
-            <input
-              value={rfqEmail}
-              onChange={e => setRfqEmail(e.target.value)}
-              placeholder={t("machineBuilder.emailPlaceholder")}
-              type="email"
-              className="flex-1 px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
-            />
+          <div className="space-y-3">
+            <div className="grid sm:grid-cols-2 gap-3">
+              <input
+                value={rfqName}
+                onChange={e => setRfqName(e.target.value)}
+                placeholder={t("machineBuilder.yourNamePlaceholder")}
+                className="px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
+              />
+              <input
+                value={rfqEmail}
+                onChange={e => setRfqEmail(e.target.value)}
+                placeholder={t("machineBuilder.emailPlaceholder")}
+                type="email"
+                className="px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
+              />
+              <input
+                value={rfqCompany}
+                onChange={e => setRfqCompany(e.target.value)}
+                placeholder="Företag (valfritt)"
+                className="px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
+              />
+              <input
+                value={rfqPhone}
+                onChange={e => setRfqPhone(e.target.value)}
+                placeholder="Telefon (valfritt)"
+                type="tel"
+                className="px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
+              />
+            </div>
+            {rfqError && <p className="text-xs text-destructive">{rfqError}</p>}
             <button
-              onClick={() => { if (rfqName && rfqEmail) setRfqSent(true); }}
-              disabled={!rfqName || !rfqEmail}
-              className="px-4 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition whitespace-nowrap"
+              onClick={submitRfq}
+              disabled={!rfqName.trim() || !rfqEmail.trim() || rfqLoading}
+              className="w-full sm:w-auto px-6 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition"
             >
-              {t("machineBuilder.sendButton")}
+              {rfqLoading ? "Skickar…" : t("machineBuilder.sendButton")}
             </button>
           </div>
         )}
@@ -847,7 +946,8 @@ function MachineVisualizer({ selected, description, answers }: {
   return (
     <canvas
       ref={canvasRef}
-      style={{ width: "100%", height: "280px", display: "block" }}
+      className="hidden sm:block"
+      style={{ width: "100%", height: "260px", display: "block" }}
     />
   );
 }
