@@ -65,8 +65,6 @@ function ProductsPage() {
   const [brands, setBrands] = useState<Set<string>>(new Set(search.brand ? [search.brand] : []));
   const [cats, setCats] = useState<Set<string>>(new Set(search.category ? [search.category] : []));
   const [grades, setGrades] = useState<Set<Grade>>(new Set());
-  const [compare, setCompare] = useState<string[]>([]);
-
   const [aiMode, setAiMode] = useState(!!search.ai);
   const [aiResult, setAiResult] = useState<AiSearchResult | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -180,12 +178,6 @@ function ProductsPage() {
     n.has(val) ? n.delete(val) : n.add(val);
     setter(n);
   }
-  function toggleCompare(sku: string) {
-    setCompare((c) =>
-      c.includes(sku) ? c.filter((s) => s !== sku) : c.length >= 4 ? c : [...c, sku]
-    );
-  }
-
   if (!items) return (
     <div className="container-page py-16 text-sm text-muted-foreground flex items-center gap-2">
       <span className="inline-block size-3 rounded-full bg-info animate-pulse" />
@@ -205,16 +197,13 @@ function ProductsPage() {
             {filtered.length} {t("products.of")} {items.length} {t("products.count")}
           </p>
         </div>
-        {compare.length > 0 && (
-          <Link
-            to="/$locale/compare"
-            params={{ locale }}
-            search={{ skus: compare.join(",") }}
-            className="text-sm px-4 py-2 rounded-md bg-info text-primary-foreground hover:opacity-90"
-          >
-            {t("common.compare")} {compare.length} →
-          </Link>
-        )}
+        <Link
+          to="/$locale/compare"
+          params={{ locale }}
+          className="text-sm px-4 py-2 rounded-md border border-border text-muted-foreground hover:border-info hover:text-info transition"
+        >
+          ⟷ {t("nav.compare")}
+        </Link>
       </div>
 
       {/* AI search bar */}
@@ -355,13 +344,10 @@ function ProductsPage() {
       <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
           {filtered.map((p) => {
             const g = gradeOf(p);
-            const inCompare = compare.includes(p.sku);
             return (
               <li
                 key={p.id}
-                className={`group rounded-lg border bg-card flex flex-col transition overflow-hidden ${
-                  inCompare ? "border-info shadow-sm" : "border-border hover:border-info"
-                }`}
+                className="group rounded-lg border border-border bg-card flex flex-col transition overflow-hidden hover:border-info"
               >
                 <div className="relative h-36 overflow-hidden bg-surface-alt">
                   <img
@@ -371,15 +357,6 @@ function ProductsPage() {
                     loading="lazy"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-card/60 to-transparent" />
-                  <div className="absolute top-2 right-2">
-                    <input
-                      type="checkbox"
-                      checked={inCompare}
-                      onChange={() => toggleCompare(p.sku)}
-                      aria-label={t("productsPage.addToCompare")}
-                      className="accent-[var(--info)]"
-                    />
-                  </div>
                 </div>
                 <div className="p-4 flex flex-col flex-1">
                 <div className="flex justify-between items-start gap-2">
@@ -430,7 +407,7 @@ function ProductsPage() {
                       search={{ skus: p.sku }}
                       className="text-[11px] text-muted-foreground hover:text-info transition"
                     >
-                      {t("productsPage.compareLink")}
+                      ⟷ {t("productsPage.compareLink")}
                     </Link>
                     <Link
                       to="/$locale/product/$sku"

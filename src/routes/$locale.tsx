@@ -160,21 +160,17 @@ function LocaleLayout() {
               <div className="hidden sm:flex items-center gap-2">
                 {isAdmin && (
                   <>
+                    <Link to={"/$locale/admin/dashboard" as never} params={{ locale } as never}
+                      className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
+                      Admin ◈
+                    </Link>
+                    <Link to={"/$locale/admin/rfq" as never} params={{ locale } as never}
+                      className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
+                      RFQ
+                    </Link>
                     <Link to={"/$locale/admin/crm" as never} params={{ locale } as never}
                       className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
                       CRM
-                    </Link>
-                    <Link to={"/$locale/admin/images" as never} params={{ locale } as never}
-                      className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
-                      Bilder
-                    </Link>
-                    <Link to={"/$locale/admin/integrations" as never} params={{ locale } as never}
-                      className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
-                      Integrationer
-                    </Link>
-                    <Link to={"/$locale/admin/audit" as never} params={{ locale } as never}
-                      className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
-                      Audit
                     </Link>
                   </>
                 )}
@@ -243,21 +239,21 @@ function LocaleLayout() {
                   </Link>
                   {isAdmin && (
                     <>
+                      <Link to={"/$locale/admin/dashboard" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
+                        className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
+                        Admin dashboard
+                      </Link>
+                      <Link to={"/$locale/admin/rfq" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
+                        className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
+                        RFQ / Order
+                      </Link>
+                      <Link to={"/$locale/admin/products" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
+                        className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
+                        Produkter
+                      </Link>
                       <Link to={"/$locale/admin/crm" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
                         className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                         CRM
-                      </Link>
-                      <Link to={"/$locale/admin/images" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
-                        className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
-                        Bilder
-                      </Link>
-                      <Link to={"/$locale/admin/integrations" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
-                        className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
-                        Integrationer
-                      </Link>
-                      <Link to={"/$locale/admin/audit" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
-                        className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
-                        Audit
                       </Link>
                     </>
                   )}
