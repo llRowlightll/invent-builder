@@ -74,6 +74,7 @@ function LocaleLayout() {
 
   const navLinks = [
     { to: "/$locale/products", label: t("nav.products") },
+    { to: "/$locale/assemblies", label: "Assemblies" },
     { to: "/$locale/chat", label: t("nav.chat") },
     { to: "/$locale/advisor", label: t("nav.advisor") },
     { to: "/$locale/compare", label: t("nav.compare") },
@@ -315,6 +316,7 @@ function LocaleLayout() {
             <div className="font-medium text-foreground mb-2">Verktyg</div>
             <ul className="space-y-1">
               <li><Link to="/$locale/products" params={{ locale }} className="hover:text-info">{t("nav.products")}</Link></li>
+              <li><Link to="/$locale/assemblies" params={{ locale }} className="hover:text-info">Assemblies</Link></li>
               <li><Link to="/$locale/chat" params={{ locale }} className="hover:text-info">{t("nav.chat")}</Link></li>
               <li><Link to="/$locale/compare" params={{ locale }} className="hover:text-info">{t("nav.compare")}</Link></li>
               <li><Link to="/$locale/advisor" params={{ locale }} className="hover:text-info">{t("nav.advisor")}</Link></li>
