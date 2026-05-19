@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
 
-const SITE = "https://maskinval.lovable.app";
+const SITE = "https://tanstack-start-app.llrowlightll.workers.dev";
 
 export const Route = createFileRoute("/$locale/product/$sku")({
   head: ({ params }) => {

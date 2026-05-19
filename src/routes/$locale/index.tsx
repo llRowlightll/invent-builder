@@ -12,7 +12,7 @@ export const Route = createFileRoute("/$locale/")({
   head: ({ params }) => {
     const t = makeT(params.locale as Locale);
     const locale = params.locale;
-    const canonical = `https://maskinval.lovable.app/${locale}`;
+    const canonical = `https://tanstack-start-app.llrowlightll.workers.dev/${locale}`;
     return {
       meta: [
         { title: `${t("common.appName")} — Pneumatik, cylindrar & automation` },
@@ -24,9 +24,9 @@ export const Route = createFileRoute("/$locale/")({
       ],
       links: [
         { rel: "canonical", href: canonical },
-        { rel: "alternate", hreflang: "sv", href: "https://maskinval.lovable.app/sv" },
-        { rel: "alternate", hreflang: "en", href: "https://maskinval.lovable.app/en" },
-        { rel: "alternate", hreflang: "x-default", href: "https://maskinval.lovable.app/sv" },
+        { rel: "alternate", hreflang: "sv", href: "https://tanstack-start-app.llrowlightll.workers.dev/sv" },
+        { rel: "alternate", hreflang: "en", href: "https://tanstack-start-app.llrowlightll.workers.dev/en" },
+        { rel: "alternate", hreflang: "x-default", href: "https://tanstack-start-app.llrowlightll.workers.dev/sv" },
       ],
     };
   },

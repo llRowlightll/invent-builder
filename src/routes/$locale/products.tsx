@@ -20,7 +20,7 @@ export const Route = createFileRoute("/$locale/products")({
   head: ({ params }) => {
     const t = makeT(params.locale as Locale);
     const locale = params.locale;
-    const canonical = `https://maskinval.lovable.app/${locale}/products`;
+    const canonical = `https://tanstack-start-app.llrowlightll.workers.dev/${locale}/products`;
     return {
       meta: [
         { title: `Produktkatalog — Pneumatik & automation | ${t("common.appName")}` },
@@ -30,11 +30,11 @@ export const Route = createFileRoute("/$locale/products")({
       ],
       links: [
         { rel: "canonical", href: canonical },
-        { rel: "alternate", hreflang: "sv", href: "https://maskinval.lovable.app/sv/products" },
-        { rel: "alternate", hreflang: "en", href: "https://maskinval.lovable.app/en/products" },
-        { rel: "alternate", hreflang: "de", href: "https://maskinval.lovable.app/de/products" },
-        { rel: "alternate", hreflang: "es", href: "https://maskinval.lovable.app/es/products" },
-        { rel: "alternate", hreflang: "x-default", href: "https://maskinval.lovable.app/sv/products" },
+        { rel: "alternate", hreflang: "sv", href: "https://tanstack-start-app.llrowlightll.workers.dev/sv/products" },
+        { rel: "alternate", hreflang: "en", href: "https://tanstack-start-app.llrowlightll.workers.dev/en/products" },
+        { rel: "alternate", hreflang: "de", href: "https://tanstack-start-app.llrowlightll.workers.dev/de/products" },
+        { rel: "alternate", hreflang: "es", href: "https://tanstack-start-app.llrowlightll.workers.dev/es/products" },
+        { rel: "alternate", hreflang: "x-default", href: "https://tanstack-start-app.llrowlightll.workers.dev/sv/products" },
       ],
     };
   },
