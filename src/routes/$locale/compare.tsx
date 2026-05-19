@@ -44,20 +44,29 @@ function ComparePage() {
     return selected.map((s) => items.find((p) => p.sku === s)).filter(Boolean) as ProductRow[];
   }, [items, selected]);
 
+  // Locked category = category of the first selected product
+  const lockedCategory = compared[0]?.category ?? null;
+
   const allKeys = useMemo(() => {
     const k = new Set<string>();
     compared.forEach((p) => Object.keys(p.specs).forEach((x) => k.add(x)));
     return Array.from(k).sort();
   }, [compared]);
 
-  // Picker filtered list
+  // Picker: only same category as first selected (if any), sorted by brand
   const pickerItems = useMemo(() => {
     if (!items) return [];
     const q = pickerSearch.toLowerCase();
     return items
-      .filter((p) => !q || `${p.sku} ${p.name} ${p.brand.name}`.toLowerCase().includes(q))
-      .slice(0, 40);
-  }, [items, pickerSearch]);
+      .filter((p) => {
+        // Lock to same category once one product is selected
+        if (lockedCategory && p.category.slug !== lockedCategory.slug) return false;
+        if (q && !`${p.sku} ${p.name} ${p.brand.name}`.toLowerCase().includes(q)) return false;
+        return true;
+      })
+      .sort((a, b) => a.brand.name.localeCompare(b.brand.name))
+      .slice(0, 60);
+  }, [items, pickerSearch, lockedCategory]);
 
   function toggle(sku: string) {
     setSelected((prev) =>
@@ -65,6 +74,11 @@ function ComparePage() {
         ? prev.filter((s) => s !== sku)
         : prev.length >= 4 ? prev : [...prev, sku]
     );
+  }
+
+  function clearAll() {
+    setSelected([]);
+    setPickerSearch("");
   }
 
   function bestIndex(values: (string | undefined)[], higherIsBetter = true): number | null {
@@ -81,6 +95,22 @@ function ComparePage() {
 
   if (!items) return <div className="container-page py-16 text-sm text-muted-foreground">{t("common.loading")}</div>;
 
+  // Detect mixed-category selections (e.g. arrived via URL with mismatched SKUs)
+  const categorySlugs = new Set(compared.map((p) => p.category.slug));
+  const hasMixedCategories = categorySlugs.size > 1;
+
+  // Auto-clean: keep only products matching the first item's category
+  if (hasMixedCategories && compared.length > 0) {
+    const keepSlug = compared[0].category.slug;
+    const cleaned = selected.filter((sku) => {
+      const p = items.find((x) => x.sku === sku);
+      return p?.category.slug === keepSlug;
+    });
+    if (cleaned.length !== selected.length) {
+      setSelected(cleaned);
+    }
+  }
+
   const leadIdx = bestIndex(compared.map((p) => p.lead_time_days?.toString()), false);
 
   return (
@@ -89,7 +119,10 @@ function ComparePage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{t("nav.compare")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Välj upp till 4 produkter att jämföra sida vid sida
+            {lockedCategory
+              ? <>Jämför <span className="font-medium text-foreground">{lockedCategory.name}</span> — välj upp till 4 produkter från olika leverantörer</>
+              : "Välj en produkt — jämförelsen låses till samma produkttyp"
+            }
           </p>
         </div>
         <Link to="/$locale/products" params={{ locale }} className="text-sm text-muted-foreground hover:text-info">
@@ -102,7 +135,27 @@ function ComparePage() {
         <div className="lg:col-span-1 order-2 lg:order-1">
           <div className="rounded-xl border border-border bg-card overflow-hidden lg:sticky lg:top-20">
             <div className="px-4 py-3 border-b border-border bg-surface-alt/40">
-              <h2 className="text-sm font-medium">Välj produkter ({selected.length}/4)</h2>
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-sm font-medium">Välj produkter ({selected.length}/4)</h2>
+                {selected.length > 0 && (
+                  <button onClick={clearAll}
+                    className="text-[10px] text-muted-foreground hover:text-destructive transition">
+                    Rensa alla ×
+                  </button>
+                )}
+              </div>
+              {/* Category lock indicator */}
+              {lockedCategory ? (
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <span className="size-1.5 rounded-full bg-info shrink-0" />
+                  <span className="text-[11px] text-info font-medium">{lockedCategory.name}</span>
+                  <span className="text-[10px] text-muted-foreground">— visar bara samma kategori</span>
+                </div>
+              ) : (
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Välj en produkt — jämförelsen låses till dess kategori
+                </p>
+              )}
             </div>
 
             {/* Selected chips */}
@@ -130,42 +183,51 @@ function ComparePage() {
             </div>
 
             <div className="divide-y divide-border max-h-[55vh] overflow-y-auto">
-              {pickerItems.map((p) => {
-                const isOn = selected.includes(p.sku);
-                const disabled = !isOn && selected.length >= 4;
-                return (
-                  <button
-                    key={p.sku}
-                    onClick={() => !disabled && toggle(p.sku)}
-                    disabled={disabled}
-                    className={`w-full text-left flex items-center gap-3 px-4 py-2.5 transition ${
-                      isOn
-                        ? "bg-info/10"
-                        : disabled
-                        ? "opacity-40 cursor-not-allowed"
-                        : "hover:bg-surface-alt"
-                    }`}
-                  >
-                    <img
-                      src={getProductImage(p)}
-                      alt=""
-                      className="size-8 object-contain shrink-0 opacity-80"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium truncate">{p.name}</div>
-                      <div className="text-[10px] text-muted-foreground">{p.brand.name} · {p.sku}</div>
-                    </div>
-                    <span className={`size-4 rounded border flex items-center justify-center shrink-0 ${
-                      isOn ? "bg-info border-info text-primary-foreground" : "border-border"
-                    }`}>
-                      {isOn && <span className="text-[10px]">✓</span>}
-                    </span>
-                  </button>
-                );
-              })}
               {pickerItems.length === 0 && (
                 <p className="px-4 py-6 text-xs text-muted-foreground text-center">Inga produkter matchar</p>
               )}
+              {(() => {
+                let lastBrand = "";
+                return pickerItems.map((p) => {
+                  const isOn = selected.includes(p.sku);
+                  const disabled = !isOn && selected.length >= 4;
+                  const showBrandHeader = p.brand.name !== lastBrand;
+                  if (showBrandHeader) lastBrand = p.brand.name;
+                  return (
+                    <div key={p.sku}>
+                      {showBrandHeader && (
+                        <div className="px-4 py-1.5 bg-surface-alt/60 border-b border-border">
+                          <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                            {p.brand.name}
+                          </span>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => !disabled && toggle(p.sku)}
+                        disabled={disabled}
+                        className={`w-full text-left flex items-center gap-3 px-4 py-2.5 transition ${
+                          isOn
+                            ? "bg-info/10"
+                            : disabled
+                            ? "opacity-35 cursor-not-allowed"
+                            : "hover:bg-surface-alt"
+                        }`}
+                      >
+                        <img src={getProductImage(p)} alt="" className="size-8 object-contain shrink-0 opacity-80" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium truncate">{p.name}</div>
+                          <div className="text-[10px] font-mono text-muted-foreground">{p.sku}</div>
+                        </div>
+                        <span className={`size-4 rounded border flex items-center justify-center shrink-0 ${
+                          isOn ? "bg-info border-info text-primary-foreground" : "border-border"
+                        }`}>
+                          {isOn && <span className="text-[10px]">✓</span>}
+                        </span>
+                      </button>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
         </div>
