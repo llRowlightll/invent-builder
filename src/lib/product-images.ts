@@ -261,60 +261,6 @@ function toDataUrl(svg: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-// Real product images extracted from manufacturer PDF catalogs
-// Served from /public/products/ via Cloudflare CDN
-const PRODUCT_IMAGES: Record<string, string> = {
-  // ── Festo ────────────────────────────────────────────────
-  "festo:cylinder":         "/products/festo-cylinder-rs.jpg",
-  "festo:dsbc":             "/products/festo-cylinder-rs.jpg",
-  "festo:dsnu":             "/products/festo-cylinder-rs.jpg",
-  "festo:advc":             "/products/festo-cylinder-rs.jpg",
-  "festo:adn":              "/products/festo-cylinder-rs.jpg",
-  "festo:linear-module":    "/products/festo-linear-rs.jpg",
-  "festo:dgc":              "/products/festo-linear-rs.jpg",
-  "festo:egc-tb-kf":        "/products/festo-linear-rs.jpg",
-  "festo:egc-bs-kf":        "/products/festo-linear-rs.jpg",
-  "festo:valve-terminal":   "/products/festo-valve-terminal-rs.jpg",
-  "festo:vuvg":             "/products/festo-valve-terminal-rs.jpg",
-  "festo:valve":            "/products/festo-valve-rs.jpg",
-  "festo:gripper":          "/products/festo-gripper-rs.jpg",
-  "festo:vacuum":           "/products/festo-vacuum-rs.jpg",
-  "festo:air-preparation":  "/products/festo-air-rs.jpg",
-  // ── Parker ───────────────────────────────────────────────
-  "parker:cylinder":        "/products/parker-cylinder-rs.jpg",
-  "parker:p1d":             "/products/parker-cylinder-rs.jpg",
-  "parker:p1f":             "/products/parker-cylinder-rs.jpg",
-  "parker:p1p":             "/products/parker-cylinder-rs.jpg",
-  "parker:p5t":             "/products/parker-cylinder-rs.jpg",
-  "parker:osp-p":           "/products/parker-osp-p.jpg",
-  "parker:linear-module":   "/products/parker-osp-p.jpg",
-  "parker:parker-frl":      "/products/parker-frl.jpg",
-  "parker:air-preparation": "/products/parker-frl.jpg",
-  "parker:parker-vacuum":   "/products/festo-vacuum-rs.jpg",
-  "parker:parker-gripper":  "/products/festo-gripper-rs.jpg",
-  "parker:lp-lpm":          "/products/parker-cylinder-rs.jpg",
-  "parker:rm28000":         "/products/parker-cylinder-rs.jpg",
-  // ── Bosch Rexroth ────────────────────────────────────────
-  "bosch-rexroth:cylinder":      "/products/bosch-cylinder-rs.jpg",
-  "bosch-rexroth:pra":           "/products/bosch-cylinder-rs.jpg",
-  "bosch-rexroth:kpz":           "/products/bosch-cylinder-rs.jpg",
-  "bosch-rexroth:linear-module": "/products/bosch-linear-rs.jpg",
-  "bosch-rexroth:rtc-hd":        "/products/bosch-linear-rs.jpg",
-  "bosch-rexroth:gpc-bv":        "/products/bosch-linear-rs.jpg",
-  // ── Norgren ──────────────────────────────────────────────
-  "norgren:cylinder":      "/products/norgren-cylinder-rs.jpg",
-  "norgren:lintra-plus":   "/products/norgren-cylinder-rs.jpg",
-  "norgren:norgren-nr":    "/products/norgren-cylinder-rs.jpg",
-  "norgren:sr-srd":        "/products/norgren-cylinder-rs.jpg",
-  "norgren:rm-28000":      "/products/norgren-cylinder-rs.jpg",
-  "norgren:linear-module": "/products/norgren-cylinder-rs.jpg",
-  // ── SMC ──────────────────────────────────────────────────
-  "smc:cylinder":          "/products/smc-cylinder-rs.jpg",
-  "smc:valve":             "/products/smc-valve-rs.jpg",
-  "smc:valve-terminal":    "/products/smc-valve-rs.jpg",
-  "smc:air-preparation":   "/products/smc-air-rs.jpg",
-};
-
 export function getCategoryImage(categorySlug: string, _square = false): string {
   return toDataUrl(svgs[categorySlug] ?? FALLBACK_SVG);
 }
@@ -327,24 +273,8 @@ export function getProductImage(
   product: { category: { slug: string }; brand: { slug: string }; family?: string | null; image_url?: string | null },
   square = false
 ): string {
-  // 1. Use explicit image_url if set on the product
+  // Use explicit image_url if manually set on the product row
   if (product.image_url) return product.image_url;
-
-  // 2. Look up by brand + family
-  const brandSlug = product.brand.slug;
-  const family = product.family ?? "";
-  const categorySlug = product.category.slug;
-  const keyByFamily = `${brandSlug}:${family}`;
-  if (PRODUCT_IMAGES[keyByFamily]) return PRODUCT_IMAGES[keyByFamily];
-
-  // 3. Look up by brand + category
-  const keyByCat = `${brandSlug}:${categorySlug}`;
-  if (PRODUCT_IMAGES[keyByCat]) return PRODUCT_IMAGES[keyByCat];
-
-  // 4. Look up by brand only (first matching entry)
-  const brandMatch = Object.entries(PRODUCT_IMAGES).find(([k]) => k.startsWith(`${brandSlug}:`));
-  if (brandMatch) return brandMatch[1];
-
-  // 4. Fall back to category SVG illustration
+  // Always use category SVG illustration — clear and consistent
   return getCategoryImage(product.category.slug, square);
 }
