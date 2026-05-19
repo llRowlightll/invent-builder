@@ -711,23 +711,8 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
         <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{explanation}</p>
       </div>
 
-      {/* 3D Visualizer — hidden on mobile */}
-      {mounted && (
-        <div className="hidden sm:block rounded-xl border border-border overflow-hidden bg-card">
-          <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-            <div className="text-sm font-medium flex items-center gap-2">
-              <span className="text-info">◈</span>
-              {t("machineBuilder.visualization3d")}
-            </div>
-            <span className="text-[11px] text-muted-foreground">{t("machineBuilder.dragRotate")}</span>
-          </div>
-          <MachineVisualizer
-            selected={selected}
-            description={description}
-            answers={answers}
-          />
-        </div>
-      )}
+      {/* System overview — schematic + component cards */}
+      <BomSystemView bom={bom} selected={selected} locale={locale} />
 
       {/* BOM Table */}
       <div className="rounded-xl border border-border overflow-hidden">
@@ -875,7 +860,368 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
   );
 }
 
-// ── 3D Machine Visualizer ───────────────────────────────────────────────────
+// ── BOM System View ─────────────────────────────────────────────────────────
+// Classifies a BOM line's role into a visual system node type
+type NodeType = "supply" | "frl" | "valve" | "actuator" | "sensor" | "fitting" | "drive" | "psu" | "cable" | "mount" | "gripper" | "vacuum" | "other";
+
+function classifyRole(role: string, sku: string): NodeType {
+  const r = role.toLowerCase();
+  const s = sku.toLowerCase();
+  if (/lufttill|supply|compressor|source|luft/.test(r)) return "supply";
+  if (/frl|filter|regulator|lubric|luftbered/.test(r)) return "frl";
+  if (/ventil|valve|direktional|styrventi|solenoid|5\/2|3\/2/.test(r)) return "valve";
+  if (/cylinder|aktuator|actuator|linjär|axel|shaft|motor|dnc|dng|dsm/.test(r) || /dnc|dng|dsbc|advu|ley|lef/.test(s)) return "actuator";
+  if (/sensor|givare|switch|reed|närhets|proximity|position/.test(r)) return "sensor";
+  if (/koppling|fitting|anslut|push-in|snabbanslut/.test(r)) return "fitting";
+  if (/slang|slange|tub|tube|hose/.test(r)) return "fitting";
+  if (/servo|drive|styrning|kontroller|frekvens/.test(r)) return "drive";
+  if (/nät|power|supply|psu|24v|230v|matning/.test(r)) return "psu";
+  if (/kabel|cable|kopplingskabel|ledning/.test(r)) return "cable";
+  if (/fäst|mount|bracket|konsol|adapter/.test(r)) return "mount";
+  if (/grip|klämm|finger|jaw/.test(r) || /hgp|mhz|mhc|dhvz/.test(s)) return "gripper";
+  if (/vakuum|vacuum|sug|ejek|suction/.test(r) || /vn|zse|svs/.test(s)) return "vacuum";
+  return "other";
+}
+
+const NODE_META: Record<NodeType, { label: string; color: string; fill: string; icon: string }> = {
+  supply:   { label: "Lufttillförsel",  color: "#64748b", fill: "#f1f5f9", icon: "◎" },
+  frl:      { label: "FRL-enhet",       color: "#0ea5e9", fill: "#e0f2fe", icon: "⧖" },
+  valve:    { label: "Styrventil",      color: "#6366f1", fill: "#eef2ff", icon: "⇌" },
+  actuator: { label: "Aktuator",        color: "#0284c7", fill: "#dbeafe", icon: "⇒" },
+  sensor:   { label: "Sensor",          color: "#16a34a", fill: "#dcfce7", icon: "◈" },
+  fitting:  { label: "Anslutning/Slang",color: "#94a3b8", fill: "#f8fafc", icon: "⊕" },
+  drive:    { label: "Servostyrning",   color: "#7c3aed", fill: "#f5f3ff", icon: "⚡" },
+  psu:      { label: "Nätaggregat",     color: "#d97706", fill: "#fef9c3", icon: "⚡" },
+  cable:    { label: "Kabel",           color: "#94a3b8", fill: "#f8fafc", icon: "∿" },
+  mount:    { label: "Fäste/Montering", color: "#78716c", fill: "#fafaf9", icon: "⬡" },
+  gripper:  { label: "Gripper",         color: "#0891b2", fill: "#e0f9ff", icon: "✋" },
+  vacuum:   { label: "Vakuumsystem",    color: "#7e22ce", fill: "#faf5ff", icon: "○" },
+  other:    { label: "Tillbehör",       color: "#94a3b8", fill: "#f8fafc", icon: "·" },
+};
+
+function BomSystemView({ bom, selected, locale }: { bom: BomLine[]; selected: ActuatorOption; locale: string }) {
+  const [active, setActive] = useState<number | null>(null);
+  const [view, setView] = useState<"diagram" | "cards">("diagram");
+
+  const isElectric = /DNCE|LEY|LEF|EGC|ELGA/i.test(selected.sku);
+  const classified = bom.map((line, i) => ({
+    ...line,
+    nodeType: classifyRole(line.role, line.sku),
+    idx: i,
+  }));
+
+  // Build pipeline: main flow nodes in order
+  const pipelineOrder: NodeType[] = isElectric
+    ? ["psu", "drive", "actuator", "sensor"]
+    : ["supply", "frl", "valve", "actuator", "gripper", "vacuum", "sensor"];
+
+  // Group bom lines by node type for the diagram
+  const byType: Partial<Record<NodeType, typeof classified>> = {};
+  classified.forEach(c => {
+    if (!byType[c.nodeType]) byType[c.nodeType] = [];
+    byType[c.nodeType]!.push(c);
+  });
+
+  // Side items: fittings, cables, mounts, other
+  const sideTypes: NodeType[] = ["fitting", "cable", "mount", "other"];
+
+  const pipelineItems = pipelineOrder
+    .filter(t => byType[t]?.length)
+    .map(t => ({ type: t, lines: byType[t]! }));
+
+  const sideItems = sideTypes
+    .filter(t => byType[t]?.length)
+    .flatMap(t => byType[t]!);
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      {/* Header with tab toggle */}
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-wrap gap-2">
+        <div className="text-sm font-medium flex items-center gap-2">
+          <span className="text-info">◈</span>
+          Systemöversikt — {bom.length} komponenter
+        </div>
+        <div className="flex gap-1 bg-surface-alt rounded-md p-0.5">
+          {(["diagram", "cards"] as const).map(v => (
+            <button key={v} onClick={() => setView(v)}
+              className={`text-xs px-3 py-1 rounded transition ${view === v ? "bg-card shadow-sm font-medium text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+              {v === "diagram" ? "⎔ Systemschema" : "⊞ Komponentkort"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {view === "diagram" ? (
+        <div className="p-4 md:p-6 overflow-x-auto">
+          <SystemDiagram
+            pipelineItems={pipelineItems}
+            sideItems={sideItems}
+            active={active}
+            setActive={setActive}
+            isElectric={isElectric}
+          />
+        </div>
+      ) : (
+        <div className="p-4">
+          <ComponentCards classified={classified} active={active} setActive={setActive} />
+        </div>
+      )}
+
+      {/* Active component detail strip */}
+      {active !== null && bom[active] && (
+        <div className="border-t border-border bg-info/5 px-4 py-3 flex items-start gap-3">
+          <span className={`size-6 rounded-full flex items-center justify-center text-[11px] font-bold text-primary-foreground shrink-0`}
+            style={{ background: NODE_META[classified[active]?.nodeType ?? "other"].color }}>
+            {active + 1}
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold">{bom[active].product?.name ?? bom[active].sku}</div>
+            <div className="text-xs text-muted-foreground font-mono">{bom[active].sku} · {bom[active].role}</div>
+            <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{bom[active].reason}</div>
+          </div>
+          <div className="text-xs text-muted-foreground shrink-0">Antal: <span className="font-semibold text-foreground">{bom[active].quantity}</span></div>
+          <button onClick={() => setActive(null)} className="text-muted-foreground hover:text-foreground text-lg leading-none shrink-0">×</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Pipeline SVG Diagram ────────────────────────────────────────────────────
+function SystemDiagram({ pipelineItems, sideItems, active, setActive, isElectric }: {
+  pipelineItems: { type: NodeType; lines: { idx: number; sku: string; role: string; quantity: number; product?: ProductRow | null; nodeType: NodeType }[] }[];
+  sideItems: { idx: number; sku: string; role: string; quantity: number; product?: ProductRow | null; nodeType: NodeType }[];
+  active: number | null;
+  setActive: (i: number | null) => void;
+  isElectric: boolean;
+}) {
+  const BOX_W = 140, BOX_H = 76, GAP = 60;
+  const SIDE_W = 120, SIDE_H = 52;
+  const pLen = pipelineItems.length;
+  const totalW = Math.max(600, pLen * (BOX_W + GAP) - GAP + 80);
+  const mainY = 80;
+  const sideRowY = mainY + BOX_H + 80;
+  const totalH = sideItems.length > 0 ? sideRowY + SIDE_H + 40 : mainY + BOX_H + 60;
+  const arrowColor = isElectric ? "#7c3aed" : "#0ea5e9";
+
+  const pipelinePositions = pipelineItems.map((_, i) => ({
+    x: 40 + i * (BOX_W + GAP),
+    y: mainY,
+  }));
+
+  return (
+    <svg
+      viewBox={`0 0 ${totalW} ${totalH}`}
+      style={{ width: "100%", minWidth: `${Math.min(totalW, 560)}px`, height: "auto" }}
+      aria-label="Systemschema"
+    >
+      <defs>
+        <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill={arrowColor} />
+        </marker>
+        <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+          <feDropShadow dx="0" dy="1" stdDeviation="2" floodOpacity="0.10" />
+        </filter>
+      </defs>
+
+      {/* Flow label */}
+      <text x="40" y="28" fontSize="10" fill="#94a3b8" fontFamily="system-ui, sans-serif" letterSpacing="0.12em">
+        {isElectric ? "ELFLÖDE →" : "LUFTFLÖDE →"}
+      </text>
+
+      {/* Connecting arrows between pipeline nodes */}
+      {pipelinePositions.slice(0, -1).map((pos, i) => {
+        const x1 = pos.x + BOX_W;
+        const x2 = pipelinePositions[i + 1].x;
+        const cy = mainY + BOX_H / 2;
+        return (
+          <g key={i}>
+            <line
+              x1={x1 + 2} y1={cy} x2={x2 - 8} y2={cy}
+              stroke={arrowColor} strokeWidth="2"
+              markerEnd="url(#arrowhead)"
+              strokeDasharray={isElectric ? "6 3" : "0"}
+            />
+          </g>
+        );
+      })}
+
+      {/* Pipeline nodes */}
+      {pipelineItems.map((item, i) => {
+        const pos = pipelinePositions[i];
+        const meta = NODE_META[item.type];
+        const firstLine = item.lines[0];
+        const isActive = active === firstLine.idx;
+        const hasMultiple = item.lines.length > 1;
+
+        return (
+          <g key={item.type} style={{ cursor: "pointer" }}
+            onClick={() => setActive(isActive ? null : firstLine.idx)}>
+            {/* Box */}
+            <rect
+              x={pos.x} y={pos.y} width={BOX_W} height={BOX_H} rx="8"
+              fill={isActive ? meta.color : meta.fill}
+              stroke={isActive ? meta.color : "#e2e8f0"}
+              strokeWidth={isActive ? 2 : 1.5}
+              filter="url(#shadow)"
+            />
+            {/* Number badge */}
+            <circle cx={pos.x + 14} cy={pos.y + 14} r={11} fill={meta.color} />
+            <text x={pos.x + 14} y={pos.y + 18} textAnchor="middle" fontSize="10"
+              fill="white" fontWeight="700" fontFamily="system-ui, sans-serif">
+              {firstLine.idx + 1}
+            </text>
+            {/* Icon */}
+            <text x={pos.x + BOX_W - 16} y={pos.y + 20} textAnchor="middle" fontSize="16"
+              fill={isActive ? "white" : meta.color} fontFamily="system-ui, sans-serif">
+              {meta.icon}
+            </text>
+            {/* Type label */}
+            <text x={pos.x + BOX_W / 2} y={pos.y + 34} textAnchor="middle" fontSize="10"
+              fill={isActive ? "white" : "#64748b"} fontFamily="system-ui, sans-serif" letterSpacing="0.06em">
+              {meta.label.toUpperCase()}
+            </text>
+            {/* Product name — truncate */}
+            <foreignObject x={pos.x + 6} y={pos.y + 42} width={BOX_W - 12} height={26}>
+              <div style={{
+                fontSize: "11px",
+                color: isActive ? "white" : "#1e293b",
+                fontFamily: "system-ui, sans-serif",
+                fontWeight: 600,
+                lineHeight: 1.3,
+                overflow: "hidden",
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+              } as React.CSSProperties}>
+                {firstLine.product?.name ?? firstLine.sku}
+              </div>
+            </foreignObject>
+            {/* Multiple items badge */}
+            {hasMultiple && (
+              <g>
+                <circle cx={pos.x + BOX_W - 10} cy={pos.y + BOX_H - 10} r={9} fill="#f59e0b" />
+                <text x={pos.x + BOX_W - 10} y={pos.y + BOX_H - 6} textAnchor="middle" fontSize="9"
+                  fill="white" fontWeight="700" fontFamily="system-ui, sans-serif">
+                  +{item.lines.length - 1}
+                </text>
+              </g>
+            )}
+          </g>
+        );
+      })}
+
+      {/* Dotted lines from pipeline to side items */}
+      {sideItems.length > 0 && (
+        <>
+          {/* Horizontal shelf line */}
+          <line
+            x1={40} y1={sideRowY - 20} x2={totalW - 40} y2={sideRowY - 20}
+            stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 4"
+          />
+          <text x={40} y={sideRowY - 28} fontSize="9" fill="#94a3b8" fontFamily="system-ui, sans-serif"
+            letterSpacing="0.12em">
+            TILLBEHÖR &amp; ANSLUTNINGAR
+          </text>
+        </>
+      )}
+
+      {/* Side item boxes */}
+      {sideItems.map((item, i) => {
+        const x = 40 + i * (SIDE_W + 16);
+        const meta = NODE_META[item.nodeType];
+        const isActive = active === item.idx;
+        return (
+          <g key={item.idx} style={{ cursor: "pointer" }}
+            onClick={() => setActive(isActive ? null : item.idx)}>
+            <rect
+              x={x} y={sideRowY} width={SIDE_W} height={SIDE_H} rx="6"
+              fill={isActive ? meta.color : meta.fill}
+              stroke={isActive ? meta.color : "#e2e8f0"}
+              strokeWidth={isActive ? 2 : 1}
+              filter="url(#shadow)"
+            />
+            <circle cx={x + 11} cy={sideRowY + 11} r={9} fill={meta.color} />
+            <text x={x + 11} y={sideRowY + 15} textAnchor="middle" fontSize="9"
+              fill="white" fontWeight="700" fontFamily="system-ui, sans-serif">
+              {item.idx + 1}
+            </text>
+            <text x={x + SIDE_W / 2} y={sideRowY + 22} textAnchor="middle" fontSize="9"
+              fill={isActive ? "white" : "#64748b"} fontFamily="system-ui, sans-serif" letterSpacing="0.05em">
+              {meta.label.toUpperCase()}
+            </text>
+            <foreignObject x={x + 4} y={sideRowY + 28} width={SIDE_W - 8} height={20}>
+              <div style={{
+                fontSize: "10px", color: isActive ? "white" : "#1e293b",
+                fontFamily: "system-ui, sans-serif", fontWeight: 600,
+                overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
+              }}>
+                {item.product?.name ?? item.sku}
+              </div>
+            </foreignObject>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// ── Component Cards ─────────────────────────────────────────────────────────
+function ComponentCards({ classified, active, setActive }: {
+  classified: { idx: number; sku: string; role: string; quantity: number; reason: string; product?: ProductRow | null; nodeType: NodeType }[];
+  active: number | null;
+  setActive: (i: number | null) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      {classified.map((item) => {
+        const meta = NODE_META[item.nodeType];
+        const isActive = active === item.idx;
+        return (
+          <button
+            key={item.idx}
+            onClick={() => setActive(isActive ? null : item.idx)}
+            className={`text-left rounded-xl border-2 p-3 transition ${
+              isActive ? "border-info bg-info/5" : "border-border hover:border-info/50 bg-card"
+            }`}
+          >
+            {/* Number + type row */}
+            <div className="flex items-center gap-2 mb-2">
+              <span className="size-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0"
+                style={{ background: meta.color }}>
+                {item.idx + 1}
+              </span>
+              <span className="text-[10px] uppercase tracking-wide font-medium truncate"
+                style={{ color: meta.color }}>
+                {meta.label}
+              </span>
+              <span className="ml-auto text-[10px] text-muted-foreground shrink-0">×{item.quantity}</span>
+            </div>
+
+            {/* Category icon area */}
+            <div className="h-14 rounded-lg flex items-center justify-center mb-2 text-3xl"
+              style={{ background: meta.fill }}>
+              <span>{meta.icon}</span>
+            </div>
+
+            {/* Name */}
+            <div className="text-xs font-semibold leading-tight line-clamp-2 text-foreground">
+              {item.product?.name ?? item.sku}
+            </div>
+            <div className="mt-1 text-[10px] font-mono text-muted-foreground">{item.sku}</div>
+
+            {/* Role badge */}
+            <div className="mt-1.5 text-[10px] text-muted-foreground line-clamp-1 italic">
+              {item.role}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── OLD 3D Machine Visualizer (kept for reference, no longer rendered) ───────
 function MachineVisualizer({ selected, description, answers }: {
   selected: ActuatorOption; description: string; answers: Record<string, string>;
 }) {
