@@ -684,6 +684,29 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
 
       setRfqId(rfqRow.id.slice(0, 8).toUpperCase());
       setRfqSent(true);
+
+      // Fire-and-forget admin notification email
+      const notifyItems = itemRows
+        .filter(Boolean)
+        .map((ir) => {
+          const product = catalog.find((p) => p.id === (ir as { product_id: string }).product_id);
+          const bomLine = bom.find((l) => l.sku === product?.sku);
+          return { sku: product?.sku ?? "", name: product?.name ?? "", qty: bomLine?.quantity ?? 1, role: bomLine?.role ?? "" };
+        });
+      fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/rfq-notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rfq_id: rfqRow.id,
+          contact_name: rfqName.trim(),
+          contact_email: rfqEmail.trim(),
+          contact_phone: rfqPhone.trim() || null,
+          company: rfqCompany.trim() || null,
+          title: title || `Maskinbyggare — ${selected.name}`,
+          message,
+          items: notifyItems,
+        }),
+      }).catch(console.error);
     } catch (e) {
       console.error(e);
       setRfqError(locale === "sv"

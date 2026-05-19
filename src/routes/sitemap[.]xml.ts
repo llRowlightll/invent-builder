@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 
-const BASE = "https://maskinval.lovable.app";
-const LOCALES = ["sv", "en"];
+const BASE = "https://maskinval.se";
+const LOCALES = ["sv", "en", "de", "es"];
 
 const STATIC_PATHS = [
   "",
@@ -75,10 +75,12 @@ ${urls.join("\n")}
 function url(path: string, lastmod: string, changefreq: string, priority: string) {
   const loc = `${BASE}${path}`;
   // Add hreflang alternates for locale paths
-  const match = path.match(/^\/(sv|en)(\/.*)?$/);
+  const match = path.match(/^\/(sv|en|de|es)(\/.*)?$/);
   const hreflang = match
     ? `  <xhtml:link rel="alternate" hreflang="sv" href="${BASE}/sv${match[2] ?? ""}"/>
   <xhtml:link rel="alternate" hreflang="en" href="${BASE}/en${match[2] ?? ""}"/>
+  <xhtml:link rel="alternate" hreflang="de" href="${BASE}/de${match[2] ?? ""}"/>
+  <xhtml:link rel="alternate" hreflang="es" href="${BASE}/es${match[2] ?? ""}"/>
   <xhtml:link rel="alternate" hreflang="x-default" href="${BASE}/sv${match[2] ?? ""}"/>`
     : "";
 
