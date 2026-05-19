@@ -459,58 +459,110 @@ function OptionsStep({ t, summary, options, onSelect, onBack }: {
         {t("machineBuilder.selectMain")}
       </p>
 
-      <div className="space-y-3">
-        {options.map(opt => (
-          <button
-            key={opt.sku}
-            onClick={() => onSelect(opt)}
-            className="w-full text-left rounded-xl border-2 border-border bg-card hover:border-info hover:shadow-md transition-all p-5 group"
-          >
-            <div className="flex items-start justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${BADGE_COLORS[opt.badge] ?? "bg-muted text-muted-foreground"}`}>
-                  {opt.badge}
-                </span>
-                <span className="font-semibold text-foreground group-hover:text-info transition">{opt.name}</span>
-                <span className="font-mono text-xs text-muted-foreground">{opt.sku}</span>
-              </div>
-              <span className="text-info text-sm font-medium shrink-0">
-                {t("machineBuilder.select")}
-              </span>
-            </div>
+      {options.length === 0 ? (
+        <div className="rounded-xl border border-border bg-card p-10 flex flex-col items-center gap-3 text-center">
+          <span className="text-3xl text-muted-foreground">⊘</span>
+          <p className="text-sm font-medium text-foreground">{t("machineBuilder.noOptions")}</p>
+          <p className="text-xs text-muted-foreground max-w-xs">{t("machineBuilder.noOptionsTip")}</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {options.map(opt => {
+            const p = opt.product;
+            const salePrice = p?.purchase_price != null
+              ? (p.purchase_price * (1 + (p.margin ?? 0.35))).toFixed(2)
+              : null;
+            const isStock = p?.availability === "stock" || (p?.lead_time_days != null && p.lead_time_days <= 3);
+            const isFast = !isStock && p?.lead_time_days != null && p.lead_time_days <= 10;
 
-            {/* Specs */}
-            {(opt.bore_mm || opt.stroke_mm || opt.force_n) && (
-              <div className="flex flex-wrap gap-2 mt-3">
-                {opt.bore_mm ? <SpecChip label="Bore" value={`${opt.bore_mm} mm`} /> : null}
-                {opt.stroke_mm ? <SpecChip label="Max stroke" value={`${opt.stroke_mm} mm`} /> : null}
-                {opt.force_n ? <SpecChip label="Force @ 6 bar" value={`${opt.force_n} N`} /> : null}
-              </div>
-            )}
-
-            {/* Why */}
-            <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{opt.why}</p>
-
-            {/* Pros / Cons */}
-            <div className="mt-3 grid sm:grid-cols-2 gap-3">
-              <div>
-                {opt.pros?.map((p, i) => (
-                  <div key={i} className="text-xs text-[oklch(0.45_0.12_155)] flex items-center gap-1 mt-1">
-                    <span className="text-[oklch(0.55_0.15_155)]">✓</span> {p}
+            return (
+              <button
+                key={opt.sku}
+                onClick={() => onSelect(opt)}
+                className="w-full text-left rounded-xl border-2 border-border bg-card hover:border-info hover:shadow-md transition-all p-5 group"
+              >
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${BADGE_COLORS[opt.badge] ?? "bg-muted text-muted-foreground"}`}>
+                      {opt.badge}
+                    </span>
+                    <span className="font-semibold text-foreground group-hover:text-info transition">{opt.name}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{opt.sku}</span>
                   </div>
-                ))}
-              </div>
-              <div>
-                {opt.cons?.map((c, i) => (
-                  <div key={i} className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                    <span className="text-muted-foreground">—</span> {c}
+                  <span className="text-info text-sm font-medium shrink-0">
+                    {t("machineBuilder.select")}
+                  </span>
+                </div>
+
+                {/* Specs */}
+                {(opt.bore_mm || opt.stroke_mm || opt.force_n) && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {opt.bore_mm ? <SpecChip label="Bore" value={`${opt.bore_mm} mm`} /> : null}
+                    {opt.stroke_mm ? <SpecChip label="Max stroke" value={`${opt.stroke_mm} mm`} /> : null}
+                    {opt.force_n ? <SpecChip label="Force @ 6 bar" value={`${opt.force_n} N`} /> : null}
                   </div>
-                ))}
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
+                )}
+
+                {/* Why */}
+                <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{opt.why}</p>
+
+                {/* Pros / Cons */}
+                <div className="mt-3 grid sm:grid-cols-2 gap-3">
+                  <div>
+                    {opt.pros?.map((pr, i) => (
+                      <div key={i} className="text-xs text-[oklch(0.45_0.12_155)] flex items-center gap-1 mt-1">
+                        <span className="text-[oklch(0.55_0.15_155)]">✓</span> {pr}
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    {opt.cons?.map((c, i) => (
+                      <div key={i} className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                        <span className="text-muted-foreground">—</span> {c}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Catalog data row */}
+                <div className="mt-3 pt-3 border-t border-border flex items-center gap-3 flex-wrap">
+                  {p ? (
+                    <>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-info/10 text-info font-medium">
+                        ✓ {t("machineBuilder.inCatalog")}
+                      </span>
+                      {salePrice && (
+                        <span className="text-xs text-foreground font-semibold">
+                          {t("machineBuilder.salePrice")}: {salePrice} kr
+                        </span>
+                      )}
+                      {isStock && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)] font-medium">
+                          På lager
+                        </span>
+                      )}
+                      {isFast && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[oklch(0.94_0.08_85)] text-[oklch(0.38_0.12_75)] font-medium">
+                          ~{p.lead_time_days} {t("machineBuilder.days")}
+                        </span>
+                      )}
+                      {!isStock && !isFast && p.lead_time_days != null && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+                          {p.lead_time_days} {t("machineBuilder.days")}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+                      {t("machineBuilder.notInCatalog")}
+                    </span>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="flex items-center justify-start pt-1">
         <button onClick={onBack} className="text-sm text-muted-foreground hover:text-foreground transition">

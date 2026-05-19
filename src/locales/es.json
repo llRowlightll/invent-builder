@@ -356,7 +356,12 @@
     "stepSelect": "Seleccionar",
     "stepResult": "Resultado",
     "back": "Atrás",
-    "errorGeneric": "Algo salió mal. Por favor, inténtelo de nuevo."
+    "errorGeneric": "Algo salió mal. Por favor, inténtelo de nuevo.",
+    "inCatalog": "En catálogo",
+    "salePrice": "Precio",
+    "days": "días",
+    "noOptions": "No se encontraron alternativas",
+    "noOptionsTip": "Intente describir su aplicación con más detalle y vuelva a intentarlo."
   },
   "wizardPage": {
     "generateButton": "Generar",

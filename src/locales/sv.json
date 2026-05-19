@@ -356,7 +356,12 @@
     "stepSelect": "Välj",
     "stepResult": "Resultat",
     "back": "Tillbaka",
-    "errorGeneric": "Något gick fel. Försök igen."
+    "errorGeneric": "Något gick fel. Försök igen.",
+    "inCatalog": "I katalog",
+    "salePrice": "Pris",
+    "days": "dagar",
+    "noOptions": "Inga alternativ hittades",
+    "noOptionsTip": "Försök att beskriva applikationen mer detaljerat och försök igen."
   },
   "wizardPage": {
     "generateButton": "Generera",

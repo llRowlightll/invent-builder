@@ -356,7 +356,12 @@
     "stepSelect": "Select",
     "stepResult": "Result",
     "back": "Back",
-    "errorGeneric": "Something went wrong. Please try again."
+    "errorGeneric": "Something went wrong. Please try again.",
+    "inCatalog": "In catalog",
+    "salePrice": "Price",
+    "days": "days",
+    "noOptions": "No options found",
+    "noOptionsTip": "Try describing your application in more detail and try again."
   },
   "wizardPage": {
     "generateButton": "Generate",

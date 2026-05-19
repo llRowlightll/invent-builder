@@ -356,7 +356,12 @@
     "stepSelect": "Auswählen",
     "stepResult": "Ergebnis",
     "back": "Zurück",
-    "errorGeneric": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut."
+    "errorGeneric": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
+    "inCatalog": "Im Katalog",
+    "salePrice": "Preis",
+    "days": "Tage",
+    "noOptions": "Keine Alternativen gefunden",
+    "noOptionsTip": "Versuchen Sie, Ihre Anwendung detaillierter zu beschreiben und erneut zu versuchen."
   },
   "wizardPage": {
     "generateButton": "Generieren",
