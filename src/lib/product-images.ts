@@ -264,6 +264,20 @@ function toDataUrl(svg: string): string {
 // Real product images extracted from manufacturer PDF catalogs
 // Served from /public/products/ via Cloudflare CDN
 const PRODUCT_IMAGES: Record<string, string> = {
+  // Festo — by category
+  "festo:cylinder":        "/products/festo-cylinder-1.jpg",
+  "festo:dsbc":            "/products/festo-cylinder-1.jpg",
+  "festo:dsnu":            "/products/festo-cylinder-2.jpg",
+  "festo:advc":            "/products/festo-cylinder-3.jpg",
+  "festo:adn":             "/products/festo-cylinder-4.jpg",
+  "festo:dgc":             "/products/festo-linear-1.jpg",
+  "festo:egc-tb-kf":       "/products/festo-linear-2.jpg",
+  "festo:egc-bs-kf":       "/products/festo-linear-3.jpg",
+  "festo:linear-module":   "/products/festo-linear-1.jpg",
+  "festo:vuvg":            "/products/festo-valve-1.jpg",
+  "festo:valve-terminal":  "/products/festo-valve-1.jpg",
+  "festo:valve":           "/products/festo-valve-2.jpg",
+  "festo:air-preparation": "/products/festo-air-1.jpg",
   // Parker — by family slug
   "parker:p1d":           "/products/parker-p1d.jpg",
   "parker:p1d-detail":    "/products/parker-p1d-detail.jpg",
@@ -308,10 +322,15 @@ export function getProductImage(
   // 2. Look up by brand + family
   const brandSlug = product.brand.slug;
   const family = product.family ?? "";
-  const key = `${brandSlug}:${family}`;
-  if (PRODUCT_IMAGES[key]) return PRODUCT_IMAGES[key];
+  const categorySlug = product.category.slug;
+  const keyByFamily = `${brandSlug}:${family}`;
+  if (PRODUCT_IMAGES[keyByFamily]) return PRODUCT_IMAGES[keyByFamily];
 
-  // 3. Look up by brand only (first matching entry)
+  // 3. Look up by brand + category
+  const keyByCat = `${brandSlug}:${categorySlug}`;
+  if (PRODUCT_IMAGES[keyByCat]) return PRODUCT_IMAGES[keyByCat];
+
+  // 4. Look up by brand only (first matching entry)
   const brandMatch = Object.entries(PRODUCT_IMAGES).find(([k]) => k.startsWith(`${brandSlug}:`));
   if (brandMatch) return brandMatch[1];
 
