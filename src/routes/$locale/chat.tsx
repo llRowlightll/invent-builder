@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
-import { aiSearchProducts, aiExplain, type AiSearchResult } from "@/lib/ai.functions";
+import { aiSearchProducts, aiExplain, aiAskKnowledge, type AiSearchResult } from "@/lib/ai.functions";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
 
@@ -26,15 +26,34 @@ interface Msg {
   text?: string;
   products?: ProductRow[];
   aiResult?: AiSearchResult;
+  sources?: string[];  // RAG source citations
+}
+
+// Detect if query is a product-search or a general knowledge question
+function isKnowledgeQuestion(q: string): boolean {
+  const t = q.toLowerCase();
+  // General tech questions — not a direct product search
+  const knowledgeSignals = [
+    /hur\s+(fungerar|monterar|installerar|kopplar|väljer|dimensionerar)/,
+    /vad\s+(är|betyder|innebär|skiljer)/,
+    /skillnad\s+mellan/,
+    /how\s+(does|do|to|is)/,
+    /what\s+(is|are|does)/,
+    /explain|describe|difference|installation|maintenance|service|seal|pressure|temperature|specification|data ?sheet|technical/,
+    /specifikation|montering|underhåll|tätning|tryck|temperatur|datablad|teknisk/,
+  ];
+  return knowledgeSignals.some((r) => r.test(t));
 }
 
 const EXAMPLE_QUERIES = [
   "Jag behöver en cylinder som lyfter 30 kg med 150mm slag",
   "Kompakt SMC cylinder för trånga utrymmen, 32mm kolvdiameter",
   "Pneumatisk gripper för cylindriska objekt",
-  "Vakuumgrepp för glaspaneler i livsmedelsproduktion",
   "Parker cylinder med IP67 för utomhusbruk",
-  "Festo ventilö med PROFINET-anslutning",
+  "Hur fungerar Parker P1D cylinderns kolvtätning?",
+  "Vad är skillnaden mellan OSP-P och en vanlig cylinder?",
+  "How do I select the right bore size for 500N force?",
+  "What is the maximum pressure for Norgren LINTRA Plus?",
 ];
 
 function ChatPage() {
@@ -44,6 +63,7 @@ function ChatPage() {
   const isSv = locale === "sv";
   const aiSearch = useServerFn(aiSearchProducts);
   const explain = useServerFn(aiExplain);
+  const askKnowledge = useServerFn(aiAskKnowledge);
 
   const [catalog, setCatalog] = useState<ProductRow[] | null>(null);
   const [text, setText] = useState("");
@@ -74,6 +94,22 @@ function ChatPage() {
     setBusy(true);
 
     try {
+      // Route to knowledge Q&A or product search based on query type
+      if (isKnowledgeQuestion(q)) {
+        const result = await askKnowledge({ data: { question: q, locale } });
+        setMsgs((m) => [
+          ...m,
+          {
+            role: "assistant",
+            text: result.answer,
+            sources: result.sources,
+          },
+        ]);
+        setBusy(false);
+        setTimeout(() => inputRef.current?.focus(), 100);
+        return;
+      }
+
       const result = await aiSearch({ data: { query: q, locale } });
 
       // Apply filters to find matching products
@@ -210,6 +246,15 @@ function ChatPage() {
                   }`}
                 >
                   {m.text}
+                  {m.sources && m.sources.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-border/50 flex flex-wrap gap-1">
+                      {m.sources.map((s, si) => (
+                        <span key={si} className="text-[10px] px-1.5 py-0.5 rounded bg-info/10 text-info/80 font-mono">
+                          📄 {s}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             );

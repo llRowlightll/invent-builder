@@ -1,7 +1,34 @@
 import { createServerFn } from "@tanstack/react-start";
+import { createClient } from "@supabase/supabase-js";
 
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const AI_SEARCH_EDGE = "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/ai-search";
+
+// Server-side Supabase client (uses env vars available in Cloudflare Workers)
+function getSupabase() {
+  const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
+  const key = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
+  return createClient(url, key);
+}
+
+// Search the knowledge base for relevant chunks
+async function searchKnowledge(query: string, limit = 6): Promise<string> {
+  try {
+    const sb = getSupabase();
+    const { data, error } = await sb.rpc("search_knowledge", {
+      query_text: query,
+      match_count: limit,
+    });
+    if (error || !data?.length) return "";
+    return data
+      .map((c: { source_file: string; brand: string; content: string }) =>
+        `[Source: ${c.brand} — ${c.source_file}]\n${c.content}`
+      )
+      .join("\n\n---\n\n");
+  } catch {
+    return "";
+  }
+}
 
 interface ExtractedReqs {
   stroke_mm?: number;
@@ -93,6 +120,48 @@ export const aiExtractRequirements = createServerFn({ method: "POST" })
     } catch {
       return { ...fb, source: "fallback" };
     }
+  });
+
+// ─── RAG: Ask anything — searches PDF knowledge base + answers with context ───
+export const aiAskKnowledge = createServerFn({ method: "POST" })
+  .inputValidator((d: { question: string; locale?: string }) => d)
+  .handler(async ({ data }): Promise<{ answer: string; sources: string[]; source: "ai" | "fallback" }> => {
+    const isSv = data.locale === "sv";
+
+    // 1. Search knowledge base for relevant chunks
+    const context = await searchKnowledge(data.question, 8);
+
+    // 2. Build prompt with or without context
+    const systemPrompt = [
+      `You are an expert industrial automation engineer with deep knowledge of Parker, Bosch Rexroth, Norgren, Festo, and SMC products.`,
+      `Answer questions accurately using the provided technical documentation context.`,
+      `If the context contains the answer, cite the source file. If not in context, say so clearly — never invent specs or part numbers.`,
+      langInstruction(data.locale),
+    ].join(" ");
+
+    const userPrompt = context
+      ? `Technical documentation context:\n\n${context}\n\n---\n\nQuestion: ${data.question}`
+      : `Question: ${data.question}\n\n(No specific documentation found — answer from general knowledge, clearly stating this.)`;
+
+    const raw = await callGateway([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ]);
+
+    if (raw) {
+      // Extract source files mentioned
+      const sourceMatches = context.match(/\[Source: [^\]]+\]/g) ?? [];
+      const sources = [...new Set(sourceMatches.map((s) => s.replace(/\[Source: |\]/g, "")))];
+      return { answer: raw.trim(), sources, source: "ai" };
+    }
+
+    return {
+      answer: isSv
+        ? "Kunde inte hämta svar just nu. Kontrollera din fråga och försök igen."
+        : "Could not retrieve an answer right now. Please try again.",
+      sources: [],
+      source: "fallback",
+    };
   });
 
 export const aiExplain = createServerFn({ method: "POST" })
