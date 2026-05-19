@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 
-const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_MODEL = "llama-3.3-70b-versatile";
 const AI_SEARCH_EDGE = "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/ai-search";
 
 // Server-side Supabase client (uses env vars available in Cloudflare Workers)
@@ -73,26 +74,30 @@ function fallbackExtract(text: string): ExtractedReqs {
 }
 
 async function callGateway(messages: { role: string; content: string }[]): Promise<string | null> {
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) return null;
+  const key = process.env.GROQ_API_KEY;
+  if (!key) {
+    console.error("GROQ_API_KEY not set");
+    return null;
+  }
   try {
-    const res = await fetch(GATEWAY, {
+    const res = await fetch(GROQ_URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: GROQ_MODEL,
         messages,
         temperature: 0.2,
+        max_tokens: 1024,
       }),
     });
     if (!res.ok) {
-      console.error("AI gateway error", res.status, await res.text());
+      console.error("Groq error", res.status, await res.text());
       return null;
     }
     const data = await res.json();
     return data?.choices?.[0]?.message?.content ?? null;
   } catch (e) {
-    console.error("AI gateway call failed", e);
+    console.error("Groq call failed", e);
     return null;
   }
 }
