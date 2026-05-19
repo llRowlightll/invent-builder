@@ -332,8 +332,13 @@ function LocaleLayout() {
             </p>
           </div>
         </div>
-        <div className="container-page mt-6 pt-4 border-t border-border text-center text-[11px] text-muted-foreground">
-          © {new Date().getFullYear()} {t("common.appName")} — Industriell automationskatalog för maskinbyggare
+        <div className="container-page mt-6 pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-muted-foreground">
+          <span>© {new Date().getFullYear()} {t("common.appName")} — Industriell automationskatalog för maskinbyggare</span>
+          <div className="flex gap-4">
+            <Link to="/$locale/privacy" params={{ locale }} className="hover:text-info transition">Integritetspolicy</Link>
+            <Link to="/$locale/terms" params={{ locale }} className="hover:text-info transition">Allmänna villkor</Link>
+            <a href="mailto:info@maskinval.se" className="hover:text-info transition">Kontakt</a>
+          </div>
         </div>
       </footer>
     </div>
