@@ -120,8 +120,8 @@ function ComparePage() {
           <h1 className="text-2xl font-semibold tracking-tight">{t("nav.compare")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {lockedCategory
-              ? <>Jämför <span className="font-medium text-foreground">{lockedCategory.name}</span> — välj upp till 4 produkter från olika leverantörer</>
-              : "Välj en produkt — jämförelsen låses till samma produkttyp"
+              ? <>{t("comparePage.compareWith").replace("{category}", "")}<span className="font-medium text-foreground">{lockedCategory.name}</span></>
+              : t("comparePage.startHint")
             }
           </p>
         </div>
@@ -136,11 +136,11 @@ function ComparePage() {
           <div className="rounded-xl border border-border bg-card overflow-hidden lg:sticky lg:top-20">
             <div className="px-4 py-3 border-b border-border bg-surface-alt/40">
               <div className="flex items-center justify-between gap-2">
-                <h2 className="text-sm font-medium">Välj produkter ({selected.length}/4)</h2>
+                <h2 className="text-sm font-medium">{t("comparePage.pickerTitle")} ({selected.length}/4)</h2>
                 {selected.length > 0 && (
                   <button onClick={clearAll}
                     className="text-[10px] text-muted-foreground hover:text-destructive transition">
-                    Rensa alla ×
+                    {t("comparePage.clearAll")} ×
                   </button>
                 )}
               </div>
@@ -149,11 +149,11 @@ function ComparePage() {
                 <div className="mt-1.5 flex items-center gap-1.5">
                   <span className="size-1.5 rounded-full bg-info shrink-0" />
                   <span className="text-[11px] text-info font-medium">{lockedCategory.name}</span>
-                  <span className="text-[10px] text-muted-foreground">— visar bara samma kategori</span>
+                  <span className="text-[10px] text-muted-foreground">{t("comparePage.categoryLocked")}</span>
                 </div>
               ) : (
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Välj en produkt — jämförelsen låses till dess kategori
+                  {t("comparePage.categoryHint")}
                 </p>
               )}
             </div>
@@ -177,14 +177,14 @@ function ComparePage() {
               <input
                 value={pickerSearch}
                 onChange={(e) => setPickerSearch(e.target.value)}
-                placeholder="Sök produkt…"
+                placeholder={t("comparePage.searchProductPlaceholder")}
                 className="w-full text-xs px-3 py-1.5 rounded-md border border-border bg-card focus:outline-none focus:ring-1 focus:ring-info"
               />
             </div>
 
             <div className="divide-y divide-border max-h-[55vh] overflow-y-auto">
               {pickerItems.length === 0 && (
-                <p className="px-4 py-6 text-xs text-muted-foreground text-center">Inga produkter matchar</p>
+                <p className="px-4 py-6 text-xs text-muted-foreground text-center">{t("comparePage.noPickerResults")}</p>
               )}
               {(() => {
                 let lastBrand = "";
@@ -259,7 +259,7 @@ function ComparePage() {
                       onClick={() => toggle(p.sku)}
                       className="mt-2 text-[10px] text-muted-foreground/60 hover:text-destructive transition"
                     >
-                      Ta bort ×
+                      {t("comparePage.removeProduct")} ×
                     </button>
                   </div>
                 ))}
@@ -307,7 +307,7 @@ function ComparePage() {
 
                   {/* CTA row */}
                   <tr className="border-t border-border bg-surface-alt/40">
-                    <td className="p-3 text-muted-foreground text-xs">Offertförfrågan</td>
+                    <td className="p-3 text-muted-foreground text-xs">{t("comparePage.rfqLabel")}</td>
                     {compared.map((p) => (
                       <td key={p.sku} className="p-3 border-l border-border">
                         <Link

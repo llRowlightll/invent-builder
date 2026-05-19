@@ -136,21 +136,21 @@ function ProductDetail() {
       </div>
 
       <section className="mt-6 rounded-lg border border-border bg-card p-4 space-y-2 text-sm">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-3">Pris & Leverans</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-3">{t("productPage.priceSection")}</h2>
         {product.purchase_price != null && (
           <Row
-            k="Försäljningspris"
-            v={`${(product.purchase_price * (1 + (product.margin ?? 0.35))).toFixed(2)} kr`}
+            k={t("productPage.sellingPrice")}
+            v={`${(product.purchase_price / (1 - (product.margin ?? 0.35))).toFixed(2)} kr`}
           />
         )}
         <Row
-          k="Estimerad leverans"
+          k={t("productPage.estimatedDelivery")}
           v={
             product.availability === "stock"
-              ? "1–2 arbetsdagar"
+              ? t("productPage.inStock12")
               : product.availability === "fast"
-              ? "3–5 arbetsdagar"
-              : `${product.lead_time_days ?? 14} dagar`
+              ? t("productPage.fast35")
+              : `${product.lead_time_days ?? 14} ${t("productPage.days")}`
           }
         />
       </section>

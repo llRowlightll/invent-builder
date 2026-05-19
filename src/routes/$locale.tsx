@@ -48,6 +48,22 @@ function LocaleLayout() {
   const [cookieConsent, setCookieConsent] = useState<string | null>(null);
   const langRef = useRef<HTMLDivElement>(null);
 
+  // GA4: inject script when user accepts all cookies
+  useEffect(() => {
+    const GA_ID = import.meta.env.VITE_GA_ID as string | undefined;
+    if (!GA_ID || cookieConsent !== "all") return;
+    if (document.getElementById("ga4-script")) return; // already loaded
+    const script1 = document.createElement("script");
+    script1.id = "ga4-script";
+    script1.async = true;
+    script1.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
+    document.head.appendChild(script1);
+    const script2 = document.createElement("script");
+    script2.id = "ga4-init";
+    script2.textContent = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');`;
+    document.head.appendChild(script2);
+  }, [cookieConsent]);
+
   useEffect(() => {
     setCookieConsent(getCookie("mv_cookie_consent"));
     function onClickOutside(e: MouseEvent) {
