@@ -42,7 +42,7 @@ function ShoppingListPage() {
   const { locale } = Route.useParams();
   const t = makeT(locale as Locale);
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
 
   const [catalog, setCatalog] = useState<ProductRow[]>([]);
   const [items, setItems] = useState<ListItem[]>([]);
@@ -64,10 +64,6 @@ function ShoppingListPage() {
   const [rfqId, setRfqId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && !user) navigate({ to: "/$locale/login", params: { locale } });
-  }, [user, loading, navigate, locale]);
-
-  useEffect(() => {
     loadCatalog().then(setCatalog);
   }, []);
 
@@ -76,9 +72,13 @@ function ShoppingListPage() {
       const saved = localStorage.getItem(SHOPPING_LIST_KEY);
       if (saved) setItems(JSON.parse(saved));
     } catch {}
+  }, []);
+
+  // Pre-fill form when user logs in
+  useEffect(() => {
     if (user) {
-      setRfqName(user.user_metadata?.full_name ?? "");
-      setRfqEmail(user.email ?? "");
+      setRfqName((prev) => prev || user.user_metadata?.full_name || "");
+      setRfqEmail((prev) => prev || user.email || "");
     }
   }, [user]);
 
@@ -154,6 +154,19 @@ function ShoppingListPage() {
     window.open(`/${locale}/compare`, "_blank");
   }
 
+  // When user clicks "Request quote" — require login first
+  function handleRequestQuote() {
+    if (!user) {
+      navigate({
+        to: "/$locale/login",
+        params: { locale },
+        search: { redirect: `/${locale}/shopping-list` } as never,
+      });
+      return;
+    }
+    setRfqStep("compare");
+  }
+
   async function submitRfq() {
     if (!user) return;
     setRfqSending(true);
@@ -201,15 +214,12 @@ function ShoppingListPage() {
       }
 
       setRfqSent(true);
-      setItems([]); // clears list + fires shopping-list-updated via the persist effect
+      setItems([]);
     } catch (err) {
       console.error(err);
     }
     setRfqSending(false);
   }
-
-  if (loading || !user)
-    return <div className="container-page py-16 text-sm text-muted-foreground">{t("common.loading")}</div>;
 
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
 
@@ -218,13 +228,13 @@ function ShoppingListPage() {
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-xl">📋</span>
+          <span className="text-xl">🛒</span>
           <h1 className="text-2xl font-semibold tracking-tight">{t("shoppingList.title")}</h1>
         </div>
         <p className="text-sm text-muted-foreground">{t("shoppingList.subtitle")}</p>
       </div>
 
-      {/* Search */}
+      {/* Search / add products */}
       <div className="relative" ref={searchRef}>
         <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-info/30 transition">
           <span className="text-muted-foreground">🔍</span>
@@ -255,7 +265,7 @@ function ShoppingListPage() {
               >
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium truncate group-hover:text-info transition">{p.name}</div>
-                  <div className="font-mono text-[10px] text-muted-foreground mt-0.5">{p.sku}</div>
+                  <div className="font-mono text-[10px] text-muted-foreground mt-0.5">{p.sku} · {p.brand.name}</div>
                 </div>
                 <span className="text-xs text-info opacity-0 group-hover:opacity-100 transition shrink-0 font-medium">
                   + {t("shoppingList.add")}
@@ -266,16 +276,16 @@ function ShoppingListPage() {
         )}
       </div>
 
-      {/* List */}
+      {/* Cart */}
       <div className="mt-5">
         {items.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center">
-            <div className="text-3xl mb-3">🛒</div>
+            <div className="text-4xl mb-3">🛒</div>
             <p className="text-sm text-muted-foreground">{t("shoppingList.empty")}</p>
             <Link
               to="/$locale/products"
               params={{ locale }}
-              className="mt-3 inline-block text-sm text-info hover:opacity-80 font-medium"
+              className="mt-4 inline-block text-sm text-info hover:opacity-80 font-medium"
             >
               {t("shoppingList.browseProducts")} →
             </Link>
@@ -393,7 +403,7 @@ function ShoppingListPage() {
               </table>
             </div>
 
-            {/* Compare hint row */}
+            {/* Compare hint */}
             {items.length >= 2 && (
               <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground px-1">
                 <span>☑</span>
@@ -421,12 +431,27 @@ function ShoppingListPage() {
               </div>
 
               <button
-                onClick={() => setRfqStep("compare")}
+                onClick={handleRequestQuote}
                 className="px-5 py-2.5 rounded-lg bg-info text-primary-foreground text-sm font-semibold hover:opacity-90 transition shadow-sm"
               >
                 {t("shoppingList.requestQuote")} →
               </button>
             </div>
+
+            {/* Login nudge (shown when not logged in) */}
+            {!user && (
+              <p className="mt-3 text-xs text-muted-foreground text-right">
+                {t("shoppingList.loginToQuote")}{" "}
+                <Link
+                  to="/$locale/login"
+                  params={{ locale }}
+                  search={{ redirect: `/${locale}/shopping-list` } as never}
+                  className="text-info hover:underline font-medium"
+                >
+                  {t("nav.login")}
+                </Link>
+              </p>
+            )}
           </>
         )}
       </div>

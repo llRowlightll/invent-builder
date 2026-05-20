@@ -39,7 +39,8 @@
     "admin": "Admin",
     "settings": "Inställningar",
     "machineBuilder": "Bygg maskin",
-    "shoppingList": "Inköpslista"
+    "shoppingList": "Korg",
+    "login": "Logga in"
   },
   "landing": {
     "heroTitle": "Hitta rätt industrikomponent. Snabbt.",
@@ -185,7 +186,7 @@
     "datasheet": "Datablad →",
     "noResultsAi": "Inga produkter matchade AI-sökningen. Prova att justera din beskrivning.",
     "noResultsManual": "Inga produkter matchade. Justera filter eller sökterm.",
-    "addToList": "Lägg i lista",
+    "addToList": "Lägg i korg",
     "added": "Tillagd"
   },
   "chatPage": {
@@ -450,8 +451,9 @@
     "aiEngineerProject": "Öppna Projekt →"
   },
   "shoppingList": {
-    "title": "Inköpslista",
-    "subtitle": "Lägg till produkter du vet att du vill ha — justera antal och skicka direkt som offertförfrågan.",
+    "title": "Din korg",
+    "subtitle": "Lägg till produkter du vill ha, justera antal och skicka som offertförfrågan.",
+    "loginToQuote": "Inloggning krävs för att skicka offert.",
     "searchPlaceholder": "Sök produkt — namn, artikelnummer eller beskrivning…",
     "add": "Lägg till",
     "empty": "Din inköpslista är tom. Sök efter produkter ovan eller bläddra i katalogen.",

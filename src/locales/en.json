@@ -39,7 +39,8 @@
     "settings": "Settings",
     "advisor": "Advisor",
     "machineBuilder": "Build machine",
-    "shoppingList": "Purchase list"
+    "shoppingList": "Cart",
+    "login": "Log in"
   },
   "landing": {
     "heroTitle": "Find the right industrial component. Fast.",
@@ -185,7 +186,7 @@
     "datasheet": "Datasheet →",
     "noResultsAi": "No products matched the AI search. Try adjusting your description.",
     "noResultsManual": "No products matched. Adjust filters or search term.",
-    "addToList": "Add to list",
+    "addToList": "Add to cart",
     "added": "Added"
   },
   "chatPage": {
@@ -450,8 +451,8 @@
     "aiEngineerProject": "Open Project →"
   },
   "shoppingList": {
-    "title": "Purchase List",
-    "subtitle": "Add products you already know you need — adjust quantities and submit as a quote request.",
+    "title": "Your cart",
+    "subtitle": "Add products, adjust quantities and send as a quote request.",
     "searchPlaceholder": "Search product — name, SKU or description…",
     "add": "Add",
     "empty": "Your purchase list is empty. Search for products above or browse the catalog.",
@@ -490,7 +491,8 @@
     "sentTitle": "Quote request sent!",
     "sentBody": "We will get back to you with a quote within 24 hours. Track status under My RFQs.",
     "viewRfq": "View your request",
-    "viewOrders": "All my requests"
+    "viewOrders": "All my requests",
+    "loginToQuote": "Login required to submit a quote."
   },
   "configuratorPage": {
     "title": "EA Linear Axis",

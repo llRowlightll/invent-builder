@@ -39,7 +39,8 @@
     "settings": "Einstellungen",
     "advisor": "Berater",
     "machineBuilder": "Maschine bauen",
-    "shoppingList": "Einkaufsliste"
+    "shoppingList": "Warenkorb",
+    "login": "Anmelden"
   },
   "landing": {
     "heroTitle": "Die richtige Industriekomponente. Schnell.",
@@ -185,7 +186,7 @@
     "datasheet": "Datenblatt →",
     "noResultsAi": "Keine Produkte haben der KI-Suche entsprochen. Versuchen Sie, Ihre Beschreibung anzupassen.",
     "noResultsManual": "Keine Produkte gefunden. Filter oder Suchbegriff anpassen.",
-    "addToList": "Zur Liste",
+    "addToList": "In den Warenkorb",
     "added": "Hinzugefügt"
   },
   "chatPage": {
@@ -450,8 +451,8 @@
     "aiEngineerProject": "Projekt öffnen →"
   },
   "shoppingList": {
-    "title": "Einkaufsliste",
-    "subtitle": "Fügen Sie Produkte hinzu, die Sie bereits kennen — passen Sie die Mengen an und senden Sie direkt als Angebotsanfrage.",
+    "title": "Ihr Warenkorb",
+    "subtitle": "Produkte hinzufügen, Mengen anpassen und als Angebotsanfrage senden.",
     "searchPlaceholder": "Produkt suchen — Name, Artikelnummer oder Beschreibung…",
     "add": "Hinzufügen",
     "empty": "Ihre Einkaufsliste ist leer. Suchen Sie nach Produkten oder durchsuchen Sie den Katalog.",
@@ -490,7 +491,8 @@
     "sentTitle": "Angebotsanfrage gesendet!",
     "sentBody": "Wir melden uns innerhalb von 24 Stunden mit einem Angebot.",
     "viewRfq": "Anfrage ansehen",
-    "viewOrders": "Alle meine Anfragen"
+    "viewOrders": "Alle meine Anfragen",
+    "loginToQuote": "Anmeldung erforderlich, um ein Angebot anzufordern."
   },
   "configuratorPage": {
     "title": "EA Linearachse",

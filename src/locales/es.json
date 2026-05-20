@@ -39,7 +39,8 @@
     "settings": "Configuración",
     "advisor": "Asesor",
     "machineBuilder": "Construir máquina",
-    "shoppingList": "Lista de compras"
+    "shoppingList": "Carrito",
+    "login": "Iniciar sesión"
   },
   "landing": {
     "heroTitle": "El componente industrial correcto. Rápido.",
@@ -185,7 +186,7 @@
     "datasheet": "Ficha técnica →",
     "noResultsAi": "Ningún producto coincidió con la búsqueda IA. Intente ajustar su descripción.",
     "noResultsManual": "Ningún producto coincidió. Ajuste los filtros o el término de búsqueda.",
-    "addToList": "Añadir a lista",
+    "addToList": "Añadir al carrito",
     "added": "Añadido"
   },
   "chatPage": {
@@ -450,8 +451,8 @@
     "aiEngineerProject": "Abrir Proyecto →"
   },
   "shoppingList": {
-    "title": "Lista de compras",
-    "subtitle": "Añada los productos que ya sabe que necesita — ajuste las cantidades y envíe directamente como solicitud de oferta.",
+    "title": "Tu carrito",
+    "subtitle": "Añade productos, ajusta cantidades y envía como solicitud de oferta.",
     "searchPlaceholder": "Buscar producto — nombre, referencia o descripción…",
     "add": "Añadir",
     "empty": "Su lista de compras está vacía. Busque productos arriba o explore el catálogo.",
@@ -490,7 +491,8 @@
     "sentTitle": "¡Solicitud de oferta enviada!",
     "sentBody": "Le responderemos con una oferta en 24 horas.",
     "viewRfq": "Ver su solicitud",
-    "viewOrders": "Todas mis solicitudes"
+    "viewOrders": "Todas mis solicitudes",
+    "loginToQuote": "Se requiere iniciar sesión para enviar una solicitud."
   },
   "configuratorPage": {
     "title": "EA Eje lineal",
