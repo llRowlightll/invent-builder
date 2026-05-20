@@ -7,6 +7,7 @@ import { loadCatalog } from "@/lib/catalog";
 import { aiSearchProducts, type AiSearchResult } from "@/lib/ai.functions";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
+import { addToShoppingList } from "@/routes/$locale/shopping-list";
 
 type FilterKey = "brands" | "cats" | "grades";
 
@@ -68,7 +69,14 @@ function ProductsPage() {
   const [aiMode, setAiMode] = useState(!!search.ai);
   const [aiResult, setAiResult] = useState<AiSearchResult | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [addedSku, setAddedSku] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  function quickAddToList(p: ProductRow) {
+    addToShoppingList({ id: p.id, sku: p.sku, name: p.name });
+    setAddedSku(p.sku);
+    setTimeout(() => setAddedSku(null), 1800);
+  }
 
   useEffect(() => {
     loadCatalog().then(setItems).catch(console.error);
@@ -409,6 +417,17 @@ function ProductsPage() {
                     >
                       {t("productsPage.datasheet")} →
                     </Link>
+                    <button
+                      onClick={() => quickAddToList(p)}
+                      className={`text-[11px] transition font-medium px-2 py-0.5 rounded ${
+                        addedSku === p.sku
+                          ? "text-[oklch(0.55_0.15_155)] bg-[oklch(0.55_0.15_155)]/10"
+                          : "text-muted-foreground hover:text-info"
+                      }`}
+                      title={t("productsPage.addToList")}
+                    >
+                      {addedSku === p.sku ? "✓ " + t("productsPage.added") : "+ " + t("productsPage.addToList")}
+                    </button>
                     <Link
                       to="/$locale/compare"
                       params={{ locale }}

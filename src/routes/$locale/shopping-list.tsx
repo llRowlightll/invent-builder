@@ -1,0 +1,640 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { makeT, type Locale } from "@/lib/i18n";
+import { useAuth } from "@/lib/auth-context";
+import { loadCatalog } from "@/lib/catalog";
+import { supabase } from "@/integrations/supabase/client";
+import type { ProductRow } from "@/lib/types";
+
+export const Route = createFileRoute("/$locale/shopping-list")({
+  head: ({ params }) => ({
+    meta: [{ title: `${makeT(params.locale as Locale)("shoppingList.title")} — ${makeT(params.locale as Locale)("common.appName")}` }],
+  }),
+  component: ShoppingListPage,
+});
+
+interface ListItem {
+  product_id: string;
+  sku: string;
+  name: string;
+  qty: number;
+}
+
+// Shared key — same device, any page can read/write it
+export const SHOPPING_LIST_KEY = "mv_shopping_list";
+export const SHOPPING_LIST_COUNT_KEY = "mv_shopping_list_count";
+
+export function addToShoppingList(product: { id: string; sku: string; name: string }) {
+  try {
+    const raw = localStorage.getItem(SHOPPING_LIST_KEY);
+    const items: ListItem[] = raw ? JSON.parse(raw) : [];
+    const existing = items.find((i) => i.product_id === product.id);
+    const updated = existing
+      ? items.map((i) => (i.product_id === product.id ? { ...i, qty: i.qty + 1 } : i))
+      : [...items, { product_id: product.id, sku: product.sku, name: product.name, qty: 1 }];
+    localStorage.setItem(SHOPPING_LIST_KEY, JSON.stringify(updated));
+    localStorage.setItem(SHOPPING_LIST_COUNT_KEY, String(updated.reduce((s, i) => s + i.qty, 0)));
+    window.dispatchEvent(new Event("shopping-list-updated"));
+  } catch {}
+}
+
+function ShoppingListPage() {
+  const { locale } = Route.useParams();
+  const t = makeT(locale as Locale);
+  const navigate = useNavigate();
+  const { user, loading } = useAuth();
+
+  const [catalog, setCatalog] = useState<ProductRow[]>([]);
+  const [items, setItems] = useState<ListItem[]>([]);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<ProductRow[]>([]);
+  const [showResults, setShowResults] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  // RFQ flow
+  const [rfqStep, setRfqStep] = useState<null | "compare" | "form">(null);
+  const [compareSelected, setCompareSelected] = useState<Set<string>>(new Set());
+  const [rfqName, setRfqName] = useState("");
+  const [rfqEmail, setRfqEmail] = useState("");
+  const [rfqPhone, setRfqPhone] = useState("");
+  const [rfqCompany, setRfqCompany] = useState("");
+  const [rfqMessage, setRfqMessage] = useState("");
+  const [rfqSending, setRfqSending] = useState(false);
+  const [rfqSent, setRfqSent] = useState(false);
+  const [rfqId, setRfqId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading && !user) navigate({ to: "/$locale/login", params: { locale } });
+  }, [user, loading, navigate, locale]);
+
+  useEffect(() => {
+    loadCatalog().then(setCatalog);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SHOPPING_LIST_KEY);
+      if (saved) setItems(JSON.parse(saved));
+    } catch {}
+    if (user) {
+      setRfqName(user.user_metadata?.full_name ?? "");
+      setRfqEmail(user.email ?? "");
+    }
+  }, [user]);
+
+  // Persist list + broadcast count for nav badge
+  useEffect(() => {
+    localStorage.setItem(SHOPPING_LIST_KEY, JSON.stringify(items));
+    const count = items.reduce((s, i) => s + i.qty, 0);
+    localStorage.setItem(SHOPPING_LIST_COUNT_KEY, String(count));
+    window.dispatchEvent(new Event("shopping-list-updated"));
+  }, [items]);
+
+  // Click outside search dropdown
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowResults(false);
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  // Filter catalog as user types
+  useEffect(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) { setResults([]); setShowResults(false); return; }
+    const found = catalog
+      .filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.sku.toLowerCase().includes(q) ||
+          (p.description ?? "").toLowerCase().includes(q),
+      )
+      .slice(0, 8);
+    setResults(found);
+    setShowResults(found.length > 0);
+  }, [query, catalog]);
+
+  function addProduct(p: ProductRow) {
+    setItems((prev) => {
+      const existing = prev.find((i) => i.product_id === p.id);
+      if (existing) return prev.map((i) => (i.product_id === p.id ? { ...i, qty: i.qty + 1 } : i));
+      return [...prev, { product_id: p.id, sku: p.sku, name: p.name, qty: 1 }];
+    });
+    setQuery("");
+    setShowResults(false);
+  }
+
+  function removeItem(id: string) {
+    setItems((prev) => prev.filter((i) => i.product_id !== id));
+    setCompareSelected((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  function setQty(id: string, qty: number) {
+    if (qty < 1) return;
+    setItems((prev) => prev.map((i) => (i.product_id === id ? { ...i, qty } : i)));
+  }
+
+  function toggleCompare(id: string, checked: boolean) {
+    setCompareSelected((prev) => {
+      const next = new Set(prev);
+      if (checked && next.size < 4) next.add(id);
+      else if (!checked) next.delete(id);
+      return next;
+    });
+  }
+
+  function openCompare() {
+    const ids = compareSelected.size >= 2 ? [...compareSelected] : items.slice(0, 4).map((i) => i.product_id);
+    localStorage.setItem("mv_compare", JSON.stringify(ids));
+    window.open(`/${locale}/compare`, "_blank");
+  }
+
+  async function submitRfq() {
+    if (!user) return;
+    setRfqSending(true);
+    try {
+      const title = `${t("shoppingList.rfqTitle")} — ${rfqCompany || rfqName}`;
+      const { data: rfqRow } = await supabase
+        .from("rfqs")
+        .insert({
+          status: "new",
+          title,
+          contact_name: rfqName.trim(),
+          contact_email: rfqEmail.trim(),
+          contact_phone: rfqPhone.trim() || null,
+          company: rfqCompany.trim() || null,
+          message: rfqMessage.trim() || null,
+        })
+        .select("id")
+        .single();
+
+      if (rfqRow?.id) {
+        await supabase.from("rfq_items").insert(
+          items.map((item) => ({
+            rfq_id: rfqRow.id,
+            product_id: item.product_id,
+            qty: item.qty,
+            role: "ordered",
+          })),
+        );
+
+        fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/rfq-notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            rfq_id: rfqRow.id,
+            contact_name: rfqName.trim(),
+            contact_email: rfqEmail.trim(),
+            contact_phone: rfqPhone.trim() || null,
+            company: rfqCompany.trim() || null,
+            title,
+            items: items.map((i) => ({ sku: i.sku, name: i.name, qty: i.qty, role: "ordered" })),
+          }),
+        }).catch(console.error);
+
+        setRfqId(rfqRow.id);
+      }
+
+      setRfqSent(true);
+      setItems([]); // clears list + fires shopping-list-updated via the persist effect
+    } catch (err) {
+      console.error(err);
+    }
+    setRfqSending(false);
+  }
+
+  if (loading || !user)
+    return <div className="container-page py-16 text-sm text-muted-foreground">{t("common.loading")}</div>;
+
+  const totalQty = items.reduce((s, i) => s + i.qty, 0);
+
+  return (
+    <div className="container-page py-10 max-w-3xl">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-xl">📋</span>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("shoppingList.title")}</h1>
+        </div>
+        <p className="text-sm text-muted-foreground">{t("shoppingList.subtitle")}</p>
+      </div>
+
+      {/* Search */}
+      <div className="relative" ref={searchRef}>
+        <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-info/30 transition">
+          <span className="text-muted-foreground">🔍</span>
+          <input
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            placeholder={t("shoppingList.searchPlaceholder")}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => results.length > 0 && setShowResults(true)}
+          />
+          {query && (
+            <button
+              onClick={() => { setQuery(""); setShowResults(false); }}
+              className="text-muted-foreground hover:text-foreground text-xs"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        {showResults && (
+          <div className="absolute top-full left-0 right-0 z-30 mt-1.5 rounded-xl border border-border bg-card shadow-xl overflow-hidden">
+            {results.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => addProduct(p)}
+                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-surface-alt text-left transition group"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate group-hover:text-info transition">{p.name}</div>
+                  <div className="font-mono text-[10px] text-muted-foreground mt-0.5">{p.sku}</div>
+                </div>
+                <span className="text-xs text-info opacity-0 group-hover:opacity-100 transition shrink-0 font-medium">
+                  + {t("shoppingList.add")}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* List */}
+      <div className="mt-5">
+        {items.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center">
+            <div className="text-3xl mb-3">🛒</div>
+            <p className="text-sm text-muted-foreground">{t("shoppingList.empty")}</p>
+            <Link
+              to="/$locale/products"
+              params={{ locale }}
+              className="mt-3 inline-block text-sm text-info hover:opacity-80 font-medium"
+            >
+              {t("shoppingList.browseProducts")} →
+            </Link>
+          </div>
+        ) : (
+          <>
+            {/* Table */}
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="px-4 py-3 border-b border-border bg-surface-alt/40 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    {t("shoppingList.listTitle")}
+                  </span>
+                  <span className="inline-flex items-center justify-center rounded bg-info/15 text-info text-xs font-bold px-1.5 py-0.5">
+                    {totalQty} {t("shoppingList.units")}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setItems([])}
+                  className="text-xs text-muted-foreground hover:text-destructive transition"
+                >
+                  {t("shoppingList.clearAll")}
+                </button>
+              </div>
+
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-xs text-muted-foreground bg-surface-alt/20">
+                    <th className="w-10 p-3 text-center">
+                      <input
+                        type="checkbox"
+                        title={t("shoppingList.selectAll")}
+                        checked={compareSelected.size === items.length && items.length > 0}
+                        onChange={(e) =>
+                          setCompareSelected(
+                            e.target.checked ? new Set(items.slice(0, 4).map((i) => i.product_id)) : new Set(),
+                          )
+                        }
+                        className="rounded accent-info"
+                      />
+                    </th>
+                    <th className="text-left p-3 font-medium">{t("shoppingList.product")}</th>
+                    <th className="text-center p-3 font-medium w-32">{t("shoppingList.qty")}</th>
+                    <th className="w-10 p-3" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item) => {
+                    const product = catalog.find((p) => p.id === item.product_id);
+                    const isChecked = compareSelected.has(item.product_id);
+                    return (
+                      <tr
+                        key={item.product_id}
+                        className={`border-b border-border last:border-0 transition ${isChecked ? "bg-info/5" : "odd:bg-surface-alt/20"}`}
+                      >
+                        <td className="p-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => toggleCompare(item.product_id, e.target.checked)}
+                            disabled={!isChecked && compareSelected.size >= 4}
+                            className="rounded accent-info"
+                            title={t("shoppingList.selectForCompare")}
+                          />
+                        </td>
+                        <td className="p-3">
+                          {product ? (
+                            <Link
+                              to="/$locale/product/$sku"
+                              params={{ locale, sku: product.sku }}
+                              className="font-medium hover:text-info transition"
+                            >
+                              {item.name}
+                            </Link>
+                          ) : (
+                            <span className="font-medium">{item.name}</span>
+                          )}
+                          <div className="font-mono text-[10px] text-muted-foreground mt-0.5">{item.sku}</div>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => setQty(item.product_id, item.qty - 1)}
+                              className="size-6 rounded border border-border hover:bg-surface-alt flex items-center justify-center text-sm font-bold transition"
+                            >
+                              −
+                            </button>
+                            <input
+                              type="number"
+                              min={1}
+                              value={item.qty}
+                              onChange={(e) => setQty(item.product_id, Number(e.target.value))}
+                              className="w-10 text-center font-mono text-sm bg-transparent border-0 outline-none"
+                            />
+                            <button
+                              onClick={() => setQty(item.product_id, item.qty + 1)}
+                              className="size-6 rounded border border-border hover:bg-surface-alt flex items-center justify-center text-sm font-bold transition"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <button
+                            onClick={() => removeItem(item.product_id)}
+                            className="text-muted-foreground hover:text-destructive transition text-base leading-none"
+                          >
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Compare hint row */}
+            {items.length >= 2 && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground px-1">
+                <span>☑</span>
+                <span>{t("shoppingList.compareHint")}</span>
+                {compareSelected.size >= 2 && (
+                  <span className="ml-auto text-info font-medium">{compareSelected.size} {t("shoppingList.selected")}</span>
+                )}
+              </div>
+            )}
+
+            {/* Action bar */}
+            <div className="mt-4 flex flex-wrap items-center gap-3 justify-between">
+              <div className="flex items-center gap-2">
+                {compareSelected.size >= 2 && (
+                  <button
+                    onClick={openCompare}
+                    className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg border border-info text-info hover:bg-info/10 transition font-medium"
+                  >
+                    ⇄ {t("shoppingList.compareSelected")} ({compareSelected.size})
+                  </button>
+                )}
+                {compareSelected.size === 1 && (
+                  <p className="text-xs text-muted-foreground">{t("shoppingList.selectMoreForCompare")}</p>
+                )}
+              </div>
+
+              <button
+                onClick={() => setRfqStep("compare")}
+                className="px-5 py-2.5 rounded-lg bg-info text-primary-foreground text-sm font-semibold hover:opacity-90 transition shadow-sm"
+              >
+                {t("shoppingList.requestQuote")} →
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── RFQ Modal ──────────────────────────────────────────── */}
+      {rfqStep && !rfqSent && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={(e) => e.target === e.currentTarget && setRfqStep(null)}
+        >
+          <div className="w-full max-w-lg bg-card rounded-2xl shadow-2xl border border-border overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
+
+            {/* Step indicator */}
+            <div className="flex border-b border-border">
+              {(["compare", "form"] as const).map((step, i) => (
+                <div
+                  key={step}
+                  className={`flex-1 py-2.5 text-center text-xs font-medium transition ${rfqStep === step ? "text-info border-b-2 border-info" : "text-muted-foreground"}`}
+                >
+                  {i + 1}. {step === "compare" ? t("shoppingList.stepCompare") : t("shoppingList.stepForm")}
+                </div>
+              ))}
+            </div>
+
+            {/* ── Step 1: Compare ── */}
+            {rfqStep === "compare" && (
+              <div className="p-6">
+                <h2 className="text-lg font-semibold">{t("shoppingList.compareBeforeQuote")}</h2>
+                <p className="text-sm text-muted-foreground mt-1 mb-4">{t("shoppingList.compareBeforeQuoteHint")}</p>
+
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {items.map((item) => (
+                    <label
+                      key={item.product_id}
+                      className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition ${
+                        compareSelected.has(item.product_id)
+                          ? "border-info bg-info/5"
+                          : "border-border hover:bg-surface-alt"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={compareSelected.has(item.product_id)}
+                        onChange={(e) => toggleCompare(item.product_id, e.target.checked)}
+                        disabled={!compareSelected.has(item.product_id) && compareSelected.size >= 4}
+                        className="rounded accent-info shrink-0"
+                      />
+                      <span className="text-sm font-medium flex-1 truncate">{item.name}</span>
+                      <span className="font-mono text-[10px] text-muted-foreground shrink-0">{item.sku}</span>
+                      <span className="text-xs text-muted-foreground shrink-0">×{item.qty}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {compareSelected.size >= 2 && (
+                  <p className="mt-2 text-xs text-info">{compareSelected.size} {t("shoppingList.productsSelected")}</p>
+                )}
+                {compareSelected.size > 0 && compareSelected.size < 2 && (
+                  <p className="mt-2 text-xs text-muted-foreground">{t("shoppingList.selectMoreForCompare")}</p>
+                )}
+
+                <div className="mt-5 flex flex-col sm:flex-row gap-2.5">
+                  {compareSelected.size >= 2 && (
+                    <button
+                      onClick={openCompare}
+                      className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg border border-info text-info text-sm font-medium hover:bg-info/10 transition"
+                    >
+                      ⇄ {t("shoppingList.openCompare")}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setRfqStep("form")}
+                    className="flex-1 py-2.5 rounded-lg bg-info text-primary-foreground text-sm font-semibold hover:opacity-90 transition"
+                  >
+                    {compareSelected.size >= 2
+                      ? t("shoppingList.continueToQuote")
+                      : t("shoppingList.skipCompare")}{" "}
+                    →
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setRfqStep(null)}
+                  className="mt-3 w-full text-xs text-muted-foreground hover:text-foreground text-center transition py-1"
+                >
+                  {t("common.cancel")}
+                </button>
+              </div>
+            )}
+
+            {/* ── Step 2: Contact form ── */}
+            {rfqStep === "form" && (
+              <div className="p-6">
+                <h2 className="text-lg font-semibold">{t("shoppingList.contactForm")}</h2>
+                <p className="text-sm text-muted-foreground mt-1 mb-4">{t("shoppingList.contactFormHint")}</p>
+
+                <div className="space-y-2.5">
+                  <div className="grid sm:grid-cols-2 gap-2.5">
+                    <input
+                      className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30"
+                      placeholder={t("shoppingList.namePlaceholder")}
+                      value={rfqName}
+                      onChange={(e) => setRfqName(e.target.value)}
+                    />
+                    <input
+                      type="email"
+                      className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30"
+                      placeholder={t("shoppingList.emailPlaceholder")}
+                      value={rfqEmail}
+                      onChange={(e) => setRfqEmail(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-2.5">
+                    <input
+                      className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30"
+                      placeholder={t("shoppingList.companyPlaceholder")}
+                      value={rfqCompany}
+                      onChange={(e) => setRfqCompany(e.target.value)}
+                    />
+                    <input
+                      className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30"
+                      placeholder={t("shoppingList.phonePlaceholder")}
+                      value={rfqPhone}
+                      onChange={(e) => setRfqPhone(e.target.value)}
+                    />
+                  </div>
+                  <textarea
+                    className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30 resize-none"
+                    placeholder={t("shoppingList.messagePlaceholder")}
+                    rows={3}
+                    value={rfqMessage}
+                    onChange={(e) => setRfqMessage(e.target.value)}
+                  />
+                </div>
+
+                {/* Summary */}
+                <div className="mt-3 rounded-lg border border-border bg-surface-alt/50 p-3">
+                  <p className="text-xs font-medium text-muted-foreground mb-1.5">
+                    {items.length} {t("shoppingList.productsInList")}:
+                  </p>
+                  <ul className="space-y-0.5">
+                    {items.map((i) => (
+                      <li key={i.product_id} className="flex justify-between text-xs">
+                        <span className="text-foreground truncate">{i.name}</span>
+                        <span className="text-muted-foreground ml-2 shrink-0">×{i.qty}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="mt-4 flex gap-2.5">
+                  <button
+                    onClick={() => setRfqStep("compare")}
+                    className="px-4 py-2.5 rounded-lg border border-border text-sm hover:bg-surface-alt transition"
+                  >
+                    ← {t("common.back")}
+                  </button>
+                  <button
+                    onClick={submitRfq}
+                    disabled={rfqSending || !rfqName.trim() || !rfqEmail.trim()}
+                    className="flex-1 py-2.5 rounded-lg bg-info text-primary-foreground text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition"
+                  >
+                    {rfqSending ? t("shoppingList.sending") : t("shoppingList.sendQuote")}
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setRfqStep(null)}
+                  className="mt-3 w-full text-xs text-muted-foreground hover:text-foreground text-center transition py-1"
+                >
+                  {t("common.cancel")}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Success overlay ── */}
+      {rfqSent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm bg-card rounded-2xl shadow-2xl p-8 text-center border border-border">
+            <div className="size-16 rounded-full bg-[oklch(0.55_0.15_155)]/15 flex items-center justify-center mx-auto mb-4 text-3xl">
+              ✓
+            </div>
+            <h2 className="text-xl font-semibold">{t("shoppingList.sentTitle")}</h2>
+            <p className="text-sm text-muted-foreground mt-2">{t("shoppingList.sentBody")}</p>
+            <div className="mt-5 flex flex-col gap-2">
+              {rfqId && (
+                <Link
+                  to="/$locale/rfq/$rfqId"
+                  params={{ locale, rfqId }}
+                  className="inline-block px-5 py-2.5 rounded-lg bg-info text-primary-foreground text-sm font-semibold hover:opacity-90 transition"
+                >
+                  {t("shoppingList.viewRfq")} →
+                </Link>
+              )}
+              <Link
+                to="/$locale/orders"
+                params={{ locale }}
+                className="inline-block px-5 py-2.5 rounded-lg border border-border text-sm hover:bg-surface-alt transition"
+              >
+                {t("shoppingList.viewOrders")}
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

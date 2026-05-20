@@ -37,6 +37,19 @@ const LOCALE_META: Record<Locale, { flag: string; label: string }> = {
   es: { flag: "🇪🇸", label: "ES" },
 };
 
+function useShoppingListCount() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    function read() {
+      setCount(Number(localStorage.getItem("mv_shopping_list_count") || 0));
+    }
+    read();
+    window.addEventListener("shopping-list-updated", read);
+    return () => window.removeEventListener("shopping-list-updated", read);
+  }, []);
+  return count;
+}
+
 function LocaleLayout() {
   const { locale } = Route.useParams();
   const t = makeT(locale as Locale);
@@ -47,6 +60,7 @@ function LocaleLayout() {
   const [langOpen, setLangOpen] = useState(false);
   const [cookieConsent, setCookieConsent] = useState<string | null>(null);
   const langRef = useRef<HTMLDivElement>(null);
+  const listCount = useShoppingListCount();
 
   // GA4: inject script when user accepts all cookies
   useEffect(() => {
@@ -96,6 +110,7 @@ function LocaleLayout() {
     { to: "/$locale/compare", label: t("nav.compare") },
   ];
 
+
   const isAdmin = user?.email === "alexandropeer@gmail.com" || user?.app_metadata?.role === "admin";
 
   return (
@@ -141,6 +156,23 @@ function LocaleLayout() {
             >
               ✦ {t("nav.machineBuilder")}
             </Link>
+
+            {/* Shopping list icon with badge */}
+            {user && (
+              <Link
+                to="/$locale/shopping-list"
+                params={{ locale }}
+                className="relative hidden sm:flex items-center justify-center size-8 rounded-md hover:bg-primary-foreground/10 transition"
+                title={t("nav.shoppingList")}
+              >
+                <span className="text-primary-foreground/80 text-base">📋</span>
+                {listCount > 0 && (
+                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center size-4 rounded-full bg-gold text-primary text-[9px] font-black leading-none">
+                    {listCount > 99 ? "99+" : listCount}
+                  </span>
+                )}
+              </Link>
+            )}
 
             {/* Language dropdown */}
             <div className="relative" ref={langRef}>
@@ -246,6 +278,21 @@ function LocaleLayout() {
             >
               ✦ {t("nav.machineBuilder")}
             </Link>
+            {user && (
+              <Link
+                to="/$locale/shopping-list"
+                params={{ locale }}
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-primary-foreground/80 hover:bg-primary-foreground/10 hover:text-primary-foreground"
+              >
+                📋 {t("nav.shoppingList")}
+                {listCount > 0 && (
+                  <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full bg-gold text-primary text-[9px] font-black">
+                    {listCount}
+                  </span>
+                )}
+              </Link>
+            )}
             <div className="pt-2 border-t border-primary-foreground/15">
               {user ? (
                 <>
