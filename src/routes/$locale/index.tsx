@@ -252,11 +252,11 @@ function Landing() {
                 search={{ category: c.slug }}
                 className="group rounded-lg border border-border bg-card hover:border-info hover:shadow-sm transition overflow-hidden relative"
               >
-                <div className="h-24 overflow-hidden">
+                <div className="aspect-[3/2] bg-[#f0f4f8] overflow-hidden flex items-center justify-center">
                   <img
                     src={getCategoryImage(c.slug)}
                     alt={c.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-70"
+                    className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                     loading="lazy"
                   />
                 </div>

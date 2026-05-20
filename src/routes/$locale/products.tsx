@@ -349,14 +349,13 @@ function ProductsPage() {
                 key={p.id}
                 className="group rounded-lg border border-border bg-card flex flex-col transition overflow-hidden hover:border-info"
               >
-                <div className="relative h-36 overflow-hidden bg-surface-alt">
+                <div className="relative aspect-[3/2] overflow-hidden bg-[#f0f4f8] flex items-center justify-center">
                   <img
                     src={getProductImage(p)}
                     alt={p.category.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                     loading="lazy"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-card/60 to-transparent" />
                 </div>
                 <div className="p-4 flex flex-col flex-1">
                 <div className="flex justify-between items-start gap-2">
