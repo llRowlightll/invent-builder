@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 90" role="img" aria-label="Metal Work Pneumatic">
+  <defs>
+    <!-- Clip to outer circle -->
+    <clipPath id="outerClip">
+      <circle cx="43" cy="45" r="40"/>
+    </clipPath>
+    <!-- Clip left half -->
+    <clipPath id="leftHalf">
+      <rect x="3" y="5" width="40" height="80"/>
+    </clipPath>
+    <!-- Clip right half -->
+    <clipPath id="rightHalf">
+      <rect x="43" y="5" width="40" height="80"/>
+    </clipPath>
+  </defs>
+
+  <!-- Orange base circle -->
+  <circle cx="43" cy="45" r="40" fill="#E84E10"/>
+
+  <!-- Left D: white large circle, clipped to left half -->
+  <circle cx="43" cy="45" r="28" fill="white" clip-path="url(#leftHalf)"/>
+  <!-- Left inner orange circle (makes left D a ring) -->
+  <circle cx="43" cy="45" r="15" fill="#E84E10" clip-path="url(#leftHalf)"/>
+
+  <!-- Right D: white large circle, clipped to right half -->
+  <circle cx="43" cy="45" r="28" fill="white" clip-path="url(#rightHalf)"/>
+  <!-- Right inner orange circle (makes right D a ring) -->
+  <circle cx="43" cy="45" r="15" fill="#E84E10" clip-path="url(#rightHalf)"/>
+
+  <!-- Thin center orange divider -->
+  <rect x="40" y="5" width="6" height="80" clip-path="url(#outerClip)" fill="#E84E10"/>
+
+  <!-- METAL WORK text -->
+  <text x="96" y="38" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="22" fill="#3D3D3D" letter-spacing="1">METAL</text>
+  <text x="96" y="62" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="22" fill="#3D3D3D" letter-spacing="1">WORK</text>
+
+  <!-- PNEUMATIC subtext -->
+  <text x="97" y="78" font-family="Arial, sans-serif" font-weight="400" font-size="11" fill="#888" letter-spacing="3.5">PNEUMATIC</text>
+</svg>

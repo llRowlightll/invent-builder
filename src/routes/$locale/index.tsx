@@ -374,6 +374,7 @@ const BRAND_META: Record<string, { bg: string }> = {
   "parker":        { bg: "#f8fafc" },
   "bosch-rexroth": { bg: "#f8fafc" },
   "norgren":       { bg: "#f8fafc" },
+  "metal-work":    { bg: "#ffffff" },
 };
 
 function BrandLogo({ slug, name }: { slug: string; name: string }) {

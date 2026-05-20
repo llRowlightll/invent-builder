@@ -113,7 +113,7 @@ function ProductDetail() {
               className="w-full h-full object-cover"
             />
           </div>
-          <div className="text-xs uppercase tracking-[0.18em] text-info font-medium">{product.brand.name}</div>
+          <BrandBadge slug={product.brand.slug} name={product.brand.name} />
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{product.name}</h1>
           <div className="mt-2 font-mono text-xs text-muted-foreground">{product.sku}</div>
           {product.description && <p className="mt-4 text-sm text-foreground/80 leading-relaxed">{product.description}</p>}
@@ -225,5 +225,22 @@ function ProductMini({ p, locale }: { p: ProductRow; locale: string }) {
         <div className="font-mono text-[10px] text-muted-foreground mt-1">{p.sku}</div>
       </Link>
     </li>
+  );
+}
+
+function BrandBadge({ slug, name }: { slug: string; name: string }) {
+  const [imgOk, setImgOk] = useState(true);
+  return imgOk ? (
+    <div className="mb-1">
+      <img
+        src={`/brands/${slug}.svg`}
+        alt={name}
+        onError={() => setImgOk(false)}
+        className="h-7 object-contain"
+        loading="eager"
+      />
+    </div>
+  ) : (
+    <div className="text-xs uppercase tracking-[0.18em] text-info font-medium">{name}</div>
   );
 }
