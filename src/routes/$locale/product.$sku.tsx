@@ -106,11 +106,11 @@ function ProductDetail() {
 
       <div className="mt-4 grid md:grid-cols-[1fr_260px] gap-4 md:gap-6">
         <div>
-          <div className="rounded-xl overflow-hidden border border-border mb-5 aspect-[16/7] bg-surface-alt">
+          <div className="rounded-xl overflow-hidden border border-border mb-5 aspect-[16/7] bg-[#f8f9fb] flex items-center justify-center">
             <img
               src={getProductImage(product)}
               alt={product.category.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
             />
           </div>
           <BrandBadge slug={product.brand.slug} name={product.brand.name} />

@@ -357,11 +357,11 @@ function ProductsPage() {
                 key={p.id}
                 className="group rounded-lg border border-border bg-card flex flex-col transition overflow-hidden hover:border-info"
               >
-                <div className="relative aspect-[3/2] overflow-hidden bg-[#f0f4f8] flex items-center justify-center">
+                <div className="relative aspect-[3/2] overflow-hidden bg-[#f8f9fb] flex items-center justify-center">
                   <img
                     src={getProductImage(p)}
                     alt={p.category.name}
-                    className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-contain"
                     loading="lazy"
                   />
                 </div>
