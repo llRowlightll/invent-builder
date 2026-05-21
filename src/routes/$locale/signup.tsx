@@ -141,6 +141,16 @@ function SignupPage() {
       localStorage.removeItem("mv_pending_profile");
     }
 
+    // Send welcome email (fire-and-forget — don't block signup flow)
+    if (data.user) {
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
+      fetch(`${SUPABASE_URL}/functions/v1/welcome-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, name: displayName, locale }),
+      }).catch(() => { /* silent — email is best-effort */ });
+    }
+
     setLoading(false);
     if (data.session) {
       window.location.href = `/${locale}/profile`;
