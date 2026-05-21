@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import Papa from "papaparse";
 import { makeT, type Locale } from "@/lib/i18n";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, useIsAdmin } from "@/lib/auth-context";
 import { supabase } from "@/integrations/supabase/client";
 import { clearCatalogCache } from "@/lib/catalog";
 
@@ -38,9 +38,9 @@ function ImportPage() {
   const { locale } = Route.useParams();
   const t = makeT(locale as Locale);
   const { user, loading } = useAuth();
+  const isAdmin = useIsAdmin();
   const dropRef = useRef<HTMLDivElement>(null);
 
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [rawCsv, setRawCsv] = useState("");
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
@@ -52,13 +52,6 @@ function ImportPage() {
   useEffect(() => {
     if (!loading && !user) window.location.href = `/${locale}/login`;
   }, [user, loading, locale]);
-
-  useEffect(() => {
-    if (!user) return;
-    supabase.from("user_roles").select("role").eq("user_id", user.id).then(({ data }) => {
-      setIsAdmin(!!data?.some((r) => r.role === "admin"));
-    });
-  }, [user]);
 
   function parseCsv(text: string) {
     setRawCsv(text);
@@ -165,7 +158,7 @@ function ImportPage() {
   }
 
   if (loading || !user) return <div className="container-page py-16 text-sm text-muted-foreground">{t("common.loading")}</div>;
-  if (isAdmin === false) return (
+  if (!isAdmin) return (
     <div className="container-page py-16 max-w-md text-center">
       <div className="text-4xl mb-4">🔒</div>
       <h1 className="text-xl font-semibold">Admin-åtkomst krävs</h1>

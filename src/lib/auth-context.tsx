@@ -51,3 +51,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   return useContext(Ctx);
 }
+
+const ADMIN_EMAIL = "alexandrooden@gmail.com";
+
+/** Returns true if the current user is an admin (by email or app_metadata role). */
+export function useIsAdmin(): boolean {
+  const { user } = useAuth();
+  return (
+    user?.email === ADMIN_EMAIL ||
+    user?.app_metadata?.role === "admin"
+  );
+}

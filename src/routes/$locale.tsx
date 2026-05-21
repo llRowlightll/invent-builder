@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { isLocale, makeT, setLocaleCookie, getCookie, type Locale } from "@/lib/i18n";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, useIsAdmin } from "@/lib/auth-context";
 
 export const Route = createFileRoute("/$locale")({
   parseParams: (params) => {
@@ -111,7 +111,7 @@ function LocaleLayout() {
   ];
 
 
-  const isAdmin = user?.email === "alexandrooden@gmail.com" || user?.app_metadata?.role === "admin";
+  const isAdmin = useIsAdmin();
 
   return (
     <div className="min-h-screen flex flex-col">

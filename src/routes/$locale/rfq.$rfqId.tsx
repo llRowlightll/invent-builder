@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { makeT, type Locale } from "@/lib/i18n";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, useIsAdmin } from "@/lib/auth-context";
 import { supabase } from "@/integrations/supabase/client";
 import { loadCatalog } from "@/lib/catalog";
 import type { ProductRow } from "@/lib/types";
@@ -55,7 +55,7 @@ function RfqPage() {
   const [rfq, setRfq] = useState<RfqRow | null>(null);
   const [items, setItems] = useState<ItemRow[]>([]);
   const [catalog, setCatalog] = useState<ProductRow[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const isAdmin = useIsAdmin();
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingResult, setBookingResult] = useState<string | null>(null);
 
@@ -75,12 +75,6 @@ function RfqPage() {
       setItems(it ?? []);
     })();
   }, [rfqId]);
-
-  useEffect(() => {
-    if (!user) return;
-    const adminEmail = "alexandrooden@gmail.com";
-    setIsAdmin(user.email === adminEmail || user.app_metadata?.role === "admin");
-  }, [user]);
 
   async function bookShipment() {
     if (!rfq) return;
