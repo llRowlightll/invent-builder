@@ -206,6 +206,8 @@ function ComparePage() {
     skus ? skus.split(",").filter(Boolean) : []
   );
   const [diffOnly, setDiffOnly] = useState(false);
+  const [showIdentical, setShowIdentical] = useState(true);
+  const showBoth = !diffOnly && showIdentical;
   const [pickerOpen, setPickerOpen] = useState(false);
   const [addedSku, setAddedSku] = useState<string | null>(null);
 
@@ -264,6 +266,22 @@ function ComparePage() {
     return n;
   }, [compared]);
 
+  // Download comparison as CSV
+  function downloadCSV() {
+    if (!compared.length) return;
+    const allRows: Array<{ label: string; cells: string[] }> = [];
+    SPEC_GROUPS.forEach((g) => buildRows(g, compared).forEach((r) => allRows.push(r)));
+    extraRows(compared, GROUPED_SPEC_KEYS).forEach((r) => allRows.push(r));
+
+    const header = ["Specifikation", ...compared.map((p) => `${p.brand.name} – ${p.name} (${p.sku})`)];
+    const lines = [header, ...allRows.map((r) => [r.label, ...r.cells])];
+    const csv = lines.map((l) => l.map((c) => `"${c.replace(/"/g, '""')}"`).join(";")).join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "jämförelse.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (!items) {
     return <div className="container-page py-16 text-sm text-muted-foreground">{t("common.loading")}</div>;
   }
@@ -273,63 +291,91 @@ function ComparePage() {
   return (
     <div className="container-page py-8 max-w-6xl">
 
-      {/* Page header */}
+      {/* ── Page header ── */}
       <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("nav.compare")}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {lockedCategory
-              ? <><span className="font-medium text-foreground">{lockedCategory.name}</span> — jämför upp till 4 produkter</>
-              : "Välj en kategori och upp till 4 produkter att jämföra"}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {compared.length >= 2 && (
-            <label className="flex items-center gap-1.5 cursor-pointer select-none">
-              <span className="relative inline-flex h-4 w-7 items-center rounded-full transition"
-                style={{ background: diffOnly ? "oklch(0.55 0.18 255)" : "oklch(0.8 0 0)" }}>
-                <span className={`inline-block size-3 rounded-full bg-white shadow transition-transform ${diffOnly ? "translate-x-3.5" : "translate-x-0.5"}`} />
-              </span>
-              <input type="checkbox" className="sr-only" checked={diffOnly} onChange={(e) => setDiffOnly(e.target.checked)} />
-              <span className="text-xs text-muted-foreground">
-                Visa bara skillnader
-                {diffOnly && diffCount > 0 && <span className="ml-1 text-info">({diffCount})</span>}
-              </span>
+        <h1 className="text-2xl font-bold tracking-tight">Produktjämförelse</h1>
+        <Link to="/$locale/products" params={{ locale }} className="text-sm text-muted-foreground hover:text-info">
+          ← Katalog
+        </Link>
+      </div>
+
+      {/* ── Controls bar ── */}
+      <div className="flex flex-wrap items-center gap-4 mb-6">
+        {/* Different / Identical checkboxes */}
+        {compared.length >= 2 && (
+          <div className="flex flex-col gap-1">
+            <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
+              <input
+                type="checkbox"
+                className="rounded border-border accent-[#1F6FBF]"
+                checked={diffOnly || showBoth}
+                onChange={(e) => { setDiffOnly(e.target.checked); if (!e.target.checked) setShowIdentical(true); }}
+              />
+              <span className="w-3 h-3 rounded-sm inline-block" style={{ background: "#D6E8F7" }} />
+              Skillnader
+              {diffCount > 0 && <span className="text-xs text-muted-foreground">({diffCount})</span>}
             </label>
+            <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
+              <input
+                type="checkbox"
+                className="rounded border-border"
+                checked={showIdentical}
+                onChange={(e) => setShowIdentical(e.target.checked)}
+              />
+              <span className="w-3 h-3 rounded-sm inline-block border border-border bg-background" />
+              Identiska
+            </label>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 ml-auto">
+          {compared.length >= 2 && (
+            <button
+              type="button"
+              onClick={downloadCSV}
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10 3a1 1 0 01.7.3l4 4a1 1 0 01-1.4 1.4L11 6.42V13a1 1 0 11-2 0V6.42L6.7 8.7a1 1 0 01-1.4-1.4l4-4A1 1 0 0110 3zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"/>
+              </svg>
+              Ladda ner
+            </button>
+          )}
+          {compared.length > 0 && (
+            <button
+              type="button"
+              onClick={() => { setSelected([]); setPickerOpen(false); }}
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-destructive transition"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4 2a1 1 0 00-1 1v1H2a1 1 0 000 2h1v10a2 2 0 002 2h10a2 2 0 002-2V6h1a1 1 0 100-2h-1V3a1 1 0 00-1-1H4zm1 4h10v10H5V6zm2 2a1 1 0 011 1v5a1 1 0 11-2 0V9a1 1 0 011-1zm4 0a1 1 0 011 1v5a1 1 0 11-2 0V9a1 1 0 011-1z" clipRule="evenodd"/>
+              </svg>
+              Rensa alla
+            </button>
           )}
           <button
             type="button"
             onClick={() => setPickerOpen((v) => !v)}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:border-info hover:text-info transition"
+            className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border border-border hover:border-info hover:text-info transition"
           >
             {pickerOpen ? "▴" : "▾"} Välj produkter ({selected.length}/4)
           </button>
-          <Link to="/$locale/products" params={{ locale }} className="text-sm text-muted-foreground hover:text-info">
-            ← Katalog
-          </Link>
         </div>
       </div>
 
-      {/* Product picker — collapsible */}
+      {/* ── Product picker ── */}
       {pickerOpen && (
         <div className="mb-6 rounded-xl border border-border bg-card overflow-hidden">
           <div className="px-4 py-3 border-b border-border bg-surface-alt/40 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-medium">Välj produkter</h2>
+              <h2 className="text-sm font-medium">Välj produkter att jämföra</h2>
               {lockedCategory && (
                 <span className="text-[10px] bg-info/10 text-info border border-info/20 px-2 py-0.5 rounded-full">
                   {lockedCategory.name}
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              {selected.length > 0 && (
-                <button onClick={() => setSelected([])} className="text-[10px] text-muted-foreground hover:text-destructive">
-                  Rensa ×
-                </button>
-              )}
-              <button onClick={() => setPickerOpen(false)} className="text-muted-foreground hover:text-foreground text-sm">×</button>
-            </div>
+            <button onClick={() => setPickerOpen(false)} className="text-muted-foreground hover:text-foreground text-lg leading-none">×</button>
           </div>
           <div className="px-3 py-2 border-b border-border">
             <input
@@ -349,8 +395,8 @@ function ComparePage() {
                   key={p.sku}
                   onClick={() => !disabled && toggle(p.sku)}
                   disabled={disabled}
-                  className={`text-left flex items-center gap-3 px-4 py-2.5 border-l border-border transition ${
-                    isOn ? "bg-info/10" : disabled ? "opacity-30 cursor-not-allowed" : "hover:bg-surface-alt"
+                  className={`text-left flex items-center gap-3 px-4 py-2.5 transition ${
+                    isOn ? "bg-[#D6E8F7]/60" : disabled ? "opacity-30 cursor-not-allowed" : "hover:bg-surface-alt"
                   }`}
                 >
                   <img src={getProductImage(p)} alt="" className="size-7 object-contain shrink-0 opacity-80" />
@@ -370,7 +416,7 @@ function ComparePage() {
         </div>
       )}
 
-      {/* Empty state */}
+      {/* ── Empty state ── */}
       {compared.length === 0 && (
         <div className="rounded-xl border border-border bg-card p-16 text-center">
           <div className="text-5xl mb-4 opacity-15">⟷</div>
@@ -386,157 +432,100 @@ function ComparePage() {
         </div>
       )}
 
-      {/* Key differences summary */}
-      {compared.length >= 2 && <KeyDiffSummary compared={compared} />}
-
-      {/* Comparison table */}
+      {/* ── Comparison table ── */}
       {compared.length > 0 && (
-        <div className="rounded-xl border border-border overflow-x-auto">
-          <div style={{ minWidth: `calc(14rem + ${cols} * 11rem)` }}>
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: `calc(13rem + ${cols} * 13rem)` }}>
 
-          {/* Product header */}
-          <div
-            className="grid border-b border-border bg-card"
-            style={{ gridTemplateColumns: `14rem repeat(${cols}, 1fr)` }}
-          >
-            {/* Corner cell */}
-            <div className="p-4 border-r border-border">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Specifikation</div>
-            </div>
-
-            {/* Product cards */}
-            {compared.map((p) => {
-              const isAdded = addedSku === p.sku;
-              return (
-                <div key={p.sku} className="p-3 border-r border-border last:border-r-0 flex flex-col min-h-0">
-                  <div className="flex justify-end mb-1">
+            {/* Product cards row */}
+            <div
+              className="grid mb-0"
+              style={{ gridTemplateColumns: `13rem repeat(${cols}, 1fr)` }}
+            >
+              <div /> {/* spacer */}
+              {compared.map((p) => {
+                const isAdded = addedSku === p.sku;
+                return (
+                  <div key={p.sku} className="p-3 border border-border rounded-xl mx-1 mb-4 bg-card flex flex-col relative">
                     <button
                       type="button"
                       onClick={() => toggle(p.sku)}
-                      className="text-[10px] text-muted-foreground/40 hover:text-destructive transition leading-none"
+                      className="absolute top-2 right-2 size-6 flex items-center justify-center rounded-full hover:bg-surface-alt text-muted-foreground hover:text-foreground transition text-sm"
                       title="Ta bort"
                     >
-                      ✕
+                      ×
                     </button>
-                  </div>
-                  <div className="h-20 bg-[#f8f9fb] rounded-lg flex items-center justify-center mb-2 overflow-hidden">
-                    <img src={getProductImage(p)} alt={p.name} className="h-16 object-contain" />
-                  </div>
-                  <div className="text-[10px] text-info font-medium uppercase tracking-wide">{p.brand.name}</div>
-                  <Link
-                    to="/$locale/product/$sku"
-                    params={{ locale, sku: p.sku }}
-                    className="text-xs font-semibold hover:text-info transition mt-0.5 line-clamp-2 leading-snug"
-                  >
-                    {p.name}
-                  </Link>
-                  <div className="text-[10px] font-mono text-muted-foreground mt-0.5">{p.sku}</div>
-                  <div className="mt-2 flex gap-1.5">
+                    <div className="h-24 flex items-center justify-center mb-3">
+                      <img src={getProductImage(p)} alt={p.name} className="h-20 object-contain" />
+                    </div>
+                    <div className="text-xs font-semibold text-foreground leading-snug mb-1">{p.name}</div>
+                    <div className="text-[11px] font-mono text-muted-foreground mb-1">{p.sku}</div>
+                    <div className="flex-1" />
                     <button
                       type="button"
                       onClick={() => quickAdd(p)}
-                      className={`flex-1 text-[10px] py-1 rounded font-medium transition ${
-                        isAdded
-                          ? "bg-[oklch(0.55_0.15_155)]/15 text-[oklch(0.45_0.15_155)]"
-                          : "bg-info text-primary-foreground hover:opacity-90"
+                      className={`mt-2 w-full flex items-center justify-center gap-1.5 text-xs py-1.5 rounded-md font-medium transition ${
+                        isAdded ? "bg-green-100 text-green-700" : "bg-info text-white hover:opacity-90"
                       }`}
                     >
-                      {isAdded ? "✓ Tillagd" : "+ Lägg i korg"}
+                      {isAdded ? "✓ Tillagd" : (
+                        <>
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3z"/>
+                          </svg>
+                          Lägg i korg
+                        </>
+                      )}
                     </button>
+                    <Link
+                      to="/$locale/product/$sku"
+                      params={{ locale, sku: p.sku }}
+                      className="mt-1.5 block text-center text-[11px] text-info hover:underline"
+                    >
+                      Visa produkt →
+                    </Link>
                   </div>
-                </div>
+                );
+              })}
+            </div>
+
+            {/* Tech data header */}
+            <div
+              className="grid border-t border-l border-r border-border bg-surface-alt/60 rounded-t-lg"
+              style={{ gridTemplateColumns: `13rem repeat(${cols}, 1fr)` }}
+            >
+              <div className="px-4 py-3 col-span-full">
+                <span className="text-sm font-semibold text-foreground">Tekniska data</span>
+              </div>
+            </div>
+
+            {/* Spec rows */}
+            {SPEC_GROUPS.map((group) => {
+              const rows = buildRows(group, compared).filter((r) => {
+                if (r.isDifferent) return true;           // always show differences
+                return showIdentical && !diffOnly;         // show identical only if checkbox on and not "diff-only"
+              });
+              if (!rows.length) return null;
+              return (
+                <GroupSection key={group.label} label={group.label} icon={group.icon} rows={rows} cols={cols} diffOnly={diffOnly} />
               );
             })}
+
+            {/* Extra specs */}
+            {(() => {
+              const extras = extraRows(compared, GROUPED_SPEC_KEYS).filter((r) => {
+                if (r.isDifferent) return true;
+                return showIdentical && !diffOnly;
+              });
+              if (!extras.length) return null;
+              return <GroupSection label="Övriga specifikationer" icon="📋" rows={extras} cols={cols} diffOnly={diffOnly} />;
+            })()}
+
+            {/* Bottom border */}
+            <div className="border-b border-l border-r border-border rounded-b-lg h-2 bg-surface-alt/20" />
           </div>
-
-          {/* Grouped spec sections */}
-          {SPEC_GROUPS.map((group) => {
-            const rows = buildRows(group, compared).filter((r) => !diffOnly || r.isDifferent);
-            if (!rows.length) return null;
-            return (
-              <GroupSection key={group.label} label={group.label} icon={group.icon} rows={rows} cols={cols} diffOnly={diffOnly} />
-            );
-          })}
-
-          {/* Extra specs (anything not in a group) */}
-          {(() => {
-            const extras = extraRows(compared, GROUPED_SPEC_KEYS).filter((r) => !diffOnly || r.isDifferent);
-            if (!extras.length) return null;
-            return <GroupSection label="Övriga specifikationer" icon="📋" rows={extras} cols={cols} diffOnly={diffOnly} />;
-          })()}
-
-          {/* CTA row */}
-          <div
-            className="grid border-t-2 border-border bg-surface-alt/40"
-            style={{ gridTemplateColumns: `14rem repeat(${cols}, 1fr)` }}
-          >
-            <div className="p-4 border-r border-border flex items-center">
-              <span className="text-xs text-muted-foreground font-medium">Åtgärd</span>
-            </div>
-            {compared.map((p) => (
-              <div key={p.sku} className="p-3 border-r border-border last:border-r-0 space-y-1.5">
-                <button
-                  type="button"
-                  onClick={() => quickAdd(p)}
-                  className="block w-full text-center text-xs px-3 py-2 rounded-md bg-info text-primary-foreground hover:opacity-90 font-medium transition"
-                >
-                  + Lägg i korg
-                </button>
-                <Link
-                  to="/$locale/product/$sku"
-                  params={{ locale, sku: p.sku }}
-                  className="block text-center text-xs px-3 py-2 rounded-md border border-border text-muted-foreground hover:border-info hover:text-info transition"
-                >
-                  Visa produkt →
-                </Link>
-              </div>
-            ))}
-          </div>
-          </div>{/* end min-width wrapper */}
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── Key differences summary ──────────────────────────────────────────────────
-
-function KeyDiffSummary({ compared }: { compared: ProductRow[] }) {
-  const diffs: Array<{ label: string; cells: string[] }> = [];
-
-  for (const group of SPEC_GROUPS) {
-    for (const row of buildRows(group, compared)) {
-      if (row.isDifferent) diffs.push(row);
-      if (diffs.length >= 6) break;
-    }
-    if (diffs.length >= 6) break;
-  }
-
-  if (!diffs.length) return null;
-
-  return (
-    <div className="mb-4 rounded-xl border border-info/30 bg-info/5 p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-sm font-semibold text-foreground">Viktiga skillnader</span>
-        <span className="text-[10px] bg-info/15 text-info px-2 py-0.5 rounded-full font-medium">
-          {compared.map((p) => p.brand.name).join(" vs ")}
-        </span>
-      </div>
-      <div className="grid gap-2">
-        {diffs.map((d, i) => (
-          <div key={i} className="flex items-start gap-3 text-xs">
-            <span className="shrink-0 w-32 text-muted-foreground capitalize">{d.label}</span>
-            <div className="flex flex-wrap gap-2">
-              {d.cells.map((cell, ci) => (
-                <span key={ci} className="flex items-center gap-1">
-                  <span className="font-semibold text-foreground truncate max-w-[12rem]">{cell}</span>
-                  {ci < compared.length - 1 && <span className="text-muted-foreground/40">·</span>}
-                </span>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -548,7 +537,6 @@ function GroupSection({
   icon,
   rows,
   cols,
-  diffOnly,
 }: {
   label: string;
   icon: string;
@@ -560,12 +548,12 @@ function GroupSection({
     <>
       {/* Section header */}
       <div
-        className="grid border-t border-border bg-surface-alt/60"
-        style={{ gridTemplateColumns: `14rem repeat(${cols}, 1fr)` }}
+        className="grid border-t border-l border-r border-border bg-[#f0f4f8]"
+        style={{ gridTemplateColumns: `13rem repeat(${cols}, 1fr)` }}
       >
         <div className="px-4 py-2 col-span-full flex items-center gap-2">
-          <span>{icon}</span>
-          <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-muted-foreground">{label}</span>
+          <span className="text-base leading-none">{icon}</span>
+          <span className="text-xs font-semibold text-foreground">{label}</span>
         </div>
       </div>
 
@@ -573,15 +561,16 @@ function GroupSection({
       {rows.map((row, i) => (
         <div
           key={`${row.label}-${i}`}
-          className={`grid border-t border-border ${row.isDifferent ? "bg-amber-50/60 dark:bg-amber-950/10" : "odd:bg-surface-alt/20"}`}
-          style={{ gridTemplateColumns: `14rem repeat(${cols}, 1fr)` }}
+          className={`grid border-t border-l border-r border-border ${
+            row.isDifferent
+              ? "bg-[#D6E8F7]"
+              : i % 2 === 0 ? "bg-white" : "bg-[#f8fafc]"
+          }`}
+          style={{ gridTemplateColumns: `13rem repeat(${cols}, 1fr)` }}
         >
           {/* Label */}
-          <div className="px-4 py-3 border-r border-border flex items-start gap-1.5">
-            <span className="text-xs text-muted-foreground capitalize leading-snug">{row.label}</span>
-            {row.isDifferent && (
-              <span className="shrink-0 size-1.5 rounded-full bg-amber-400 mt-1" title="Skiljer sig" />
-            )}
+          <div className="px-4 py-3 border-r border-border">
+            <span className="text-sm font-medium text-foreground leading-snug">{row.label}</span>
           </div>
 
           {/* Values */}
