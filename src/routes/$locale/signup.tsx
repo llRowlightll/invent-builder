@@ -84,6 +84,9 @@ function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendDone, setResendDone] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   async function onStep1(e: React.FormEvent) {
     e.preventDefault();
@@ -146,15 +149,63 @@ function SignupPage() {
     }
   }
 
+  async function onResend() {
+    if (resendCooldown > 0 || resendLoading) return;
+    setResendLoading(true);
+    setResendDone(false);
+    const { error: resendError } = await supabase.auth.resend({ type: "signup", email });
+    setResendLoading(false);
+    if (!resendError) {
+      setResendDone(true);
+      // 60-second cooldown so they can't spam
+      setResendCooldown(60);
+      const interval = setInterval(() => {
+        setResendCooldown((c) => {
+          if (c <= 1) { clearInterval(interval); return 0; }
+          return c - 1;
+        });
+      }, 1000);
+    }
+  }
+
   if (info) {
     return (
-      <div className="container-page py-16 max-w-md text-center space-y-4">
+      <div className="container-page py-16 max-w-md text-center space-y-5">
         <div className="text-5xl">📬</div>
         <h1 className="text-2xl font-semibold">{t("signupPage.checkEmailTitle")}</h1>
         <p className="text-sm text-muted-foreground">{info}</p>
         <p className="text-xs text-muted-foreground">
           {t("signupPage.checkEmailNote")}
         </p>
+
+        {/* Resend section */}
+        <div className="pt-2 border-t border-border">
+          {resendDone ? (
+            <div className="rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 px-4 py-3 text-sm text-green-700 dark:text-green-300">
+              ✓ Ny bekräftelselänk skickad — kolla din inkorg (och skräppost).
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Inget mejl? Kolla skräppost eller skicka igen.</p>
+              <button
+                type="button"
+                onClick={onResend}
+                disabled={resendLoading || resendCooldown > 0}
+                className="w-full rounded-md border border-border py-2.5 text-sm font-medium text-foreground hover:border-info hover:text-info disabled:opacity-50 transition"
+              >
+                {resendLoading
+                  ? "Skickar…"
+                  : resendCooldown > 0
+                  ? `Skicka igen (${resendCooldown}s)`
+                  : "Skicka bekräftelsemejl igen"}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <a href={`/${locale}/login`} className="block text-xs text-muted-foreground hover:text-info underline">
+          Tillbaka till inloggning
+        </a>
       </div>
     );
   }
