@@ -351,7 +351,14 @@
     "removeProduct": "Remove",
     "rfqLabel": "Request Quote",
     "compareWith": "Compare {category} — up to 4 products",
-    "startHint": "Select a product — comparison locks to the same product type"
+    "startHint": "Select a product — comparison locks to the same product type",
+    "selectAtLeastOne": "Select at least one product from the list on the left",
+    "availability": "Availability",
+    "inStock": "✓ In stock",
+    "onOrder": "On order",
+    "days": "days",
+    "addToCart": "Add to cart",
+    "viewProduct": "View product →"
   },
   "advisorPage": {
     "title": "Advisor",

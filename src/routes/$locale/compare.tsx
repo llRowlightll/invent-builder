@@ -5,6 +5,7 @@ import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
+import { addToShoppingList } from "@/lib/cart";
 
 export const Route = createFileRoute("/$locale/compare")({
   validateSearch: z.object({ skus: z.string().optional() }),
@@ -237,7 +238,7 @@ function ComparePage() {
           {compared.length === 0 ? (
             <div className="rounded-xl border border-border bg-card p-12 text-center">
               <div className="text-4xl mb-3 opacity-20">⟷</div>
-              <p className="text-sm text-muted-foreground">Välj minst en produkt i listan till vänster</p>
+              <p className="text-sm text-muted-foreground">{t("comparePage.selectAtLeastOne")}</p>
             </div>
           ) : (
             <div className="rounded-xl border border-border overflow-hidden overflow-x-auto">
@@ -277,14 +278,14 @@ function ComparePage() {
                     cells={compared.map((p) => p.category.name)}
                   />
                   <CompareRow
-                    label="Tillgänglighet"
+                    label={t("comparePage.availability")}
                     cells={compared.map((p) =>
-                      p.availability === "stock" ? "✓ I lager" : p.availability === "order" ? "Beställningsvara" : p.availability ?? "—"
+                      p.availability === "stock" ? t("comparePage.inStock") : p.availability === "order" ? t("comparePage.onOrder") : p.availability ?? "—"
                     )}
                   />
                   <CompareRow
                     label={t("comparePage.leadTimeDays")}
-                    cells={compared.map((p) => p.lead_time_days ? `${p.lead_time_days} dagar` : "—")}
+                    cells={compared.map((p) => p.lead_time_days ? `${p.lead_time_days} ${t("comparePage.days")}` : "—")}
                     bestIdx={leadIdx}
                     bestLabel={t("comparePage.best")}
                   />
@@ -309,13 +310,20 @@ function ComparePage() {
                   <tr className="border-t border-border bg-surface-alt/40">
                     <td className="p-3 text-muted-foreground text-xs">{t("comparePage.rfqLabel")}</td>
                     {compared.map((p) => (
-                      <td key={p.sku} className="p-3 border-l border-border">
+                      <td key={p.sku} className="p-3 border-l border-border space-y-1.5">
+                        <button
+                          type="button"
+                          onClick={() => addToShoppingList({ id: p.id, sku: p.sku, name: p.name })}
+                          className="block w-full text-center text-xs px-3 py-1.5 rounded-md bg-info text-primary-foreground hover:opacity-90 transition"
+                        >
+                          {t("comparePage.addToCart")}
+                        </button>
                         <Link
                           to="/$locale/product/$sku"
                           params={{ locale, sku: p.sku }}
-                          className="block text-center text-xs px-3 py-1.5 rounded-md bg-info text-primary-foreground hover:opacity-90 transition"
+                          className="block text-center text-xs px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:border-info hover:text-info transition"
                         >
-                          RFQ →
+                          {t("comparePage.viewProduct")}
                         </Link>
                       </td>
                     ))}

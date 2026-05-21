@@ -351,7 +351,14 @@
     "removeProduct": "Eliminar",
     "rfqLabel": "Solicitud de oferta",
     "compareWith": "Comparar {category} — hasta 4 productos",
-    "startHint": "Seleccione un producto — la comparación se bloquea al mismo tipo de producto"
+    "startHint": "Seleccione un producto — la comparación se bloquea al mismo tipo de producto",
+    "selectAtLeastOne": "Seleccione al menos un producto de la lista a la izquierda",
+    "availability": "Disponibilidad",
+    "inStock": "✓ En stock",
+    "onOrder": "Bajo pedido",
+    "days": "días",
+    "addToCart": "Añadir al carrito",
+    "viewProduct": "Ver producto →"
   },
   "advisorPage": {
     "title": "Asesor",

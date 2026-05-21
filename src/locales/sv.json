@@ -351,7 +351,14 @@
     "removeProduct": "Ta bort",
     "rfqLabel": "Offertförfrågan",
     "compareWith": "Jämför {category} — välj upp till 4 produkter",
-    "startHint": "Välj en produkt — jämförelsen låses till samma produkttyp"
+    "startHint": "Välj en produkt — jämförelsen låses till samma produkttyp",
+    "selectAtLeastOne": "Välj minst en produkt i listan till vänster",
+    "availability": "Tillgänglighet",
+    "inStock": "✓ I lager",
+    "onOrder": "Beställningsvara",
+    "days": "dagar",
+    "addToCart": "Lägg i korg",
+    "viewProduct": "Visa produkt →"
   },
   "advisorPage": {
     "title": "Rådgivare",
