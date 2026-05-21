@@ -46,7 +46,7 @@
   },
   "landing": {
     "heroTitle": "Find the right industrial component. Fast.",
-    "heroSubtitle": "AI-assisted search across Festo, SMC, Parker, Bosch Rexroth and Norgren. Describe your application — we find the right match.",
+    "heroSubtitle": "AI-assisted search across Festo, SMC, Parker, Bosch Rexroth, Norgren and Metal Work. Describe your application — we find the right match.",
     "ctaPrimary": "Search with AI",
     "ctaSecondary": "Browse catalog"
   },
@@ -205,7 +205,7 @@
     "b2bBadge": "B2B · Industrial automation",
     "heroTitle": "Find the right component.",
     "heroTitleAccent": "Fast.",
-    "heroSubtitle": "Search across Festo, SMC, Parker, Bosch Rexroth and Norgren — pneumatic cylinders, electric actuators, valves and more.",
+    "heroSubtitle": "Search across Festo, SMC, Parker, Bosch Rexroth, Norgren and Metal Work — pneumatic cylinders, electric actuators, valves and more.",
     "searchPlaceholder": "Describe your application or search for a product…",
     "searchButton": "Search",
     "searchTry": "Try:",

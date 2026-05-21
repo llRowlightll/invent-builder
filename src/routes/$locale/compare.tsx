@@ -344,7 +344,8 @@ function ComparePage() {
 
       {/* Comparison table */}
       {compared.length > 0 && (
-        <div className="rounded-xl border border-border overflow-hidden">
+        <div className="rounded-xl border border-border overflow-x-auto">
+          <div style={{ minWidth: `calc(14rem + ${cols} * 11rem)` }}>
 
           {/* Sticky product header */}
           <div
@@ -444,6 +445,7 @@ function ComparePage() {
               </div>
             ))}
           </div>
+          </div>{/* end min-width wrapper */}
         </div>
       )}
     </div>
@@ -470,7 +472,7 @@ function GroupSection({
         className="grid border-t border-border bg-surface-alt/60"
         style={{ gridTemplateColumns: `14rem repeat(${cols}, 1fr)` }}
       >
-        <div className="px-4 py-2 border-r border-border col-span-full">
+        <div className="px-4 py-2 col-span-full">
           <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-muted-foreground">{label}</span>
         </div>
       </div>
@@ -494,7 +496,7 @@ function GroupSection({
           {row.cells.map((cell, ci) => (
             <div
               key={ci}
-              className={`px-4 py-3 border-r border-border last:border-r-0 text-sm ${
+              className={`px-4 py-3 border-r border-border last:border-r-0 text-sm break-words min-w-0 ${
                 cell === "—" ? "text-muted-foreground/40" : "text-foreground"
               }`}
             >
