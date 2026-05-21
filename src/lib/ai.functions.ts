@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
+import type { PhysicsDimensions } from "./physics";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = "llama-3.3-70b-versatile";
@@ -235,6 +236,115 @@ function fallbackSearch(query: string, isSv: boolean): AiSearchResult {
 
   const stroke = /slag\s*(\d{2,4})|(\d{2,4})\s*mm\s*slag/.exec(t);
   if (stroke) result.spec_filters.push({ key: "stroke_mm", min: Number(stroke[1] ?? stroke[2]) });
+
+  return result;
+}
+
+// ─── Physics-aware dimension extraction ─────────────────────────────────────
+// The LLM ONLY extracts raw numbers and category signals from text.
+// All physics calculations (bore sizing, force, tech routing) happen
+// in physics.ts — never delegated to the LLM.
+export const aiExtractDimensions = createServerFn({ method: "POST" })
+  .inputValidator((d: { text: string; locale?: string }) => d)
+  .handler(async ({ data }): Promise<PhysicsDimensions & { source: "ai" | "fallback" }> => {
+    const prompt = `Extract ONLY the factual numbers and category signals from this industrial application description.
+Return ONLY valid JSON with these optional fields:
+{
+  "mass_kg": number or null,            // load/mass in kg (convert lbs if needed)
+  "distance_mm": number or null,        // stroke/travel distance in mm
+  "force_n": number or null,            // force in Newtons if directly stated
+  "bore_hint_mm": number or null,       // bore diameter if explicitly stated
+  "speed": "slow"|"medium"|"fast"|"very_fast"|null,
+  "precision": "low"|"medium"|"high"|"very_high"|null,
+  "application": "linear_move"|"pick_and_place"|"gripping"|"vacuum_grip"|"rodless"|"rotary"|"general"|null,
+  "environment": "standard"|"outdoor"|"food_grade"|"clean_room"|"atex"|"washdown"|null
+}
+
+RULES:
+- If user says "repeatability", "high precision", "servo", "stepper" → precision = "high" or "very_high"
+- If user says "pick and place" or similar → application = "pick_and_place"
+- If user says "gripper" or "gripping" as the main task → application = "gripping"
+- Convert any kg to kg, lbs multiply by 0.453
+- Only return what is explicitly stated or strongly implied. Do NOT invent values.
+- Return null for unknown fields, never omit them.
+- NO prose, ONLY JSON.
+
+User text: ${data.text}`;
+
+    const raw = await callGateway([
+      { role: "system", content: "You extract structured physical requirements from industrial engineering text. Return ONLY valid JSON. No prose." },
+      { role: "user", content: prompt },
+    ]);
+
+    // Fallback: pure regex extraction
+    const fb = fallbackDimExtract(data.text);
+
+    if (!raw) return { ...fb, source: "fallback" };
+    try {
+      const cleaned = raw.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(cleaned) as PhysicsDimensions;
+      // Merge: LLM result wins, fallback fills gaps
+      return {
+        mass_kg: parsed.mass_kg ?? fb.mass_kg,
+        distance_mm: parsed.distance_mm ?? fb.distance_mm,
+        force_n: parsed.force_n ?? fb.force_n,
+        bore_hint_mm: parsed.bore_hint_mm ?? fb.bore_hint_mm,
+        speed: parsed.speed ?? fb.speed,
+        precision: parsed.precision ?? fb.precision,
+        application: parsed.application ?? fb.application,
+        environment: parsed.environment ?? fb.environment,
+        source: "ai",
+      };
+    } catch {
+      return { ...fb, source: "fallback" };
+    }
+  });
+
+function fallbackDimExtract(text: string): PhysicsDimensions & { source: "fallback" } {
+  const t = text.toLowerCase();
+  const result: PhysicsDimensions & { source: "fallback" } = { source: "fallback" };
+
+  // Mass — "10 kg", "10kg", "10 kilogram"
+  const massM = /(\d+(?:[.,]\d+)?)\s*(?:kg|kilogram|kilo\b)/.exec(t);
+  if (massM) result.mass_kg = parseFloat(massM[1].replace(",", "."));
+
+  // lbs
+  const lbsM = /(\d+(?:[.,]\d+)?)\s*(?:lbs?|pounds?)/.exec(t);
+  if (lbsM && !result.mass_kg) result.mass_kg = parseFloat(lbsM[1]) * 0.4536;
+
+  // Distance — "300 mm", "300mm", "300 millimeter"
+  // Avoid matching bore sizes (short, e.g. "32mm bore")
+  const distM = /(\d{2,4})\s*mm(?:\s+(?:slag|stroke|distance|sträcka|förflyttning|travel|move|rörelse))?/.exec(t);
+  if (distM) result.distance_mm = Number(distM[1]);
+
+  // Bore explicitly stated
+  const boreM = /(\d{1,3})\s*mm\s*(?:bore|borr|kolvdiameter|piston)/.exec(t);
+  if (boreM) result.bore_hint_mm = Number(boreM[1]);
+
+  // Force in N
+  const forceM = /(\d{2,5})\s*[nN](?!m\b)/.exec(t);
+  if (forceM) result.force_n = Number(forceM[1]);
+
+  // Speed
+  if (/very fast|mycket snabb|extremt snabb/.test(t)) result.speed = "very_fast";
+  else if (/\bfast\b|snabb|quick/.test(t)) result.speed = "fast";
+  else if (/slow|långsam/.test(t)) result.speed = "slow";
+  else if (/medium speed|medelhastighet/.test(t)) result.speed = "medium";
+
+  // Precision
+  if (/repeatab|repeterbar|high precision|hög precision|servo|stepper|stegmotor|exact pos/.test(t)) result.precision = "high";
+  else if (/low precision|grov|approximate/.test(t)) result.precision = "low";
+
+  // Application
+  if (/pick.?and.?place|pnp/.test(t)) result.application = "pick_and_place";
+  else if (/gripper|grip|klämm/.test(t)) result.application = "gripping";
+  else if (/vacuum|vakuum|sug/.test(t)) result.application = "vacuum_grip";
+  else if (/rodless|kolvstångslös/.test(t)) result.application = "rodless";
+
+  // Environment
+  if (/atex|explosion/.test(t)) result.environment = "atex";
+  else if (/food|livsmedel|hygien/.test(t)) result.environment = "food_grade";
+  else if (/outdoor|utomhus/.test(t)) result.environment = "outdoor";
 
   return result;
 }

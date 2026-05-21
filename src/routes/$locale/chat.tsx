@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
-import { aiSearchProducts, aiExplain, aiAskKnowledge, type AiSearchResult } from "@/lib/ai.functions";
+import { aiSearchProducts, aiExplain, aiAskKnowledge, aiExtractDimensions, type AiSearchResult } from "@/lib/ai.functions";
+import { computePhysics } from "@/lib/physics";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
 import { addToShoppingList } from "@/lib/cart";
@@ -65,6 +66,7 @@ function ChatPage() {
   const aiSearch = useServerFn(aiSearchProducts);
   const explain = useServerFn(aiExplain);
   const askKnowledge = useServerFn(aiAskKnowledge);
+  const extractDims = useServerFn(aiExtractDimensions);
 
   const [catalog, setCatalog] = useState<ProductRow[] | null>(null);
   const [text, setText] = useState("");
@@ -95,90 +97,178 @@ function ChatPage() {
     setBusy(true);
 
     try {
-      // Route to knowledge Q&A or product search based on query type
+      // ── 1. Knowledge Q&A (non-product questions) ────────────────────────
       if (isKnowledgeQuestion(q)) {
         const result = await askKnowledge({ data: { question: q, locale } });
-        setMsgs((m) => [
-          ...m,
-          {
-            role: "assistant",
-            text: result.answer,
-            sources: result.sources,
-          },
-        ]);
+        setMsgs((m) => [...m, { role: "assistant", text: result.answer, sources: result.sources }]);
         setBusy(false);
         setTimeout(() => inputRef.current?.focus(), 100);
         return;
       }
 
-      const result = await aiSearch({ data: { query: q, locale } });
+      // ── 2. Extract physical dimensions (LLM: numbers only) ─────────────
+      const dims = await extractDims({ data: { text: q, locale } });
 
-      // Apply filters to find matching products
-      let matches = catalog.filter((p) => {
-        if (result.category_slug && p.category.slug !== result.category_slug) return false;
-        if (result.brand_slug && p.brand.slug !== result.brand_slug) return false;
-        for (const f of result.spec_filters ?? []) {
-          const specVal = p.specs[f.key]?.value;
-          if (specVal == null) continue;
-          const num = Number(specVal);
-          if (!Number.isFinite(num)) continue;
-          if (f.min != null && num < f.min) return false;
-          if (f.max != null && num > f.max) return false;
-        }
-        return true;
-      });
+      // ── 3. Physics computation (deterministic TypeScript) ───────────────
+      const physics = computePhysics(dims);
 
-      // Keyword fallback if no category/brand match gave results
-      if (matches.length === 0 && result.keywords?.length) {
-        matches = catalog.filter((p) => {
-          const hay = [p.sku, p.name, p.brand.name, p.category.name, p.description ?? ""]
-            .join(" ")
-            .toLowerCase();
-          return result.keywords.some((kw) => hay.includes(kw.toLowerCase()));
-        });
+      // ── 4. Show physics reasoning to user ───────────────────────────────
+      if (physics.reasoning.length > 0) {
+        const reasoningText = [
+          isSv ? "**Teknisk analys:**" : "**Engineering analysis:**",
+          ...physics.reasoning.map((r) => `• ${r}`),
+          ...(physics.warnings.map((w) => `⚠️ ${w}`)),
+        ].join("\n");
+        setMsgs((m) => [...m, { role: "assistant", text: reasoningText }]);
       }
 
-      // Sort by lead time (fastest first)
-      matches = matches.sort((a, b) => (a.lead_time_days ?? 99) - (b.lead_time_days ?? 99));
+      // ── 5. Build catalog filter from physics ────────────────────────────
+      function physicsFilter(p: ProductRow, categorySlug: string): boolean {
+        // Category must match (at least partial slug)
+        if (categorySlug && !p.category.slug.includes(categorySlug.split("-")[0])) return false;
 
-      setMsgs((m) => [
-        ...m,
-        { role: "assistant", text: result.explanation, aiResult: result },
-        ...(matches.length > 0
-          ? [{ role: "products" as MsgRole, products: matches.slice(0, 6) }]
-          : []),
-        ...(matches.length === 0
-          ? [{
-              role: "assistant" as MsgRole,
-              text: t("chatPage.noMatchSv"),
-            }]
-          : []),
-        ...(result.followup
-          ? [{ role: "assistant" as MsgRole, text: result.followup }]
-          : []),
-      ]);
-
-      // Get AI explanation if matches found
-      if (matches.length > 0 && result.source === "ai") {
-        const ctx = `Hittade ${matches.length} produkter. Topp 3:\n${matches
-          .slice(0, 3)
-          .map((p) => `- ${p.name} (${p.sku}) ${p.brand.name}, ${p.category.name}`)
-          .join("\n")}`;
-        explain({ data: { context: ctx, question: isSv ? "Förklara i 1-2 meningar varför dessa produkter passar för användarens behov." : "Explain in 1-2 sentences why these products fit the user's needs.", locale } }).then((exp) => {
-          if (exp.source === "ai") {
-            setMsgs((m) => [...m, { role: "assistant", text: exp.text }]);
+        // HARD: stroke validation — product's stroke_max must cover required distance
+        if (physics.minStroke_mm != null) {
+          const specStroke = p.specs["stroke_max"]?.value ?? p.specs["stroke_mm"]?.value;
+          if (specStroke != null) {
+            // Parse range "100-1000" or single "500"
+            const parts = String(specStroke).split(/[-–,]/);
+            const maxStroke = Math.max(...parts.map((s) => Number(s.trim())).filter(Number.isFinite));
+            if (Number.isFinite(maxStroke) && maxStroke < physics.minStroke_mm) return false;
           }
-        });
+        }
+
+        // HARD: bore validation — product's bore must be >= minimum required
+        if (physics.minBore_mm != null) {
+          const boreSlugs = ["bore_mm", "bore_diameter_mm"];
+          for (const bk of boreSlugs) {
+            const boreVal = p.specs[bk]?.value;
+            if (boreVal != null) {
+              // Parse "32,40,50,63" or "32-100" → find max available bore
+              const parts = String(boreVal).split(/[,\s-–]+/);
+              const maxBore = Math.max(...parts.map((s) => Number(s.trim())).filter(Number.isFinite));
+              if (Number.isFinite(maxBore) && maxBore < physics.minBore_mm) return false;
+              break;
+            }
+          }
+          // Also check flat ip_rating / weight_kg for electric actuators
+        }
+
+        return true;
       }
+
+      // ── 6. Brand filter from query ──────────────────────────────────────
+      const aiResult = await aiSearch({ data: { query: q, locale } });
+      const brandSlug = aiResult.brand_slug;
+
+      // ── 7. Find matching products per required category ─────────────────
+      // For systems (pick & place): collect gripper + linear separately
+      const allMatches: ProductRow[] = [];
+      const systemGroups: { label: string; products: ProductRow[] }[] = [];
+
+      if (physics.isSystem) {
+        // Pick & place — return each subsystem separately
+        const systemDef = [
+          { label: isSv ? "🔵 Linjäraxel (horisontell rörelse)" : "🔵 Linear axis (horizontal)", cats: ["cylinder", "rodless", "electric-actuator", "linear"] },
+          { label: isSv ? "🟡 Vertikal axel / lyftcylinder" : "🟡 Vertical axis / lift cylinder", cats: ["cylinder", "compact"] },
+          { label: isSv ? "🟢 Gripklo (end effector)" : "🟢 Gripper (end effector)", cats: ["gripper"] },
+        ];
+
+        for (const sys of systemDef) {
+          let sysMates = catalog.filter((p) =>
+            sys.cats.some((c) => p.category.slug.includes(c))
+            && (brandSlug ? p.brand.slug === brandSlug : true)
+          );
+          if (sysMates.length === 0) {
+            sysMates = catalog.filter((p) => sys.cats.some((c) => p.category.slug.includes(c)));
+          }
+          sysMates = sysMates.sort((a, b) => (a.lead_time_days ?? 99) - (b.lead_time_days ?? 99)).slice(0, 3);
+          if (sysMates.length) {
+            systemGroups.push({ label: sys.label, products: sysMates });
+            allMatches.push(...sysMates);
+          }
+        }
+      } else {
+        // Normal single-category search
+        for (const catSlug of physics.categories.slice(0, 2)) {
+          let catMatches = catalog.filter(
+            (p) => physicsFilter(p, catSlug) && (brandSlug ? p.brand.slug === brandSlug : true)
+          );
+
+          // Drop brand constraint if no results
+          if (catMatches.length === 0) {
+            catMatches = catalog.filter((p) => physicsFilter(p, catSlug));
+          }
+
+          // Keyword fallback if still empty
+          if (catMatches.length === 0 && aiResult.keywords?.length) {
+            catMatches = catalog.filter((p) => {
+              if (!physicsFilter(p, catSlug)) return false;
+              const hay = [p.sku, p.name, p.brand.name, p.description ?? ""].join(" ").toLowerCase();
+              return aiResult.keywords.some((kw) => hay.includes(kw.toLowerCase()));
+            });
+          }
+
+          catMatches = catMatches.sort((a, b) => (a.lead_time_days ?? 99) - (b.lead_time_days ?? 99));
+          allMatches.push(...catMatches);
+          if (allMatches.length >= 6) break;
+        }
+      }
+
+      // Deduplicate
+      const seen = new Set<string>();
+      const deduped = allMatches.filter((p) => { if (seen.has(p.sku)) return false; seen.add(p.sku); return true; });
+
+      // ── 8. Build response messages ──────────────────────────────────────
+      if (physics.isSystem && systemGroups.length > 0) {
+        // System answer: show explanation + each subsystem group
+        const sysExplanation = isSv
+          ? `Pick & place-system kräver tre delar. Här är ett förslag på komponenter för varje del:`
+          : `A pick & place system requires three parts. Here are component suggestions for each:`;
+        setMsgs((m) => [...m, { role: "assistant", text: sysExplanation }]);
+
+        for (const grp of systemGroups) {
+          setMsgs((m) => [
+            ...m,
+            { role: "assistant", text: grp.label },
+            { role: "products" as MsgRole, products: grp.products },
+          ]);
+        }
+      } else if (deduped.length > 0) {
+        // Normal product results
+        const countText = isSv
+          ? `Hittade ${deduped.length} produkter som uppfyller de tekniska kraven:`
+          : `Found ${deduped.length} products meeting the technical requirements:`;
+        setMsgs((m) => [
+          ...m,
+          { role: "assistant", text: countText },
+          { role: "products" as MsgRole, products: deduped.slice(0, 6) },
+        ]);
+
+        // Async explanation
+        const ctx = `Krav: ${q}\nFysik: ${physics.reasoning.join("; ")}\nProdukter: ${deduped.slice(0, 3).map((p) => `${p.name} (${p.sku})`).join(", ")}`;
+        explain({
+          data: {
+            context: ctx,
+            question: isSv
+              ? "Förklara i 2-3 meningar varför dessa produkter är rätt dimensionerade för kravet."
+              : "Explain in 2-3 sentences why these products are correctly sized for the requirement.",
+            locale,
+          },
+        }).then((exp) => {
+          if (exp.source === "ai") setMsgs((m) => [...m, { role: "assistant", text: exp.text }]);
+        });
+      } else {
+        // No results after physics filter
+        const noMatch = isSv
+          ? `Inga produkter i katalogen uppfyller de beräknade kraven (min borr ${physics.minBore_mm ?? "—"} mm, min slag ${physics.minStroke_mm ?? "—"} mm). Kontakta oss via Rådgivaren för en offert på rätt storlek.`
+          : `No products in the catalog meet the calculated requirements (min bore ${physics.minBore_mm ?? "—"} mm, min stroke ${physics.minStroke_mm ?? "—"} mm). Contact us via the Advisor for a custom quote.`;
+        setMsgs((m) => [...m, { role: "assistant", text: noMatch }]);
+      }
+
     } catch (e) {
       console.error(e);
-      setMsgs((m) => [
-        ...m,
-        {
-          role: "assistant",
-          text: t("chatPage.errorSv"),
-        },
-      ]);
+      setMsgs((m) => [...m, { role: "assistant", text: t("chatPage.errorSv") }]);
     } finally {
       setBusy(false);
       setTimeout(() => inputRef.current?.focus(), 100);
