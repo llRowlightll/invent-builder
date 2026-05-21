@@ -1,21 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Gear shape: 8-tooth gear using clip-path technique -->
-  <!-- Base circle -->
-  <g>
-    <!-- Outer gear ring with teeth (8 teeth) -->
-    <polygon points="
-      32,2 36,10 44,6 44,14 52,14 48,22 56,26 50,32 56,38 48,42 52,50 44,50 44,58 36,54 32,62 28,54 20,58 20,50 12,50 16,42 8,38 14,32 8,26 16,22 12,14 20,14 20,6 28,10
-    " fill="#1F3864"/>
-    <!-- Inner circle (slightly lighter for depth) -->
-    <circle cx="32" cy="32" r="16" fill="#1F3864"/>
-    <!-- White M -->
-    <text
-      x="32" y="40"
-      text-anchor="middle"
-      font-family="Arial Black, Arial, Helvetica, sans-serif"
-      font-weight="900"
-      font-size="22"
-      fill="white"
-    >M</text>
-  </g>
+  <!-- Navy blue background with rounded corners -->
+  <rect width="64" height="64" rx="14" fill="#1F3864"/>
+  <!-- Orange rounded square (M icon) -->
+  <rect x="10" y="10" width="44" height="44" rx="10" fill="#E8752A"/>
+  <!-- White bold M -->
+  <text
+    x="32" y="42"
+    text-anchor="middle"
+    font-family="Arial Black, Arial, Helvetica, sans-serif"
+    font-weight="900"
+    font-size="28"
+    fill="white"
+  >M</text>
 </svg>
