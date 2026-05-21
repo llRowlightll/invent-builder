@@ -40,7 +40,8 @@
     "settings": "Inställningar",
     "machineBuilder": "Bygg maskin",
     "shoppingList": "Korg",
-    "login": "Logga in"
+    "login": "Logga in",
+    "assemblies": "Sammansättningar"
   },
   "landing": {
     "heroTitle": "Hitta rätt industrikomponent. Snabbt.",

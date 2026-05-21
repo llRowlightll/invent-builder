@@ -40,7 +40,8 @@
     "advisor": "Asesor",
     "machineBuilder": "Construir máquina",
     "shoppingList": "Carrito",
-    "login": "Iniciar sesión"
+    "login": "Iniciar sesión",
+    "assemblies": "Ensamblajes"
   },
   "landing": {
     "heroTitle": "El componente industrial correcto. Rápido.",

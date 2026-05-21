@@ -40,7 +40,8 @@
     "advisor": "Berater",
     "machineBuilder": "Maschine bauen",
     "shoppingList": "Warenkorb",
-    "login": "Anmelden"
+    "login": "Anmelden",
+    "assemblies": "Baugruppen"
   },
   "landing": {
     "heroTitle": "Die richtige Industriekomponente. Schnell.",

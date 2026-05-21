@@ -40,7 +40,8 @@
     "advisor": "Advisor",
     "machineBuilder": "Build machine",
     "shoppingList": "Cart",
-    "login": "Log in"
+    "login": "Log in",
+    "assemblies": "Assemblies"
   },
   "landing": {
     "heroTitle": "Find the right industrial component. Fast.",
