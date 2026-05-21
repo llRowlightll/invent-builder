@@ -160,10 +160,10 @@ const VIDEOS: VideoItem[] = [
     brand: "Festo",
     brandSlug: "festo",
     brandColor: "#0091DC",
-    videoId: "oSLiC-_7CHE",
+    videoId: "-xvOvYwEmww",
     channelUrl: "https://www.youtube.com/@FestoCorporate",
-    title: "Festo Bionic Flying Fox",
-    description: "Festos biomimetiska flygande räv — ett inspirerande exempel på hur naturen inspirerar industriell automation och pneumatik.",
+    title: "Festo — Inspiration från naturen",
+    description: "Se hur Festo kombinerar bioinspirerad teknik med industriell automation för framtidens smarta fabriker.",
   },
   {
     id: "bosch-ctrlx-video",
