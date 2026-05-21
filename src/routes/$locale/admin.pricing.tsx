@@ -58,24 +58,30 @@ export default function AdminPricingPage() {
   }
 
   async function saveRow(id: string) {
-    const pp = getVal(id, "pp", null);
-    const mg = getVal(id, "margin", null);
+    const row = rows.find((r) => r.id === id);
+    if (!row) return;
+    const ppStr = edited[id]?.pp ?? (row.purchase_price != null ? String(row.purchase_price) : "");
+    const mgStr = edited[id]?.margin ?? (row.margin != null ? String(row.margin) : "");
+    const newPp = ppStr !== "" ? Number(ppStr) : null;
+    const newMg = mgStr !== "" ? Number(mgStr) : null;
     setSaving(id);
+    setMsg(null);
     const { error } = await supabase.from("products").update({
-      purchase_price: pp !== "" ? Number(pp) : null,
-      margin: mg !== "" ? Number(mg) : null,
+      purchase_price: newPp,
+      margin: newMg,
       updated_at: new Date().toISOString(),
     }).eq("id", id);
     setSaving(null);
     if (error) {
-      setMsg({ text: `Fel: ${error.message}`, ok: false });
+      setMsg({ text: `Fel vid sparning: ${error.message}`, ok: false });
     } else {
-      setMsg({ text: "Sparat!", ok: true });
+      setMsg({ text: `✓ Sparat — marginal: ${newMg ?? "—"}%, säljpris: ${newPp && newMg != null ? Math.round(newPp / (1 - newMg / 100)).toLocaleString("sv-SE") + " kr" : "—"}`, ok: true });
       setRows((prev) => prev.map((r) =>
-        r.id === id ? { ...r, purchase_price: pp !== "" ? Number(pp) : null, margin: mg !== "" ? Number(mg) : null } : r
+        r.id === id ? { ...r, purchase_price: newPp, margin: newMg } : r
       ));
-      // Remove from edited state
       setEdited((e) => { const n = { ...e }; delete n[id]; return n; });
+      // Auto-clear success message
+      setTimeout(() => setMsg(null), 4000);
     }
   }
 
@@ -106,9 +112,11 @@ export default function AdminPricingPage() {
   }, [rows, search, filterBrand, filterCat]);
 
   function sellPrice(r: Row): string {
-    const pp = edited[r.id]?.pp != null ? Number(edited[r.id].pp) : r.purchase_price;
-    const mg = edited[r.id]?.margin != null ? Number(edited[r.id].margin) : r.margin;
-    if (pp == null || mg == null) return "—";
+    const ppStr = edited[r.id]?.pp;
+    const mgStr = edited[r.id]?.margin;
+    const pp = ppStr !== undefined && ppStr !== "" ? Number(ppStr) : r.purchase_price;
+    const mg = mgStr !== undefined && mgStr !== "" ? Number(mgStr) : r.margin;
+    if (pp == null || mg == null || isNaN(pp) || isNaN(mg) || mg >= 100) return "—";
     const sell = pp / (1 - mg / 100);
     return sell.toLocaleString("sv-SE", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " kr";
   }
