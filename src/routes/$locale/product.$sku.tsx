@@ -9,6 +9,16 @@ import { addToShoppingList } from "@/lib/cart";
 
 const SITE = "https://tanstack-start-app.llrowlightll.workers.dev";
 
+const UNIT_SUFFIXES = ["mm", "cm", "m", "kg", "g", "bar", "kpa", "mpa", "n", "nm", "w", "kw", "v", "a", "hz", "rpm", "ms", "s", "min", "deg", "pct", "l", "ml", "lmin"];
+function formatSpecKey(key: string): string {
+  const parts = key.toLowerCase().replace(/_+/g, "_").split("_");
+  const last = parts[parts.length - 1];
+  const isUnit = UNIT_SUFFIXES.includes(last);
+  const labelParts = isUnit ? parts.slice(0, -1) : parts;
+  const label = labelParts.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  return isUnit ? `${label} (${last})` : label;
+}
+
 export const Route = createFileRoute("/$locale/product/$sku")({
   head: ({ params }) => {
     const t = makeT(params.locale as Locale);
@@ -181,8 +191,8 @@ function ProductDetail() {
             <tbody>
               {Object.entries(product.specs).map(([k, v]) => (
                 <tr key={k} className="border-b border-border last:border-0 odd:bg-surface-alt/50">
-                  <td className="p-3 capitalize text-muted-foreground w-1/2">{k.replace(/_/g, " ")}</td>
-                  <td className="p-3 font-medium">{v.value} {v.unit ?? ""}</td>
+                  <td className="p-3 text-muted-foreground w-1/2">{formatSpecKey(k)}</td>
+                  <td className="p-3 font-medium">{v.value}{v.unit ? ` ${v.unit}` : ""}</td>
                 </tr>
               ))}
             </tbody>

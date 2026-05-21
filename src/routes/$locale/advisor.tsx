@@ -99,7 +99,8 @@ function AdvisorPage() {
     }
     setSending(true);
     try {
-      await supabase.from("advisor_contacts").insert({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("advisor_contacts").insert({
         name,
         email,
         company: company || null,

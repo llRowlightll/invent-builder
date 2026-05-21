@@ -91,12 +91,13 @@ function ClaimsPage() {
 
   useEffect(() => {
     if (!user) { setLoadingClaims(false); return; }
-    supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
       .from("claims")
       .select("*")
       .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setClaims((data as Claim[]) ?? []);
+      .then(({ data }: { data: Claim[] | null }) => {
+        setClaims(data ?? []);
         setLoadingClaims(false);
       });
   }, [user, submitSuccess]);
@@ -107,7 +108,8 @@ function ClaimsPage() {
     setSubmitError(null);
     setSubmitting(true);
 
-    const { error } = await supabase.from("claims").insert({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).from("claims").insert({
       user_id:     user.id,
       title:       fTitle,
       claim_type:  fType || null,

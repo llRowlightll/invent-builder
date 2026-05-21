@@ -58,6 +58,23 @@ const EXAMPLE_QUERIES = [
   "What is the maximum pressure for Norgren LINTRA Plus?",
 ];
 
+function renderChatText(text: string) {
+  return (
+    <span className="whitespace-pre-line leading-relaxed">
+      {text.split("\n").map((line, i) => {
+        // Bold: **text**
+        const parts = line.split(/(\*\*[^*]+\*\*)/g);
+        const rendered = parts.map((p, j) =>
+          p.startsWith("**") && p.endsWith("**")
+            ? <strong key={j}>{p.slice(2, -2)}</strong>
+            : <span key={j}>{p}</span>
+        );
+        return <span key={i} className={`block ${line.startsWith("•") ? "pl-2" : ""}`}>{rendered}</span>;
+      })}
+    </span>
+  );
+}
+
 function ChatPage() {
   const { locale } = Route.useParams();
   const t = makeT(locale as Locale);
@@ -140,18 +157,35 @@ function ChatPage() {
 
         // HARD: bore validation — product's bore must be >= minimum required
         if (physics.minBore_mm != null) {
-          const boreSlugs = ["bore_mm", "bore_diameter_mm"];
+          const boreSlugs = ["bore_mm", "bore_diameter_mm", "bore", "diameter_mm", "cylinder_bore_mm", "piston_diameter_mm"];
+          let boreFound = false;
           for (const bk of boreSlugs) {
             const boreVal = p.specs[bk]?.value;
             if (boreVal != null) {
               // Parse "32,40,50,63" or "32-100" → find max available bore
-              const parts = String(boreVal).split(/[,\s-–]+/);
+              const parts = String(boreVal).split(/[,\s\-–]+/);
               const maxBore = Math.max(...parts.map((s) => Number(s.trim())).filter(Number.isFinite));
               if (Number.isFinite(maxBore) && maxBore < physics.minBore_mm) return false;
+              boreFound = true;
               break;
             }
           }
-          // Also check flat ip_rating / weight_kg for electric actuators
+          // If no bore spec key found, extract from product name (e.g. "Ø32", "Ø10", "32mm bore")
+          if (!boreFound) {
+            const nameAndSku = `${p.name} ${p.sku}`;
+            const borePat = /[Øø](\d+)|(\d+)\s*mm\s*(?:bore|kolvdiameter|cylinder)/i;
+            const m = nameAndSku.match(borePat);
+            if (m) {
+              const nameBore = Number(m[1] ?? m[2]);
+              if (Number.isFinite(nameBore) && nameBore < physics.minBore_mm) return false;
+              boreFound = true;
+            }
+            // If still no bore info found for a cylinder category product: exclude when bore requirement is strict
+            if (!boreFound && categorySlug && categorySlug.includes("cylinder")) {
+              // Unknown bore + cylinder requirement = skip (likely a tiny cylinder family)
+              return false;
+            }
+          }
         }
 
         return true;
@@ -336,7 +370,7 @@ function ChatPage() {
                       : "bg-surface-alt text-foreground border border-border"
                   }`}
                 >
-                  {m.text}
+                  {m.text && renderChatText(m.text)}
                   {m.sources && m.sources.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-border/50 flex flex-wrap gap-1">
                       {m.sources.map((s, si) => (

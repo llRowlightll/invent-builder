@@ -387,7 +387,7 @@ function LocaleLayout() {
               <li><Link to="/$locale/compare" params={{ locale }} className="hover:text-info">{t("nav.compare")}</Link></li>
               <li><Link to="/$locale/advisor" params={{ locale }} className="hover:text-info">{t("nav.advisor")}</Link></li>
               <li><Link to="/$locale/machine-builder" params={{ locale }} className="hover:text-info">{t("nav.machineBuilder")}</Link></li>
-              <li><Link to="/$locale/admin/import" params={{ locale }} className="hover:text-info">Leverantörsimport</Link></li>
+              {isAdmin && <li><Link to="/$locale/admin/import" params={{ locale }} className="hover:text-info">Leverantörsimport</Link></li>}
             </ul>
           </div>
           <div>

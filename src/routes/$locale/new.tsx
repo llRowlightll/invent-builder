@@ -193,7 +193,7 @@ function ProductGrid({
               </div>
               <Link
                 to="/$locale/product/$sku"
-                params={{ locale, sku: p.sku }}
+                params={{ locale: locale as Locale, sku: p.sku }}
                 className="mt-1 font-medium text-sm text-foreground hover:text-info line-clamp-2 transition"
               >
                 {p.name}
