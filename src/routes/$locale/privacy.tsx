@@ -111,10 +111,33 @@ function PrivacyPage() {
         </Section>
 
         <Section title="7. Cookies">
-          <p>
-            Vi använder nödvändiga cookies för inloggningssessioner (Supabase auth token). Vi använder
-            <strong className="text-foreground"> inga</strong> spårnings- eller marknadsföringscookies.
-            Inga tredjepartscookies laddas utan ditt samtycke.
+          <table className="w-full text-xs border border-border rounded-md overflow-hidden mt-2">
+            <thead>
+              <tr className="bg-surface-alt border-b border-border">
+                <th className="p-2 text-left text-muted-foreground font-medium">Cookie</th>
+                <th className="p-2 text-left text-muted-foreground font-medium">Typ</th>
+                <th className="p-2 text-left text-muted-foreground font-medium">Syfte</th>
+                <th className="p-2 text-left text-muted-foreground font-medium">Livslängd</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {[
+                ["sb-auth-token", "Nödvändig", "Inloggningssession (Supabase Auth)", "Session"],
+                ["mv_cookie_consent", "Nödvändig", "Sparar ditt cookie-val", "1 år"],
+                ["_ga, _ga_*", "Analytisk (samtycke krävs)", "Google Analytics 4 — sidvisningar och användarbeteende. Ingen PII skickas. IP anonymiseras.", "2 år"],
+              ].map(([name, type, purpose, ttl]) => (
+                <tr key={name} className="odd:bg-surface-alt/30">
+                  <td className="p-2 font-mono text-foreground/70">{name}</td>
+                  <td className="p-2 text-muted-foreground">{type}</td>
+                  <td className="p-2 text-foreground/80">{purpose}</td>
+                  <td className="p-2 text-muted-foreground">{ttl}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Analytiska cookies laddas <strong className="text-foreground">enbart</strong> om du väljer "Acceptera alla".
+            Du kan ändra ditt val när som helst via "Cookie-inställningar" i sidfoten.
           </p>
         </Section>
 

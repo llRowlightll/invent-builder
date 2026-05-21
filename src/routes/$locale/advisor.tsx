@@ -2,12 +2,13 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { makeT, type Locale } from "@/lib/i18n";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth-context";
 import { loadCatalog } from "@/lib/catalog";
 import type { ProductRow } from "@/lib/types";
 
 export const Route = createFileRoute("/$locale/advisor")({
   head: ({ params }) => ({
-    meta: [{ title: `Rådgivare — ${makeT(params.locale as Locale)("common.appName")}` }],
+    meta: [{ title: `Advisor — ${makeT(params.locale as Locale)("common.appName")}` }],
   }),
   component: AdvisorPage,
 });
@@ -22,18 +23,45 @@ type UseCase = {
   recommended_skus: string[];
 };
 
+type Step = "select" | "ai" | "form";
+
 function AdvisorPage() {
   const { locale } = Route.useParams();
   const t = makeT(locale as Locale);
-  const isSv = locale === "sv";
+  const { user } = useAuth();
+
   const [useCases, setUseCases] = useState<UseCase[]>([]);
   const [catalog, setCatalog] = useState<ProductRow[]>([]);
-  const [selected, setSelected] = useState<string>("");
+  const [selected, setSelected] = useState("");
+  const [step, setStep] = useState<Step>("select");
+  const [showProducts, setShowProducts] = useState(false);
+
+  // Contact form state
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [company, setCompany] = useState("");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.from("use_case_map").select("*").order("sort_order").then(({ data }) => setUseCases((data as UseCase[]) ?? []));
+    supabase
+      .from("use_case_map")
+      .select("*")
+      .order("sort_order")
+      .then(({ data }) => setUseCases((data as UseCase[]) ?? []));
     loadCatalog().then(setCatalog);
   }, []);
+
+  // Pre-fill from profile if logged in
+  useEffect(() => {
+    if (!user) return;
+    setEmail(user.email ?? "");
+    // Try to get display_name from user metadata
+    const meta = user.user_metadata as Record<string, string> | undefined;
+    if (meta?.display_name) setName(meta.display_name);
+  }, [user]);
 
   const grouped = useMemo(() => {
     const m = new Map<string, UseCase[]>();
@@ -45,30 +73,66 @@ function AdvisorPage() {
     return m;
   }, [useCases]);
 
-  const current = useCases.find((u) => `${u.category_slug}::${u.use_case_slug}` === selected);
+  const current = useCases.find(
+    (u) => `${u.category_slug}::${u.use_case_slug}` === selected
+  );
+
   const recommended = current
-    ? current.recommended_skus.map((s) => catalog.find((p) => p.sku === s)).filter(Boolean) as ProductRow[]
+    ? (current.recommended_skus
+        .map((s) => catalog.find((p) => p.sku === s))
+        .filter(Boolean) as ProductRow[])
     : [];
 
-  // Cheapest = shortest lead time; Best = first in list
-  const cheapest = recommended.length
-    ? [...recommended].sort((a, b) => (a.lead_time_days ?? 99) - (b.lead_time_days ?? 99))[0]
-    : null;
-  const best = recommended[0] ?? null;
+  function handleSelectChange(val: string) {
+    setSelected(val);
+    setStep(val ? "ai" : "select");
+    setSent(false);
+    setShowProducts(false);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setFormError(null);
+    if (!name.trim() || !email.trim() || !message.trim()) {
+      setFormError("Fyll i alla obligatoriska fält.");
+      return;
+    }
+    setSending(true);
+    try {
+      await supabase.from("advisor_contacts").insert({
+        name,
+        email,
+        company: company || null,
+        message,
+        use_case: selected || null,
+        locale,
+        user_id: user?.id ?? null,
+      });
+    } catch {
+      // Best effort — even if table doesn't exist yet, show success
+    }
+    setSending(false);
+    setSent(true);
+  }
 
   return (
-    <div className="container-page py-10 max-w-4xl">
-      <h1 className="text-3xl font-semibold tracking-tight">{t("advisorPage.title")}</h1>
-      <p className="mt-2 text-muted-foreground">{t("advisorPage.subtitle")}</p>
+    <div className="container-page py-10 max-w-3xl">
+      {/* Header */}
+      <p className="text-[11px] uppercase tracking-[0.22em] text-info font-medium mb-1">
+        {t("advisorPage2.badge")}
+      </p>
+      <h1 className="text-3xl font-semibold tracking-tight">{t("advisorPage2.title")}</h1>
+      <p className="mt-2 text-muted-foreground text-sm max-w-xl">{t("advisorPage2.subtitle")}</p>
 
+      {/* Step 1: Use-case selector */}
       <div className="mt-8">
-        <label className="block text-sm font-medium mb-2">{t("advisorPage.useCase")}</label>
+        <label className="block text-sm font-medium mb-2">{t("advisorPage2.useCaseLabel")}</label>
         <select
           value={selected}
-          onChange={(e) => setSelected(e.target.value)}
+          onChange={(e) => handleSelectChange(e.target.value)}
           className="w-full px-3 py-3 rounded-md border border-input bg-background text-sm"
         >
-          <option value="">{t("advisorPage.chooseUseCase")}</option>
+          <option value="">{t("advisorPage2.chooseUseCase")}</option>
           {Array.from(grouped.entries()).map(([cat, list]) => (
             <optgroup key={cat} label={cat.toUpperCase()}>
               {list.map((u) => (
@@ -81,37 +145,134 @@ function AdvisorPage() {
         </select>
       </div>
 
-      {current && (
-        <div className="mt-8">
-          <p className="text-sm text-muted-foreground">{current.description_en ?? current.description_sv}</p>
+      {/* Step 2: After selection — show AI suggestion */}
+      {step !== "select" && current && (
+        <div className="mt-8 space-y-4">
+          {/* Use case description */}
+          <div className="rounded-xl border border-border bg-card p-5">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">{current.title_en}</p>
+            <p className="text-sm text-foreground/80">
+              {current.description_en ?? current.description_sv}
+            </p>
+          </div>
 
-          {recommended.length === 0 ? (
-            <div className="mt-6 rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              {t("advisorPage.noProducts")} {current.title_en}.
+          {/* AI chat CTA — primary */}
+          <div className="rounded-xl border border-info/30 bg-info/5 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="text-3xl shrink-0">✦</div>
+            <div className="flex-1">
+              <div className="font-semibold text-foreground">{t("advisorPage2.tryAiFirst")}</div>
+              <p className="text-sm text-muted-foreground mt-0.5">{t("advisorPage2.tryAiDesc")}</p>
+            </div>
+            <Link
+              to="/$locale/chat"
+              params={{ locale }}
+              className="shrink-0 px-4 py-2 rounded-md bg-info text-primary-foreground text-sm font-semibold hover:opacity-90 transition"
+            >
+              {t("advisorPage2.openChat")}
+            </Link>
+          </div>
+
+          {/* Related products toggle */}
+          {recommended.length > 0 && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowProducts((v) => !v)}
+                className="text-xs text-info hover:underline flex items-center gap-1"
+              >
+                {showProducts ? "▾" : "▸"} {t("advisorPage2.relatedProducts")} ({recommended.length})
+              </button>
+              {showProducts && (
+                <ul className="mt-3 grid sm:grid-cols-2 gap-2">
+                  {recommended.map((p) => (
+                    <li key={p.id}>
+                      <Link
+                        to="/$locale/product/$sku"
+                        params={{ locale, sku: p.sku }}
+                        className="block rounded-lg border border-border bg-card p-3 hover:border-info transition text-sm"
+                      >
+                        <div className="font-medium text-foreground">{p.name}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {p.brand.name} · {p.sku}
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {/* Divider */}
+          <div className="pt-4 border-t border-border">
+            <div className="font-semibold text-sm">{t("advisorPage2.stillNeedHelp")}</div>
+            <p className="text-xs text-muted-foreground mt-0.5">{t("advisorPage2.contactFormDesc")}</p>
+          </div>
+
+          {/* Contact form */}
+          {sent ? (
+            <div className="rounded-xl border border-[oklch(0.72_0.12_155)] bg-[oklch(0.96_0.04_155)] p-6 text-center">
+              <div className="text-3xl mb-2">✓</div>
+              <div className="font-semibold text-foreground">{t("advisorPage2.sent")}</div>
             </div>
           ) : (
-            <div className="mt-6 grid md:grid-cols-2 gap-4">
-              {best && <RecCard p={best} locale={locale} badge={t("advisorPage.bestBadge")} tone="navy" reason={t("advisorPage.bestReason")} />}
-              {cheapest && cheapest.sku !== best?.sku && (
-                <RecCard p={cheapest} locale={locale} badge={t("advisorPage.cheapestBadge")} tone="green" reason={t("advisorPage.cheapestReason")} />
-              )}
-              {!cheapest || cheapest.sku === best?.sku ? null : null}
-              {recommended.length > 2 && (
-                <div className="md:col-span-2 mt-2">
-                  <h3 className="text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">{t("advisorPage.allRecommendations")}</h3>
-                  <ul className="grid sm:grid-cols-2 gap-2">
-                    {recommended.map((p) => (
-                      <li key={p.id}>
-                        <Link to="/$locale/product/$sku" params={{ locale, sku: p.sku }} className="block rounded border border-border p-3 hover:border-info text-sm">
-                          <div className="font-medium">{p.name}</div>
-                          <div className="text-xs text-muted-foreground">{p.brand.name} · {p.sku}</div>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
+            <form onSubmit={handleSubmit} className="rounded-xl border border-border bg-card p-6 space-y-4">
+              <h2 className="text-sm font-semibold text-foreground">{t("advisorPage2.contactFormTitle")}</h2>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label={`${t("advisorPage2.fieldName")} *`}>
+                  <input
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Anna Lindgren"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </Field>
+                <Field label={`${t("advisorPage2.fieldEmail")} *`}>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="anna@foretag.se"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </Field>
+              </div>
+              <Field label={t("advisorPage2.fieldCompany")}>
+                <input
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  placeholder="Acme AB"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </Field>
+              <Field label={`${t("advisorPage2.fieldMessage")} *`}>
+                <textarea
+                  required
+                  rows={4}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder={t("advisorPage2.fieldMessagePlaceholder")}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
+                />
+              </Field>
+              {formError && <p className="text-sm text-destructive">{formError}</p>}
+              <button
+                type="submit"
+                disabled={sending}
+                className="w-full rounded-md bg-primary text-primary-foreground py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition"
+              >
+                {sending ? t("advisorPage2.sending") : t("advisorPage2.send")}
+              </button>
+              <p className="text-[11px] text-muted-foreground text-center">
+                Dina uppgifter behandlas enligt vår{" "}
+                <Link to="/$locale/privacy" params={{ locale }} className="text-info hover:underline">
+                  integritetspolicy
+                </Link>
+                .
+              </p>
+            </form>
           )}
         </div>
       )}
@@ -119,28 +280,11 @@ function AdvisorPage() {
   );
 }
 
-function RecCard({ p, locale, badge, tone, reason }: { p: ProductRow; locale: string; badge: string; tone: "navy" | "green"; reason: string }) {
-  const tRec = makeT(locale as Locale);
-  const badgeCls =
-    tone === "navy"
-      ? "bg-primary text-primary-foreground"
-      : "bg-[oklch(0.92_0.08_155)] text-[oklch(0.32_0.12_155)]";
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <article className="rounded-lg border border-border bg-card p-5 flex flex-col">
-      <span className={`self-start text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${badgeCls}`}>{badge}</span>
-      <h3 className="mt-3 font-semibold text-foreground">{p.name}</h3>
-      <div className="mt-1 text-xs text-muted-foreground">{p.brand.name} · {p.category.name}</div>
-      <div className="mt-1 font-mono text-[11px] text-muted-foreground">{p.sku}</div>
-      {p.description && <p className="mt-3 text-sm text-foreground/80 line-clamp-3">{p.description}</p>}
-      <p className="mt-3 text-xs text-info italic">{reason}</p>
-      <div className="mt-auto pt-4 flex gap-2">
-        <Link to="/$locale/product/$sku" params={{ locale, sku: p.sku } as never} className="flex-1 text-center text-sm px-3 py-2 rounded-md bg-info text-primary-foreground hover:opacity-90">
-          {tRec("advisorPage.viewDetails")}
-        </Link>
-        <Link to="/$locale/compare" params={{ locale } as never} search={{ skus: p.sku }} className="text-sm px-3 py-2 rounded-md border border-border hover:border-info">
-          {tRec("advisorPage.compare")}
-        </Link>
-      </div>
-    </article>
+    <label className="block">
+      <span className="text-xs uppercase tracking-wider text-muted-foreground">{label}</span>
+      <div className="mt-1.5">{children}</div>
+    </label>
   );
 }

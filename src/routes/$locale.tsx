@@ -296,6 +296,10 @@ function LocaleLayout() {
                     className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                     Profil
                   </Link>
+                  <Link to={"/$locale/claims" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
+                    className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
+                    {t("claimsPage.title")}
+                  </Link>
                   {isAdmin && (
                     <>
                       <Link to={"/$locale/admin/dashboard" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
@@ -336,23 +340,30 @@ function LocaleLayout() {
         <Outlet />
       </main>
 
-      {/* Cookie consent banner */}
+      {/* Cookie consent banner — GDPR: both options equally prominent */}
       {!cookieConsent && (
         <div className="fixed bottom-0 inset-x-0 z-50 bg-card border-t border-border shadow-lg">
           <div className="container-page py-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <p className="text-sm text-muted-foreground flex-1">
-              {t("cookies.message")}
-            </p>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-muted-foreground">{t("cookies.message")}</p>
+              <Link
+                to="/$locale/privacy"
+                params={{ locale }}
+                className="text-xs text-info hover:underline mt-1 inline-block"
+              >
+                {t("cookies.policy")} →
+              </Link>
+            </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => acceptCookies("necessary")}
-                className="text-xs px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:border-info hover:text-foreground transition"
+                className="text-xs px-4 py-2 rounded-md border border-border text-foreground hover:border-info hover:text-info transition font-medium"
               >
                 {t("cookies.necessary")}
               </button>
               <button
                 onClick={() => acceptCookies("all")}
-                className="text-xs px-4 py-1.5 rounded-md bg-info text-primary-foreground hover:opacity-90 transition font-medium"
+                className="text-xs px-4 py-2 rounded-md border border-info bg-info text-primary-foreground hover:opacity-90 transition font-medium"
               >
                 {t("cookies.accept")}
               </button>
@@ -389,9 +400,16 @@ function LocaleLayout() {
         </div>
         <div className="container-page mt-6 pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-muted-foreground">
           <span>© {new Date().getFullYear()} {t("common.appName")} — Industriell automationskatalog för maskinbyggare</span>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-4 justify-center sm:justify-end">
             <Link to="/$locale/privacy" params={{ locale }} className="hover:text-info transition">Integritetspolicy</Link>
             <Link to="/$locale/terms" params={{ locale }} className="hover:text-info transition">Allmänna villkor</Link>
+            {user && <Link to="/$locale/claims" params={{ locale }} className="hover:text-info transition">{t("claimsPage.title")}</Link>}
+            <button
+              onClick={() => { document.cookie = "mv_cookie_consent=; Max-Age=0; Path=/"; setCookieConsent(null); }}
+              className="hover:text-info transition cursor-pointer"
+            >
+              {t("cookies.manage")}
+            </button>
             <a href="mailto:info@maskinval.se" className="hover:text-info transition">Kontakt</a>
           </div>
         </div>

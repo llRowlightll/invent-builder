@@ -286,6 +286,26 @@ function SignupPage() {
               </div>
             </div>
 
+            {/* GDPR consent */}
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                required
+                className="mt-0.5 shrink-0 accent-info size-4"
+              />
+              <span className="text-xs text-muted-foreground leading-relaxed">
+                Jag har läst och godkänner{" "}
+                <Link to="/$locale/privacy" params={{ locale }} target="_blank" className="text-info hover:underline">
+                  integritetspolicyn
+                </Link>{" "}
+                och{" "}
+                <Link to="/$locale/terms" params={{ locale }} target="_blank" className="text-info hover:underline">
+                  allmänna villkoren
+                </Link>
+                . Maskinval AB behandlar dina uppgifter enligt GDPR.
+              </span>
+            </label>
+
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setStep(1)}
