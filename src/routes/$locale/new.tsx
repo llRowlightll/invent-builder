@@ -214,17 +214,28 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Hållbarhet":   "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300",
 };
 
-// ─── Lazy-load YouTube embed ──────────────────────────────────────────────────
+// ─── Video carousel ──────────────────────────────────────────────────────────
 
-function VideoCard({ video }: { video: VideoItem }) {
+function VideoCarousel() {
+  const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [thumbError, setThumbError] = useState(false);
 
+  const video = VIDEOS[index];
+  const total = VIDEOS.length;
+
+  function go(dir: 1 | -1) {
+    setIndex((i) => (i + dir + total) % total);
+    setPlaying(false);
+    setThumbError(false);
+  }
+
+  // Reset play state when video changes
   const thumbUrl = `https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg`;
   const embedUrl = `https://www.youtube-nocookie.com/embed/${video.videoId}?autoplay=1&rel=0`;
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col">
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
       {/* Video area */}
       <div className="relative aspect-video bg-muted">
         {playing ? (
@@ -236,7 +247,6 @@ function VideoCard({ video }: { video: VideoItem }) {
             allowFullScreen
           />
         ) : thumbError ? (
-          /* Fallback when thumbnail can't load */
           <a
             href={video.channelUrl}
             target="_blank"
@@ -251,7 +261,6 @@ function VideoCard({ video }: { video: VideoItem }) {
             <span className="text-sm text-muted-foreground">Öppna på YouTube →</span>
           </a>
         ) : (
-          /* Thumbnail with play button overlay */
           <button
             type="button"
             onClick={() => setPlaying(true)}
@@ -264,9 +273,7 @@ function VideoCard({ video }: { video: VideoItem }) {
               className="w-full h-full object-cover"
               onError={() => setThumbError(true)}
             />
-            {/* Dark overlay on hover */}
             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition" />
-            {/* Play button */}
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="size-16 rounded-full bg-destructive shadow-xl flex items-center justify-center group-hover:scale-110 transition-transform">
                 <svg viewBox="0 0 24 24" className="w-8 h-8 fill-white ml-1" xmlns="http://www.w3.org/2000/svg">
@@ -277,31 +284,68 @@ function VideoCard({ video }: { video: VideoItem }) {
           </button>
         )}
 
+        {/* Prev / Next arrows */}
+        <button
+          type="button"
+          onClick={() => go(-1)}
+          className="absolute left-2 top-1/2 -translate-y-1/2 size-9 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition z-10"
+          aria-label="Föregående video"
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          onClick={() => go(1)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 size-9 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition z-10"
+          aria-label="Nästa video"
+        >
+          ›
+        </button>
+
         {/* Brand color stripe */}
-        <div
-          className="absolute bottom-0 left-0 right-0 h-1"
-          style={{ backgroundColor: video.brandColor }}
-        />
+        <div className="absolute bottom-0 left-0 right-0 h-1" style={{ backgroundColor: video.brandColor }} />
       </div>
 
-      {/* Card info */}
-      <div className="p-4 flex flex-col gap-1.5 flex-1">
-        <div className="flex items-center gap-2">
-          <img
-            src={`/brands/${video.brandSlug}.svg`}
-            alt={video.brand}
-            className="h-4 object-contain"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-          />
-          <span className="text-xs font-semibold text-muted-foreground">{video.brand}</span>
+      {/* Info row */}
+      <div className="p-4 flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-1 flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <img
+              src={`/brands/${video.brandSlug}.svg`}
+              alt={video.brand}
+              className="h-4 object-contain"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+            <span className="text-xs font-semibold text-muted-foreground">{video.brand}</span>
+          </div>
+          <h3 className="font-semibold text-sm leading-snug">{video.title}</h3>
+          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{video.description}</p>
         </div>
-        <h3 className="font-semibold text-sm leading-snug">{video.title}</h3>
-        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 flex-1">{video.description}</p>
+
+        {/* Dot indicators */}
+        <div className="flex flex-col items-center gap-1.5 shrink-0 pt-1">
+          {VIDEOS.map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => { setIndex(i); setPlaying(false); setThumbError(false); }}
+              className={`size-2 rounded-full transition-all ${
+                i === index ? "bg-info scale-125" : "bg-muted-foreground/30 hover:bg-muted-foreground/60"
+              }`}
+              aria-label={`Video ${i + 1}`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Counter + channel link */}
+      <div className="px-4 pb-4 flex items-center justify-between">
+        <span className="text-[11px] text-muted-foreground">{index + 1} / {total}</span>
         <a
           href={video.channelUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-1 text-[11px] text-destructive hover:underline font-medium flex items-center gap-1"
+          className="text-[11px] text-destructive hover:underline font-medium flex items-center gap-1"
         >
           <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current" xmlns="http://www.w3.org/2000/svg">
             <path d="M21.8 8s-.2-1.4-.8-2c-.8-.8-1.6-.8-2-.9C16.8 5 12 5 12 5s-4.8 0-7 .1c-.4 0-1.2.1-2 .9-.6.6-.8 2-.8 2S2 9.6 2 11.2v1.5c0 1.6.2 3.2.2 3.2s.2 1.4.8 2c.8.8 1.8.8 2.2.8C6.8 19 12 19 12 19s4.8 0 7-.1c.4 0 1.2-.1 2-.9.6-.6.8-2 .8-2s.2-1.6.2-3.2v-1.5C22 9.6 21.8 8 21.8 8zM10 15V9l5.5 3-5.5 3z"/>
@@ -443,11 +487,7 @@ function NewPage() {
             </div>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-5">
-            {VIDEOS.map((v) => (
-              <VideoCard key={v.id} video={v} />
-            ))}
-          </div>
+          <VideoCarousel />
         </div>
       )}
 
