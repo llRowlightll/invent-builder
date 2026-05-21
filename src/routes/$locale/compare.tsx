@@ -16,7 +16,7 @@ export const Route = createFileRoute("/$locale/compare")({
 });
 
 // ─── Spec grouping ──────────────────────────────────────────────────────────
-type SpecGroup = { label: string; rows: SpecRowDef[] };
+type SpecGroup = { label: string; icon: string; rows: SpecRowDef[] };
 type SpecRowDef =
   | { kind: "flat"; label: string; get: (p: ProductRow) => string }
   | { kind: "spec"; label: string; key: string };
@@ -25,78 +25,122 @@ function mm(v: number | null) { return v != null ? `${v} mm` : "—"; }
 
 const SPEC_GROUPS: SpecGroup[] = [
   {
-    label: "Logistik",
+    label: "Logistik & tillgänglighet",
+    icon: "📦",
     rows: [
-      { kind: "flat", label: "Varumärke",      get: (p) => p.brand.name },
-      { kind: "flat", label: "Kategori",        get: (p) => p.category.name },
-      { kind: "flat", label: "Tillgänglighet",  get: (p) =>
-          p.availability === "stock" ? "På lager" : p.availability === "order" ? "Beställningsvara" : p.availability ?? "—" },
-      { kind: "flat", label: "Ledtid",          get: (p) => p.lead_time_days ? `${p.lead_time_days} dagar` : "—" },
-      { kind: "flat", label: "Vikt",            get: (p) => p.weight_kg != null ? `${p.weight_kg} kg` : "—" },
+      { kind: "flat", label: "Varumärke",       get: (p) => p.brand.name },
+      { kind: "flat", label: "Kategori",         get: (p) => p.category.name },
+      { kind: "spec", label: "Produkttyp",       key: "type" },
+      { kind: "spec", label: "Cylindertyp",      key: "cylinder_type" },
+      { kind: "spec", label: "Aktuatortyp",      key: "actuator_type" },
+      { kind: "spec", label: "Grippertyp",       key: "gripper_type" },
+      { kind: "spec", label: "Serie",            key: "series" },
+      { kind: "spec", label: "Tillämpning",      key: "application" },
+      { kind: "flat", label: "Tillgänglighet",   get: (p) =>
+          p.availability === "stock" ? "✓ På lager" : p.availability === "order" ? "Beställningsvara" : p.availability ?? "—" },
+      { kind: "flat", label: "Ledtid",           get: (p) => p.lead_time_days ? `${p.lead_time_days} dagar` : "—" },
+      { kind: "flat", label: "Vikt",             get: (p) => p.weight_kg != null ? `${p.weight_kg} kg` : "—" },
+      { kind: "spec", label: "Vikt",             key: "weight" },
     ],
   },
   {
     label: "Dimensioner",
+    icon: "📐",
     rows: [
-      { kind: "spec", label: "Borrdiameter",    key: "bore_mm" },
-      { kind: "spec", label: "Borrdiameter",    key: "bore_diameter_mm" },
-      { kind: "spec", label: "Max slag",        key: "stroke_max" },
-      { kind: "spec", label: "Slag",            key: "stroke_mm" },
-      { kind: "flat", label: "Längd",           get: (p) => mm(p.length_mm) },
-      { kind: "flat", label: "Bredd",           get: (p) => mm(p.width_mm) },
-      { kind: "flat", label: "Höjd",            get: (p) => mm(p.height_mm) },
+      { kind: "spec", label: "Borrdiameter",     key: "bore_mm" },
+      { kind: "spec", label: "Borrdiameter",     key: "bore_diameter_mm" },
+      { kind: "spec", label: "Borrdiameter",     key: "bore_diameter" },
+      { kind: "spec", label: "Innerdiameter",    key: "inner_diameter_mm" },
+      { kind: "spec", label: "Ytterdiameter",    key: "outer_diameter_mm" },
+      { kind: "spec", label: "Rördiameter",      key: "tube_od_mm" },
+      { kind: "spec", label: "Max slag",         key: "stroke_max" },
+      { kind: "spec", label: "Max slag",         key: "max_stroke" },
+      { kind: "spec", label: "Slagområde",       key: "stroke_range" },
+      { kind: "flat", label: "Längd",            get: (p) => mm(p.length_mm) },
+      { kind: "flat", label: "Bredd",            get: (p) => mm(p.width_mm) },
+      { kind: "flat", label: "Höjd",             get: (p) => mm(p.height_mm) },
+      { kind: "spec", label: "Längd (m)",        key: "length_m" },
+      { kind: "spec", label: "Längdreduktion",   key: "body_length_reduction_pct" },
+      { kind: "spec", label: "Käftbredd",        key: "jaw_width_mm" },
+      { kind: "spec", label: "Käftslag/sida",    key: "jaw_stroke_per_side" },
+      { kind: "spec", label: "Käftöppningsvinkel", key: "jaw_opening_angle" },
+      { kind: "spec", label: "Rotationsvinkel",  key: "rotation_angle" },
+      { kind: "spec", label: "Repeterbarhet",    key: "repeatability_mm" },
     ],
   },
   {
-    label: "Prestanda",
+    label: "Prestanda & krafter",
+    icon: "⚡",
     rows: [
-      { kind: "spec", label: "Max arbetstryck",   key: "max_pressure" },
-      { kind: "spec", label: "Min arbetstryck",   key: "min_pressure" },
+      { kind: "spec", label: "Max arbetstryck",  key: "max_pressure" },
+      { kind: "spec", label: "Max arbetstryck",  key: "max_pressure_bar" },
+      { kind: "spec", label: "Drifttryck",       key: "operating_pressure" },
+      { kind: "spec", label: "Matartryck",       key: "supply_pressure" },
       { kind: "spec", label: "Kolvkraft vid 6 bar", key: "piston_force_6bar_N" },
-      { kind: "spec", label: "Kolvkraft (fram)",  key: "force_advance_N" },
-      { kind: "spec", label: "Kolvkraft (åter)",  key: "force_return_N" },
-      { kind: "spec", label: "Max hastighet",     key: "max_speed_mm_s" },
-      { kind: "spec", label: "Rörelseenergi",     key: "kinetic_energy_J" },
+      { kind: "spec", label: "Greppkraft",       key: "gripping_force_N" },
+      { kind: "spec", label: "Klämkraft",        key: "clamping_force" },
+      { kind: "spec", label: "Tryckkraft",       key: "thrust_force" },
+      { kind: "spec", label: "Vridmoment",       key: "torque" },
+      { kind: "spec", label: "Max hastighet",    key: "max_speed" },
+      { kind: "spec", label: "Flöde",            key: "flow_rate_l_min" },
+      { kind: "spec", label: "Vakuumnivå",       key: "vacuum_level" },
+      { kind: "spec", label: "Antal käftar",     key: "number_of_jaws" },
+    ],
+  },
+  {
+    label: "Ventil & pneumatik",
+    icon: "🔧",
+    rows: [
+      { kind: "spec", label: "Ventilfunktion",   key: "function" },
+      { kind: "spec", label: "Ventilstandard",   key: "valve_standard" },
+      { kind: "spec", label: "Antal stationer",  key: "stations" },
+      { kind: "spec", label: "Ventilskivor",     key: "valve_slices" },
+      { kind: "spec", label: "Portdimension",    key: "port_size" },
+      { kind: "spec", label: "Anslutning",       key: "connection" },
+      { kind: "spec", label: "Gänga",            key: "thread" },
+      { kind: "spec", label: "Flödesriktning",   key: "flow_direction" },
+      { kind: "spec", label: "Filterklass",      key: "filter_grade" },
+      { kind: "spec", label: "Tätad borrning",   key: "sealed_bore" },
+      { kind: "spec", label: "Magnetspänning",   key: "solenoid_voltage" },
+      { kind: "spec", label: "Aktivering",       key: "actuation" },
+      { kind: "spec", label: "Drivsätt",         key: "drive" },
+      { kind: "spec", label: "Glidsätt",         key: "slide_type" },
     ],
   },
   {
     label: "Miljö & tätning",
+    icon: "🛡️",
     rows: [
-      { kind: "flat", label: "IP-klass",          get: (p) => p.ip_rating ?? "—" },
-      { kind: "spec", label: "IP-klass",          key: "ip_rating" },
-      { kind: "spec", label: "Temperaturområde",  key: "temp_range" },
-      { kind: "spec", label: "Explosionsskydd",   key: "atex" },
-      { kind: "spec", label: "ATEX-kategori",     key: "atex_category" },
-      { kind: "spec", label: "Tätningmaterial",   key: "seal_material" },
-      { kind: "spec", label: "Buffertmaterial",   key: "buffer_material" },
+      { kind: "flat", label: "IP-klass",         get: (p) => p.ip_rating ?? "—" },
+      { kind: "spec", label: "IP-klass",         key: "ip_rating" },
+      { kind: "spec", label: "Skyddsklassning",  key: "protection_class" },
+      { kind: "spec", label: "Temperaturområde", key: "temp_range" },
+      { kind: "spec", label: "Temperaturområde", key: "temperature_range" },
+      { kind: "spec", label: "Medium",           key: "medium" },
+      { kind: "spec", label: "Renrumsanpassad",  key: "clean_room_compatible" },
     ],
   },
   {
     label: "Konstruktion & material",
+    icon: "🔩",
     rows: [
-      { kind: "spec", label: "Standard",          key: "standard" },
-      { kind: "spec", label: "Medium",            key: "medium" },
-      { kind: "spec", label: "Driftssätt",        key: "mode_of_operation" },
-      { kind: "spec", label: "Styrning",          key: "cushioning_types" },
-      { kind: "spec", label: "Dämpning",          key: "cushioning" },
-      { kind: "spec", label: "Monteringsläge",    key: "mounting" },
-      { kind: "spec", label: "Kolvstångsgänga",   key: "piston_rod_thread" },
-      { kind: "spec", label: "Kolvstångsmaterial", key: "piston_rod_material" },
-      { kind: "spec", label: "Cylindermaterial",  key: "barrel_material" },
-      { kind: "spec", label: "Material",          key: "material" },
-      { kind: "spec", label: "Korrosionsskydd",   key: "corrosion_resistance" },
-      { kind: "spec", label: "Guidetyper",        key: "guide_types" },
+      { kind: "spec", label: "Standard",         key: "standard" },
+      { kind: "spec", label: "Material",         key: "material" },
+      { kind: "spec", label: "Guidetyp",         key: "guide_type" },
+      { kind: "spec", label: "Guidetyper",       key: "guide_types" },
+      { kind: "spec", label: "Styrning/dämpning", key: "cushioning_types" },
+      { kind: "spec", label: "Positionsutgång",  key: "position_output" },
+      { kind: "spec", label: "Anmärkning",       key: "note" },
     ],
   },
   {
     label: "El & kommunikation",
+    icon: "📡",
     rows: [
-      { kind: "flat", label: "Spänning",          get: (p) => p.voltage ?? "—" },
-      { kind: "flat", label: "Fieldbus",          get: (p) => p.fieldbus ?? "—" },
-      { kind: "spec", label: "Spänning",          key: "voltage" },
-      { kind: "spec", label: "Skyddsklassning",   key: "protection_class" },
-      { kind: "spec", label: "Positionsdetekt.",  key: "position_detection" },
-      { kind: "spec", label: "Sensorslots",       key: "sensor_slots" },
+      { kind: "flat", label: "Spänning",         get: (p) => p.voltage ?? "—" },
+      { kind: "flat", label: "Fieldbus",         get: (p) => p.fieldbus ?? "—" },
+      { kind: "spec", label: "Spänning",         key: "voltage" },
+      { kind: "spec", label: "Fieldbus",         key: "fieldbus" },
     ],
   },
 ];
@@ -342,6 +386,9 @@ function ComparePage() {
         </div>
       )}
 
+      {/* Key differences summary */}
+      {compared.length >= 2 && <KeyDiffSummary compared={compared} />}
+
       {/* Comparison table */}
       {compared.length > 0 && (
         <div className="rounded-xl border border-border overflow-x-auto">
@@ -407,7 +454,7 @@ function ComparePage() {
             const rows = buildRows(group, compared).filter((r) => !diffOnly || r.isDifferent);
             if (!rows.length) return null;
             return (
-              <GroupSection key={group.label} label={group.label} rows={rows} cols={cols} diffOnly={diffOnly} />
+              <GroupSection key={group.label} label={group.label} icon={group.icon} rows={rows} cols={cols} diffOnly={diffOnly} />
             );
           })}
 
@@ -415,7 +462,7 @@ function ComparePage() {
           {(() => {
             const extras = extraRows(compared, GROUPED_SPEC_KEYS).filter((r) => !diffOnly || r.isDifferent);
             if (!extras.length) return null;
-            return <GroupSection label="Övriga specifikationer" rows={extras} cols={cols} diffOnly={diffOnly} />;
+            return <GroupSection label="Övriga specifikationer" icon="📋" rows={extras} cols={cols} diffOnly={diffOnly} />;
           })()}
 
           {/* CTA row */}
@@ -452,15 +499,59 @@ function ComparePage() {
   );
 }
 
+// ─── Key differences summary ──────────────────────────────────────────────────
+
+function KeyDiffSummary({ compared }: { compared: ProductRow[] }) {
+  const diffs: Array<{ label: string; cells: string[] }> = [];
+
+  for (const group of SPEC_GROUPS) {
+    for (const row of buildRows(group, compared)) {
+      if (row.isDifferent) diffs.push(row);
+      if (diffs.length >= 6) break;
+    }
+    if (diffs.length >= 6) break;
+  }
+
+  if (!diffs.length) return null;
+
+  return (
+    <div className="mb-4 rounded-xl border border-info/30 bg-info/5 p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-sm font-semibold text-foreground">Viktiga skillnader</span>
+        <span className="text-[10px] bg-info/15 text-info px-2 py-0.5 rounded-full font-medium">
+          {compared.map((p) => p.brand.name).join(" vs ")}
+        </span>
+      </div>
+      <div className="grid gap-2">
+        {diffs.map((d, i) => (
+          <div key={i} className="flex items-start gap-3 text-xs">
+            <span className="shrink-0 w-32 text-muted-foreground capitalize">{d.label}</span>
+            <div className="flex flex-wrap gap-2">
+              {d.cells.map((cell, ci) => (
+                <span key={ci} className="flex items-center gap-1">
+                  <span className="font-semibold text-foreground truncate max-w-[12rem]">{cell}</span>
+                  {ci < compared.length - 1 && <span className="text-muted-foreground/40">·</span>}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Group section ────────────────────────────────────────────────────────────
 
 function GroupSection({
   label,
+  icon,
   rows,
   cols,
   diffOnly,
 }: {
   label: string;
+  icon: string;
   rows: Array<{ label: string; cells: string[]; isDifferent: boolean }>;
   cols: number;
   diffOnly: boolean;
@@ -472,7 +563,8 @@ function GroupSection({
         className="grid border-t border-border bg-surface-alt/60"
         style={{ gridTemplateColumns: `14rem repeat(${cols}, 1fr)` }}
       >
-        <div className="px-4 py-2 col-span-full">
+        <div className="px-4 py-2 col-span-full flex items-center gap-2">
+          <span>{icon}</span>
           <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-muted-foreground">{label}</span>
         </div>
       </div>
