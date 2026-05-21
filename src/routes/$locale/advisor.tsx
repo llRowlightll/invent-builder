@@ -73,7 +73,7 @@ function AdvisorPage() {
             <optgroup key={cat} label={cat.toUpperCase()}>
               {list.map((u) => (
                 <option key={u.use_case_slug} value={`${u.category_slug}::${u.use_case_slug}`}>
-                  {isSv ? u.title_sv : u.title_en}
+                  {u.title_en}
                 </option>
               ))}
             </optgroup>
@@ -83,11 +83,11 @@ function AdvisorPage() {
 
       {current && (
         <div className="mt-8">
-          <p className="text-sm text-muted-foreground">{isSv ? current.description_sv : current.description_en}</p>
+          <p className="text-sm text-muted-foreground">{current.description_en ?? current.description_sv}</p>
 
           {recommended.length === 0 ? (
             <div className="mt-6 rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              {t("advisorPage.noProducts")} {isSv ? current.title_sv : current.title_en}.
+              {t("advisorPage.noProducts")} {current.title_en}.
             </div>
           ) : (
             <div className="mt-6 grid md:grid-cols-2 gap-4">
