@@ -347,9 +347,9 @@ function ComparePage() {
         <div className="rounded-xl border border-border overflow-x-auto">
           <div style={{ minWidth: `calc(14rem + ${cols} * 11rem)` }}>
 
-          {/* Sticky product header */}
+          {/* Product header */}
           <div
-            className="grid border-b border-border bg-card sticky top-16 z-10 shadow-sm"
+            className="grid border-b border-border bg-card"
             style={{ gridTemplateColumns: `14rem repeat(${cols}, 1fr)` }}
           >
             {/* Corner cell */}
