@@ -176,7 +176,7 @@ function Landing() {
             {STAT_KEYS.map((s, i) => (
               <div key={i} className="border border-primary-foreground/15 rounded-md px-4 py-3 bg-primary-foreground/5 backdrop-blur-sm">
                 <div className="text-2xl font-semibold" style={{ color: "var(--gold)" }}>
-                  {s.key === "products" ? `${totalProducts}+` : s.key === "brands" ? `${totalBrands}` : s.value}
+                  {s.key === "products" ? `${totalProducts}+` : s.key === "brands" ? `${totalBrands}` : s.key === "categories" ? `${cats.length || 13}` : s.value}
                 </div>
                 <div className="text-[11px] uppercase tracking-wider text-primary-foreground/50 mt-0.5">{t(s.labelKey)}</div>
               </div>
