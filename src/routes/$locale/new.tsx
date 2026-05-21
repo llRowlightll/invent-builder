@@ -15,7 +15,7 @@ export const Route = createFileRoute("/$locale/new")({
   component: NewPage,
 });
 
-// ─── Curated brand news (updated manually each quarter) ──────────────────────
+// ─── Curated brand news ───────────────────────────────────────────────────────
 
 interface NewsItem {
   id: string;
@@ -62,7 +62,7 @@ const NEWS: NewsItem[] = [
     brandColor: "#E60012",
     date: "2025-02",
     category: "Produktnyhet",
-    title: "ZP3-TB vakuumpadserien för elektriska driv­system",
+    title: "ZP3-TB vakuumpadserien för elektriska drivsystem",
     summary: "SMC:s ZP3-TB-serie är designad för modern elektrisk automation. Reducerar tryckluftskonsumtionen med upp till 80 % jämfört med traditionella pneumatiska system. Finns med M8-anslutning och integrerad sensor.",
     url: "https://www.smc.eu/en-eu/products/vacuum-pads~ZP3-TB",
     tags: ["vakuum", "elektrisk automation", "energibesparing"],
@@ -88,7 +88,7 @@ const NEWS: NewsItem[] = [
     category: "Produktnyhet",
     title: "Parker P1D Series — smart-cylinder med inbyggd positionsgivare",
     summary: "Parker utökar P1D ISO 15552-serien med smart sensor-alternativ. Magnetbaserad positionsgivare med CANopen-interface möjliggör exakt positionsstyrning utan extern givare. Slag 25–2000 mm, borr 32–125 mm.",
-    url: "https://www.parker.com/portal/site/PARKER/menuitem.612f3a79d9d88d4b782af5b010041a0/?vgnextoid=",
+    url: "https://www.parker.com/",
     tags: ["cylinder", "smart sensor", "CANopen", "ISO 15552"],
   },
   {
@@ -134,71 +134,66 @@ const NEWS: NewsItem[] = [
     brandColor: "#C8102E",
     date: "2025-01",
     category: "Produktnyhet",
-    title: "Multifix ventilöar med Ethernet-anslutning",
+    title: "Multifix ventilärer med Ethernet-anslutning",
     summary: "Metal Works Multifix-ventilö uppdateras med EtherNet/IP och Modbus TCP. Upp till 24 ventilstationer per enhet, integrerat trycktransducerkort och diagnostikfunktioner via webgränssnitt.",
     url: "https://www.metalwork.it/",
     tags: ["ventilö", "EtherNet/IP", "Modbus TCP"],
   },
 ];
 
-// ─── Brand YouTube channels ───────────────────────────────────────────────────
+// ─── Curated brand videos (embeddable) ───────────────────────────────────────
 
-interface ChannelItem {
+interface VideoItem {
   id: string;
   brand: string;
   brandSlug: string;
   brandColor: string;
-  channelUrl: string;
+  videoId: string;           // YouTube video ID
+  channelUrl: string;        // Fallback channel link
   title: string;
   description: string;
-  icon: string;           // emoji representing content theme
-  topics: string[];
 }
 
-const CHANNELS: ChannelItem[] = [
+const VIDEOS: VideoItem[] = [
   {
-    id: "festo-yt",
+    id: "festo-bionic-cobot",
     brand: "Festo",
     brandSlug: "festo",
     brandColor: "#0091DC",
+    videoId: "oSLiC-_7CHE",
     channelUrl: "https://www.youtube.com/@FestoCorporate",
-    title: "Elektrisk automation & pneumatik",
-    description: "Produktdemonstrationer, applikationsguider och ingenjörsutbildning. Täcker elektriska axlar, ventilterminaler och systemlösningar.",
-    icon: "⚡",
-    topics: ["Elektriska axlar", "Pick & Place", "Ventilterminaler"],
+    title: "Festo Bionic Flying Fox",
+    description: "Festos biomimetiska flygande räv — ett inspirerande exempel på hur naturen inspirerar industriell automation och pneumatik.",
   },
   {
-    id: "smc-yt",
-    brand: "SMC",
-    brandSlug: "smc",
-    brandColor: "#E60012",
-    channelUrl: "https://www.youtube.com/@SMCCorporationEurope",
-    title: "Pneumatik, vakuum & IO-Link",
-    description: "Tekniska genomgångar av SMC:s produktsortiment — från kompakta cylindrar och vakuumsystem till IO-Link-integration.",
-    icon: "🔵",
-    topics: ["Vakuumgrippar", "IO-Link", "Kompakta cylindrar"],
-  },
-  {
-    id: "bosch-yt",
+    id: "bosch-ctrlx-video",
     brand: "Bosch Rexroth",
     brandSlug: "bosch-rexroth",
     brandColor: "#E2001A",
+    videoId: "Ax8Mb1wJL7g",
     channelUrl: "https://www.youtube.com/@BoschRexroth",
-    title: "ctrlX AUTOMATION & drivsystem",
-    description: "Djupdykningar i ctrlX-plattformen, skåpsfria drivsystem och smart hydraulik. Perfekt för dig som bygger nästa generations maskiner.",
-    icon: "🤖",
-    topics: ["ctrlX DRIVE", "EtherCAT", "Skåpsfria lösningar"],
+    title: "ctrlX AUTOMATION Platform",
+    description: "Introduktion till ctrlX AUTOMATION — det öppna app-baserade systemet som förenklar maskinautomation med EtherCAT och skåpsfria lösningar.",
   },
   {
-    id: "parker-yt",
+    id: "smc-automation-video",
+    brand: "SMC",
+    brandSlug: "smc",
+    brandColor: "#E60012",
+    videoId: "TyIvHXepGzo",
+    channelUrl: "https://www.youtube.com/@SMCCorporationEurope",
+    title: "SMC Automation Solutions",
+    description: "Teknisk översikt av SMC:s pneumatiska och elektriska komponenter — cylindrar, ventiler, vakuumsystem och IO-Link-lösningar.",
+  },
+  {
+    id: "parker-motion-video",
     brand: "Parker",
     brandSlug: "parker",
     brandColor: "#FFCC00",
+    videoId: "Y7l18VJW6QE",
     channelUrl: "https://www.youtube.com/@ParkerHannifin",
-    title: "Cylindrar, hydraulik & motion control",
-    description: "Applikationsvideor och ingenjörsdemos från Parker Hannifin. ISO-cylindrar, elektrisk rörelsesstyrning och energieffektiva system.",
-    icon: "🔧",
-    topics: ["P1D-cylindrar", "Hydraulik", "Motion Control"],
+    title: "Parker Motion & Control",
+    description: "Parker Hannifins bredaste utbud av rörelsesstyrning — hydraulik, pneumatik och elektriska aktuatorer för industriell automation.",
   },
 ];
 
@@ -208,6 +203,107 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Programvara":  "bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300",
   "Hållbarhet":   "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300",
 };
+
+// ─── Lazy-load YouTube embed ──────────────────────────────────────────────────
+
+function VideoCard({ video }: { video: VideoItem }) {
+  const [playing, setPlaying] = useState(false);
+  const [thumbError, setThumbError] = useState(false);
+
+  const thumbUrl = `https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg`;
+  const embedUrl = `https://www.youtube-nocookie.com/embed/${video.videoId}?autoplay=1&rel=0`;
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col">
+      {/* Video area */}
+      <div className="relative aspect-video bg-muted">
+        {playing ? (
+          <iframe
+            src={embedUrl}
+            title={video.title}
+            className="absolute inset-0 w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        ) : thumbError ? (
+          /* Fallback when thumbnail can't load */
+          <a
+            href={video.channelUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-muted hover:bg-muted/80 transition"
+          >
+            <div className="size-14 rounded-full bg-destructive flex items-center justify-center shadow-lg">
+              <svg viewBox="0 0 24 24" className="w-7 h-7 fill-white ml-1" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            </div>
+            <span className="text-sm text-muted-foreground">Öppna på YouTube →</span>
+          </a>
+        ) : (
+          /* Thumbnail with play button overlay */
+          <button
+            type="button"
+            onClick={() => setPlaying(true)}
+            className="absolute inset-0 w-full h-full group cursor-pointer"
+            aria-label={`Spela upp: ${video.title}`}
+          >
+            <img
+              src={thumbUrl}
+              alt={video.title}
+              className="w-full h-full object-cover"
+              onError={() => setThumbError(true)}
+            />
+            {/* Dark overlay on hover */}
+            <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition" />
+            {/* Play button */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="size-16 rounded-full bg-destructive shadow-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                <svg viewBox="0 0 24 24" className="w-8 h-8 fill-white ml-1" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+              </div>
+            </div>
+          </button>
+        )}
+
+        {/* Brand color stripe */}
+        <div
+          className="absolute bottom-0 left-0 right-0 h-1"
+          style={{ backgroundColor: video.brandColor }}
+        />
+      </div>
+
+      {/* Card info */}
+      <div className="p-4 flex flex-col gap-1.5 flex-1">
+        <div className="flex items-center gap-2">
+          <img
+            src={`/brands/${video.brandSlug}.svg`}
+            alt={video.brand}
+            className="h-4 object-contain"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+          <span className="text-xs font-semibold text-muted-foreground">{video.brand}</span>
+        </div>
+        <h3 className="font-semibold text-sm leading-snug">{video.title}</h3>
+        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 flex-1">{video.description}</p>
+        <a
+          href={video.channelUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1 text-[11px] text-destructive hover:underline font-medium flex items-center gap-1"
+        >
+          <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current" xmlns="http://www.w3.org/2000/svg">
+            <path d="M21.8 8s-.2-1.4-.8-2c-.8-.8-1.6-.8-2-.9C16.8 5 12 5 12 5s-4.8 0-7 .1c-.4 0-1.2.1-2 .9-.6.6-.8 2-.8 2S2 9.6 2 11.2v1.5c0 1.6.2 3.2.2 3.2s.2 1.4.8 2c.8.8 1.8.8 2.2.8C6.8 19 12 19 12 19s4.8 0 7-.1c.4 0 1.2-.1 2-.9.6-.6.8-2 .8-2s.2-1.6.2-3.2v-1.5C22 9.6 21.8 8 21.8 8zM10 15V9l5.5 3-5.5 3z"/>
+          </svg>
+          Se hela YouTube-kanalen →
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ─── Page component ───────────────────────────────────────────────────────────
 
 function NewPage() {
   const { locale } = Route.useParams();
@@ -270,13 +366,8 @@ function NewPage() {
             rel="noopener noreferrer"
             className="group rounded-xl border border-border bg-card hover:border-info transition flex flex-col overflow-hidden"
           >
-            {/* Brand bar */}
-            <div
-              className="h-1.5"
-              style={{ backgroundColor: item.brandColor }}
-            />
+            <div className="h-1.5" style={{ backgroundColor: item.brandColor }} />
             <div className="p-5 flex flex-col flex-1">
-              {/* Meta row */}
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <img
@@ -292,24 +383,20 @@ function NewPage() {
                 </span>
               </div>
 
-              {/* Category badge */}
               <div className="mb-2">
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLORS[item.category] ?? ""}`}>
                   {item.category}
                 </span>
               </div>
 
-              {/* Title */}
               <h2 className="font-semibold text-sm leading-snug group-hover:text-info transition mb-2">
                 {item.title}
               </h2>
 
-              {/* Summary */}
               <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3 flex-1">
                 {item.summary}
               </p>
 
-              {/* Tags */}
               <div className="mt-3 flex flex-wrap gap-1">
                 {item.tags.slice(0, 3).map((tag) => (
                   <span
@@ -321,7 +408,6 @@ function NewPage() {
                 ))}
               </div>
 
-              {/* Link CTA */}
               <div className="mt-3 pt-3 border-t border-border">
                 <span className="text-[11px] text-info font-medium group-hover:underline">
                   Läs mer hos {item.brand} →
@@ -332,78 +418,24 @@ function NewPage() {
         ))}
       </div>
 
-      {/* ── YouTube channels section ── */}
+      {/* ── YouTube videos section ── */}
       {!brandFilter && (
         <div className="mb-14">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="size-8 rounded-full bg-destructive/10 flex items-center justify-center text-destructive font-bold text-sm leading-none">
-              ▶
+          <div className="flex items-center gap-3 mb-6">
+            <div className="size-9 rounded-full bg-destructive flex items-center justify-center shadow">
+              <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white ml-0.5" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
             </div>
             <div>
               <h2 className="font-semibold">Inspiration & Utbildning</h2>
-              <p className="text-xs text-muted-foreground">Officiella YouTube-kanaler — produktdemos, applikationsguider och teknikgenomgångar</p>
+              <p className="text-xs text-muted-foreground">Klicka för att spela upp — videor från leverantörernas officiella YouTube-kanaler</p>
             </div>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-4">
-            {CHANNELS.map((ch) => (
-              <a
-                key={ch.id}
-                href={ch.channelUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group rounded-xl border border-border bg-card hover:border-info transition overflow-hidden flex flex-col"
-              >
-                {/* Colored header band */}
-                <div
-                  className="flex items-center gap-4 px-5 py-4"
-                  style={{ background: `${ch.brandColor}18` }}
-                >
-                  <div
-                    className="size-12 rounded-xl flex items-center justify-center text-2xl shrink-0 shadow-sm"
-                    style={{ background: `${ch.brandColor}22`, border: `1.5px solid ${ch.brandColor}44` }}
-                  >
-                    {ch.icon}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <img
-                        src={`/brands/${ch.brandSlug}.svg`}
-                        alt={ch.brand}
-                        className="h-4 object-contain"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                      />
-                      <span className="text-xs font-semibold text-muted-foreground">{ch.brand}</span>
-                    </div>
-                    <div className="font-semibold text-sm leading-snug mt-0.5 group-hover:text-info transition">
-                      {ch.title}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Body */}
-                <div className="px-5 pb-4 pt-3 flex flex-col flex-1">
-                  <p className="text-xs text-muted-foreground leading-relaxed flex-1">{ch.description}</p>
-
-                  {/* Topics */}
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {ch.topics.map((topic) => (
-                      <span
-                        key={topic}
-                        className="text-[10px] px-2 py-0.5 rounded-full border border-border text-muted-foreground"
-                      >
-                        {topic}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* CTA */}
-                  <div className="mt-4 flex items-center gap-2 text-[11px] font-medium text-destructive group-hover:gap-3 transition-all">
-                    <span className="size-5 rounded-full bg-destructive/10 flex items-center justify-center text-[10px]">▶</span>
-                    Öppna YouTube-kanalen →
-                  </div>
-                </div>
-              </a>
+          <div className="grid sm:grid-cols-2 gap-5">
+            {VIDEOS.map((v) => (
+              <VideoCard key={v.id} video={v} />
             ))}
           </div>
         </div>
