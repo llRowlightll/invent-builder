@@ -6,6 +6,7 @@ import { loadCatalog } from "@/lib/catalog";
 import { aiSearchProducts, aiExplain, aiAskKnowledge, type AiSearchResult } from "@/lib/ai.functions";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
+import { addToShoppingList } from "@/lib/cart";
 
 export const Route = createFileRoute("/$locale/chat")({
   head: ({ params }) => {
@@ -370,22 +371,29 @@ function ProductCard({
   onCompare: () => void;
 }) {
   const tCard = makeT(locale as Locale);
+  const [added, setAdded] = useState(false);
   const lt = p.lead_time_days;
   const fast = lt != null && lt <= 7;
+
+  function handleAddToCart() {
+    addToShoppingList({ id: p.id, sku: p.sku, name: p.name });
+    setAdded(true);
+    setTimeout(() => setAdded(false), 1800);
+  }
+
   return (
     <div
       className={`rounded-lg border bg-background flex flex-col transition overflow-hidden ${
         inCompare ? "border-info shadow-sm" : "border-border hover:border-info"
       }`}
     >
-      <div className="relative h-28 overflow-hidden bg-surface-alt">
+      <div className="h-28 bg-[#f8f9fb] flex items-center justify-center overflow-hidden">
         <img
           src={getProductImage(p, true)}
           alt={p.category.name}
-          className="w-full h-full object-cover"
+          className="w-full h-full object-contain"
           loading="lazy"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent" />
       </div>
       <div className="p-3 flex flex-col flex-1">
       <div className="flex justify-between items-start gap-1">
@@ -431,13 +439,22 @@ function ProductCard({
         >
           {fast ? tCard("productsPage.inStock") : lt != null ? `${lt}d` : "—"}
         </span>
-        <Link
-          to="/$locale/product/$sku"
-          params={{ locale, sku: p.sku } as never}
-          className="text-xs text-info hover:underline"
-        >
-          {tCard("chatPage.datasheet")}
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            className={`text-[11px] font-medium transition ${added ? "text-[oklch(0.45_0.15_155)]" : "text-muted-foreground hover:text-info"}`}
+          >
+            {added ? "✓" : "+"}
+          </button>
+          <Link
+            to="/$locale/product/$sku"
+            params={{ locale, sku: p.sku } as never}
+            className="text-xs text-info hover:underline"
+          >
+            {tCard("chatPage.datasheet")}
+          </Link>
+        </div>
       </div>
       </div>
     </div>
