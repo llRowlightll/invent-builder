@@ -860,7 +860,7 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
               disabled={!rfqName.trim() || !rfqEmail.trim() || rfqLoading}
               className="w-full sm:w-auto px-6 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition"
             >
-              {rfqLoading ? "Skickar…" : t("machineBuilder.sendButton")}
+              {rfqLoading ? t("shoppingList.sending") : t("machineBuilder.sendButton")}
             </button>
           </div>
         )}
