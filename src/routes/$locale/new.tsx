@@ -190,10 +190,20 @@ const VIDEOS: VideoItem[] = [
     brand: "Parker",
     brandSlug: "parker",
     brandColor: "#FFCC00",
-    videoId: "Y7l18VJW6QE",
+    videoId: "rbPMKgHF8dM",
     channelUrl: "https://www.youtube.com/@ParkerHannifin",
     title: "Parker Motion & Control",
     description: "Parker Hannifins bredaste utbud av rörelsesstyrning — hydraulik, pneumatik och elektriska aktuatorer för industriell automation.",
+  },
+  {
+    id: "metalwork-video",
+    brand: "Metal Work",
+    brandSlug: "metal-work",
+    brandColor: "#E30613",
+    videoId: "PzCRMB6U_Rg",
+    channelUrl: "https://www.youtube.com/@MetalWorkPneumatic",
+    title: "Metal Work Pneumatic",
+    description: "Metal Works kompletta utbud av pneumatiska ventiler, cylindrar och ventilterminaler för modern industriell automation.",
   },
 ];
 
