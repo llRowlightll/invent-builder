@@ -299,7 +299,9 @@
     "estimatedDelivery": "Entrega estimada",
     "availability": "Disponibilidad",
     "inStock12": "1–2 días hábiles",
-    "fast35": "3–5 días hábiles"
+    "fast35": "3–5 días hábiles",
+    "addToCart": "Añadir al carrito",
+    "addedToCart": "✓ Añadido al carrito"
   },
   "rfqPage": {
     "title": "Solicitud de oferta",

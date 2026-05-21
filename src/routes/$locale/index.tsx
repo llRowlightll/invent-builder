@@ -205,14 +205,13 @@ function Landing() {
                 params={{ locale, sku: p.sku }}
                 className="group rounded-lg border border-border bg-card hover:border-info hover:shadow-sm transition flex flex-col overflow-hidden"
               >
-                <div className="relative h-40 overflow-hidden bg-surface-alt">
+                <div className="h-40 overflow-hidden bg-[#f8f9fb] flex items-center justify-center">
                   <img
                     src={getProductImage(p)}
                     alt={p.category.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-contain"
                     loading="lazy"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-card/70 to-transparent" />
                 </div>
                 <div className="p-4 flex flex-col flex-1">
                   <div className="text-[10px] uppercase tracking-wider text-info font-medium">{p.brand.name}</div>

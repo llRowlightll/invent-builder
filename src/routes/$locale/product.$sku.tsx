@@ -5,6 +5,7 @@ import { loadCatalog } from "@/lib/catalog";
 import { supabase } from "@/integrations/supabase/client";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
+import { addToShoppingList } from "@/lib/cart";
 
 const SITE = "https://tanstack-start-app.llrowlightll.workers.dev";
 
@@ -44,6 +45,7 @@ function ProductDetail() {
   const [related, setRelated] = useState<ProductRow[]>([]);
   const [alternatives, setAlternatives] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [addedToCart, setAddedToCart] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -124,11 +126,26 @@ function ProductDetail() {
           {product.ip_rating && <Row k="IP" v={product.ip_rating} />}
           {product.fieldbus && <Row k={t("productPage.fieldbus")} v={product.fieldbus} />}
           {product.voltage && <Row k={t("productPage.voltage")} v={product.voltage} />}
+          <button
+            type="button"
+            onClick={() => {
+              addToShoppingList({ id: product.id, sku: product.sku, name: product.name });
+              setAddedToCart(true);
+              setTimeout(() => setAddedToCart(false), 2000);
+            }}
+            className={`block w-full text-center mt-2 px-3 py-2 rounded-md text-sm font-semibold transition ${
+              addedToCart
+                ? "bg-[oklch(0.55_0.15_155)]/15 text-[oklch(0.45_0.15_155)]"
+                : "bg-info text-primary-foreground hover:opacity-90"
+            }`}
+          >
+            {addedToCart ? t("productPage.addedToCart") : t("productPage.addToCart")}
+          </button>
           <Link
             to="/$locale/compare"
             params={{ locale }}
             search={{ skus: product.sku }}
-            className="block text-center mt-2 px-3 py-2 rounded-md bg-info text-primary-foreground text-sm hover:opacity-90"
+            className="block text-center mt-2 px-3 py-2 rounded-md border border-border text-muted-foreground text-sm hover:border-info hover:text-info transition"
           >
             {t("common.compare")}
           </Link>

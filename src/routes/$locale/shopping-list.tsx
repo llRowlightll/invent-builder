@@ -5,6 +5,13 @@ import { useAuth } from "@/lib/auth-context";
 import { loadCatalog } from "@/lib/catalog";
 import { supabase } from "@/integrations/supabase/client";
 import type { ProductRow } from "@/lib/types";
+import {
+  SHOPPING_LIST_KEY,
+  SHOPPING_LIST_COUNT_KEY,
+  type CartItem as ListItem,
+  getCartItems,
+  saveCartItems,
+} from "@/lib/cart";
 
 export const Route = createFileRoute("/$locale/shopping-list")({
   head: ({ params }) => ({
@@ -12,31 +19,6 @@ export const Route = createFileRoute("/$locale/shopping-list")({
   }),
   component: ShoppingListPage,
 });
-
-interface ListItem {
-  product_id: string;
-  sku: string;
-  name: string;
-  qty: number;
-}
-
-// Shared key — same device, any page can read/write it
-export const SHOPPING_LIST_KEY = "mv_shopping_list";
-export const SHOPPING_LIST_COUNT_KEY = "mv_shopping_list_count";
-
-export function addToShoppingList(product: { id: string; sku: string; name: string }) {
-  try {
-    const raw = localStorage.getItem(SHOPPING_LIST_KEY);
-    const items: ListItem[] = raw ? JSON.parse(raw) : [];
-    const existing = items.find((i) => i.product_id === product.id);
-    const updated = existing
-      ? items.map((i) => (i.product_id === product.id ? { ...i, qty: i.qty + 1 } : i))
-      : [...items, { product_id: product.id, sku: product.sku, name: product.name, qty: 1 }];
-    localStorage.setItem(SHOPPING_LIST_KEY, JSON.stringify(updated));
-    localStorage.setItem(SHOPPING_LIST_COUNT_KEY, String(updated.reduce((s, i) => s + i.qty, 0)));
-    window.dispatchEvent(new Event("shopping-list-updated"));
-  } catch {}
-}
 
 function ShoppingListPage() {
   const { locale } = Route.useParams();
@@ -68,10 +50,7 @@ function ShoppingListPage() {
   }, []);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(SHOPPING_LIST_KEY);
-      if (saved) setItems(JSON.parse(saved));
-    } catch {}
+    setItems(getCartItems());
   }, []);
 
   // Pre-fill form when user logs in
@@ -84,10 +63,7 @@ function ShoppingListPage() {
 
   // Persist list + broadcast count for nav badge
   useEffect(() => {
-    localStorage.setItem(SHOPPING_LIST_KEY, JSON.stringify(items));
-    const count = items.reduce((s, i) => s + i.qty, 0);
-    localStorage.setItem(SHOPPING_LIST_COUNT_KEY, String(count));
-    window.dispatchEvent(new Event("shopping-list-updated"));
+    saveCartItems(items);
   }, [items]);
 
   // Click outside search dropdown

@@ -299,7 +299,9 @@
     "estimatedDelivery": "Estimerad leverans",
     "availability": "Tillgänglighet",
     "inStock12": "1–2 arbetsdagar",
-    "fast35": "3–5 arbetsdagar"
+    "fast35": "3–5 arbetsdagar",
+    "addToCart": "Lägg i korg",
+    "addedToCart": "✓ Tillagd i korg"
   },
   "rfqPage": {
     "title": "Offertförfrågan",

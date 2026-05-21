@@ -7,7 +7,7 @@ import { loadCatalog } from "@/lib/catalog";
 import { aiSearchProducts, type AiSearchResult } from "@/lib/ai.functions";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
-import { addToShoppingList } from "@/routes/$locale/shopping-list";
+import { addToShoppingList } from "@/lib/cart";
 
 type FilterKey = "brands" | "cats" | "grades";
 

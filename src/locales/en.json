@@ -299,7 +299,9 @@
     "estimatedDelivery": "Estimated delivery",
     "availability": "Availability",
     "inStock12": "1–2 business days",
-    "fast35": "3–5 business days"
+    "fast35": "3–5 business days",
+    "addToCart": "Add to cart",
+    "addedToCart": "✓ Added to cart"
   },
   "rfqPage": {
     "title": "Quote Request",
