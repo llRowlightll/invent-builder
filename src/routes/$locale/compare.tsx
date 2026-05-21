@@ -15,26 +15,161 @@ export const Route = createFileRoute("/$locale/compare")({
   component: ComparePage,
 });
 
+// ─── Spec grouping ──────────────────────────────────────────────────────────
+type SpecGroup = { label: string; rows: SpecRowDef[] };
+type SpecRowDef =
+  | { kind: "flat"; label: string; get: (p: ProductRow) => string }
+  | { kind: "spec"; label: string; key: string };
+
+function mm(v: number | null) { return v != null ? `${v} mm` : "—"; }
+
+const SPEC_GROUPS: SpecGroup[] = [
+  {
+    label: "Logistik",
+    rows: [
+      { kind: "flat", label: "Varumärke",      get: (p) => p.brand.name },
+      { kind: "flat", label: "Kategori",        get: (p) => p.category.name },
+      { kind: "flat", label: "Tillgänglighet",  get: (p) =>
+          p.availability === "stock" ? "På lager" : p.availability === "order" ? "Beställningsvara" : p.availability ?? "—" },
+      { kind: "flat", label: "Ledtid",          get: (p) => p.lead_time_days ? `${p.lead_time_days} dagar` : "—" },
+      { kind: "flat", label: "Vikt",            get: (p) => p.weight_kg != null ? `${p.weight_kg} kg` : "—" },
+    ],
+  },
+  {
+    label: "Dimensioner",
+    rows: [
+      { kind: "spec", label: "Borrdiameter",    key: "bore_mm" },
+      { kind: "spec", label: "Borrdiameter",    key: "bore_diameter_mm" },
+      { kind: "spec", label: "Max slag",        key: "stroke_max" },
+      { kind: "spec", label: "Slag",            key: "stroke_mm" },
+      { kind: "flat", label: "Längd",           get: (p) => mm(p.length_mm) },
+      { kind: "flat", label: "Bredd",           get: (p) => mm(p.width_mm) },
+      { kind: "flat", label: "Höjd",            get: (p) => mm(p.height_mm) },
+    ],
+  },
+  {
+    label: "Prestanda",
+    rows: [
+      { kind: "spec", label: "Max arbetstryck",   key: "max_pressure" },
+      { kind: "spec", label: "Min arbetstryck",   key: "min_pressure" },
+      { kind: "spec", label: "Kolvkraft vid 6 bar", key: "piston_force_6bar_N" },
+      { kind: "spec", label: "Kolvkraft (fram)",  key: "force_advance_N" },
+      { kind: "spec", label: "Kolvkraft (åter)",  key: "force_return_N" },
+      { kind: "spec", label: "Max hastighet",     key: "max_speed_mm_s" },
+      { kind: "spec", label: "Rörelseenergi",     key: "kinetic_energy_J" },
+    ],
+  },
+  {
+    label: "Miljö & tätning",
+    rows: [
+      { kind: "flat", label: "IP-klass",          get: (p) => p.ip_rating ?? "—" },
+      { kind: "spec", label: "IP-klass",          key: "ip_rating" },
+      { kind: "spec", label: "Temperaturområde",  key: "temp_range" },
+      { kind: "spec", label: "Explosionsskydd",   key: "atex" },
+      { kind: "spec", label: "ATEX-kategori",     key: "atex_category" },
+      { kind: "spec", label: "Tätningmaterial",   key: "seal_material" },
+      { kind: "spec", label: "Buffertmaterial",   key: "buffer_material" },
+    ],
+  },
+  {
+    label: "Konstruktion & material",
+    rows: [
+      { kind: "spec", label: "Standard",          key: "standard" },
+      { kind: "spec", label: "Medium",            key: "medium" },
+      { kind: "spec", label: "Driftssätt",        key: "mode_of_operation" },
+      { kind: "spec", label: "Styrning",          key: "cushioning_types" },
+      { kind: "spec", label: "Dämpning",          key: "cushioning" },
+      { kind: "spec", label: "Monteringsläge",    key: "mounting" },
+      { kind: "spec", label: "Kolvstångsgänga",   key: "piston_rod_thread" },
+      { kind: "spec", label: "Kolvstångsmaterial", key: "piston_rod_material" },
+      { kind: "spec", label: "Cylindermaterial",  key: "barrel_material" },
+      { kind: "spec", label: "Material",          key: "material" },
+      { kind: "spec", label: "Korrosionsskydd",   key: "corrosion_resistance" },
+      { kind: "spec", label: "Guidetyper",        key: "guide_types" },
+    ],
+  },
+  {
+    label: "El & kommunikation",
+    rows: [
+      { kind: "flat", label: "Spänning",          get: (p) => p.voltage ?? "—" },
+      { kind: "flat", label: "Fieldbus",          get: (p) => p.fieldbus ?? "—" },
+      { kind: "spec", label: "Spänning",          key: "voltage" },
+      { kind: "spec", label: "Skyddsklassning",   key: "protection_class" },
+      { kind: "spec", label: "Positionsdetekt.",  key: "position_detection" },
+      { kind: "spec", label: "Sensorslots",       key: "sensor_slots" },
+    ],
+  },
+];
+
+// Build a unique list of rows (remove duplicate keys, remove rows where all products return "—")
+function buildRows(group: SpecGroup, compared: ProductRow[]): Array<{ label: string; cells: string[]; isDifferent: boolean }> {
+  const seen = new Set<string>();
+  const result: Array<{ label: string; cells: string[]; isDifferent: boolean }> = [];
+
+  for (const row of group.rows) {
+    const key = row.kind === "flat" ? `flat:${row.label}` : `spec:${row.key}`;
+    if (seen.has(key)) continue;
+
+    const cells = compared.map((p) => {
+      if (row.kind === "flat") return row.get(p);
+      const s = p.specs[row.key];
+      return s ? `${s.value}${s.unit ? " " + s.unit : ""}` : "—";
+    });
+
+    const allDash = cells.every((c) => c === "—");
+    if (allDash) continue; // don't show rows where every product has no data
+
+    seen.add(key);
+    const isDifferent = new Set(cells).size > 1;
+    result.push({ label: row.label, cells, isDifferent });
+  }
+  return result;
+}
+
+// Extra specs not covered by any group
+function extraRows(compared: ProductRow[], groupedKeys: Set<string>): Array<{ label: string; cells: string[]; isDifferent: boolean }> {
+  const allKeys = new Set<string>();
+  compared.forEach((p) => Object.keys(p.specs).forEach((k) => allKeys.add(k)));
+  const result: Array<{ label: string; cells: string[]; isDifferent: boolean }> = [];
+  Array.from(allKeys).sort().forEach((k) => {
+    if (groupedKeys.has(k)) return;
+    const cells = compared.map((p) => {
+      const s = p.specs[k];
+      return s ? `${s.value}${s.unit ? " " + s.unit : ""}` : "—";
+    });
+    if (cells.every((c) => c === "—")) return;
+    const isDifferent = new Set(cells).size > 1;
+    result.push({ label: k.replace(/_/g, " "), cells, isDifferent });
+  });
+  return result;
+}
+
+const GROUPED_SPEC_KEYS = new Set(
+  SPEC_GROUPS.flatMap((g) => g.rows.filter((r) => r.kind === "spec").map((r) => (r as { key: string }).key))
+);
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
 function ComparePage() {
   const { locale } = Route.useParams();
   const { skus } = Route.useSearch();
   const t = makeT(locale as Locale);
   const navigate = useNavigate();
+
   const [items, setItems] = useState<ProductRow[] | null>(null);
   const [pickerSearch, setPickerSearch] = useState("");
   const [selected, setSelected] = useState<string[]>(() =>
     skus ? skus.split(",").filter(Boolean) : []
   );
+  const [diffOnly, setDiffOnly] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [addedSku, setAddedSku] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadCatalog().then(setItems);
-  }, []);
+  useEffect(() => { loadCatalog().then(setItems); }, []);
 
-  // Sync URL when selection changes
   useEffect(() => {
     navigate({
-      to: "/$locale/compare",
-      params: { locale },
+      to: "/$locale/compare", params: { locale },
       search: selected.length ? { skus: selected.join(",") } : {},
       replace: true,
     } as never);
@@ -45,28 +180,19 @@ function ComparePage() {
     return selected.map((s) => items.find((p) => p.sku === s)).filter(Boolean) as ProductRow[];
   }, [items, selected]);
 
-  // Locked category = category of the first selected product
   const lockedCategory = compared[0]?.category ?? null;
 
-  const allKeys = useMemo(() => {
-    const k = new Set<string>();
-    compared.forEach((p) => Object.keys(p.specs).forEach((x) => k.add(x)));
-    return Array.from(k).sort();
-  }, [compared]);
-
-  // Picker: only same category as first selected (if any), sorted by brand
   const pickerItems = useMemo(() => {
     if (!items) return [];
     const q = pickerSearch.toLowerCase();
     return items
       .filter((p) => {
-        // Lock to same category once one product is selected
         if (lockedCategory && p.category.slug !== lockedCategory.slug) return false;
         if (q && !`${p.sku} ${p.name} ${p.brand.name}`.toLowerCase().includes(q)) return false;
         return true;
       })
       .sort((a, b) => a.brand.name.localeCompare(b.brand.name))
-      .slice(0, 60);
+      .slice(0, 80);
   }, [items, pickerSearch, lockedCategory]);
 
   function toggle(sku: string) {
@@ -77,286 +203,306 @@ function ComparePage() {
     );
   }
 
-  function clearAll() {
-    setSelected([]);
-    setPickerSearch("");
+  function quickAdd(p: ProductRow) {
+    addToShoppingList({ id: p.id, sku: p.sku, name: p.name });
+    setAddedSku(p.sku);
+    setTimeout(() => setAddedSku(null), 1800);
   }
 
-  function bestIndex(values: (string | undefined)[], higherIsBetter = true): number | null {
-    const nums = values.map((v) => v == null ? null : Number(v));
-    if (nums.every((n) => n === null || Number.isNaN(n!))) return null;
-    let best = -1;
-    let bestVal = higherIsBetter ? -Infinity : Infinity;
-    nums.forEach((n, i) => {
-      if (n == null || Number.isNaN(n)) return;
-      if (higherIsBetter ? n > bestVal : n < bestVal) { bestVal = n; best = i; }
+  // Stats
+  const diffCount = useMemo(() => {
+    if (!compared.length) return 0;
+    let n = 0;
+    SPEC_GROUPS.forEach((g) => {
+      buildRows(g, compared).forEach((r) => { if (r.isDifferent) n++; });
     });
-    return best === -1 ? null : best;
+    extraRows(compared, GROUPED_SPEC_KEYS).forEach((r) => { if (r.isDifferent) n++; });
+    return n;
+  }, [compared]);
+
+  if (!items) {
+    return <div className="container-page py-16 text-sm text-muted-foreground">{t("common.loading")}</div>;
   }
 
-  if (!items) return <div className="container-page py-16 text-sm text-muted-foreground">{t("common.loading")}</div>;
-
-  // Detect mixed-category selections (e.g. arrived via URL with mismatched SKUs)
-  const categorySlugs = new Set(compared.map((p) => p.category.slug));
-  const hasMixedCategories = categorySlugs.size > 1;
-
-  // Auto-clean: keep only products matching the first item's category
-  if (hasMixedCategories && compared.length > 0) {
-    const keepSlug = compared[0].category.slug;
-    const cleaned = selected.filter((sku) => {
-      const p = items.find((x) => x.sku === sku);
-      return p?.category.slug === keepSlug;
-    });
-    if (cleaned.length !== selected.length) {
-      setSelected(cleaned);
-    }
-  }
-
-  const leadIdx = bestIndex(compared.map((p) => p.lead_time_days?.toString()), false);
+  const cols = compared.length;
 
   return (
     <div className="container-page py-8 max-w-6xl">
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
+
+      {/* Page header */}
+      <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{t("nav.compare")}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground mt-0.5">
             {lockedCategory
-              ? <>{t("comparePage.compareWith").replace("{category}", "")}<span className="font-medium text-foreground">{lockedCategory.name}</span></>
-              : t("comparePage.startHint")
-            }
+              ? <><span className="font-medium text-foreground">{lockedCategory.name}</span> — jämför upp till 4 produkter</>
+              : "Välj en kategori och upp till 4 produkter att jämföra"}
           </p>
         </div>
-        <Link to="/$locale/products" params={{ locale }} className="text-sm text-muted-foreground hover:text-info">
-          ← {t("nav.products")}
-        </Link>
+        <div className="flex items-center gap-3">
+          {compared.length >= 2 && (
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <span className="relative inline-flex h-4 w-7 items-center rounded-full transition"
+                style={{ background: diffOnly ? "oklch(0.55 0.18 255)" : "oklch(0.8 0 0)" }}>
+                <span className={`inline-block size-3 rounded-full bg-white shadow transition-transform ${diffOnly ? "translate-x-3.5" : "translate-x-0.5"}`} />
+              </span>
+              <input type="checkbox" className="sr-only" checked={diffOnly} onChange={(e) => setDiffOnly(e.target.checked)} />
+              <span className="text-xs text-muted-foreground">
+                Visa bara skillnader
+                {diffOnly && diffCount > 0 && <span className="ml-1 text-info">({diffCount})</span>}
+              </span>
+            </label>
+          )}
+          <button
+            type="button"
+            onClick={() => setPickerOpen((v) => !v)}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:border-info hover:text-info transition"
+          >
+            {pickerOpen ? "▴" : "▾"} Välj produkter ({selected.length}/4)
+          </button>
+          <Link to="/$locale/products" params={{ locale }} className="text-sm text-muted-foreground hover:text-info">
+            ← Katalog
+          </Link>
+        </div>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Left: Product picker — shows below on mobile */}
-        <div className="lg:col-span-1 order-2 lg:order-1">
-          <div className="rounded-xl border border-border bg-card overflow-hidden lg:sticky lg:top-20">
-            <div className="px-4 py-3 border-b border-border bg-surface-alt/40">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-sm font-medium">{t("comparePage.pickerTitle")} ({selected.length}/4)</h2>
-                {selected.length > 0 && (
-                  <button onClick={clearAll}
-                    className="text-[10px] text-muted-foreground hover:text-destructive transition">
-                    {t("comparePage.clearAll")} ×
-                  </button>
-                )}
-              </div>
-              {/* Category lock indicator */}
-              {lockedCategory ? (
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  <span className="size-1.5 rounded-full bg-info shrink-0" />
-                  <span className="text-[11px] text-info font-medium">{lockedCategory.name}</span>
-                  <span className="text-[10px] text-muted-foreground">{t("comparePage.categoryLocked")}</span>
-                </div>
-              ) : (
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {t("comparePage.categoryHint")}
-                </p>
+      {/* Product picker — collapsible */}
+      {pickerOpen && (
+        <div className="mb-6 rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-surface-alt/40 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-medium">Välj produkter</h2>
+              {lockedCategory && (
+                <span className="text-[10px] bg-info/10 text-info border border-info/20 px-2 py-0.5 rounded-full">
+                  {lockedCategory.name}
+                </span>
               )}
             </div>
-
-            {/* Selected chips */}
-            {selected.length > 0 && (
-              <div className="px-3 py-2 border-b border-border flex flex-wrap gap-1.5">
-                {compared.map((p) => (
-                  <button
-                    key={p.sku}
-                    onClick={() => toggle(p.sku)}
-                    className="flex items-center gap-1 text-[10px] bg-info/10 text-info border border-info/30 px-2 py-0.5 rounded-full hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition"
-                  >
-                    {p.name.slice(0, 20)}{p.name.length > 20 ? "…" : ""} ×
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div className="px-3 py-2 border-b border-border">
-              <input
-                value={pickerSearch}
-                onChange={(e) => setPickerSearch(e.target.value)}
-                placeholder={t("comparePage.searchProductPlaceholder")}
-                className="w-full text-xs px-3 py-1.5 rounded-md border border-border bg-card focus:outline-none focus:ring-1 focus:ring-info"
-              />
-            </div>
-
-            <div className="divide-y divide-border max-h-[55vh] overflow-y-auto">
-              {pickerItems.length === 0 && (
-                <p className="px-4 py-6 text-xs text-muted-foreground text-center">{t("comparePage.noPickerResults")}</p>
+            <div className="flex items-center gap-2">
+              {selected.length > 0 && (
+                <button onClick={() => setSelected([])} className="text-[10px] text-muted-foreground hover:text-destructive">
+                  Rensa ×
+                </button>
               )}
-              {(() => {
-                let lastBrand = "";
-                return pickerItems.map((p) => {
-                  const isOn = selected.includes(p.sku);
-                  const disabled = !isOn && selected.length >= 4;
-                  const showBrandHeader = p.brand.name !== lastBrand;
-                  if (showBrandHeader) lastBrand = p.brand.name;
-                  return (
-                    <div key={p.sku}>
-                      {showBrandHeader && (
-                        <div className="px-4 py-1.5 bg-surface-alt/60 border-b border-border">
-                          <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
-                            {p.brand.name}
-                          </span>
-                        </div>
-                      )}
-                      <button
-                        onClick={() => !disabled && toggle(p.sku)}
-                        disabled={disabled}
-                        className={`w-full text-left flex items-center gap-3 px-4 py-2.5 transition ${
-                          isOn
-                            ? "bg-info/10"
-                            : disabled
-                            ? "opacity-35 cursor-not-allowed"
-                            : "hover:bg-surface-alt"
-                        }`}
-                      >
-                        <img src={getProductImage(p)} alt="" className="size-8 object-contain shrink-0 opacity-80" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium truncate">{p.name}</div>
-                          <div className="text-[10px] font-mono text-muted-foreground">{p.sku}</div>
-                        </div>
-                        <span className={`size-4 rounded border flex items-center justify-center shrink-0 ${
-                          isOn ? "bg-info border-info text-primary-foreground" : "border-border"
-                        }`}>
-                          {isOn && <span className="text-[10px]">✓</span>}
-                        </span>
-                      </button>
-                    </div>
-                  );
-                });
-              })()}
+              <button onClick={() => setPickerOpen(false)} className="text-muted-foreground hover:text-foreground text-sm">×</button>
             </div>
           </div>
+          <div className="px-3 py-2 border-b border-border">
+            <input
+              value={pickerSearch}
+              onChange={(e) => setPickerSearch(e.target.value)}
+              placeholder="Sök SKU, namn, varumärke…"
+              className="w-full text-xs px-3 py-1.5 rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-info"
+              autoFocus
+            />
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-0 max-h-72 overflow-y-auto divide-y divide-border">
+            {pickerItems.map((p) => {
+              const isOn = selected.includes(p.sku);
+              const disabled = !isOn && selected.length >= 4;
+              return (
+                <button
+                  key={p.sku}
+                  onClick={() => !disabled && toggle(p.sku)}
+                  disabled={disabled}
+                  className={`text-left flex items-center gap-3 px-4 py-2.5 border-l border-border transition ${
+                    isOn ? "bg-info/10" : disabled ? "opacity-30 cursor-not-allowed" : "hover:bg-surface-alt"
+                  }`}
+                >
+                  <img src={getProductImage(p)} alt="" className="size-7 object-contain shrink-0 opacity-80" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium truncate">{p.name}</div>
+                    <div className="text-[10px] font-mono text-muted-foreground">{p.sku}</div>
+                  </div>
+                  <span className={`size-4 rounded border flex items-center justify-center shrink-0 ${
+                    isOn ? "bg-info border-info text-white" : "border-border"
+                  }`}>
+                    {isOn && <span className="text-[10px]">✓</span>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
+      )}
 
-        {/* Right: Comparison table — shows first on mobile */}
-        <div className="lg:col-span-2 order-1 lg:order-2">
-          {compared.length === 0 ? (
-            <div className="rounded-xl border border-border bg-card p-12 text-center">
-              <div className="text-4xl mb-3 opacity-20">⟷</div>
-              <p className="text-sm text-muted-foreground">{t("comparePage.selectAtLeastOne")}</p>
+      {/* Empty state */}
+      {compared.length === 0 && (
+        <div className="rounded-xl border border-border bg-card p-16 text-center">
+          <div className="text-5xl mb-4 opacity-15">⟷</div>
+          <p className="text-sm font-medium text-foreground">Välj produkter att jämföra</p>
+          <p className="text-xs text-muted-foreground mt-1">Klicka på "Välj produkter" ovan eller lägg till från produktlistan.</p>
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="mt-4 px-4 py-2 rounded-md bg-info text-primary-foreground text-sm font-medium hover:opacity-90"
+          >
+            + Välj produkter
+          </button>
+        </div>
+      )}
+
+      {/* Comparison table */}
+      {compared.length > 0 && (
+        <div className="rounded-xl border border-border overflow-hidden">
+
+          {/* Sticky product header */}
+          <div
+            className="grid border-b border-border bg-card sticky top-16 z-10 shadow-sm"
+            style={{ gridTemplateColumns: `14rem repeat(${cols}, 1fr)` }}
+          >
+            {/* Corner cell */}
+            <div className="p-4 border-r border-border">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Specifikation</div>
             </div>
-          ) : (
-            <div className="rounded-xl border border-border overflow-hidden overflow-x-auto">
-              {/* Product headers with images */}
-              <div className="grid bg-surface-alt border-b border-border min-w-[480px]" style={{ gridTemplateColumns: `9rem repeat(${compared.length}, 1fr)` }}>
-                <div className="p-3" />
-                {compared.map((p) => (
-                  <div key={p.sku} className="p-3 border-l border-border">
-                    <img src={getProductImage(p)} alt="" className="h-16 object-contain mb-2 mx-auto" />
-                    <Link
-                      to="/$locale/product/$sku"
-                      params={{ locale, sku: p.sku }}
-                      className="text-xs font-semibold hover:text-info block truncate"
-                    >
-                      {p.name}
-                    </Link>
-                    <div className="text-[10px] text-muted-foreground font-mono">{p.sku}</div>
+
+            {/* Product cards */}
+            {compared.map((p) => {
+              const isAdded = addedSku === p.sku;
+              return (
+                <div key={p.sku} className="p-3 border-r border-border last:border-r-0 flex flex-col min-h-0">
+                  <div className="flex justify-end mb-1">
                     <button
+                      type="button"
                       onClick={() => toggle(p.sku)}
-                      className="mt-2 text-[10px] text-muted-foreground/60 hover:text-destructive transition"
+                      className="text-[10px] text-muted-foreground/40 hover:text-destructive transition leading-none"
+                      title="Ta bort"
                     >
-                      {t("comparePage.removeProduct")} ×
+                      ✕
                     </button>
                   </div>
-                ))}
-              </div>
+                  <div className="h-20 bg-[#f8f9fb] rounded-lg flex items-center justify-center mb-2 overflow-hidden">
+                    <img src={getProductImage(p)} alt={p.name} className="h-16 object-contain" />
+                  </div>
+                  <div className="text-[10px] text-info font-medium uppercase tracking-wide">{p.brand.name}</div>
+                  <Link
+                    to="/$locale/product/$sku"
+                    params={{ locale, sku: p.sku }}
+                    className="text-xs font-semibold hover:text-info transition mt-0.5 line-clamp-2 leading-snug"
+                  >
+                    {p.name}
+                  </Link>
+                  <div className="text-[10px] font-mono text-muted-foreground mt-0.5">{p.sku}</div>
+                  <div className="mt-2 flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => quickAdd(p)}
+                      className={`flex-1 text-[10px] py-1 rounded font-medium transition ${
+                        isAdded
+                          ? "bg-[oklch(0.55_0.15_155)]/15 text-[oklch(0.45_0.15_155)]"
+                          : "bg-info text-primary-foreground hover:opacity-90"
+                      }`}
+                    >
+                      {isAdded ? "✓ Tillagd" : "+ Lägg i korg"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
-              {/* Comparison rows */}
-              <table className="w-full text-sm min-w-[480px]">
-                <tbody>
-                  <CompareRow
-                    label={t("comparePage.brand")}
-                    cells={compared.map((p) => p.brand.name)}
-                  />
-                  <CompareRow
-                    label={t("comparePage.category")}
-                    cells={compared.map((p) => p.category.name)}
-                  />
-                  <CompareRow
-                    label={t("comparePage.availability")}
-                    cells={compared.map((p) =>
-                      p.availability === "stock" ? t("comparePage.inStock") : p.availability === "order" ? t("comparePage.onOrder") : p.availability ?? "—"
-                    )}
-                  />
-                  <CompareRow
-                    label={t("comparePage.leadTimeDays")}
-                    cells={compared.map((p) => p.lead_time_days ? `${p.lead_time_days} ${t("comparePage.days")}` : "—")}
-                    bestIdx={leadIdx}
-                    bestLabel={t("comparePage.best")}
-                  />
-                  {allKeys.map((k) => {
-                    const cells = compared.map((p) =>
-                      p.specs[k] ? `${p.specs[k].value}${p.specs[k].unit ? " " + p.specs[k].unit : ""}` : "—"
-                    );
-                    const numVals = compared.map((p) => p.specs[k]?.value);
-                    const best = bestIndex(numVals, true);
-                    return (
-                      <CompareRow
-                        key={k}
-                        label={k.replace(/_/g, " ")}
-                        cells={cells}
-                        bestIdx={best}
-                        bestLabel={t("comparePage.best")}
-                      />
-                    );
-                  })}
+          {/* Grouped spec sections */}
+          {SPEC_GROUPS.map((group) => {
+            const rows = buildRows(group, compared).filter((r) => !diffOnly || r.isDifferent);
+            if (!rows.length) return null;
+            return (
+              <GroupSection key={group.label} label={group.label} rows={rows} cols={cols} diffOnly={diffOnly} />
+            );
+          })}
 
-                  {/* CTA row */}
-                  <tr className="border-t border-border bg-surface-alt/40">
-                    <td className="p-3 text-muted-foreground text-xs">{t("comparePage.rfqLabel")}</td>
-                    {compared.map((p) => (
-                      <td key={p.sku} className="p-3 border-l border-border space-y-1.5">
-                        <button
-                          type="button"
-                          onClick={() => addToShoppingList({ id: p.id, sku: p.sku, name: p.name })}
-                          className="block w-full text-center text-xs px-3 py-1.5 rounded-md bg-info text-primary-foreground hover:opacity-90 transition"
-                        >
-                          {t("comparePage.addToCart")}
-                        </button>
-                        <Link
-                          to="/$locale/product/$sku"
-                          params={{ locale, sku: p.sku }}
-                          className="block text-center text-xs px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:border-info hover:text-info transition"
-                        >
-                          {t("comparePage.viewProduct")}
-                        </Link>
-                      </td>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
+          {/* Extra specs (anything not in a group) */}
+          {(() => {
+            const extras = extraRows(compared, GROUPED_SPEC_KEYS).filter((r) => !diffOnly || r.isDifferent);
+            if (!extras.length) return null;
+            return <GroupSection label="Övriga specifikationer" rows={extras} cols={cols} diffOnly={diffOnly} />;
+          })()}
+
+          {/* CTA row */}
+          <div
+            className="grid border-t-2 border-border bg-surface-alt/40"
+            style={{ gridTemplateColumns: `14rem repeat(${cols}, 1fr)` }}
+          >
+            <div className="p-4 border-r border-border flex items-center">
+              <span className="text-xs text-muted-foreground font-medium">Åtgärd</span>
             </div>
-          )}
+            {compared.map((p) => (
+              <div key={p.sku} className="p-3 border-r border-border last:border-r-0 space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => quickAdd(p)}
+                  className="block w-full text-center text-xs px-3 py-2 rounded-md bg-info text-primary-foreground hover:opacity-90 font-medium transition"
+                >
+                  + Lägg i korg
+                </button>
+                <Link
+                  to="/$locale/product/$sku"
+                  params={{ locale, sku: p.sku }}
+                  className="block text-center text-xs px-3 py-2 rounded-md border border-border text-muted-foreground hover:border-info hover:text-info transition"
+                >
+                  Visa produkt →
+                </Link>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
-function CompareRow({ label, cells, bestIdx, bestLabel }: {
-  label: string; cells: string[]; bestIdx?: number | null; bestLabel?: string;
+// ─── Group section ────────────────────────────────────────────────────────────
+
+function GroupSection({
+  label,
+  rows,
+  cols,
+  diffOnly,
+}: {
+  label: string;
+  rows: Array<{ label: string; cells: string[]; isDifferent: boolean }>;
+  cols: number;
+  diffOnly: boolean;
 }) {
   return (
-    <tr className="border-t border-border odd:bg-surface-alt/30">
-      <td className="p-3 text-muted-foreground text-xs capitalize w-40 shrink-0">{label}</td>
-      {cells.map((c, i) => (
-        <td
-          key={i}
-          className={`p-3 text-sm border-l border-border ${
-            bestIdx === i ? "bg-[oklch(0.94_0.06_155)] text-[oklch(0.32_0.12_155)] font-semibold" : ""
-          }`}
+    <>
+      {/* Section header */}
+      <div
+        className="grid border-t border-border bg-surface-alt/60"
+        style={{ gridTemplateColumns: `14rem repeat(${cols}, 1fr)` }}
+      >
+        <div className="px-4 py-2 border-r border-border col-span-full">
+          <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-muted-foreground">{label}</span>
+        </div>
+      </div>
+
+      {/* Spec rows */}
+      {rows.map((row, i) => (
+        <div
+          key={`${row.label}-${i}`}
+          className={`grid border-t border-border ${row.isDifferent ? "bg-amber-50/60 dark:bg-amber-950/10" : "odd:bg-surface-alt/20"}`}
+          style={{ gridTemplateColumns: `14rem repeat(${cols}, 1fr)` }}
         >
-          {c}
-          {bestIdx === i && (
-            <span className="ml-2 text-[10px] uppercase tracking-wide">{bestLabel ?? "★"}</span>
-          )}
-        </td>
+          {/* Label */}
+          <div className="px-4 py-3 border-r border-border flex items-start gap-1.5">
+            <span className="text-xs text-muted-foreground capitalize leading-snug">{row.label}</span>
+            {row.isDifferent && (
+              <span className="shrink-0 size-1.5 rounded-full bg-amber-400 mt-1" title="Skiljer sig" />
+            )}
+          </div>
+
+          {/* Values */}
+          {row.cells.map((cell, ci) => (
+            <div
+              key={ci}
+              className={`px-4 py-3 border-r border-border last:border-r-0 text-sm ${
+                cell === "—" ? "text-muted-foreground/40" : "text-foreground"
+              }`}
+            >
+              {cell}
+            </div>
+          ))}
+        </div>
       ))}
-    </tr>
+    </>
   );
 }

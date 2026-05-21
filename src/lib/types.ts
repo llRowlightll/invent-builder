@@ -18,6 +18,9 @@ export interface ProductRow {
   fieldbus: string | null;
   voltage: string | null;
   image_url: string | null;
+  length_mm: number | null;
+  width_mm: number | null;
+  height_mm: number | null;
   specs: Record<string, { value: string; unit: string | null }>;
 }
 
