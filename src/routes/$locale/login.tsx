@@ -1,9 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { makeT, type Locale } from "@/lib/i18n";
 
 export const Route = createFileRoute("/$locale/login")({
+  validateSearch: z.object({ redirect: z.string().optional() }),
   head: ({ params }) => {
     const t = makeT(params.locale as Locale);
     return {
@@ -18,6 +20,7 @@ export const Route = createFileRoute("/$locale/login")({
 
 function LoginPage() {
   const { locale } = Route.useParams();
+  const { redirect } = Route.useSearch();
   const t = makeT(locale as Locale);
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -35,7 +38,12 @@ function LoginPage() {
       setError(error.message);
       return;
     }
-    navigate({ to: "/$locale/app", params: { locale } });
+    // Go to the redirect URL if provided (e.g. back to shopping cart), else default
+    if (redirect) {
+      navigate({ to: redirect as never });
+    } else {
+      navigate({ to: "/$locale/app", params: { locale } });
+    }
   }
 
   return (
