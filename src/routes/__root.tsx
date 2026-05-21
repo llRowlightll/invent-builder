@@ -87,7 +87,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "canonical", href: "https://maskinval.lovable.app/" },
+      { rel: "canonical", href: "https://tanstack-start-app.llrowlightll.workers.dev/sv" },
     ],
   }),
   shellComponent: RootShell,
