@@ -111,7 +111,7 @@ function LocaleLayout() {
   ];
 
 
-  const isAdmin = user?.email === "alexandropeer@gmail.com" || user?.app_metadata?.role === "admin";
+  const isAdmin = user?.email === "alexandrooden@gmail.com" || user?.app_metadata?.role === "admin";
 
   return (
     <div className="min-h-screen flex flex-col">

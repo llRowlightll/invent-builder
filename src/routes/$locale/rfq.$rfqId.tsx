@@ -78,7 +78,7 @@ function RfqPage() {
 
   useEffect(() => {
     if (!user) return;
-    const adminEmail = "alexandropeer@gmail.com";
+    const adminEmail = "alexandrooden@gmail.com";
     setIsAdmin(user.email === adminEmail || user.app_metadata?.role === "admin");
   }, [user]);
 

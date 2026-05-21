@@ -40,7 +40,7 @@ export default function CrmPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
-  const [testEmail, setTestEmail] = useState("alexandropeer@gmail.com");
+  const [testEmail, setTestEmail] = useState("alexandrooden@gmail.com");
   const [testSending, setTestSending] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
 
