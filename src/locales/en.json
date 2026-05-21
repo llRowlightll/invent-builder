@@ -41,7 +41,8 @@
     "machineBuilder": "Build machine",
     "shoppingList": "Cart",
     "login": "Log in",
-    "assemblies": "Assemblies"
+    "assemblies": "Assemblies",
+    "new": "What's New"
   },
   "landing": {
     "heroTitle": "Find the right industrial component. Fast.",
@@ -359,6 +360,18 @@
     "days": "days",
     "addToCart": "Add to cart",
     "viewProduct": "View product →"
+  },
+  "newPage": {
+    "badge": "Just arrived",
+    "title": "What's New",
+    "subtitle": "The latest additions to our catalog — recently added products and in-stock picks for fast delivery.",
+    "metaDesc": "Browse the newest products added to our catalog. Filter by brand and find in-stock components with fast delivery.",
+    "newInCatalog": "New in catalog",
+    "inStockNow": "In stock — fast delivery",
+    "seeAll": "See all",
+    "ctaTitle": "Looking for something specific?",
+    "ctaBody": "Search the full catalog or ask our AI engineer.",
+    "browseCatalog": "Browse catalog"
   },
   "advisorPage": {
     "title": "Advisor",

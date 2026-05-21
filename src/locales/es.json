@@ -41,7 +41,8 @@
     "machineBuilder": "Construir máquina",
     "shoppingList": "Carrito",
     "login": "Iniciar sesión",
-    "assemblies": "Ensamblajes"
+    "assemblies": "Ensamblajes",
+    "new": "Novedades"
   },
   "landing": {
     "heroTitle": "El componente industrial correcto. Rápido.",
@@ -359,6 +360,18 @@
     "days": "días",
     "addToCart": "Añadir al carrito",
     "viewProduct": "Ver producto →"
+  },
+  "newPage": {
+    "badge": "Recién llegado",
+    "title": "Novedades",
+    "subtitle": "Las últimas incorporaciones a nuestro catálogo — productos recién añadidos y artículos en stock para entrega rápida.",
+    "metaDesc": "Explore los productos más recientes de nuestro catálogo. Filtre por marca y encuentre componentes en stock con entrega rápida.",
+    "newInCatalog": "Nuevo en el catálogo",
+    "inStockNow": "En stock — entrega rápida",
+    "seeAll": "Ver todos",
+    "ctaTitle": "¿Busca algo específico?",
+    "ctaBody": "Explore el catálogo completo o consulte a nuestro ingeniero de IA.",
+    "browseCatalog": "Explorar catálogo"
   },
   "advisorPage": {
     "title": "Asesor",

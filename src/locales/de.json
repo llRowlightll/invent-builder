@@ -41,7 +41,8 @@
     "machineBuilder": "Maschine bauen",
     "shoppingList": "Warenkorb",
     "login": "Anmelden",
-    "assemblies": "Baugruppen"
+    "assemblies": "Baugruppen",
+    "new": "Neuheiten"
   },
   "landing": {
     "heroTitle": "Die richtige Industriekomponente. Schnell.",
@@ -359,6 +360,18 @@
     "days": "Tage",
     "addToCart": "In den Warenkorb",
     "viewProduct": "Produkt anzeigen →"
+  },
+  "newPage": {
+    "badge": "Neu eingetroffen",
+    "title": "Neuheiten",
+    "subtitle": "Die neuesten Ergänzungen unseres Katalogs — kürzlich hinzugefügte Produkte und Lagerware für schnelle Lieferung.",
+    "metaDesc": "Entdecken Sie die neuesten Produkte in unserem Katalog. Nach Marke filtern und Lagerware mit schneller Lieferung finden.",
+    "newInCatalog": "Neu im Katalog",
+    "inStockNow": "Auf Lager — schnelle Lieferung",
+    "seeAll": "Alle anzeigen",
+    "ctaTitle": "Suchen Sie etwas Bestimmtes?",
+    "ctaBody": "Durchsuchen Sie den gesamten Katalog oder fragen Sie unseren KI-Ingenieur.",
+    "browseCatalog": "Katalog durchsuchen"
   },
   "advisorPage": {
     "title": "Berater",

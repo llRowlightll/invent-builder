@@ -41,7 +41,8 @@
     "machineBuilder": "Bygg maskin",
     "shoppingList": "Korg",
     "login": "Logga in",
-    "assemblies": "Sammansättningar"
+    "assemblies": "Sammansättningar",
+    "new": "Nyheter"
   },
   "landing": {
     "heroTitle": "Hitta rätt industrikomponent. Snabbt.",
@@ -359,6 +360,18 @@
     "days": "dagar",
     "addToCart": "Lägg i korg",
     "viewProduct": "Visa produkt →"
+  },
+  "newPage": {
+    "badge": "Nytt i lager",
+    "title": "Nyheter",
+    "subtitle": "De senaste tilläggen i vår katalog — nyligen tillagda produkter och produkter på lager för snabb leverans.",
+    "metaDesc": "Utforska de nyaste produkterna i vår katalog. Filtrera efter varumärke och hitta komponenter på lager med snabb leverans.",
+    "newInCatalog": "Nytt i katalogen",
+    "inStockNow": "På lager — snabb leverans",
+    "seeAll": "Se alla",
+    "ctaTitle": "Letar du efter något specifikt?",
+    "ctaBody": "Sök i hela katalogen eller fråga vår AI-ingenjör.",
+    "browseCatalog": "Bläddra i katalogen"
   },
   "advisorPage": {
     "title": "Rådgivare",
