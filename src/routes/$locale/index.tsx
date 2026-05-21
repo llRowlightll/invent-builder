@@ -333,6 +333,45 @@ function Landing() {
         </div>
       </section>
 
+      {/* HUMAN + AI TRUST BAND */}
+      <section className="border-y border-border bg-card">
+        <div className="container-page py-10">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground font-medium text-center mb-7">Hur vi arbetar</p>
+          <div className="grid sm:grid-cols-3 gap-6 text-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="size-12 rounded-full bg-info/10 flex items-center justify-center text-2xl">✦</div>
+              <div>
+                <div className="font-semibold text-sm text-foreground">AI-sökning dygnet runt</div>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">Hitta rätt komponent direkt i katalogen — ingen väntetid, inga telefonköer.</p>
+              </div>
+            </div>
+            <div className="flex flex-col items-center gap-3">
+              <div className="size-12 rounded-full bg-[oklch(0.92_0.06_155)]/60 flex items-center justify-center text-2xl">👷</div>
+              <div>
+                <div className="font-semibold text-sm text-foreground">Riktiga ingenjörer & säljare</div>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">Svåra frågor? Våra tekniska säljare med djup produktkunskap svarar personligen.</p>
+              </div>
+            </div>
+            <div className="flex flex-col items-center gap-3">
+              <div className="size-12 rounded-full bg-gold/10 flex items-center justify-center text-2xl">📋</div>
+              <div>
+                <div className="font-semibold text-sm text-foreground">Offert samma dag</div>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">Skicka din stycklista — vi återkommer med pris och leveranstid inom en arbetsdag.</p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-8 flex justify-center">
+            <Link
+              to="/$locale/advisor"
+              params={{ locale }}
+              className="inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-md border border-border hover:border-info hover:text-info transition"
+            >
+              👷 Prata med en ingenjör
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* CTA CARDS */}
       <section className="container-page py-14">
         <div className="grid md:grid-cols-3 gap-3">

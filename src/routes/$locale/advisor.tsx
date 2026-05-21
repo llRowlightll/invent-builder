@@ -125,6 +125,21 @@ function AdvisorPage() {
       <h1 className="text-3xl font-semibold tracking-tight">{t("advisorPage2.title")}</h1>
       <p className="mt-2 text-muted-foreground text-sm max-w-xl">{t("advisorPage2.subtitle")}</p>
 
+      {/* Human support trust banner */}
+      <div className="mt-6 rounded-xl border border-border bg-card p-4 flex items-start gap-4">
+        <div className="size-10 rounded-full bg-[oklch(0.92_0.06_155)]/60 flex items-center justify-center text-xl shrink-0">👷</div>
+        <div>
+          <div className="font-semibold text-sm text-foreground">Riktiga ingenjörer svarar — inte bara AI</div>
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+            Bakom AI-verktyget finns ett team av tekniska säljare och ingenjörer med djup erfarenhet av Festo, SMC, Parker och övriga märken.
+            Skicka in dina krav så återkommer vi personligen — ofta samma dag.
+          </p>
+          <a href="mailto:info@maskinval.se" className="mt-2 inline-block text-xs text-info font-medium hover:underline">
+            info@maskinval.se →
+          </a>
+        </div>
+      </div>
+
       {/* Step 1: Use-case selector */}
       <div className="mt-8">
         <label className="block text-sm font-medium mb-2">{t("advisorPage2.useCaseLabel")}</label>
@@ -207,14 +222,17 @@ function AdvisorPage() {
           {/* Divider */}
           <div className="pt-4 border-t border-border">
             <div className="font-semibold text-sm">{t("advisorPage2.stillNeedHelp")}</div>
-            <p className="text-xs text-muted-foreground mt-0.5">{t("advisorPage2.contactFormDesc")}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              En riktig ingenjör eller teknisk säljare läser ditt meddelande och återkommer personligen — vanligtvis samma arbetsdag.
+            </p>
           </div>
 
           {/* Contact form */}
           {sent ? (
-            <div className="rounded-xl border border-[oklch(0.72_0.12_155)] bg-[oklch(0.96_0.04_155)] p-6 text-center">
-              <div className="text-3xl mb-2">✓</div>
+            <div className="rounded-xl border border-[oklch(0.72_0.12_155)] bg-[oklch(0.96_0.04_155)] p-6 text-center space-y-2">
+              <div className="text-3xl">✓</div>
               <div className="font-semibold text-foreground">{t("advisorPage2.sent")}</div>
+              <p className="text-sm text-muted-foreground">En av våra ingenjörer återkommer till dig personligen — vanligtvis inom samma arbetsdag.</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="rounded-xl border border-border bg-card p-6 space-y-4">
