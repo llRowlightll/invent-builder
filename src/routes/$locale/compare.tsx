@@ -302,8 +302,24 @@ function ComparePage() {
 
   const cols = compared.length;
 
+  // Detect mixed-category comparison (e.g. arrived via URL with skus from different categories)
+  const categoryNames = [...new Set(compared.map((p) => p.category.slug))];
+  const isMixedCategories = categoryNames.length > 1;
+
   return (
     <div className="container-page py-8 max-w-6xl">
+
+      {/* ── Mixed-category warning ── */}
+      {isMixedCategories && (
+        <div className="mb-5 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <span className="mt-0.5 text-base">⚠️</span>
+          <div>
+            <strong>Blandade kategorier</strong> — du jämför produkter från olika produktgrupper (
+            {compared.map((p) => `${p.brand.name}: ${p.category.name}`).join(" · ")}
+            ). Specifikationerna kanske inte är jämförbara. Ta bort produkter från en kategori och lägg till liknande för en rättvisande jämförelse.
+          </div>
+        </div>
+      )}
 
       {/* ── Page header ── */}
       <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
