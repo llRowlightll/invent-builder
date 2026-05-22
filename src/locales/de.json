@@ -46,7 +46,7 @@
   },
   "landing": {
     "heroTitle": "Die richtige Industriekomponente. Schnell.",
-    "heroSubtitle": "KI-gestützte Suche über Festo, SMC, Parker, Bosch Rexroth, Norgren und Metal Work. Beschreiben Sie Ihre Anwendung — wir finden das Richtige.",
+    "heroSubtitle": "KI-gestützte Suche über Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work und Camozzi. Beschreiben Sie Ihre Anwendung — wir finden das Richtige.",
     "ctaPrimary": "Mit KI suchen",
     "ctaSecondary": "Katalog durchsuchen"
   },
@@ -205,7 +205,7 @@
     "b2bBadge": "B2B · Industrielle Automation",
     "heroTitle": "Die richtige Komponente.",
     "heroTitleAccent": "Schnell.",
-    "heroSubtitle": "Suche über Festo, SMC, Parker, Bosch Rexroth, Norgren und Metal Work — Pneumatikzylinder, elektrische Aktuatoren, Ventile und mehr.",
+    "heroSubtitle": "Suche über Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work und Camozzi — Pneumatikzylinder, elektrische Aktuatoren, Ventile und mehr.",
     "searchPlaceholder": "Beschreiben Sie Ihre Anwendung oder suchen Sie ein Produkt…",
     "searchButton": "Suchen",
     "searchTry": "Versuchen Sie:",
