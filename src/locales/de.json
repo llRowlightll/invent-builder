@@ -501,7 +501,7 @@
     "browseCatalog": "Katalog durchsuchen",
     "sectionLabel": "BRANCHENNEWS & INSPIRATION",
     "heading": "Branchennews",
-    "subheading": "Neueste Produktveröffentlichungen, technische Updates und Inspirationsvideos von Festo, SMC, Parker, Bosch Rexroth, Norgren und Metal Work.",
+    "subheading": "Neueste Produktveröffentlichungen, technische Updates und Inspirationsvideos von Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work und Camozzi.",
     "allBrands": "Alle Marken",
     "catProduct": "Produktneuheit",
     "catTech": "Technik",
@@ -540,7 +540,11 @@
     "v_smc_title": "SMC Automation Solutions",
     "v_smc_desc": "Technische Übersicht der pneumatischen und elektrischen Komponenten von SMC — Zylinder, Ventile, Vakuumsysteme und IO-Link-Lösungen.",
     "v_parker_desc": "Parker Hannifins breitestes Sortiment an Bewegungssteuerung — Hydraulik, Pneumatik und elektrische Aktuatoren für industrielle Automation.",
-    "v_mw_desc": "Metal Works komplettes Sortiment an pneumatischen Ventilen, Zylindern und Ventilinseln für moderne industrielle Automation."
+    "v_mw_desc": "Metal Works komplettes Sortiment an pneumatischen Ventilen, Zylindern und Ventilinseln für moderne industrielle Automation.",
+    "n_camozzi_series_9_title": "Camozzi Serie 9 — ISO 15552-Zylinder mit integriertem Magnetkolbensensor",
+    "n_camozzi_series_9_summary": "Serie 9 ist Camozzis Flaggschiff-ISO-15552-Zylinderreihe. Bohrung 32–125 mm, Hub bis 2000 mm, Betriebsdruck 1–10 bar. Integrierte Sensornuten für Magnetkolben, IP67-Schutz und Zubehör für alle Montagepositionen.",
+    "v_camozzi_title": "Camozzi Automation — Pneumatik & Automation",
+    "v_camozzi_desc": "Camozzis komplettes Sortiment an pneumatischen Zylindern, Ventilen, Wartungseinheiten und elektrischen Aktuatoren für industrielle Automation."
   },
   "advisorPage": {
     "title": "Berater",

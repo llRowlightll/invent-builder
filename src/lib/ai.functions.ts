@@ -139,7 +139,7 @@ export const aiAskKnowledge = createServerFn({ method: "POST" })
 
     // 2. Build prompt with or without context
     const systemPrompt = [
-      `You are an expert industrial automation engineer with deep knowledge of Parker, Bosch Rexroth, Norgren, Festo, and SMC products.`,
+      `You are an expert industrial automation engineer with deep knowledge of Parker, Bosch Rexroth, Norgren, Festo, SMC, and Camozzi products.`,
       `Answer questions accurately using the provided technical documentation context.`,
       `If the context contains the answer, cite the source file. If not in context, say so clearly — never invent specs or part numbers.`,
       langInstruction(data.locale),
@@ -230,6 +230,7 @@ function fallbackSearch(query: string, isSv: boolean): AiSearchResult {
   else if (/parker/.test(t)) result.brand_slug = "parker";
   else if (/bosch|rexroth/.test(t)) result.brand_slug = "bosch-rexroth";
   else if (/norgren/.test(t)) result.brand_slug = "norgren";
+  else if (/camozzi/.test(t)) result.brand_slug = "camozzi";
 
   const bore = /(\d{2,3})\s*mm/.exec(t)?.[1];
   if (bore) result.spec_filters.push({ key: "bore_mm", min: Number(bore) - 5, max: Number(bore) + 5 });

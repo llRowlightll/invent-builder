@@ -392,7 +392,7 @@ function LocaleLayout() {
           </div>
           <div>
             <div className="font-medium text-foreground mb-2">Varumärken</div>
-            <p className="leading-relaxed">Festo · SMC · Parker · Bosch Rexroth · Norgren · Metal Work</p>
+            <p className="leading-relaxed">Festo · SMC · Parker · Bosch Rexroth · Norgren · Metal Work · Camozzi</p>
             <p className="mt-2 text-[11px]">
               Pneumatiska cylindrar · Elektriska aktuatorer · Ventiler · Grippers · Vakuumsystem
             </p>

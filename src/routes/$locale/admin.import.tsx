@@ -202,7 +202,7 @@ function ImportPage() {
           ))}
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          <strong>brand_slug:</strong> festo · smc · parker · bosch-rexroth · norgren &nbsp;&nbsp;
+          <strong>brand_slug:</strong> festo · smc · parker · bosch-rexroth · norgren · camozzi &nbsp;&nbsp;
           <strong>category_slug:</strong> cylinder · valve · gripper · vacuum · electric-actuator · …
         </p>
       </div>

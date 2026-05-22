@@ -17,7 +17,7 @@ export const Route = createFileRoute("/$locale/")({
     return {
       meta: [
         { title: `${t("common.appName")} — Pneumatik, cylindrar & automation` },
-        { name: "description", content: "Sök industriella automationskomponenter från Festo, SMC, Parker, Bosch Rexroth och Norgren. AI-sökning, spec-jämförelse och komplett stycklista direkt." },
+        { name: "description", content: "Sök industriella automationskomponenter från Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work och Camozzi. AI-sökning, spec-jämförelse och komplett stycklista direkt." },
         { property: "og:title", content: `${t("common.appName")} — Industriell automation` },
         { property: "og:description", content: "AI-driven komponentväljare för maskinbyggare. Pneumatik, elektriska aktuatorer, ventiler och mer." },
         { property: "og:image", content: `${SITE}/og-image.svg` },
@@ -412,6 +412,7 @@ const BRAND_META: Record<string, { bg: string }> = {
   "bosch-rexroth": { bg: "#f8fafc" },
   "norgren":       { bg: "#f8fafc" },
   "metal-work":    { bg: "#ffffff" },
+  "camozzi":       { bg: "#ffffff" },
 };
 
 function BrandLogo({ slug, name }: { slug: string; name: string }) {

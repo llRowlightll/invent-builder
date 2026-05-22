@@ -26,6 +26,7 @@ const BRAND_COLORS: Record<string, string> = {
   "Bosch Rexroth": "bg-red-500/10 text-red-400 border-red-500/20",
   Norgren: "bg-green-500/10 text-green-400 border-green-500/20",
   SMC: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  Camozzi: "bg-rose-500/10 text-rose-400 border-rose-500/20",
 };
 
 function AssembliesPage() {

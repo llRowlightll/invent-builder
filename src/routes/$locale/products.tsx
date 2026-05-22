@@ -26,7 +26,7 @@ export const Route = createFileRoute("/$locale/products")({
     return {
       meta: [
         { title: `Produktkatalog — Pneumatik & automation | ${t("common.appName")}` },
-        { name: "description", content: "Komplett katalog: pneumatiska cylindrar, elektriska aktuatorer, ventiler, grippers, vakuumsystem och mer. Festo, SMC, Parker, Bosch Rexroth, Norgren. Filtrera, jämför och beställ." },
+        { name: "description", content: "Komplett katalog: pneumatiska cylindrar, elektriska aktuatorer, ventiler, grippers, vakuumsystem och mer. Festo, SMC, Parker, Bosch Rexroth, Norgren, Camozzi. Filtrera, jämför och beställ." },
         { property: "og:title", content: `Produktkatalog — ${t("common.appName")}` },
         { property: "og:url", content: canonical },
       ],

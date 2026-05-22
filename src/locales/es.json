@@ -501,7 +501,7 @@
     "browseCatalog": "Explorar catálogo",
     "sectionLabel": "NOTICIAS DEL SECTOR E INSPIRACIÓN",
     "heading": "Noticias del sector",
-    "subheading": "Últimos lanzamientos de productos, actualizaciones técnicas y vídeos de inspiración de Festo, SMC, Parker, Bosch Rexroth, Norgren y Metal Work.",
+    "subheading": "Últimos lanzamientos de productos, actualizaciones técnicas y vídeos de inspiración de Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work y Camozzi.",
     "allBrands": "Todas las marcas",
     "catProduct": "Novedad de producto",
     "catTech": "Tecnología",
@@ -540,7 +540,11 @@
     "v_smc_title": "SMC Automation Solutions",
     "v_smc_desc": "Visión general técnica de los componentes neumáticos y eléctricos de SMC — cilindros, válvulas, sistemas de vacío y soluciones IO-Link.",
     "v_parker_desc": "La gama más amplia de control de movimiento de Parker Hannifin — hidráulica, neumática y actuadores eléctricos para automatización industrial.",
-    "v_mw_desc": "La gama completa de válvulas neumáticas, cilindros y terminales de válvulas de Metal Work para la automatización industrial moderna."
+    "v_mw_desc": "La gama completa de válvulas neumáticas, cilindros y terminales de válvulas de Metal Work para la automatización industrial moderna.",
+    "n_camozzi_series_9_title": "Camozzi Serie 9 — cilindros ISO 15552 con sensor de émbolo magnético integrado",
+    "n_camozzi_series_9_summary": "La Serie 9 es la gama estrella de cilindros ISO 15552 de Camozzi. Diámetro 32–125 mm, carrera hasta 2000 mm, presión de trabajo 1–10 bar. Ranuras de sensor integradas para émbolo magnético, protección IP67 y accesorios para todas las posiciones de montaje.",
+    "v_camozzi_title": "Camozzi Automation — Neumática y automatización",
+    "v_camozzi_desc": "La gama completa de cilindros neumáticos, válvulas, unidades FRL y actuadores eléctricos de Camozzi para automatización industrial."
   },
   "advisorPage": {
     "title": "Asesor",

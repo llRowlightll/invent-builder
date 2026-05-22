@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 80" fill="none">
+  <!-- CC monogram -->
+  <g transform="translate(10,4)">
+    <!-- Left C -->
+    <path d="M36 10 A18 18 0 1 0 36 46 L36 42 A14 14 0 1 1 36 14 Z" fill="#1a1a1a"/>
+    <!-- Right C (mirrored) -->
+    <path d="M44 10 A18 18 0 1 1 44 46 L44 42 A14 14 0 1 0 44 14 Z" fill="#1a1a1a"/>
+  </g>
+  <!-- CAMOZZI text -->
+  <text x="100" y="38" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="22" fill="#1a1a1a" text-anchor="middle" letter-spacing="2">CAMOZZI</text>
+  <!-- Red line -->
+  <rect x="30" y="46" width="140" height="2.5" fill="#E2001A"/>
+  <!-- Automation text -->
+  <text x="100" y="66" font-family="Arial, Helvetica, sans-serif" font-weight="400" font-size="14" fill="#555555" text-anchor="middle" letter-spacing="3">Automation</text>
+</svg>

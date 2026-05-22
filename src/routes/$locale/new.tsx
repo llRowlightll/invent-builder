@@ -155,6 +155,18 @@ function makeNews(t: ReturnType<typeof makeT>): NewsItem[] {
       url: "https://www.metalwork.it/",
       tags: ["ventilö", "EtherNet/IP", "Modbus TCP"],
     },
+    {
+      id: "camozzi-series9-2025",
+      brand: "Camozzi",
+      brandSlug: "camozzi",
+      brandColor: "#E2001A",
+      date: "2025-03",
+      categoryKey: "product",
+      title: t("newPage.n_camozzi_series_9_title"),
+      summary: t("newPage.n_camozzi_series_9_summary"),
+      url: "https://www.camozzi.com/products/series-9-cylinders.html",
+      tags: ["cylinder", "ISO 15552", "IP67"],
+    },
   ];
 }
 
@@ -209,6 +221,16 @@ function makeVideos(t: ReturnType<typeof makeT>): VideoItem[] {
       channelUrl: "https://www.youtube.com/@MetalWorkPneumatic",
       title: "Metal Work Pneumatic",
       description: t("newPage.v_mw_desc"),
+    },
+    {
+      id: "camozzi-automation-video",
+      brand: "Camozzi",
+      brandSlug: "camozzi",
+      brandColor: "#E2001A",
+      videoId: "9v4CxmtTwBo",
+      channelUrl: "https://www.youtube.com/@CamozziAutomation",
+      title: t("newPage.v_camozzi_title"),
+      description: t("newPage.v_camozzi_desc"),
     },
   ];
 }
