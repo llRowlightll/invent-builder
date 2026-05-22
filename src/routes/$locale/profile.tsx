@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { makeT, type Locale } from "@/lib/i18n";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, useIsAdmin } from "@/lib/auth-context";
 
 export const Route = createFileRoute("/$locale/profile")({
   component: ProfilePage,
@@ -40,6 +40,7 @@ function ProfilePage() {
   const { locale } = params;
   const t = makeT(locale as Locale);
   const { user, loading: authLoading } = useAuth();
+  const isAdmin = useIsAdmin();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,7 +111,7 @@ function ProfilePage() {
   async function persistProfile(data: Partial<Profile>) {
     if (!user) return;
     setSaving(true);
-    const complete = !!(data.company_name && data.industry && data.role && data.employees);
+    const complete = !!(data.company_name && data.industry && data.role && data.employees && data.phone);
     await (supabase as any).from("company_profiles").upsert({
       id: user.id,
       ...data,
@@ -149,25 +150,28 @@ function ProfilePage() {
           )}
         </div>
 
-        {/* Score card */}
-        <div className={`rounded-xl border px-5 py-4 flex items-center gap-4 ${tier.bg}`}>
-          <div className="text-3xl">{tier.emoji}</div>
-          <div>
-            <div className={`text-xs uppercase tracking-widest font-semibold ${tier.color}`}>{tier.label}</div>
-            <div className="flex items-baseline gap-1 mt-0.5">
-              <span className={`text-3xl font-bold ${tier.color}`}>{score}</span>
-              <span className="text-xs text-muted-foreground">/ 100</span>
-            </div>
-            {/* Score bar */}
-            <div className="w-32 h-1.5 rounded-full bg-border mt-1.5 overflow-hidden">
-              <div className="h-full bg-info rounded-full transition-all" style={{ width: `${score}%` }} />
+        {/* Score card — only visible to admins */}
+        {isAdmin && (
+          <div className={`rounded-xl border px-5 py-4 flex items-center gap-4 ${tier.bg}`}>
+            <div className="text-3xl">{tier.emoji}</div>
+            <div>
+              <div className={`text-xs uppercase tracking-widest font-semibold ${tier.color}`}>{tier.label}</div>
+              <div className="flex items-baseline gap-1 mt-0.5">
+                <span className={`text-3xl font-bold ${tier.color}`}>{score}</span>
+                <span className="text-xs text-muted-foreground">/ 100</span>
+              </div>
+              {/* Score bar */}
+              <div className="w-32 h-1.5 rounded-full bg-border mt-1.5 overflow-hidden">
+                <div className="h-full bg-info rounded-full transition-all" style={{ width: `${score}%` }} />
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-1 opacity-60">Synlig enbart för admin</div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Score breakdown */}
-      {Object.keys(breakdown).length > 1 && (
+      {/* Score breakdown — only visible to admins */}
+      {isAdmin && Object.keys(breakdown).length > 1 && (
         <div className="rounded-lg border border-border bg-card p-4 mb-8">
           <p className="text-[11px] uppercase tracking-widest text-muted-foreground mb-3">{t("profilePage.scoreBreakdown")}</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -194,11 +198,6 @@ function ProfilePage() {
               );
             })}
           </div>
-          {!profile?.profile_complete && (
-            <p className="text-xs text-info mt-3">
-              {t("profilePage.scoreCompleteHint")}
-            </p>
-          )}
         </div>
       )}
 

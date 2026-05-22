@@ -1,7 +1,32 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { makeT, type Locale } from "@/lib/i18n";
+
+// ─── Swedish org number validation ───────────────────────────────────────────
+function formatOrgInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 10);
+  return digits.length > 6 ? `${digits.slice(0, 6)}-${digits.slice(6)}` : digits;
+}
+
+function validateSwedishOrgNumber(orgNr: string): boolean {
+  const digits = orgNr.replace(/\D/g, "");
+  if (digits.length !== 10) return false;
+  // Third+fourth position cannot both be 0
+  if (digits[2] === "0" && digits[3] === "0") return false;
+  // First two digits: valid Swedish entity types start at 20
+  if (parseInt(digits.slice(0, 2)) < 20) return false;
+  // Luhn mod-10 (same algorithm as Swedish personal numbers)
+  let sum = 0;
+  for (let i = 0; i < 10; i++) {
+    let d = parseInt(digits[i]);
+    if (i % 2 === 0) { d *= 2; if (d > 9) d -= 9; }
+    sum += d;
+  }
+  return sum % 10 === 0;
+}
+
+type OrgStatus = "idle" | "checking" | "valid" | "invalid";
 
 export const Route = createFileRoute("/$locale/signup")({
   head: ({ params }) => {
@@ -81,12 +106,26 @@ function SignupPage() {
   const [addressCity, setAddressCity] = useState("");
   const [country, setCountry] = useState("SE");
 
+  const [orgStatus, setOrgStatus] = useState<OrgStatus>("idle");
+
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendDone, setResendDone] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+
+  const handleOrgNumberChange = useCallback((raw: string) => {
+    const formatted = formatOrgInput(raw);
+    setOrgNumber(formatted);
+    const digits = formatted.replace(/\D/g, "");
+    if (digits.length === 0) { setOrgStatus("idle"); return; }
+    if (digits.length < 10) { setOrgStatus("idle"); return; }
+    // Full 10 digits entered — validate
+    setOrgStatus("checking");
+    const valid = validateSwedishOrgNumber(formatted);
+    setOrgStatus(valid ? "valid" : "invalid");
+  }, []);
 
   async function onStep1(e: React.FormEvent) {
     e.preventDefault();
@@ -98,6 +137,19 @@ function SignupPage() {
   async function onStep2(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    // Validate org number if entered (required for SE)
+    if (orgNumber) {
+      if (orgStatus === "invalid") {
+        setError("Ogiltigt organisationsnummer — kontrollera att du angett rätt nummer (format: 556123-4567).");
+        return;
+      }
+    }
+    if (country === "SE" && !orgNumber) {
+      setError("Organisationsnummer krävs för svenska företag.");
+      return;
+    }
+
     setLoading(true);
 
     // Always persist profile data to localStorage so profile page can apply it
@@ -116,7 +168,7 @@ function SignupPage() {
       address_city:    addressCity   || null,
       address_country: country,
       locale,
-      profile_complete: !!(companyName && industry && role && employees),
+      profile_complete: !!(companyName && industry && role && employees && phone),
     };
     localStorage.setItem("mv_pending_profile", JSON.stringify(pendingProfile));
 
@@ -279,10 +331,35 @@ function SignupPage() {
                   placeholder="Acme AB"
                   className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
               </Field>
-              <Field label={t("signupPage.orgNumber")}>
-                <input value={orgNumber} onChange={(e) => setOrgNumber(e.target.value)}
-                  placeholder="556123-4567"
-                  className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
+              <Field label={`${t("signupPage.orgNumber")}${country === "SE" ? " *" : ""}`}>
+                <div className="relative">
+                  <input
+                    value={orgNumber}
+                    onChange={(e) => handleOrgNumberChange(e.target.value)}
+                    placeholder="556123-4567"
+                    inputMode="numeric"
+                    className={`w-full rounded-md border px-3 py-2 text-sm pr-8 bg-card transition ${
+                      orgStatus === "valid"   ? "border-[oklch(0.55_0.15_155)] bg-[oklch(0.98_0.02_155)]" :
+                      orgStatus === "invalid" ? "border-destructive bg-[oklch(0.98_0.02_20)]" :
+                      "border-input"
+                    }`}
+                  />
+                  {orgStatus === "checking" && (
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground animate-pulse">…</span>
+                  )}
+                  {orgStatus === "valid" && (
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[oklch(0.55_0.15_155)] text-sm">✓</span>
+                  )}
+                  {orgStatus === "invalid" && (
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-destructive text-sm">✗</span>
+                  )}
+                </div>
+                {orgStatus === "invalid" && (
+                  <p className="text-xs text-destructive mt-1">Ogiltigt organisationsnummer</p>
+                )}
+                {orgStatus === "valid" && (
+                  <p className="text-xs text-[oklch(0.55_0.15_155)] mt-1">Giltigt organisationsnummer</p>
+                )}
               </Field>
             </div>
 
@@ -311,10 +388,15 @@ function SignupPage() {
                   {SIZES.map((s) => <option key={s.v} value={s.v}>{s.l}</option>)}
                 </select>
               </Field>
-              <Field label={t("signupPage.phone")}>
-                <input value={phone} onChange={(e) => setPhone(e.target.value)}
+              <Field label={`${t("signupPage.phone")} *`}>
+                <input
+                  required
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
                   placeholder="+46 70 123 45 67"
-                  className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
+                  className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
+                />
               </Field>
             </div>
 
