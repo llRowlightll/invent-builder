@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { Machine3DSceneProps } from "@/components/Machine3DScene";
 const Machine3DScene = lazy(() =>
   import("@/components/Machine3DScene").then(m => ({ default: m.Machine3DScene }))
@@ -653,6 +653,58 @@ function exportBomPdf(bom: BomLine[], title: string, explanation: string, select
   if (win) { win.document.write(html); win.document.close(); }
 }
 
+// ── Economic BOM helpers ────────────────────────────────────────────────────
+
+/**
+ * Guess the catalog category slug from a BOM line's role text / SKU.
+ * Returns null when we can't confidently match (e.g. hoses, fittings — margin too low to swap).
+ */
+function roleToCategory(role: string, sku: string): string | null {
+  const r = role.toLowerCase();
+  const s = sku.toLowerCase();
+  if (/cylinder|aktuator|actuator|hauptaktu|main act/.test(r)
+    || /dsbc|advu|cq2|cp96|p1d|dnce|ley|advc|dsnu|mb|cena|nsc/.test(s)) return "cylinder";
+  if (/gripper|grepp|k[aä]ft|jaw/.test(r) || /hgp|mhz|mhc|pgn/.test(s)) return "gripper";
+  if (/vakuum.*gen|ejektor|vacuum.*gen|ejector/.test(r) || /vadmi|zu0|ovem/.test(s)) return "vacuum";
+  if (/frl|filter.*reg|luftbered/.test(r) || /ms4|ms6|lf/.test(s)) return "frl";
+  if (/styrventil|kontrollventil|control.*valve|solenoid/.test(r) && !/terminal/.test(r)) return "valve";
+  if (/ventilterminal|valve.*terminal|vtsa/.test(r) || /vtsa/.test(s)) return "valve-terminal";
+  if (/givare|sensor|ändl[äa]ge|end.pos/.test(r) || /smt|d-a9|ese/.test(s)) return "sensor";
+  // hoses, fittings, bolts — small unit value, skip
+  return null;
+}
+
+/**
+ * Find up to `maxAlts` cheaper alternatives for a BOM line from the real catalog.
+ * Matches on category + (for cylinders) bore spec within ±15 mm.
+ * Excludes same brand as current pick and products without a purchase_price.
+ */
+function findAlternatives(line: BomLine, catalog: ProductRow[], maxAlts = 3): ProductRow[] {
+  const cat = roleToCategory(line.role, line.sku);
+  if (!cat) return [];
+
+  const currentBrand = line.product?.brand?.slug ?? "";
+  const currentPrice = line.product?.purchase_price ?? Infinity;
+  const currentBore  = parseFloat(line.product?.specs["bore_mm"]?.value ?? "0");
+
+  return catalog
+    .filter(p => {
+      if (p.purchase_price == null) return false;
+      if (p.brand.slug === currentBrand)  return false; // different brand only
+      if (p.purchase_price >= currentPrice) return false; // must be cheaper
+      // Category match — flexible: slug contains the keyword
+      if (!p.category.slug.includes(cat)) return false;
+      // Bore matching for cylinders (±20 mm)
+      if (currentBore > 0) {
+        const bore = parseFloat(p.specs["bore_mm"]?.value ?? "0");
+        if (bore <= 0 || Math.abs(bore - currentBore) > 20) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => (a.purchase_price ?? 0) - (b.purchase_price ?? 0))
+    .slice(0, maxAlts);
+}
+
 // ── Result Step ─────────────────────────────────────────────────────────────
 function ResultStep({ t, locale, title, explanation, selected, bom, catalog, description, answers,
   rfqName, rfqEmail, rfqCompany, rfqPhone, rfqSent, rfqId,
@@ -669,19 +721,59 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
   const [mounted, setMounted] = useState(false);
   const [rfqLoading, setRfqLoading] = useState(false);
   const [rfqError, setRfqError] = useState("");
+  // Economic BOM
+  const [ecoMode, setEcoMode] = useState(false);
+  const [chosenAlt, setChosenAlt] = useState<Record<number, ProductRow | null>>({});
   useEffect(() => setMounted(true), []);
+
+  // Per-line alternatives (computed once when eco mode opens)
+  const alternatives = useMemo(() =>
+    bom.map(line => findAlternatives(line, catalog)),
+    [bom, catalog]
+  );
+
+  // Total potential savings (cheapest alt × qty, only lines with a current price)
+  const potentialSavings = useMemo(() => {
+    return bom.reduce((sum, line, i) => {
+      const alts = alternatives[i];
+      if (!alts.length || line.product?.purchase_price == null) return sum;
+      const cheapest = alts[0].purchase_price ?? 0;
+      const current  = line.product.purchase_price;
+      return sum + (current - cheapest) * line.quantity;
+    }, 0);
+  }, [bom, alternatives]);
+
+  // Active savings (only chosen alts)
+  const activeSavings = useMemo(() => {
+    return bom.reduce((sum, line, i) => {
+      const alt = chosenAlt[i];
+      if (!alt || line.product?.purchase_price == null) return sum;
+      return sum + (line.product.purchase_price - (alt.purchase_price ?? 0)) * line.quantity;
+    }, 0);
+  }, [bom, chosenAlt]);
+
+  // Active BOM: merge chosen alts
+  const activeBom: BomLine[] = useMemo(() =>
+    bom.map((line, i) => {
+      const alt = chosenAlt[i];
+      if (!alt) return line;
+      return { ...line, sku: alt.sku, product: alt };
+    }),
+    [bom, chosenAlt]
+  );
 
   async function submitRfq() {
     if (!rfqName.trim() || !rfqEmail.trim()) return;
     setRfqLoading(true);
     setRfqError("");
     try {
-      // Build message summary from BOM
-      const bomSummary = bom
+      // Build message summary from active BOM (may include economic alternatives)
+      const bomSummary = activeBom
         .slice(0, 8)
         .map(l => `${l.sku} × ${l.quantity} (${l.role})`)
         .join(", ");
-      const message = `${description}\n\nStycklista: ${bomSummary}`;
+      const ecoNote = activeSavings > 0 ? `\n\nEkonomisk BOM vald — besparing: ${activeSavings.toFixed(0)} kr` : "";
+      const message = `${description}\n\nStycklista: ${bomSummary}${ecoNote}`;
 
       // Insert RFQ
       const { data: rfqRow, error: rfqErr } = await supabase
@@ -701,10 +793,10 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
 
       if (rfqErr || !rfqRow) throw rfqErr ?? new Error("No row returned");
 
-      // Insert BOM items
-      const itemRows = bom
+      // Insert BOM items (use activeBom which may include economic alternatives)
+      const itemRows = activeBom
         .map(l => {
-          const product = catalog.find(p => p.sku === l.sku);
+          const product = l.product ?? catalog.find(p => p.sku === l.sku);
           return product
             ? { rfq_id: rfqRow.id, product_id: product.id, qty: l.quantity, role: l.role }
             : null;
@@ -750,7 +842,7 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
     }
   }
 
-  const compareSkus = bom
+  const compareSkus = activeBom
     .filter(l => l.product)
     .slice(0, 4)
     .map(l => l.sku)
@@ -773,7 +865,28 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
       {/* BOM Table */}
       <div className="rounded-xl border border-border overflow-hidden">
         <div className="px-4 py-3 bg-muted/40 border-b border-border flex items-start sm:items-center justify-between flex-wrap gap-2">
-          <div className="text-sm font-semibold">{t("machineBuilder.bomTitle")}</div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="text-sm font-semibold">{t("machineBuilder.bomTitle")}</div>
+            {/* Economic BOM toggle */}
+            {potentialSavings > 10 && (
+              <button
+                onClick={() => { setEcoMode(v => !v); if (!ecoMode) setChosenAlt({}); }}
+                className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-semibold transition ${
+                  ecoMode
+                    ? "bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)] border-[oklch(0.7_0.1_155)]"
+                    : "border-[oklch(0.7_0.1_155)] text-[oklch(0.45_0.15_155)] hover:bg-[oklch(0.92_0.06_155)/50]"
+                }`}
+              >
+                <span>💰</span>
+                {ecoMode
+                  ? (activeSavings > 0
+                      ? `Spara ${activeSavings.toFixed(0)} kr valda · stäng`
+                      : "Välj alternativ nedan · stäng")
+                  : `Ekonomisk BOM — upp till ${potentialSavings.toFixed(0)} kr billigare`
+                }
+              </button>
+            )}
+          </div>
           <div className="flex items-center gap-2 flex-wrap">
             {compareSkus && (
               <Link
@@ -786,13 +899,13 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
               </Link>
             )}
             <button
-              onClick={() => exportBomCsv(bom, title)}
+              onClick={() => exportBomCsv(activeBom, title)}
               className="text-xs px-3 py-1.5 rounded-md border border-border hover:border-info transition"
             >
               ↓ CSV
             </button>
             <button
-              onClick={() => exportBomPdf(bom, title, explanation, selected)}
+              onClick={() => exportBomPdf(activeBom, title, explanation, selected)}
               className="text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:opacity-90 transition"
             >
               ↓ PDF
@@ -811,29 +924,106 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
               </tr>
             </thead>
             <tbody>
-              {bom.map((line, i) => (
-                <tr key={i} className={`border-b border-border last:border-0 ${i % 2 === 0 ? "" : "bg-muted/10"}`}>
-                  <td className="px-4 py-3">
-                    {line.product ? (
-                      <Link
-                        to="/$locale/product/$sku"
-                        params={{ locale, sku: line.sku } as never}
-                        className="font-mono text-xs text-info hover:underline"
-                      >{line.sku}</Link>
-                    ) : (
-                      <span className="font-mono text-xs text-muted-foreground">{line.sku}</span>
+              {activeBom.map((line, i) => {
+                const originalLine = bom[i];
+                const alts = alternatives[i];
+                const isSwapped = !!chosenAlt[i];
+                const sellingPrice = (p: ProductRow) =>
+                  p.purchase_price != null
+                    ? (p.purchase_price / (1 - (p.margin ?? 0.35))).toFixed(0)
+                    : null;
+
+                return (
+                  <>
+                    <tr key={i} className={`border-b border-border last:border-0 transition ${
+                      isSwapped ? "bg-[oklch(0.95_0.04_155)/30]" : i % 2 === 0 ? "" : "bg-muted/10"
+                    }`}>
+                      <td className="px-4 py-3">
+                        {line.product ? (
+                          <Link
+                            to="/$locale/product/$sku"
+                            params={{ locale, sku: line.sku } as never}
+                            className="font-mono text-xs text-info hover:underline"
+                          >{line.sku}</Link>
+                        ) : (
+                          <span className="font-mono text-xs text-muted-foreground">{line.sku}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-foreground">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {line.product?.name ?? <span className="text-muted-foreground italic">{t("machineBuilder.notInCatalog")}</span>}
+                          {isSwapped && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[oklch(0.88_0.08_155)] text-[oklch(0.35_0.12_155)] font-semibold">
+                              ↓ Ekonomisk
+                            </span>
+                          )}
+                        </div>
+                        {line.product?.purchase_price != null && (
+                          <div className="text-[11px] text-muted-foreground mt-0.5">
+                            {sellingPrice(line.product)} kr/st
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="inline-flex items-center justify-center size-6 rounded bg-muted text-xs font-semibold">{line.quantity}</span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">{line.role}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">{line.reason}</td>
+                    </tr>
+
+                    {/* Economic alternatives row */}
+                    {ecoMode && alts.length > 0 && (
+                      <tr key={`eco-${i}`} className="border-b border-[oklch(0.7_0.1_155)/30] bg-[oklch(0.97_0.03_155)/50]">
+                        <td colSpan={5} className="px-4 py-2">
+                          <div className="flex items-start gap-2 flex-wrap">
+                            <span className="text-[10px] text-[oklch(0.45_0.12_155)] font-semibold uppercase tracking-wider mt-1.5 shrink-0">
+                              Alternativ:
+                            </span>
+                            {alts.map((alt) => {
+                              const origPrice = originalLine.product?.purchase_price;
+                              const altSellPrice = sellingPrice(alt);
+                              const savingPerUnit = origPrice != null ? origPrice - (alt.purchase_price ?? 0) : null;
+                              const isChosen = chosenAlt[i]?.sku === alt.sku;
+                              return (
+                                <button
+                                  key={alt.sku}
+                                  onClick={() => setChosenAlt(prev => ({
+                                    ...prev,
+                                    [i]: isChosen ? null : alt,
+                                  }))}
+                                  className={`inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg border transition ${
+                                    isChosen
+                                      ? "border-[oklch(0.6_0.15_155)] bg-[oklch(0.88_0.08_155)] text-[oklch(0.32_0.12_155)] font-semibold"
+                                      : "border-border bg-card text-foreground hover:border-[oklch(0.6_0.15_155)]"
+                                  }`}
+                                >
+                                  <span className="text-muted-foreground">{alt.brand.name}</span>
+                                  <span className="font-medium">{alt.name.split(" ").slice(0, 3).join(" ")}</span>
+                                  {altSellPrice && <span className="font-mono">{altSellPrice} kr</span>}
+                                  {savingPerUnit && savingPerUnit > 0 && (
+                                    <span className="text-[oklch(0.45_0.15_155)] font-semibold">
+                                      −{(savingPerUnit / (1 - 0.35)).toFixed(0)} kr/st
+                                    </span>
+                                  )}
+                                  {isChosen && <span>✓</span>}
+                                </button>
+                              );
+                            })}
+                            {isSwapped && (
+                              <button
+                                onClick={() => setChosenAlt(prev => ({ ...prev, [i]: null }))}
+                                className="text-xs text-muted-foreground hover:text-foreground ml-1"
+                              >
+                                ↩ Återställ AI-val
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
                     )}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-foreground">
-                    {line.product?.name ?? <span className="text-muted-foreground italic">{t("machineBuilder.notInCatalog")}</span>}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span className="inline-flex items-center justify-center size-6 rounded bg-muted text-xs font-semibold">{line.quantity}</span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">{line.role}</td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">{line.reason}</td>
-                </tr>
-              ))}
+                  </>
+                );
+              })}
             </tbody>
           </table>
         </div>
