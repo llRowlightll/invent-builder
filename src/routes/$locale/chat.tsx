@@ -8,6 +8,7 @@ import { computePhysics } from "@/lib/physics";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
 import { addToShoppingList } from "@/lib/cart";
+import { diversifyResults } from "@/lib/search-diversity";
 
 export const Route = createFileRoute("/$locale/chat")({
   head: ({ params }) => {
@@ -243,7 +244,8 @@ function ChatPage() {
           if (sysMates.length === 0) {
             sysMates = catalog.filter((p) => sys.cats.some((c) => p.category.slug.includes(c)));
           }
-          sysMates = sysMates.sort((a, b) => (a.lead_time_days ?? 99) - (b.lead_time_days ?? 99)).slice(0, 3);
+          // Diversify: pick best from each brand (max 1 per brand for system parts)
+          sysMates = diversifyResults(sysMates, aiResult, { total: 3, maxPerBrand: 1 });
           if (sysMates.length) {
             systemGroups.push({ label: sys.label, products: sysMates });
             allMatches.push(...sysMates);
@@ -270,9 +272,10 @@ function ChatPage() {
             });
           }
 
-          catMatches = catMatches.sort((a, b) => (a.lead_time_days ?? 99) - (b.lead_time_days ?? 99));
+          // Diversify: max 2 per brand, up to 8 total — ensures brand mix
+          catMatches = diversifyResults(catMatches, aiResult, { total: 8, maxPerBrand: 2 });
           allMatches.push(...catMatches);
-          if (allMatches.length >= 6) break;
+          if (allMatches.length >= 8) break;
         }
       }
 
