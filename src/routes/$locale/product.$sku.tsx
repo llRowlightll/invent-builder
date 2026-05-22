@@ -6,8 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
 import { addToShoppingList } from "@/lib/cart";
-
-const SITE = "https://tanstack-start-app.llrowlightll.workers.dev";
+import { SITE, hreflangLinks } from "@/lib/site";
 
 const UNIT_SUFFIXES = ["mm", "cm", "m", "kg", "g", "bar", "kpa", "mpa", "n", "nm", "w", "kw", "v", "a", "hz", "rpm", "ms", "s", "min", "deg", "pct", "l", "ml", "lmin"];
 function formatSpecKey(key: string): string {
@@ -34,11 +33,7 @@ export const Route = createFileRoute("/$locale/product/$sku")({
       ],
       links: [
         { rel: "canonical", href: canonical },
-        { rel: "alternate", hreflang: "sv", href: `${SITE}/sv/product/${sku}` },
-        { rel: "alternate", hreflang: "en", href: `${SITE}/en/product/${sku}` },
-        { rel: "alternate", hreflang: "de", href: `${SITE}/de/product/${sku}` },
-        { rel: "alternate", hreflang: "es", href: `${SITE}/es/product/${sku}` },
-        { rel: "alternate", hreflang: "x-default", href: `${SITE}/sv/product/${sku}` },
+        ...hreflangLinks(`product/${sku}`),
       ],
     };
   },

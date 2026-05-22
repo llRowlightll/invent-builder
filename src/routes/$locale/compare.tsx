@@ -6,12 +6,26 @@ import { loadCatalog } from "@/lib/catalog";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
 import { addToShoppingList } from "@/lib/cart";
+import { SITE, hreflangLinks } from "@/lib/site";
 
 export const Route = createFileRoute("/$locale/compare")({
   validateSearch: z.object({ skus: z.string().optional() }),
-  head: ({ params }) => ({
-    meta: [{ title: `${makeT(params.locale as Locale)("nav.compare")} — ${makeT(params.locale as Locale)("common.appName")}` }],
-  }),
+  head: ({ params }) => {
+    const locale = params.locale;
+    const t = makeT(locale as Locale);
+    return {
+      meta: [
+        { title: `${t("nav.compare")} — ${t("common.appName")}` },
+        { name: "description", content: "Jämför pneumatiska cylindrar och aktuatorer sida vid sida. Se skillnader i specs, IP-klass, slag, kraft och pris mellan Festo, SMC, Parker, Bosch Rexroth och fler." },
+        { property: "og:title", content: `${t("nav.compare")} — ${t("common.appName")}` },
+        { property: "og:url", content: `${SITE}/${locale}/compare` },
+      ],
+      links: [
+        { rel: "canonical", href: `${SITE}/${locale}/compare` },
+        ...hreflangLinks("compare"),
+      ],
+    };
+  },
   component: ComparePage,
 });
 

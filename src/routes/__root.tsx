@@ -12,6 +12,7 @@ import {
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/lib/auth-context";
 import { isLocale, DEFAULT_LOCALE } from "@/lib/i18n";
+import { SITE } from "@/lib/site";
 
 function NotFoundComponent() {
   return (
@@ -84,10 +85,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:title", content: "Maskinval — Industriell automation" },
       { name: "twitter:description", content: "AI-sökning för pneumatik och automation. Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work." },
       { name: "theme-color", content: "#1F3864" },
+      { property: "og:image", content: `${SITE}/og-image.svg` },
+      { name: "twitter:image", content: `${SITE}/og-image.svg` },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "canonical", href: "https://tanstack-start-app.alexandropeer.workers.dev/sv" },
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "shortcut icon", href: "/favicon.svg" },
     ],
@@ -124,11 +126,26 @@ function LangSync() {
   return null;
 }
 
+const ORG_SCHEMA = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Maskinval",
+  url: SITE,
+  logo: `${SITE}/favicon.svg`,
+  description: "Industriell automation och pneumatik — AI-driven komponentväljare för maskinbyggare.",
+  email: "info@maskinval.se",
+  sameAs: [],
+};
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_SCHEMA) }}
+        />
         <LangSync />
         <Outlet />
       </AuthProvider>

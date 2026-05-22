@@ -5,11 +5,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { loadCatalog } from "@/lib/catalog";
 import type { ProductRow } from "@/lib/types";
+import { SITE, hreflangLinks } from "@/lib/site";
 
 export const Route = createFileRoute("/$locale/advisor")({
-  head: ({ params }) => ({
-    meta: [{ title: `Advisor — ${makeT(params.locale as Locale)("common.appName")}` }],
-  }),
+  head: ({ params }) => {
+    const locale = params.locale;
+    const t = makeT(locale as Locale);
+    return {
+      meta: [
+        { title: `Produktrådgivare — ${t("common.appName")}` },
+        { name: "description", content: "Beskriv din applikation och få en komplett komponentlista rekommenderad av AI — cylinder, ventil, anslutningar och mer, anpassad efter dina krav." },
+        { property: "og:url", content: `${SITE}/${locale}/advisor` },
+      ],
+      links: [
+        { rel: "canonical", href: `${SITE}/${locale}/advisor` },
+        ...hreflangLinks("advisor"),
+      ],
+    };
+  },
   component: AdvisorPage,
 });
 

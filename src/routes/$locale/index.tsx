@@ -7,26 +7,25 @@ import type { ProductRow } from "@/lib/types";
 import heroImg from "@/assets/hero-industrial.jpg";
 import featureImg from "@/assets/feature-component.jpg";
 import { getProductImage, getCategoryImage } from "@/lib/product-images";
+import { SITE, hreflangLinks } from "@/lib/site";
 
 export const Route = createFileRoute("/$locale/")({
   head: ({ params }) => {
     const t = makeT(params.locale as Locale);
     const locale = params.locale;
-    const canonical = `https://tanstack-start-app.llrowlightll.workers.dev/${locale}`;
+    const canonical = `${SITE}/${locale}`;
     return {
       meta: [
         { title: `${t("common.appName")} — Pneumatik, cylindrar & automation` },
         { name: "description", content: "Sök industriella automationskomponenter från Festo, SMC, Parker, Bosch Rexroth och Norgren. AI-sökning, spec-jämförelse och komplett stycklista direkt." },
         { property: "og:title", content: `${t("common.appName")} — Industriell automation` },
         { property: "og:description", content: "AI-driven komponentväljare för maskinbyggare. Pneumatik, elektriska aktuatorer, ventiler och mer." },
-        { property: "og:image", content: heroImg },
+        { property: "og:image", content: `${SITE}/og-image.svg` },
         { property: "og:url", content: canonical },
       ],
       links: [
         { rel: "canonical", href: canonical },
-        { rel: "alternate", hreflang: "sv", href: "https://tanstack-start-app.llrowlightll.workers.dev/sv" },
-        { rel: "alternate", hreflang: "en", href: "https://tanstack-start-app.llrowlightll.workers.dev/en" },
-        { rel: "alternate", hreflang: "x-default", href: "https://tanstack-start-app.llrowlightll.workers.dev/sv" },
+        ...hreflangLinks(),
       ],
     };
   },
