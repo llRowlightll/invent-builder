@@ -130,27 +130,16 @@ function AdvisorPage() {
   }
 
   return (
-    <div className="container-page py-10 max-w-3xl">
-      {/* Header */}
-      <p className="text-[11px] uppercase tracking-[0.22em] text-info font-medium mb-1">
-        {t("advisorPage2.badge")}
-      </p>
-      <h1 className="text-3xl font-semibold tracking-tight">{t("advisorPage2.title")}</h1>
-      <p className="mt-2 text-muted-foreground text-sm max-w-xl">{t("advisorPage2.subtitle")}</p>
-
-      {/* Human support trust banner */}
-      <div className="mt-6 rounded-xl border border-border bg-card p-4 flex items-start gap-4">
-        <div className="size-10 rounded-full bg-[oklch(0.92_0.06_155)]/60 flex items-center justify-center text-xl shrink-0">👷</div>
+    <div className="container-page py-5 max-w-3xl">
+      {/* Header — compact */}
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <div className="font-semibold text-sm text-foreground">Riktiga ingenjörer svarar — inte bara AI</div>
-          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-            Bakom AI-verktyget finns ett team av tekniska säljare och ingenjörer med djup erfarenhet av Festo, SMC, Parker och övriga märken.
-            Skicka in dina krav så återkommer vi personligen — ofta samma dag.
-          </p>
-          <a href="mailto:info@maskinval.se" className="mt-2 inline-block text-xs text-info font-medium hover:underline">
-            info@maskinval.se →
-          </a>
+          <h1 className="text-xl font-semibold tracking-tight">{t("advisorPage2.title")}</h1>
+          <p className="text-xs text-muted-foreground mt-0.5 max-w-xl">{t("advisorPage2.subtitle")}</p>
         </div>
+        <a href="mailto:info@maskinval.se" className="hidden sm:flex items-center gap-1.5 text-xs text-info font-medium hover:underline shrink-0">
+          👷 info@maskinval.se →
+        </a>
       </div>
 
       {/* Step 1: Use-case selector */}

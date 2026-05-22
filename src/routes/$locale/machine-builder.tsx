@@ -180,19 +180,18 @@ function MachineBuilderPage() {
   }
 
   return (
-    <div className="container-page py-6 md:py-8 max-w-4xl">
-      {/* Header */}
-      <div className="mb-6 md:mb-8">
-        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground mb-2">
-          <span className="text-info">✦</span>
-          {t("machineBuilder.aiLabel")}
+    <div className="container-page py-4 max-w-4xl">
+      {/* Header — compact */}
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight flex items-center gap-2">
+            <span className="text-info text-sm">✦</span>
+            {t("machineBuilder.title")}
+          </h1>
+          <p className="text-xs text-muted-foreground max-w-xl mt-0.5">
+            {t("machineBuilder.subtitle")}
+          </p>
         </div>
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-          {t("machineBuilder.title")}
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground max-w-xl">
-          {t("machineBuilder.subtitle")}
-        </p>
       </div>
 
       {/* Progress bar */}
@@ -293,23 +292,23 @@ function StepIndicator({ step, t }: { step: Step; t: (key: import("@/lib/i18n").
   const current = order[step] ?? 0;
 
   return (
-    <div className="flex items-center gap-0 mb-8">
+    <div className="flex items-center gap-0 mb-4">
       {steps.map((s, i) => (
         <div key={s.key} className="flex items-center flex-1 last:flex-none">
-          <div className="flex flex-col items-center gap-1">
-            <div className={`size-8 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${
+          <div className="flex flex-col items-center gap-0.5">
+            <div className={`size-6 rounded-full flex items-center justify-center text-[10px] font-semibold transition-colors ${
               i < current ? "bg-info text-primary-foreground" :
               i === current ? "bg-primary text-primary-foreground" :
               "bg-muted text-muted-foreground"
             }`}>
               {i < current ? "✓" : i + 1}
             </div>
-            <span className={`text-[10px] uppercase tracking-wider hidden sm:block ${
+            <span className={`text-[9px] uppercase tracking-wider hidden sm:block ${
               i === current ? "text-foreground font-medium" : "text-muted-foreground"
             }`}>{s.label}</span>
           </div>
           {i < steps.length - 1 && (
-            <div className={`flex-1 h-0.5 mx-2 mb-4 transition-colors ${i < current ? "bg-info" : "bg-border"}`} />
+            <div className={`flex-1 h-0.5 mx-1.5 mb-3 transition-colors ${i < current ? "bg-info" : "bg-border"}`} />
           )}
         </div>
       ))}
@@ -322,9 +321,9 @@ function DescribeStep({ t, description, setDescription, onSubmit }: {
   t: (key: import("@/lib/i18n").TKey) => string; description: string; setDescription: (v: string) => void; onSubmit: () => void;
 }) {
   return (
-    <div className="space-y-6">
-      <div className="rounded-xl border border-border bg-card p-6">
-        <label className="block text-sm font-medium text-foreground mb-3">
+    <div className="space-y-4">
+      <div className="rounded-xl border border-border bg-card p-4">
+        <label className="block text-sm font-medium text-foreground mb-2">
           {t("machineBuilder.describeLabel")}
         </label>
         <textarea
@@ -332,15 +331,15 @@ function DescribeStep({ t, description, setDescription, onSubmit }: {
           onChange={e => setDescription(e.target.value)}
           onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") onSubmit(); }}
           placeholder={t("machineBuilder.describePlaceholder")}
-          rows={5}
-          className="w-full px-4 py-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50 resize-none"
+          rows={3}
+          className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50 resize-none"
         />
-        <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
+        <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
           <span className="text-[11px] text-muted-foreground">{t("machineBuilder.cmdEnterHint")}</span>
           <button
             onClick={onSubmit}
             disabled={!description.trim()}
-            className="px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition flex items-center gap-2"
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition flex items-center gap-2"
           >
             {t("machineBuilder.analyse")}
           </button>

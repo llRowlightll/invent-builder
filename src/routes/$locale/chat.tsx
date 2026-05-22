@@ -127,7 +127,10 @@ function ChatPage() {
   }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Only auto-scroll after user has sent at least one message — not on initial load
+    if (msgs.length > 1) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [msgs]);
 
   async function send() {
