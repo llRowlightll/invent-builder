@@ -1,5 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import type { Machine3DSceneProps } from "@/components/Machine3DScene";
+const Machine3DScene = lazy(() =>
+  import("@/components/Machine3DScene").then(m => ({ default: m.Machine3DScene }))
+);
 import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
 import { supabase } from "@/integrations/supabase/client";
@@ -953,7 +957,7 @@ const NODE_META: Record<NodeType, { label: string; color: string; fill: string; 
 
 function BomSystemView({ bom, selected, locale }: { bom: BomLine[]; selected: ActuatorOption; locale: string }) {
   const [active, setActive] = useState<number | null>(null);
-  const [view, setView] = useState<"diagram" | "cards">("diagram");
+  const [view, setView] = useState<"diagram" | "3d" | "cards">("diagram");
 
   const isElectric = /DNCE|LEY|LEF|EGC|ELGA/i.test(selected.sku);
   const classified = bom.map((line, i) => ({
@@ -994,16 +998,16 @@ function BomSystemView({ bom, selected, locale }: { bom: BomLine[]; selected: Ac
           Systemöversikt — {bom.length} komponenter
         </div>
         <div className="flex gap-1 bg-surface-alt rounded-md p-0.5">
-          {(["diagram", "cards"] as const).map(v => (
+          {(["diagram", "3d", "cards"] as const).map(v => (
             <button key={v} onClick={() => setView(v)}
               className={`text-xs px-3 py-1 rounded transition ${view === v ? "bg-card shadow-sm font-medium text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-              {v === "diagram" ? "⎔ Systemschema" : "⊞ Komponentkort"}
+              {v === "diagram" ? "⎔ Systemschema" : v === "3d" ? "◉ 3D Maskin" : "⊞ Komponentkort"}
             </button>
           ))}
         </div>
       </div>
 
-      {view === "diagram" ? (
+      {view === "diagram" && (
         <div className="p-4 md:p-6 overflow-x-auto">
           <SystemDiagram
             pipelineItems={pipelineItems}
@@ -1013,7 +1017,36 @@ function BomSystemView({ bom, selected, locale }: { bom: BomLine[]; selected: Ac
             isElectric={isElectric}
           />
         </div>
-      ) : (
+      )}
+
+      {view === "3d" && (
+        <div className="relative">
+          <Suspense fallback={
+            <div className="flex items-center justify-center" style={{ height: 340 }}>
+              <div className="flex gap-1.5">
+                {[0,1,2].map(i => (
+                  <div key={i} className="size-2 rounded-full bg-info animate-bounce" style={{ animationDelay: `${i*0.15}s` }} />
+                ))}
+              </div>
+            </div>
+          }>
+            <Machine3DScene
+              bore={selected.bore_mm ?? 50}
+              stroke={selected.stroke_mm ?? 200}
+              isElectric={isElectric}
+              hasVacuum={classified.some(c => c.nodeType === "vacuum")}
+              hasGripper={classified.some(c => c.nodeType === "gripper")}
+              isMultiAxis={bom.some(l => /axel 2|axis 2|X-axel/i.test(l.role))}
+              hasSensors={classified.some(c => c.nodeType === "sensor")}
+            />
+          </Suspense>
+          <div className="absolute bottom-3 right-3 text-[10px] text-muted-foreground bg-card/80 backdrop-blur px-2 py-1 rounded-md border border-border">
+            Dra för att rotera · Scroll för att zooma
+          </div>
+        </div>
+      )}
+
+      {view === "cards" && (
         <div className="p-4">
           <ComponentCards classified={classified} active={active} setActive={setActive} />
         </div>
