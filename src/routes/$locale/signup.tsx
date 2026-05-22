@@ -325,43 +325,94 @@ function SignupPage() {
           <h1 className="text-2xl font-semibold tracking-tight">{t("signupPage.companyTitle")}</h1>
           <p className="text-sm text-muted-foreground mt-1">{t("signupPage.companySubtitle")}</p>
           <form onSubmit={onStep2} className="mt-8 space-y-4">
+
+            {/* Country first — determines org number behavior below */}
+            <Field label={t("signupPage.country")}>
+              <select
+                value={country}
+                onChange={(e) => {
+                  setCountry(e.target.value);
+                  // Reset org validation when country changes
+                  setOrgNumber("");
+                  setOrgStatus("idle");
+                }}
+                className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
+              >
+                {COUNTRIES.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
+              </select>
+            </Field>
+
             <div className="grid sm:grid-cols-2 gap-4">
               <Field label={t("signupPage.companyName")}>
                 <input required value={companyName} onChange={(e) => setCompanyName(e.target.value)}
                   placeholder="Acme AB"
                   className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
               </Field>
-              <Field label={`${t("signupPage.orgNumber")}${country === "SE" ? " *" : ""}`}>
-                <div className="relative">
-                  <input
-                    value={orgNumber}
-                    onChange={(e) => handleOrgNumberChange(e.target.value)}
-                    placeholder="556123-4567"
-                    inputMode="numeric"
-                    className={`w-full rounded-md border px-3 py-2 text-sm pr-8 bg-card transition ${
-                      orgStatus === "valid"   ? "border-[oklch(0.55_0.15_155)] bg-[oklch(0.98_0.02_155)]" :
-                      orgStatus === "invalid" ? "border-destructive bg-[oklch(0.98_0.02_20)]" :
-                      "border-input"
-                    }`}
-                  />
-                  {orgStatus === "checking" && (
-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground animate-pulse">…</span>
+
+              {/* Org number — Swedish Luhn validation for SE, free text for others */}
+              {country === "SE" ? (
+                <Field label={`${t("signupPage.orgNumber")} *`}>
+                  <div className="relative">
+                    <input
+                      value={orgNumber}
+                      onChange={(e) => handleOrgNumberChange(e.target.value)}
+                      placeholder="556123-4567"
+                      inputMode="numeric"
+                      className={`w-full rounded-md border px-3 py-2 text-sm pr-8 bg-card transition ${
+                        orgStatus === "valid"   ? "border-[oklch(0.55_0.15_155)] bg-[oklch(0.98_0.02_155)]" :
+                        orgStatus === "invalid" ? "border-destructive bg-[oklch(0.98_0.02_20)]" :
+                        "border-input"
+                      }`}
+                    />
+                    {orgStatus === "checking" && (
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground animate-pulse">…</span>
+                    )}
+                    {orgStatus === "valid" && (
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[oklch(0.55_0.15_155)] text-sm">✓</span>
+                    )}
+                    {orgStatus === "invalid" && (
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-destructive text-sm">✗</span>
+                    )}
+                  </div>
+                  {orgStatus === "invalid" && (
+                    <p className="text-xs text-destructive mt-1">Ogiltigt organisationsnummer</p>
                   )}
                   {orgStatus === "valid" && (
-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[oklch(0.55_0.15_155)] text-sm">✓</span>
+                    <p className="text-xs text-[oklch(0.55_0.15_155)] mt-1">Giltigt organisationsnummer</p>
                   )}
-                  {orgStatus === "invalid" && (
-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-destructive text-sm">✗</span>
-                  )}
-                </div>
-                {orgStatus === "invalid" && (
-                  <p className="text-xs text-destructive mt-1">Ogiltigt organisationsnummer</p>
-                )}
-                {orgStatus === "valid" && (
-                  <p className="text-xs text-[oklch(0.55_0.15_155)] mt-1">Giltigt organisationsnummer</p>
-                )}
-              </Field>
+                </Field>
+              ) : (
+                <Field label="Reg.nr / VAT (valfritt)">
+                  <input
+                    value={orgNumber}
+                    onChange={(e) => setOrgNumber(e.target.value)}
+                    placeholder="DE123456789 / GB123456789"
+                    className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
+                  />
+                </Field>
+              )}
             </div>
+
+            {/* Foreign company info banner */}
+            {country !== "SE" && (
+              <div className="flex items-start gap-3 rounded-lg border border-info/30 bg-info/5 px-4 py-3.5 text-sm">
+                <span className="text-base mt-0.5">🌍</span>
+                <div className="space-y-1">
+                  <p className="font-medium text-foreground">Utländskt företag</p>
+                  <p className="text-muted-foreground leading-relaxed">
+                    Du kan skapa ett konto och börja använda Maskinval direkt. För att handla som företag
+                    och få fakturering — mejla oss på{" "}
+                    <a
+                      href="mailto:info@maskinval.se?subject=Företagsregistrering&body=Hej,%0A%0AJag%20vill%20registrera%20mitt%20företag%20på%20Maskinval.%0A%0AFöretagsnamn:%20%0ALand:%20%0AReg.nr:%20%0AKontaktperson:%20%0ATelefon:%20"
+                      className="font-medium text-info underline underline-offset-2 hover:text-info/80"
+                    >
+                      info@maskinval.se
+                    </a>{" "}
+                    så sköter vi registreringen åt dig.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="grid sm:grid-cols-2 gap-4">
               <Field label={t("signupPage.industry")}>
@@ -420,12 +471,20 @@ function SignupPage() {
                       className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
                   </Field>
                 </div>
-                <Field label={t("signupPage.country")}>
-                  <select value={country} onChange={(e) => setCountry(e.target.value)}
-                    className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm">
-                    {COUNTRIES.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
-                  </select>
-                </Field>
+                {/* Country shown as read-only here — selected at top of form */}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
+                  <span>Land:</span>
+                  <span className="font-medium text-foreground">
+                    {COUNTRIES.find((c) => c.v === country)?.l ?? country}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => document.querySelector<HTMLSelectElement>("select")?.focus()}
+                    className="underline underline-offset-2 hover:text-info ml-1"
+                  >
+                    Ändra
+                  </button>
+                </div>
               </div>
             </div>
 
