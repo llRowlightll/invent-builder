@@ -37,127 +37,131 @@ type SpecRowDef =
 
 function mm(v: number | null) { return v != null ? `${v} mm` : "—"; }
 
-const SPEC_GROUPS: SpecGroup[] = [
-  {
-    label: "Logistik & tillgänglighet",
-    icon: "📦",
-    rows: [
-      { kind: "flat", label: "Varumärke",       get: (p) => p.brand.name },
-      { kind: "flat", label: "Kategori",         get: (p) => p.category.name },
-      { kind: "spec", label: "Produkttyp",       key: "type" },
-      { kind: "spec", label: "Cylindertyp",      key: "cylinder_type" },
-      { kind: "spec", label: "Aktuatortyp",      key: "actuator_type" },
-      { kind: "spec", label: "Grippertyp",       key: "gripper_type" },
-      { kind: "spec", label: "Serie",            key: "series" },
-      { kind: "spec", label: "Tillämpning",      key: "application" },
-      { kind: "flat", label: "Tillgänglighet",   get: (p) =>
-          p.availability === "stock" ? "✓ På lager" : p.availability === "order" ? "Beställningsvara" : p.availability ?? "—" },
-      { kind: "flat", label: "Ledtid",           get: (p) => p.lead_time_days ? `${p.lead_time_days} dagar` : "—" },
-      { kind: "flat", label: "Vikt",             get: (p) => p.weight_kg != null ? `${p.weight_kg} kg` : "—" },
-      { kind: "spec", label: "Vikt",             key: "weight" },
-    ],
-  },
-  {
-    label: "Dimensioner",
-    icon: "📐",
-    rows: [
-      { kind: "spec", label: "Borrdiameter",     key: "bore_mm" },
-      { kind: "spec", label: "Borrdiameter",     key: "bore_diameter_mm" },
-      { kind: "spec", label: "Borrdiameter",     key: "bore_diameter" },
-      { kind: "spec", label: "Innerdiameter",    key: "inner_diameter_mm" },
-      { kind: "spec", label: "Ytterdiameter",    key: "outer_diameter_mm" },
-      { kind: "spec", label: "Rördiameter",      key: "tube_od_mm" },
-      { kind: "spec", label: "Max slag",         key: "stroke_max" },
-      { kind: "spec", label: "Max slag",         key: "max_stroke" },
-      { kind: "spec", label: "Slagområde",       key: "stroke_range" },
-      { kind: "flat", label: "Längd",            get: (p) => mm(p.length_mm) },
-      { kind: "flat", label: "Bredd",            get: (p) => mm(p.width_mm) },
-      { kind: "flat", label: "Höjd",             get: (p) => mm(p.height_mm) },
-      { kind: "spec", label: "Längd (m)",        key: "length_m" },
-      { kind: "spec", label: "Längdreduktion",   key: "body_length_reduction_pct" },
-      { kind: "spec", label: "Käftbredd",        key: "jaw_width_mm" },
-      { kind: "spec", label: "Käftslag/sida",    key: "jaw_stroke_per_side" },
-      { kind: "spec", label: "Käftöppningsvinkel", key: "jaw_opening_angle" },
-      { kind: "spec", label: "Rotationsvinkel",  key: "rotation_angle" },
-      { kind: "spec", label: "Repeterbarhet",    key: "repeatability_mm" },
-    ],
-  },
-  {
-    label: "Prestanda & krafter",
-    icon: "⚡",
-    rows: [
-      { kind: "spec", label: "Max arbetstryck",  key: "max_pressure" },
-      { kind: "spec", label: "Max arbetstryck",  key: "max_pressure_bar" },
-      { kind: "spec", label: "Drifttryck",       key: "operating_pressure" },
-      { kind: "spec", label: "Matartryck",       key: "supply_pressure" },
-      { kind: "spec", label: "Kolvkraft vid 6 bar", key: "piston_force_6bar_N" },
-      { kind: "spec", label: "Greppkraft",       key: "gripping_force_N" },
-      { kind: "spec", label: "Klämkraft",        key: "clamping_force" },
-      { kind: "spec", label: "Tryckkraft",       key: "thrust_force" },
-      { kind: "spec", label: "Vridmoment",       key: "torque" },
-      { kind: "spec", label: "Max hastighet",    key: "max_speed" },
-      { kind: "spec", label: "Flöde",            key: "flow_rate_l_min" },
-      { kind: "spec", label: "Vakuumnivå",       key: "vacuum_level" },
-      { kind: "spec", label: "Antal käftar",     key: "number_of_jaws" },
-    ],
-  },
-  {
-    label: "Ventil & pneumatik",
-    icon: "🔧",
-    rows: [
-      { kind: "spec", label: "Ventilfunktion",   key: "function" },
-      { kind: "spec", label: "Ventilstandard",   key: "valve_standard" },
-      { kind: "spec", label: "Antal stationer",  key: "stations" },
-      { kind: "spec", label: "Ventilskivor",     key: "valve_slices" },
-      { kind: "spec", label: "Portdimension",    key: "port_size" },
-      { kind: "spec", label: "Anslutning",       key: "connection" },
-      { kind: "spec", label: "Gänga",            key: "thread" },
-      { kind: "spec", label: "Flödesriktning",   key: "flow_direction" },
-      { kind: "spec", label: "Filterklass",      key: "filter_grade" },
-      { kind: "spec", label: "Tätad borrning",   key: "sealed_bore" },
-      { kind: "spec", label: "Magnetspänning",   key: "solenoid_voltage" },
-      { kind: "spec", label: "Aktivering",       key: "actuation" },
-      { kind: "spec", label: "Drivsätt",         key: "drive" },
-      { kind: "spec", label: "Glidsätt",         key: "slide_type" },
-    ],
-  },
-  {
-    label: "Miljö & tätning",
-    icon: "🛡️",
-    rows: [
-      { kind: "flat", label: "IP-klass",         get: (p) => p.ip_rating ?? "—" },
-      { kind: "spec", label: "IP-klass",         key: "ip_rating" },
-      { kind: "spec", label: "Skyddsklassning",  key: "protection_class" },
-      { kind: "spec", label: "Temperaturområde", key: "temp_range" },
-      { kind: "spec", label: "Temperaturområde", key: "temperature_range" },
-      { kind: "spec", label: "Medium",           key: "medium" },
-      { kind: "spec", label: "Renrumsanpassad",  key: "clean_room_compatible" },
-    ],
-  },
-  {
-    label: "Konstruktion & material",
-    icon: "🔩",
-    rows: [
-      { kind: "spec", label: "Standard",         key: "standard" },
-      { kind: "spec", label: "Material",         key: "material" },
-      { kind: "spec", label: "Guidetyp",         key: "guide_type" },
-      { kind: "spec", label: "Guidetyper",       key: "guide_types" },
-      { kind: "spec", label: "Styrning/dämpning", key: "cushioning_types" },
-      { kind: "spec", label: "Positionsutgång",  key: "position_output" },
-      { kind: "spec", label: "Anmärkning",       key: "note" },
-    ],
-  },
-  {
-    label: "El & kommunikation",
-    icon: "📡",
-    rows: [
-      { kind: "flat", label: "Spänning",         get: (p) => p.voltage ?? "—" },
-      { kind: "flat", label: "Fieldbus",         get: (p) => p.fieldbus ?? "—" },
-      { kind: "spec", label: "Spänning",         key: "voltage" },
-      { kind: "spec", label: "Fieldbus",         key: "fieldbus" },
-    ],
-  },
-];
+// All labels come from locale files — no hardcoded Swedish
+function makeSpecGroups(t: ReturnType<typeof makeT>): SpecGroup[] {
+  return [
+    {
+      label: t("comparePage.group_logistics"),
+      icon: "📦",
+      rows: [
+        { kind: "flat", label: t("comparePage.label_brand"),        get: (p) => p.brand.name },
+        { kind: "flat", label: t("comparePage.label_category"),     get: (p) => p.category.name },
+        { kind: "spec", label: t("comparePage.label_type"),         key: "type" },
+        { kind: "spec", label: t("comparePage.label_cylinder_type"),key: "cylinder_type" },
+        { kind: "spec", label: t("comparePage.label_actuator_type"),key: "actuator_type" },
+        { kind: "spec", label: t("comparePage.label_gripper_type"), key: "gripper_type" },
+        { kind: "spec", label: t("comparePage.label_series"),       key: "series" },
+        { kind: "spec", label: t("comparePage.label_application"),  key: "application" },
+        { kind: "flat", label: t("comparePage.label_availability"),
+            get: (p) => p.availability === "stock" ? t("comparePage.label_in_stock") : p.availability === "order" ? t("comparePage.label_order") : p.availability ?? "—" },
+        { kind: "flat", label: t("comparePage.label_lead_time"),
+            get: (p) => p.lead_time_days ? `${p.lead_time_days} ${t("comparePage.label_days")}` : "—" },
+        { kind: "flat", label: t("comparePage.label_weight"),       get: (p) => p.weight_kg != null ? `${p.weight_kg} kg` : "—" },
+        { kind: "spec", label: t("comparePage.label_weight"),       key: "weight" },
+      ],
+    },
+    {
+      label: t("comparePage.group_dimensions"),
+      icon: "📐",
+      rows: [
+        { kind: "spec", label: t("comparePage.label_bore"),        key: "bore_mm" },
+        { kind: "spec", label: t("comparePage.label_bore"),        key: "bore_diameter_mm" },
+        { kind: "spec", label: t("comparePage.label_bore"),        key: "bore_diameter" },
+        { kind: "spec", label: t("comparePage.label_inner_dia"),   key: "inner_diameter_mm" },
+        { kind: "spec", label: t("comparePage.label_outer_dia"),   key: "outer_diameter_mm" },
+        { kind: "spec", label: t("comparePage.label_tube_dia"),    key: "tube_od_mm" },
+        { kind: "spec", label: t("comparePage.label_max_stroke"),  key: "stroke_max" },
+        { kind: "spec", label: t("comparePage.label_max_stroke"),  key: "max_stroke" },
+        { kind: "spec", label: t("comparePage.label_stroke_range"),key: "stroke_range" },
+        { kind: "flat", label: t("comparePage.label_length"),      get: (p) => mm(p.length_mm) },
+        { kind: "flat", label: t("comparePage.label_width"),       get: (p) => mm(p.width_mm) },
+        { kind: "flat", label: t("comparePage.label_height"),      get: (p) => mm(p.height_mm) },
+        { kind: "spec", label: t("comparePage.label_length_m"),    key: "length_m" },
+        { kind: "spec", label: t("comparePage.label_body_red"),    key: "body_length_reduction_pct" },
+        { kind: "spec", label: t("comparePage.label_jaw_width"),   key: "jaw_width_mm" },
+        { kind: "spec", label: t("comparePage.label_jaw_stroke"),  key: "jaw_stroke_per_side" },
+        { kind: "spec", label: t("comparePage.label_jaw_angle"),   key: "jaw_opening_angle" },
+        { kind: "spec", label: t("comparePage.label_rot_angle"),   key: "rotation_angle" },
+        { kind: "spec", label: t("comparePage.label_repeat"),      key: "repeatability_mm" },
+      ],
+    },
+    {
+      label: t("comparePage.group_performance"),
+      icon: "⚡",
+      rows: [
+        { kind: "spec", label: t("comparePage.label_max_pressure"), key: "max_pressure" },
+        { kind: "spec", label: t("comparePage.label_max_pressure"), key: "max_pressure_bar" },
+        { kind: "spec", label: t("comparePage.label_op_pressure"),  key: "operating_pressure" },
+        { kind: "spec", label: t("comparePage.label_supply_pres"),  key: "supply_pressure" },
+        { kind: "spec", label: t("comparePage.label_piston_force"), key: "piston_force_6bar_N" },
+        { kind: "spec", label: t("comparePage.label_grip_force"),   key: "gripping_force_N" },
+        { kind: "spec", label: t("comparePage.label_clamp_force"),  key: "clamping_force" },
+        { kind: "spec", label: t("comparePage.label_thrust"),       key: "thrust_force" },
+        { kind: "spec", label: t("comparePage.label_torque"),       key: "torque" },
+        { kind: "spec", label: t("comparePage.label_max_speed"),    key: "max_speed" },
+        { kind: "spec", label: t("comparePage.label_flow_rate"),    key: "flow_rate_l_min" },
+        { kind: "spec", label: t("comparePage.label_vacuum"),       key: "vacuum_level" },
+        { kind: "spec", label: t("comparePage.label_num_jaws"),     key: "number_of_jaws" },
+      ],
+    },
+    {
+      label: t("comparePage.group_valve"),
+      icon: "🔧",
+      rows: [
+        { kind: "spec", label: t("comparePage.label_valve_fn"),     key: "function" },
+        { kind: "spec", label: t("comparePage.label_valve_std"),    key: "valve_standard" },
+        { kind: "spec", label: t("comparePage.label_stations"),     key: "stations" },
+        { kind: "spec", label: t("comparePage.label_valve_slices"), key: "valve_slices" },
+        { kind: "spec", label: t("comparePage.label_port_size"),    key: "port_size" },
+        { kind: "spec", label: t("comparePage.label_connection"),   key: "connection" },
+        { kind: "spec", label: t("comparePage.label_thread"),       key: "thread" },
+        { kind: "spec", label: t("comparePage.label_flow_dir"),     key: "flow_direction" },
+        { kind: "spec", label: t("comparePage.label_filter_grade"), key: "filter_grade" },
+        { kind: "spec", label: t("comparePage.label_sealed_bore"),  key: "sealed_bore" },
+        { kind: "spec", label: t("comparePage.label_solenoid_v"),   key: "solenoid_voltage" },
+        { kind: "spec", label: t("comparePage.label_actuation"),    key: "actuation" },
+        { kind: "spec", label: t("comparePage.label_drive"),        key: "drive" },
+        { kind: "spec", label: t("comparePage.label_slide_type"),   key: "slide_type" },
+      ],
+    },
+    {
+      label: t("comparePage.group_environment"),
+      icon: "🛡️",
+      rows: [
+        { kind: "flat", label: t("comparePage.label_ip_rating"),   get: (p) => p.ip_rating ?? "—" },
+        { kind: "spec", label: t("comparePage.label_ip_rating"),   key: "ip_rating" },
+        { kind: "spec", label: t("comparePage.label_prot_class"),  key: "protection_class" },
+        { kind: "spec", label: t("comparePage.label_temp_range"),  key: "temp_range" },
+        { kind: "spec", label: t("comparePage.label_temp_range"),  key: "temperature_range" },
+        { kind: "spec", label: t("comparePage.label_medium"),      key: "medium" },
+        { kind: "spec", label: t("comparePage.label_clean_room"),  key: "clean_room_compatible" },
+      ],
+    },
+    {
+      label: t("comparePage.group_construction"),
+      icon: "🔩",
+      rows: [
+        { kind: "spec", label: t("comparePage.label_standard"),    key: "standard" },
+        { kind: "spec", label: t("comparePage.label_material"),    key: "material" },
+        { kind: "spec", label: t("comparePage.label_guide_type"),  key: "guide_type" },
+        { kind: "spec", label: t("comparePage.label_guide_type"),  key: "guide_types" },
+        { kind: "spec", label: t("comparePage.label_cushioning"),  key: "cushioning_types" },
+        { kind: "spec", label: t("comparePage.label_pos_output"),  key: "position_output" },
+        { kind: "spec", label: t("comparePage.label_note"),        key: "note" },
+      ],
+    },
+    {
+      label: t("comparePage.group_electrical"),
+      icon: "📡",
+      rows: [
+        { kind: "flat", label: t("comparePage.label_voltage"),    get: (p) => p.voltage ?? "—" },
+        { kind: "flat", label: t("comparePage.label_fieldbus"),   get: (p) => p.fieldbus ?? "—" },
+        { kind: "spec", label: t("comparePage.label_voltage"),    key: "voltage" },
+        { kind: "spec", label: t("comparePage.label_fieldbus"),   key: "fieldbus" },
+      ],
+    },
+  ];
+}
 
 // Build a unique list of rows (remove duplicate keys, remove rows where all products return "—")
 function buildRows(group: SpecGroup, compared: ProductRow[]): Array<{ label: string; cells: string[]; isDifferent: boolean }> {
@@ -202,9 +206,11 @@ function extraRows(compared: ProductRow[], groupedKeys: Set<string>): Array<{ la
   return result;
 }
 
-const GROUPED_SPEC_KEYS = new Set(
-  SPEC_GROUPS.flatMap((g) => g.rows.filter((r) => r.kind === "spec").map((r) => (r as { key: string }).key))
-);
+function makeGroupedKeys(groups: SpecGroup[]): Set<string> {
+  return new Set(
+    groups.flatMap((g) => g.rows.filter((r) => r.kind === "spec").map((r) => (r as { kind: "spec"; label: string; key: string }).key))
+  );
+}
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -212,6 +218,8 @@ function ComparePage() {
   const { locale } = Route.useParams();
   const { skus } = Route.useSearch();
   const t = makeT(locale as Locale);
+  const SPEC_GROUPS = makeSpecGroups(t);
+  const GROUPED_SPEC_KEYS = makeGroupedKeys(SPEC_GROUPS);
   const navigate = useNavigate();
 
   const [items, setItems] = useState<ProductRow[] | null>(null);
