@@ -11,6 +11,7 @@ import {
 
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/lib/auth-context";
+import { EditModeProvider } from "@/lib/edit-mode-context";
 import { isLocale, DEFAULT_LOCALE } from "@/lib/i18n";
 import { SITE } from "@/lib/site";
 
@@ -142,12 +143,14 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_SCHEMA) }}
-        />
-        <LangSync />
-        <Outlet />
+        <EditModeProvider>
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_SCHEMA) }}
+          />
+          <LangSync />
+          <Outlet />
+        </EditModeProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

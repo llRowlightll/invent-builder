@@ -9,6 +9,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { isLocale, makeT, setLocaleCookie, getCookie, type Locale } from "@/lib/i18n";
 import { useAuth, useIsAdmin } from "@/lib/auth-context";
+import { useEditMode } from "@/lib/edit-mode-context";
 
 export const Route = createFileRoute("/$locale")({
   parseParams: (params) => {
@@ -112,6 +113,7 @@ function LocaleLayout() {
 
 
   const isAdmin = useIsAdmin();
+  const { isEditMode, toggleEditMode } = useEditMode();
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -206,7 +208,17 @@ function LocaleLayout() {
               <div className="hidden sm:flex items-center gap-2">
                 {isAdmin && (
                   <>
-                    <Link to={"/$locale/admin/dashboard" as never} params={{ locale } as never}
+                    <button
+                      onClick={toggleEditMode}
+                      className={`text-xs px-2.5 py-1.5 rounded-md border font-medium transition ${
+                        isEditMode
+                          ? "bg-gold text-primary border-gold"
+                          : "border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80"
+                      }`}
+                    >
+                      {isEditMode ? "✎ EDIT PÅ" : "✎ EDIT"}
+                    </button>
+                  <Link to={"/$locale/admin/dashboard" as never} params={{ locale } as never}
                       className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
                       Admin ◈
                     </Link>

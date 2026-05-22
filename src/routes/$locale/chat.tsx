@@ -47,16 +47,40 @@ function isKnowledgeQuestion(q: string): boolean {
   return knowledgeSignals.some((r) => r.test(t));
 }
 
-const EXAMPLE_QUERIES = [
-  "Jag behöver en cylinder som lyfter 30 kg med 150mm slag",
-  "Kompakt SMC cylinder för trånga utrymmen, 32mm kolvdiameter",
-  "Pneumatisk gripper för cylindriska objekt",
-  "Parker cylinder med IP67 för utomhusbruk",
-  "Hur fungerar Parker P1D cylinderns kolvtätning?",
-  "Vad är skillnaden mellan OSP-P och en vanlig cylinder?",
-  "How do I select the right bore size for 500N force?",
-  "What is the maximum pressure for Norgren LINTRA Plus?",
-];
+const EXAMPLE_QUERIES: Record<string, string[]> = {
+  sv: [
+    "Jag behöver en cylinder som lyfter 30 kg med 150mm slag",
+    "Kompakt SMC cylinder för trånga utrymmen, 32mm kolvdiameter",
+    "Pneumatisk gripper för cylindriska objekt",
+    "Parker cylinder med IP67 för utomhusbruk",
+    "Hur fungerar Parker P1D cylinderns kolvtätning?",
+    "Vad är skillnaden mellan OSP-P och en vanlig cylinder?",
+  ],
+  en: [
+    "I need a cylinder to lift 30 kg with 150mm stroke",
+    "Compact SMC cylinder for tight spaces, 32mm bore",
+    "Pneumatic gripper for cylindrical objects",
+    "Parker cylinder with IP67 for outdoor use",
+    "How does the Parker P1D cylinder piston seal work?",
+    "What is the difference between OSP-P and a standard cylinder?",
+  ],
+  de: [
+    "Ich brauche einen Zylinder für 30 kg Last, 150mm Hub",
+    "Kompakter SMC-Zylinder für enge Räume, 32mm Kolbendurchmesser",
+    "Pneumatischer Greifer für zylindrische Objekte",
+    "Parker-Zylinder mit IP67 für den Außeneinsatz",
+    "Wie funktioniert die Kolbendichtung beim Parker P1D?",
+    "Was ist der Unterschied zwischen OSP-P und einem Normzylinder?",
+  ],
+  es: [
+    "Necesito un cilindro para elevar 30 kg con 150mm de carrera",
+    "Cilindro SMC compacto para espacios reducidos, diámetro 32mm",
+    "Pinza neumática para objetos cilíndricos",
+    "Cilindro Parker con IP67 para uso exterior",
+    "¿Cómo funciona el sello del émbolo del Parker P1D?",
+    "¿Cuál es la diferencia entre OSP-P y un cilindro estándar?",
+  ],
+};
 
 function renderChatText(text: string) {
   return (
@@ -404,7 +428,7 @@ function ChatPage() {
               {t("chatPage.tryExample")}
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {EXAMPLE_QUERIES.map((q) => (
+              {(EXAMPLE_QUERIES[locale] ?? EXAMPLE_QUERIES.en).map((q) => (
                 <button
                   key={q}
                   onClick={() => { setText(q); inputRef.current?.focus(); }}

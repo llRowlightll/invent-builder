@@ -3,9 +3,10 @@
   "configurations": [
     {
       "name": "maskinval",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 8080
+      "runtimeExecutable": "/tmp/invent-builder-push/node_modules/.bin/vite",
+      "runtimeArgs": ["dev", "--port", "5173"],
+      "cwd": "/tmp/invent-builder-push",
+      "port": 5173
     }
   ]
 }

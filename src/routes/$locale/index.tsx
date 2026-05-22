@@ -8,6 +8,7 @@ import heroImg from "@/assets/hero-industrial.jpg";
 import featureImg from "@/assets/feature-component.jpg";
 import { getProductImage, getCategoryImage } from "@/lib/product-images";
 import { SITE, hreflangLinks } from "@/lib/site";
+import { EditableText } from "@/components/EditableText";
 
 export const Route = createFileRoute("/$locale/")({
   head: ({ params }) => {
@@ -135,11 +136,13 @@ function Landing() {
             </span>
           </div>
           <h1 className="text-4xl md:text-6xl font-semibold tracking-tight max-w-3xl leading-[1.05]">
-            {t("index.heroTitle")}<br />
-            <span style={{ color: "var(--gold)" }}>{t("index.heroTitleAccent")}</span>
+            <EditableText contentKey="index.heroTitle" locale={locale} fallback={t("index.heroTitle")} /><br />
+            <span style={{ color: "var(--gold)" }}>
+              <EditableText contentKey="index.heroTitleAccent" locale={locale} fallback={t("index.heroTitleAccent")} />
+            </span>
           </h1>
           <p className="mt-5 text-lg text-primary-foreground/75 max-w-xl">
-            {t("index.heroSubtitle")}
+            <EditableText contentKey="index.heroSubtitle" locale={locale} fallback={t("index.heroSubtitle")} multiline />
           </p>
 
           <form onSubmit={onSearch} className="mt-8 flex gap-2 max-w-2xl">

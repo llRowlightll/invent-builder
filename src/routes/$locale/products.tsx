@@ -9,6 +9,7 @@ import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
 import { addToShoppingList } from "@/lib/cart";
 import { SITE, hreflangLinks } from "@/lib/site";
+import { categoryName } from "@/lib/categories";
 
 type FilterKey = "brands" | "cats" | "grades";
 
@@ -123,9 +124,9 @@ function ProductsPage() {
 
   const allCats = useMemo(() => {
     const m = new Map<string, string>();
-    items?.forEach((p) => m.set(p.category.slug, p.category.name));
+    items?.forEach((p) => m.set(p.category.slug, categoryName(p.category.slug, locale, p.category.name)));
     return Array.from(m.entries()).sort((a, b) => a[1].localeCompare(b[1]));
-  }, [items]);
+  }, [items, locale]);
 
   const filtered = useMemo(() => {
     if (!items) return [];
@@ -376,7 +377,7 @@ function ProductsPage() {
                 <div className="mt-2 flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-medium text-info">{p.brand.name}</span>
                   <span className="text-xs text-muted-foreground">·</span>
-                  <span className="text-xs text-muted-foreground">{p.category.name}</span>
+                  <span className="text-xs text-muted-foreground">{categoryName(p.category.slug, locale, p.category.name)}</span>
                 </div>
 
                 {/* Key specs preview */}
