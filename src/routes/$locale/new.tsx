@@ -227,7 +227,7 @@ function makeVideos(t: ReturnType<typeof makeT>): VideoItem[] {
       brand: "Camozzi",
       brandSlug: "camozzi",
       brandColor: "#E2001A",
-      videoId: "9v4CxmtTwBo",
+      videoId: "SL0bcJI1tLA",
       channelUrl: "https://www.youtube.com/@CamozziAutomation",
       title: t("newPage.v_camozzi_title"),
       description: t("newPage.v_camozzi_desc"),
