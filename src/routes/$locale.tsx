@@ -234,7 +234,7 @@ function LocaleLayout() {
                 )}
                 <Link to={"/$locale/profile" as never} params={{ locale } as never}
                   className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
-                  Profil
+                  {t("nav.profile")}
                 </Link>
                 <button
                   onClick={async () => { await signOut(); navigate({ to: "/$locale", params: { locale } }); }}
@@ -257,7 +257,7 @@ function LocaleLayout() {
             <button
               className="md:hidden p-2 rounded-md hover:bg-primary-foreground/10"
               onClick={() => setMenuOpen((o) => !o)}
-              aria-label="Meny"
+              aria-label={t("nav.menu")}
             >
               <span className="block w-4 h-0.5 bg-primary-foreground mb-1" />
               <span className="block w-4 h-0.5 bg-primary-foreground mb-1" />
@@ -306,7 +306,7 @@ function LocaleLayout() {
                 <>
                   <Link to={"/$locale/profile" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
                     className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
-                    Profil
+                    {t("nav.profile")}
                   </Link>
                   <Link to={"/$locale/claims" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
                     className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
@@ -391,7 +391,7 @@ function LocaleLayout() {
             <p className="leading-relaxed">{t("common.tagline")}</p>
           </div>
           <div>
-            <div className="font-medium text-foreground mb-2">Verktyg</div>
+            <div className="font-medium text-foreground mb-2">{t("footer.tools")}</div>
             <ul className="space-y-1">
               <li><Link to="/$locale/products" params={{ locale }} className="hover:text-info">{t("nav.products")}</Link></li>
               <li><Link to="/$locale/new" params={{ locale }} className="hover:text-info">{t("nav.new")}</Link></li>
@@ -399,22 +399,20 @@ function LocaleLayout() {
               <li><Link to="/$locale/compare" params={{ locale }} className="hover:text-info">{t("nav.compare")}</Link></li>
               <li><Link to="/$locale/advisor" params={{ locale }} className="hover:text-info">{t("nav.advisor")}</Link></li>
               <li><Link to="/$locale/machine-builder" params={{ locale }} className="hover:text-info">{t("nav.machineBuilder")}</Link></li>
-              {isAdmin && <li><Link to="/$locale/admin/import" params={{ locale }} className="hover:text-info">Leverantörsimport</Link></li>}
+              {isAdmin && <li><Link to="/$locale/admin/import" params={{ locale }} className="hover:text-info">{t("footer.importAdmin")}</Link></li>}
             </ul>
           </div>
           <div>
-            <div className="font-medium text-foreground mb-2">Varumärken</div>
+            <div className="font-medium text-foreground mb-2">{t("footer.brands")}</div>
             <p className="leading-relaxed">Festo · SMC · Parker · Bosch Rexroth · Norgren · Metal Work · Camozzi</p>
-            <p className="mt-2 text-[11px]">
-              Pneumatiska cylindrar · Elektriska aktuatorer · Ventiler · Grippers · Vakuumsystem
-            </p>
+            <p className="mt-2 text-[11px]">{t("footer.productTypes")}</p>
           </div>
         </div>
         <div className="container-page mt-6 pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-muted-foreground">
-          <span>© {new Date().getFullYear()} {t("common.appName")} — Industriell automationskatalog för maskinbyggare</span>
+          <span>© {new Date().getFullYear()} {t("common.appName")} — {t("footer.copyright")}</span>
           <div className="flex flex-wrap gap-4 justify-center sm:justify-end">
-            <Link to="/$locale/privacy" params={{ locale }} className="hover:text-info transition">Integritetspolicy</Link>
-            <Link to="/$locale/terms" params={{ locale }} className="hover:text-info transition">Allmänna villkor</Link>
+            <Link to="/$locale/privacy" params={{ locale }} className="hover:text-info transition">{t("footer.privacy")}</Link>
+            <Link to="/$locale/terms" params={{ locale }} className="hover:text-info transition">{t("footer.terms")}</Link>
             {user && <Link to="/$locale/claims" params={{ locale }} className="hover:text-info transition">{t("claimsPage.title")}</Link>}
             <button
               onClick={() => { document.cookie = "mv_cookie_consent=; Max-Age=0; Path=/"; setCookieConsent(null); }}
@@ -422,7 +420,7 @@ function LocaleLayout() {
             >
               {t("cookies.manage")}
             </button>
-            <a href="mailto:info@maskinval.se" className="hover:text-info transition">Kontakt</a>
+            <a href="mailto:info@maskinval.se" className="hover:text-info transition">{t("footer.contact")}</a>
           </div>
         </div>
       </footer>

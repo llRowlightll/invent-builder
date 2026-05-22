@@ -42,7 +42,9 @@
     "shoppingList": "Carrito",
     "login": "Iniciar sesión",
     "assemblies": "Ensamblajes",
-    "new": "Novedades"
+    "new": "Novedades",
+    "profile": "Perfil",
+    "menu": "Menú"
   },
   "landing": {
     "heroTitle": "El componente industrial correcto. Rápido.",
@@ -296,7 +298,9 @@
     "checkEmailBody": "¡Revise su bandeja de entrada! Haga clic en el enlace de confirmación y luego inicie sesión — su perfil ya está completado.",
     "checkEmailNote": "El enlace le lleva directamente a su perfil. Nada más que hacer por ahora.",
     "passwordMinLength": "La contraseña debe tener al menos 6 caracteres.",
-    "passwordPlaceholder": "Al menos 6 caracteres"
+    "passwordPlaceholder": "Al menos 6 caracteres",
+    "invalidOrgNumber": "Número de organización no válido — compruebe el formato (p.ej. 556123-4567).",
+    "orgNumberRequired": "El número de organización es obligatorio para empresas suecas."
   },
   "profilePage": {
     "title": "Mi perfil",
@@ -604,7 +608,8 @@
     "stepSelect": "Seleccionar",
     "stepResult": "Resultado",
     "back": "Atrás",
-    "errorGeneric": "Algo salió mal. Por favor, inténtelo de nuevo."
+    "errorGeneric": "Algo salió mal. Por favor, inténtelo de nuevo.",
+    "metaDesc": "Construya su máquina paso a paso — IA hace las preguntas correctas, sugiere los mejores componentes y genera una lista de materiales completa."
   },
   "wizardPage": {
     "generateButton": "Generar",
@@ -702,5 +707,15 @@
     "downloadCsv": "Descargar CSV",
     "resolveErrors": "Resuelva los errores antes de guardar.",
     "accessoriesNote": "Los accesorios y repuestos se seleccionan automáticamente según el modo. MEJOR añade freno, kit de montaje y repuestos recomendados; MÁS ECONÓMICO mantiene solo el acoplamiento."
+  },
+  "footer": {
+    "tools": "Herramientas",
+    "brands": "Marcas",
+    "privacy": "Política de privacidad",
+    "terms": "Términos de servicio",
+    "contact": "Contacto",
+    "copyright": "Catálogo de automatización industrial para constructores de máquinas",
+    "productTypes": "Cilindros neumáticos · Actuadores eléctricos · Válvulas · Pinzas · Sistemas de vacío",
+    "importAdmin": "Importación de proveedores"
   }
 }

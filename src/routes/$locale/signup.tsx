@@ -141,12 +141,12 @@ function SignupPage() {
     // Validate org number if entered (required for SE)
     if (orgNumber) {
       if (orgStatus === "invalid") {
-        setError("Ogiltigt organisationsnummer — kontrollera att du angett rätt nummer (format: 556123-4567).");
+        setError(t("signupPage.invalidOrgNumber"));
         return;
       }
     }
     if (country === "SE" && !orgNumber) {
-      setError("Organisationsnummer krävs för svenska företag.");
+      setError(t("signupPage.orgNumberRequired"));
       return;
     }
 

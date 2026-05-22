@@ -42,7 +42,9 @@
     "shoppingList": "Cart",
     "login": "Log in",
     "assemblies": "Assemblies",
-    "new": "What's New"
+    "new": "What's New",
+    "profile": "Profile",
+    "menu": "Menu"
   },
   "landing": {
     "heroTitle": "Find the right industrial component. Fast.",
@@ -296,7 +298,9 @@
     "checkEmailBody": "Check your inbox! Click the confirmation link and then sign in — your profile is already filled in.",
     "checkEmailNote": "The link takes you directly to your profile. Nothing more to do right now.",
     "passwordMinLength": "Password must be at least 6 characters.",
-    "passwordPlaceholder": "At least 6 characters"
+    "passwordPlaceholder": "At least 6 characters",
+    "invalidOrgNumber": "Invalid organisation number — please check the format (e.g. 556123-4567).",
+    "orgNumberRequired": "Organisation number is required for Swedish companies."
   },
   "profilePage": {
     "title": "My profile",
@@ -604,7 +608,8 @@
     "stepSelect": "Select",
     "stepResult": "Result",
     "back": "Back",
-    "errorGeneric": "Something went wrong. Please try again."
+    "errorGeneric": "Something went wrong. Please try again.",
+    "metaDesc": "Build your machine step by step — AI asks the right questions, suggests the best components and generates a complete BOM."
   },
   "wizardPage": {
     "generateButton": "Generate",
@@ -702,5 +707,15 @@
     "downloadCsv": "Download CSV",
     "resolveErrors": "Resolve errors before saving.",
     "accessoriesNote": "Accessories and spares are auto-selected based on mode. BEST adds brake, mounting kit and recommended spares; CHEAPEST keeps only the coupling."
+  },
+  "footer": {
+    "tools": "Tools",
+    "brands": "Brands",
+    "privacy": "Privacy policy",
+    "terms": "Terms of service",
+    "contact": "Contact",
+    "copyright": "Industrial automation catalogue for machine builders",
+    "productTypes": "Pneumatic cylinders · Electric actuators · Valves · Grippers · Vacuum systems",
+    "importAdmin": "Supplier import"
   }
 }

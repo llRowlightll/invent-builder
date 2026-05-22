@@ -38,6 +38,7 @@ import { Route as LocaleChatRouteImport } from './routes/$locale/chat'
 import { Route as LocaleAssembliesRouteImport } from './routes/$locale/assemblies'
 import { Route as LocaleAppRouteImport } from './routes/$locale/app'
 import { Route as LocaleAdvisorRouteImport } from './routes/$locale/advisor'
+import { Route as LocaleAdminRouteImport } from './routes/$locale/admin'
 import { Route as LocaleRfqRfqIdRouteImport } from './routes/$locale/rfq.$rfqId'
 import { Route as LocaleProductSkuRouteImport } from './routes/$locale/product.$sku'
 import { Route as LocaleConfiguratorSchemaIdRouteImport } from './routes/$locale/configurator.$schemaId'
@@ -201,6 +202,11 @@ const LocaleAdvisorRoute = LocaleAdvisorRouteImport.update({
   path: '/advisor',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocaleAdminRoute = LocaleAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => LocaleRoute,
+} as any)
 const LocaleRfqRfqIdRoute = LocaleRfqRfqIdRouteImport.update({
   id: '/rfq/$rfqId',
   path: '/rfq/$rfqId',
@@ -234,54 +240,54 @@ const LocaleAssemblySlugRoute = LocaleAssemblySlugRouteImport.update({
   getParentRoute: () => LocaleRoute,
 } as any)
 const LocaleAdminRfqRoute = LocaleAdminRfqRouteImport.update({
-  id: '/admin/rfq',
-  path: '/admin/rfq',
-  getParentRoute: () => LocaleRoute,
+  id: '/rfq',
+  path: '/rfq',
+  getParentRoute: () => LocaleAdminRoute,
 } as any)
 const LocaleAdminProductsRoute = LocaleAdminProductsRouteImport.update({
-  id: '/admin/products',
-  path: '/admin/products',
-  getParentRoute: () => LocaleRoute,
+  id: '/products',
+  path: '/products',
+  getParentRoute: () => LocaleAdminRoute,
 } as any)
 const LocaleAdminPricingRoute = LocaleAdminPricingRouteImport.update({
-  id: '/admin/pricing',
-  path: '/admin/pricing',
-  getParentRoute: () => LocaleRoute,
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => LocaleAdminRoute,
 } as any)
 const LocaleAdminKnowledgeRoute = LocaleAdminKnowledgeRouteImport.update({
-  id: '/admin/knowledge',
-  path: '/admin/knowledge',
-  getParentRoute: () => LocaleRoute,
+  id: '/knowledge',
+  path: '/knowledge',
+  getParentRoute: () => LocaleAdminRoute,
 } as any)
 const LocaleAdminIntegrationsRoute = LocaleAdminIntegrationsRouteImport.update({
-  id: '/admin/integrations',
-  path: '/admin/integrations',
-  getParentRoute: () => LocaleRoute,
+  id: '/integrations',
+  path: '/integrations',
+  getParentRoute: () => LocaleAdminRoute,
 } as any)
 const LocaleAdminImportRoute = LocaleAdminImportRouteImport.update({
-  id: '/admin/import',
-  path: '/admin/import',
-  getParentRoute: () => LocaleRoute,
+  id: '/import',
+  path: '/import',
+  getParentRoute: () => LocaleAdminRoute,
 } as any)
 const LocaleAdminImagesRoute = LocaleAdminImagesRouteImport.update({
-  id: '/admin/images',
-  path: '/admin/images',
-  getParentRoute: () => LocaleRoute,
+  id: '/images',
+  path: '/images',
+  getParentRoute: () => LocaleAdminRoute,
 } as any)
 const LocaleAdminDashboardRoute = LocaleAdminDashboardRouteImport.update({
-  id: '/admin/dashboard',
-  path: '/admin/dashboard',
-  getParentRoute: () => LocaleRoute,
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => LocaleAdminRoute,
 } as any)
 const LocaleAdminCrmRoute = LocaleAdminCrmRouteImport.update({
-  id: '/admin/crm',
-  path: '/admin/crm',
-  getParentRoute: () => LocaleRoute,
+  id: '/crm',
+  path: '/crm',
+  getParentRoute: () => LocaleAdminRoute,
 } as any)
 const LocaleAdminAuditRoute = LocaleAdminAuditRouteImport.update({
-  id: '/admin/audit',
-  path: '/admin/audit',
-  getParentRoute: () => LocaleRoute,
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => LocaleAdminRoute,
 } as any)
 const ApiPublicNotifyRfqRoute = ApiPublicNotifyRfqRouteImport.update({
   id: '/api/public/notify/rfq',
@@ -293,6 +299,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$locale': typeof LocaleRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/$locale/admin': typeof LocaleAdminRouteWithChildren
   '/$locale/advisor': typeof LocaleAdvisorRoute
   '/$locale/app': typeof LocaleAppRoute
   '/$locale/assemblies': typeof LocaleAssembliesRoute
@@ -340,6 +347,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/$locale/admin': typeof LocaleAdminRouteWithChildren
   '/$locale/advisor': typeof LocaleAdvisorRoute
   '/$locale/app': typeof LocaleAppRoute
   '/$locale/assemblies': typeof LocaleAssembliesRoute
@@ -389,6 +397,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$locale': typeof LocaleRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/$locale/admin': typeof LocaleAdminRouteWithChildren
   '/$locale/advisor': typeof LocaleAdvisorRoute
   '/$locale/app': typeof LocaleAppRoute
   '/$locale/assemblies': typeof LocaleAssembliesRoute
@@ -439,6 +448,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$locale'
     | '/sitemap.xml'
+    | '/$locale/admin'
     | '/$locale/advisor'
     | '/$locale/app'
     | '/$locale/assemblies'
@@ -486,6 +496,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/sitemap.xml'
+    | '/$locale/admin'
     | '/$locale/advisor'
     | '/$locale/app'
     | '/$locale/assemblies'
@@ -534,6 +545,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$locale'
     | '/sitemap.xml'
+    | '/$locale/admin'
     | '/$locale/advisor'
     | '/$locale/app'
     | '/$locale/assemblies'
@@ -792,6 +804,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAdvisorRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/admin': {
+      id: '/$locale/admin'
+      path: '/admin'
+      fullPath: '/$locale/admin'
+      preLoaderRoute: typeof LocaleAdminRouteImport
+      parentRoute: typeof LocaleRoute
+    }
     '/$locale/rfq/$rfqId': {
       id: '/$locale/rfq/$rfqId'
       path: '/rfq/$rfqId'
@@ -836,73 +855,73 @@ declare module '@tanstack/react-router' {
     }
     '/$locale/admin/rfq': {
       id: '/$locale/admin/rfq'
-      path: '/admin/rfq'
+      path: '/rfq'
       fullPath: '/$locale/admin/rfq'
       preLoaderRoute: typeof LocaleAdminRfqRouteImport
-      parentRoute: typeof LocaleRoute
+      parentRoute: typeof LocaleAdminRoute
     }
     '/$locale/admin/products': {
       id: '/$locale/admin/products'
-      path: '/admin/products'
+      path: '/products'
       fullPath: '/$locale/admin/products'
       preLoaderRoute: typeof LocaleAdminProductsRouteImport
-      parentRoute: typeof LocaleRoute
+      parentRoute: typeof LocaleAdminRoute
     }
     '/$locale/admin/pricing': {
       id: '/$locale/admin/pricing'
-      path: '/admin/pricing'
+      path: '/pricing'
       fullPath: '/$locale/admin/pricing'
       preLoaderRoute: typeof LocaleAdminPricingRouteImport
-      parentRoute: typeof LocaleRoute
+      parentRoute: typeof LocaleAdminRoute
     }
     '/$locale/admin/knowledge': {
       id: '/$locale/admin/knowledge'
-      path: '/admin/knowledge'
+      path: '/knowledge'
       fullPath: '/$locale/admin/knowledge'
       preLoaderRoute: typeof LocaleAdminKnowledgeRouteImport
-      parentRoute: typeof LocaleRoute
+      parentRoute: typeof LocaleAdminRoute
     }
     '/$locale/admin/integrations': {
       id: '/$locale/admin/integrations'
-      path: '/admin/integrations'
+      path: '/integrations'
       fullPath: '/$locale/admin/integrations'
       preLoaderRoute: typeof LocaleAdminIntegrationsRouteImport
-      parentRoute: typeof LocaleRoute
+      parentRoute: typeof LocaleAdminRoute
     }
     '/$locale/admin/import': {
       id: '/$locale/admin/import'
-      path: '/admin/import'
+      path: '/import'
       fullPath: '/$locale/admin/import'
       preLoaderRoute: typeof LocaleAdminImportRouteImport
-      parentRoute: typeof LocaleRoute
+      parentRoute: typeof LocaleAdminRoute
     }
     '/$locale/admin/images': {
       id: '/$locale/admin/images'
-      path: '/admin/images'
+      path: '/images'
       fullPath: '/$locale/admin/images'
       preLoaderRoute: typeof LocaleAdminImagesRouteImport
-      parentRoute: typeof LocaleRoute
+      parentRoute: typeof LocaleAdminRoute
     }
     '/$locale/admin/dashboard': {
       id: '/$locale/admin/dashboard'
-      path: '/admin/dashboard'
+      path: '/dashboard'
       fullPath: '/$locale/admin/dashboard'
       preLoaderRoute: typeof LocaleAdminDashboardRouteImport
-      parentRoute: typeof LocaleRoute
+      parentRoute: typeof LocaleAdminRoute
     }
     '/$locale/admin/crm': {
       id: '/$locale/admin/crm'
-      path: '/admin/crm'
+      path: '/crm'
       fullPath: '/$locale/admin/crm'
       preLoaderRoute: typeof LocaleAdminCrmRouteImport
-      parentRoute: typeof LocaleRoute
+      parentRoute: typeof LocaleAdminRoute
     }
     '/$locale/admin/audit': {
       id: '/$locale/admin/audit'
-      path: '/admin/audit'
+      path: '/audit'
       fullPath: '/$locale/admin/audit'
       preLoaderRoute: typeof LocaleAdminAuditRouteImport
-      parentRoute: typeof LocaleRoute
+      parentRoute: typeof LocaleAdminRoute
     }
     '/api/public/notify/rfq': {
       id: '/api/public/notify/rfq'
@@ -913,6 +932,36 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface LocaleAdminRouteChildren {
+  LocaleAdminAuditRoute: typeof LocaleAdminAuditRoute
+  LocaleAdminCrmRoute: typeof LocaleAdminCrmRoute
+  LocaleAdminDashboardRoute: typeof LocaleAdminDashboardRoute
+  LocaleAdminImagesRoute: typeof LocaleAdminImagesRoute
+  LocaleAdminImportRoute: typeof LocaleAdminImportRoute
+  LocaleAdminIntegrationsRoute: typeof LocaleAdminIntegrationsRoute
+  LocaleAdminKnowledgeRoute: typeof LocaleAdminKnowledgeRoute
+  LocaleAdminPricingRoute: typeof LocaleAdminPricingRoute
+  LocaleAdminProductsRoute: typeof LocaleAdminProductsRoute
+  LocaleAdminRfqRoute: typeof LocaleAdminRfqRoute
+}
+
+const LocaleAdminRouteChildren: LocaleAdminRouteChildren = {
+  LocaleAdminAuditRoute: LocaleAdminAuditRoute,
+  LocaleAdminCrmRoute: LocaleAdminCrmRoute,
+  LocaleAdminDashboardRoute: LocaleAdminDashboardRoute,
+  LocaleAdminImagesRoute: LocaleAdminImagesRoute,
+  LocaleAdminImportRoute: LocaleAdminImportRoute,
+  LocaleAdminIntegrationsRoute: LocaleAdminIntegrationsRoute,
+  LocaleAdminKnowledgeRoute: LocaleAdminKnowledgeRoute,
+  LocaleAdminPricingRoute: LocaleAdminPricingRoute,
+  LocaleAdminProductsRoute: LocaleAdminProductsRoute,
+  LocaleAdminRfqRoute: LocaleAdminRfqRoute,
+}
+
+const LocaleAdminRouteWithChildren = LocaleAdminRoute._addFileChildren(
+  LocaleAdminRouteChildren,
+)
 
 interface LocaleConfiguratorRouteChildren {
   LocaleConfiguratorFamilyRoute: typeof LocaleConfiguratorFamilyRoute
@@ -928,6 +977,7 @@ const LocaleConfiguratorRouteWithChildren =
   LocaleConfiguratorRoute._addFileChildren(LocaleConfiguratorRouteChildren)
 
 interface LocaleRouteChildren {
+  LocaleAdminRoute: typeof LocaleAdminRouteWithChildren
   LocaleAdvisorRoute: typeof LocaleAdvisorRoute
   LocaleAppRoute: typeof LocaleAppRoute
   LocaleAssembliesRoute: typeof LocaleAssembliesRoute
@@ -953,16 +1003,6 @@ interface LocaleRouteChildren {
   LocaleTermsRoute: typeof LocaleTermsRoute
   LocaleWizardRoute: typeof LocaleWizardRoute
   LocaleIndexRoute: typeof LocaleIndexRoute
-  LocaleAdminAuditRoute: typeof LocaleAdminAuditRoute
-  LocaleAdminCrmRoute: typeof LocaleAdminCrmRoute
-  LocaleAdminDashboardRoute: typeof LocaleAdminDashboardRoute
-  LocaleAdminImagesRoute: typeof LocaleAdminImagesRoute
-  LocaleAdminImportRoute: typeof LocaleAdminImportRoute
-  LocaleAdminIntegrationsRoute: typeof LocaleAdminIntegrationsRoute
-  LocaleAdminKnowledgeRoute: typeof LocaleAdminKnowledgeRoute
-  LocaleAdminPricingRoute: typeof LocaleAdminPricingRoute
-  LocaleAdminProductsRoute: typeof LocaleAdminProductsRoute
-  LocaleAdminRfqRoute: typeof LocaleAdminRfqRoute
   LocaleAssemblySlugRoute: typeof LocaleAssemblySlugRoute
   LocaleBomBomIdRoute: typeof LocaleBomBomIdRoute
   LocaleProductSkuRoute: typeof LocaleProductSkuRoute
@@ -970,6 +1010,7 @@ interface LocaleRouteChildren {
 }
 
 const LocaleRouteChildren: LocaleRouteChildren = {
+  LocaleAdminRoute: LocaleAdminRouteWithChildren,
   LocaleAdvisorRoute: LocaleAdvisorRoute,
   LocaleAppRoute: LocaleAppRoute,
   LocaleAssembliesRoute: LocaleAssembliesRoute,
@@ -995,16 +1036,6 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleTermsRoute: LocaleTermsRoute,
   LocaleWizardRoute: LocaleWizardRoute,
   LocaleIndexRoute: LocaleIndexRoute,
-  LocaleAdminAuditRoute: LocaleAdminAuditRoute,
-  LocaleAdminCrmRoute: LocaleAdminCrmRoute,
-  LocaleAdminDashboardRoute: LocaleAdminDashboardRoute,
-  LocaleAdminImagesRoute: LocaleAdminImagesRoute,
-  LocaleAdminImportRoute: LocaleAdminImportRoute,
-  LocaleAdminIntegrationsRoute: LocaleAdminIntegrationsRoute,
-  LocaleAdminKnowledgeRoute: LocaleAdminKnowledgeRoute,
-  LocaleAdminPricingRoute: LocaleAdminPricingRoute,
-  LocaleAdminProductsRoute: LocaleAdminProductsRoute,
-  LocaleAdminRfqRoute: LocaleAdminRfqRoute,
   LocaleAssemblySlugRoute: LocaleAssemblySlugRoute,
   LocaleBomBomIdRoute: LocaleBomBomIdRoute,
   LocaleProductSkuRoute: LocaleProductSkuRoute,

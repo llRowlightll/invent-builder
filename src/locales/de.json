@@ -42,7 +42,9 @@
     "shoppingList": "Warenkorb",
     "login": "Anmelden",
     "assemblies": "Baugruppen",
-    "new": "Neuheiten"
+    "new": "Neuheiten",
+    "profile": "Profil",
+    "menu": "Menü"
   },
   "landing": {
     "heroTitle": "Die richtige Industriekomponente. Schnell.",
@@ -296,7 +298,9 @@
     "checkEmailBody": "Überprüfen Sie Ihren Posteingang! Klicken Sie auf den Bestätigungslink und melden Sie sich dann an — Ihr Profil ist bereits ausgefüllt.",
     "checkEmailNote": "Der Link führt Sie direkt zu Ihrem Profil. Nichts mehr zu tun.",
     "passwordMinLength": "Das Passwort muss mindestens 6 Zeichen lang sein.",
-    "passwordPlaceholder": "Mindestens 6 Zeichen"
+    "passwordPlaceholder": "Mindestens 6 Zeichen",
+    "invalidOrgNumber": "Ungültige Organisationsnummer — bitte Format prüfen (z.B. 556123-4567).",
+    "orgNumberRequired": "Organisationsnummer ist für schwedische Unternehmen erforderlich."
   },
   "profilePage": {
     "title": "Mein Profil",
@@ -604,7 +608,8 @@
     "stepSelect": "Auswählen",
     "stepResult": "Ergebnis",
     "back": "Zurück",
-    "errorGeneric": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut."
+    "errorGeneric": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
+    "metaDesc": "Bauen Sie Ihre Maschine Schritt für Schritt — KI stellt die richtigen Fragen, schlägt die besten Komponenten vor und generiert eine vollständige Stückliste."
   },
   "wizardPage": {
     "generateButton": "Generieren",
@@ -702,5 +707,15 @@
     "downloadCsv": "CSV herunterladen",
     "resolveErrors": "Fehler beheben, bevor Sie speichern.",
     "accessoriesNote": "Zubehör und Ersatzteile werden automatisch basierend auf dem Modus ausgewählt. BEST fügt Bremse, Montageset und empfohlene Ersatzteile hinzu; GÜNSTIGSTE behält nur die Kupplung."
+  },
+  "footer": {
+    "tools": "Werkzeuge",
+    "brands": "Marken",
+    "privacy": "Datenschutzrichtlinie",
+    "terms": "Nutzungsbedingungen",
+    "contact": "Kontakt",
+    "copyright": "Industrieller Automatisierungskatalog für Maschinenbauer",
+    "productTypes": "Pneumatikzylinder · Elektrische Aktuatoren · Ventile · Greifer · Vakuumsysteme",
+    "importAdmin": "Lieferantenimport"
   }
 }

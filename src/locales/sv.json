@@ -42,7 +42,9 @@
     "shoppingList": "Korg",
     "login": "Logga in",
     "assemblies": "Sammansättningar",
-    "new": "Nyheter"
+    "new": "Nyheter",
+    "profile": "Profil",
+    "menu": "Meny"
   },
   "landing": {
     "heroTitle": "Hitta rätt industrikomponent. Snabbt.",
@@ -296,7 +298,9 @@
     "checkEmailBody": "Kolla din inkorg! Klicka bekräftelselänken och logga sedan in — din profil är redan ifylld.",
     "checkEmailNote": "Länken tar dig direkt till din profil. Inget mer att göra just nu.",
     "passwordMinLength": "Lösenordet måste vara minst 6 tecken.",
-    "passwordPlaceholder": "Minst 6 tecken"
+    "passwordPlaceholder": "Minst 6 tecken",
+    "invalidOrgNumber": "Ogiltigt organisationsnummer — kontrollera att du angett rätt nummer (format: 556123-4567).",
+    "orgNumberRequired": "Organisationsnummer krävs för svenska företag."
   },
   "profilePage": {
     "title": "Min profil",
@@ -604,7 +608,8 @@
     "stepSelect": "Välj",
     "stepResult": "Resultat",
     "back": "Tillbaka",
-    "errorGeneric": "Något gick fel. Försök igen."
+    "errorGeneric": "Något gick fel. Försök igen.",
+    "metaDesc": "Bygg din maskin steg för steg — AI ställer rätt frågor, föreslår bästa komponenter och genererar komplett stycklista."
   },
   "wizardPage": {
     "generateButton": "Generera",
@@ -702,5 +707,15 @@
     "downloadCsv": "Ladda ned CSV",
     "resolveErrors": "Åtgärda fel innan du sparar.",
     "accessoriesNote": "Tillbehör och reservdelar väljs automatiskt baserat på läge. BÄST lägger till broms, monteringssats och rekommenderade reservdelar; BILLIGAST behåller bara kopplingen."
+  },
+  "footer": {
+    "tools": "Verktyg",
+    "brands": "Varumärken",
+    "privacy": "Integritetspolicy",
+    "terms": "Allmänna villkor",
+    "contact": "Kontakt",
+    "copyright": "Industriell automationskatalog för maskinbyggare",
+    "productTypes": "Pneumatiska cylindrar · Elektriska aktuatorer · Ventiler · Grippers · Vakuumsystem",
+    "importAdmin": "Leverantörsimport"
   }
 }

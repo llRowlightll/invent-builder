@@ -15,7 +15,7 @@ export const Route = createFileRoute("/$locale/machine-builder")({
     return {
       meta: [
         { title: `${t("nav.machineBuilder")} — ${t("common.appName")}` },
-        { name: "description", content: "Bygg din maskin steg för steg — AI ställer rätt frågor, föreslår bästa komponenter och genererar komplett stycklista." },
+        { name: "description", content: t("machineBuilder.metaDesc") },
       ],
     };
   },

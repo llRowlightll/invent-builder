@@ -29,7 +29,7 @@ function TermsPage() {
         <Section title="1. Om tjänsten">
           <p>
             Maskinval är en B2B-plattform för industriella automationskomponenter. Tjänsten tillhandahålls
-            av Maskinval AB, org.nr 559XXX-XXXX, och riktar sig uteslutande till företag och yrkesverksamma
+            av Maskinval AB och riktar sig uteslutande till företag och yrkesverksamma
             (ej konsumenter). Genom att använda tjänsten accepterar du dessa villkor.
           </p>
         </Section>
