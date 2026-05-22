@@ -343,93 +343,54 @@ function ChatPage() {
     setCompare((c) => (c.includes(sku) ? c.filter((s) => s !== sku) : c.length >= 4 ? c : [...c, sku]));
   }
 
+  // Only show messages after the initial greeting (index 0)
+  const visibleMsgs = msgs.slice(1);
+
   return (
-    <div className="container-page py-8 max-w-5xl">
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            <span className="text-info">✦</span>
-            {t("nav.chat")}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t("chatPage.leadSv")}
-          </p>
-        </div>
-        {compare.length > 0 && (
-          <Link
-            to="/$locale/compare"
-            params={{ locale }}
-            search={{ skus: compare.join(",") }}
-            className="text-sm px-4 py-2 rounded-md bg-info text-primary-foreground hover:opacity-90"
+    <div className="container-page py-6 max-w-4xl">
+
+      {/* Input — always at top */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="p-3 flex gap-2">
+          <input
+            ref={inputRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
+            placeholder={t("chatPage.inputPlaceholder")}
+            className="flex-1 px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
+            autoFocus
+          />
+          <button
+            onClick={send}
+            disabled={busy || !text.trim()}
+            className="px-4 py-2.5 rounded-md bg-info text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition flex items-center gap-1.5"
           >
-            {t("chatPage.compareCount")} {compare.length} →
-          </Link>
-        )}
-      </div>
-
-      {/* Chat window */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col" style={{ minHeight: "60vh" }}>
-        <div className="flex-1 p-4 space-y-4 overflow-y-auto" style={{ maxHeight: "calc(100vh - 340px)", minHeight: 320 }}>
-          {msgs.map((m, i) => {
-            if (m.role === "products" && m.products) {
-              return (
-                <div key={i} className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {m.products.map((p) => (
-                    <ProductCard
-                      key={p.id}
-                      p={p}
-                      locale={locale}
-                      inCompare={compare.includes(p.sku)}
-                      onCompare={() => toggleCompare(p.sku)}
-                    />
-                  ))}
-                </div>
-              );
-            }
-            return (
-              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                {m.role === "assistant" && (
-                  <span className="size-6 rounded-full bg-info/15 text-info text-xs flex items-center justify-center mr-2 mt-0.5 shrink-0">
-                    ✦
-                  </span>
-                )}
-                <div
-                  className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm ${
-                    m.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-surface-alt text-foreground border border-border"
-                  }`}
-                >
-                  {m.text && renderChatText(m.text)}
-                  {m.sources && m.sources.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-border/50 flex flex-wrap gap-1">
-                      {m.sources.map((s, si) => (
-                        <span key={si} className="text-[10px] px-1.5 py-0.5 rounded bg-info/10 text-info/80 font-mono">
-                          📄 {s}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {busy && (
-            <div className="flex items-center gap-2">
-              <span className="size-6 rounded-full bg-info/15 text-info text-xs flex items-center justify-center shrink-0">✦</span>
-              <div className="bg-surface-alt border border-border rounded-xl px-4 py-2.5 text-sm text-muted-foreground flex items-center gap-2">
-                <span className="size-3 rounded-full border-2 border-info/40 border-t-info animate-spin" />
-                {t("chatPage.analyzingSv")}
-              </div>
-            </div>
-          )}
-          <div ref={bottomRef} />
+            {busy
+              ? <span className="size-3 rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground animate-spin" />
+              : <span>↑</span>}
+            {t("chatPage.sendButton")}
+          </button>
         </div>
 
-        {/* Examples (only at start) */}
-        {msgs.length === 1 && (
-          <div className="px-4 pb-3 border-t border-border pt-3">
+        {/* Compare bar */}
+        {compare.length > 0 && (
+          <div className="px-3 pb-2 flex items-center justify-between border-t border-border pt-2">
+            <span className="text-xs text-muted-foreground">{compare.length} {t("chatPage.compareCount")}</span>
+            <Link
+              to="/$locale/compare"
+              params={{ locale }}
+              search={{ skus: compare.join(",") }}
+              className="text-xs px-3 py-1 rounded-md bg-info text-primary-foreground hover:opacity-90"
+            >
+              {t("chatPage.compareCount")} {compare.length} →
+            </Link>
+          </div>
+        )}
+
+        {/* Example chips — only before first search */}
+        {visibleMsgs.length === 0 && (
+          <div className="px-3 pb-3 border-t border-border pt-2">
             <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground mb-2">
               {t("chatPage.tryExample")}
             </p>
@@ -446,69 +407,69 @@ function ChatPage() {
             </div>
           </div>
         )}
+      </div>
 
-        {/* Input bar */}
-        <div className="border-t border-border p-3 flex gap-2">
-          <input
-            ref={inputRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
-            placeholder={t("chatPage.inputPlaceholder")}
-            className="flex-1 px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
-          />
-          <button
-            onClick={send}
-            disabled={busy || !text.trim()}
-            className="px-4 py-2.5 rounded-md bg-info text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition flex items-center gap-1.5"
-          >
-            {busy ? (
-              <span className="size-3 rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground animate-spin" />
-            ) : (
-              <span>↑</span>
-            )}
-            {t("chatPage.sendButton")}
-          </button>
+      {/* Loading indicator */}
+      {busy && (
+        <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="size-5 rounded-full bg-info/15 text-info text-xs flex items-center justify-center shrink-0">✦</span>
+          <span className="size-3 rounded-full border-2 border-info/40 border-t-info animate-spin" />
+          {t("chatPage.analyzingSv")}
         </div>
-      </div>
+      )}
 
-      {/* Quick links */}
-      <div className="mt-6 grid sm:grid-cols-3 gap-3 text-sm">
-        <Link
-          to="/$locale/products"
-          params={{ locale }}
-          className="rounded-lg border border-border bg-card p-4 hover:border-info transition flex items-center gap-3"
-        >
-          <span className="text-info text-lg">⊞</span>
-          <div>
-            <div className="font-medium">{t("nav.products")}</div>
-            <div className="text-xs text-muted-foreground">{t("chatPage.browseCatalog")}</div>
-          </div>
-        </Link>
-        <Link
-          to="/$locale/advisor"
-          params={{ locale }}
-          className="rounded-lg border border-border bg-card p-4 hover:border-info transition flex items-center gap-3"
-        >
-          <span className="text-info text-lg">◎</span>
-          <div>
-            <div className="font-medium">{t("nav.advisor")}</div>
-            <div className="text-xs text-muted-foreground">{t("chatPage.bestVsCheapest")}</div>
-          </div>
-        </Link>
-        <Link
-          to="/$locale/compare"
-          params={{ locale }}
-          search={{ skus: "" }}
-          className="rounded-lg border border-border bg-card p-4 hover:border-info transition flex items-center gap-3"
-        >
-          <span className="text-info text-lg">⇔</span>
-          <div>
-            <div className="font-medium">{t("nav.compare")}</div>
-            <div className="text-xs text-muted-foreground">{t("chatPage.compareSpecBySpec")}</div>
-          </div>
-        </Link>
-      </div>
+      {/* Results — flow directly below input */}
+      {visibleMsgs.length > 0 && (
+        <div className="mt-4 space-y-4">
+          {visibleMsgs.map((m, i) => {
+            if (m.role === "products" && m.products) {
+              return (
+                <div key={i} className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {m.products.map((p) => (
+                    <ProductCard
+                      key={p.id}
+                      p={p}
+                      locale={locale}
+                      inCompare={compare.includes(p.sku)}
+                      onCompare={() => toggleCompare(p.sku)}
+                    />
+                  ))}
+                </div>
+              );
+            }
+            if (m.role === "assistant") {
+              return (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="size-6 rounded-full bg-info/15 text-info text-xs flex items-center justify-center shrink-0 mt-0.5">✦</span>
+                  <div className="rounded-xl px-4 py-3 text-sm bg-surface-alt border border-border text-foreground max-w-2xl">
+                    {m.text && renderChatText(m.text)}
+                    {m.sources && m.sources.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-border/50 flex flex-wrap gap-1">
+                        {m.sources.map((s, si) => (
+                          <span key={si} className="text-[10px] px-1.5 py-0.5 rounded bg-info/10 text-info/80 font-mono">
+                            📄 {s}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+            if (m.role === "user") {
+              return (
+                <div key={i} className="flex justify-end">
+                  <div className="rounded-xl px-4 py-2.5 text-sm bg-primary text-primary-foreground max-w-[80%]">
+                    {m.text}
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })}
+          <div ref={bottomRef} />
+        </div>
+      )}
     </div>
   );
 }
