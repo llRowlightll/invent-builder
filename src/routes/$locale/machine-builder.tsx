@@ -53,13 +53,40 @@ interface BomLine {
 
 type Step = "describe" | "q_loading" | "questions" | "o_loading" | "options" | "bom_loading" | "result";
 
-const EXAMPLES = [
-  "Pneumatisk stoppdon på transportband — stoppar kartonger 5 kg",
-  "Lyfter en plåtdel 15 kg vertikalt 200 mm i en pressstation",
-  "Klamrar fast en detalj under svetsning, horisontell rörelse 80 mm",
-  "Vakuumgrepp som lyfter glasskivor 4 kg i monteringscell",
-  "Elektrisk linjäraxel för exakt positionering av kamera, 300 mm slag",
-];
+const EXAMPLES: Record<string, string[]> = {
+  sv: [
+    "Pneumatisk stoppdon på transportband — stoppar kartonger 5 kg",
+    "Lyfter en plåtdel 15 kg vertikalt 200 mm i en pressstation",
+    "Plockar och placerar kartong 2 kg — vakuumgrepp från magasin",
+    "Klamrar fast en detalj under svetsning, horisontell rörelse 80 mm",
+    "Vakuumgrepp som lyfter glasskivor 4 kg i monteringscell",
+    "Elektrisk linjäraxel för exakt positionering av kamera, 300 mm slag",
+  ],
+  en: [
+    "Pneumatic stop unit on conveyor — stops 5 kg cartons",
+    "Lifts a 15 kg metal part vertically 200 mm in a press station",
+    "Pick and place 2 kg carton — vacuum grip from magazine",
+    "Clamps a part during welding, horizontal movement 80 mm",
+    "Vacuum gripper lifting 4 kg glass panels in assembly cell",
+    "Electric linear axis for precise camera positioning, 300 mm stroke",
+  ],
+  de: [
+    "Pneumatischer Stopper auf Förderband — hält 5 kg Kartons an",
+    "Hebt ein 15 kg Blechteil vertikal 200 mm in einer Pressenstation",
+    "Pick-and-Place 2 kg Karton — Vakuumgreifer aus Magazin",
+    "Klemmt ein Teil beim Schweißen, horizontale Bewegung 80 mm",
+    "Vakuumgreifer für 4 kg Glasscheiben in Montagezelle",
+    "Elektrische Linearachse für genaue Kamerapositionierung, 300 mm Hub",
+  ],
+  es: [
+    "Tope neumático en cinta transportadora — detiene cajas de 5 kg",
+    "Levanta pieza de metal 15 kg verticalmente 200 mm en prensa",
+    "Pick and place cartón 2 kg — pinza de vacío desde almacén",
+    "Fija pieza durante soldadura, movimiento horizontal 80 mm",
+    "Pinza de vacío para paneles de vidrio 4 kg en célula de montaje",
+    "Eje lineal eléctrico para posicionamiento preciso de cámara, 300 mm",
+  ],
+};
 
 // ── Advisor API calls ───────────────────────────────────────────────────────
 async function advisorCall(body: object) {
@@ -205,6 +232,7 @@ function MachineBuilderPage() {
       {step === "describe" && (
         <DescribeStep
           t={t}
+          locale={locale}
           description={description}
           setDescription={setDescription}
           onSubmit={handleDescribe}
@@ -317,9 +345,10 @@ function StepIndicator({ step, t }: { step: Step; t: (key: import("@/lib/i18n").
 }
 
 // ── Describe Step ───────────────────────────────────────────────────────────
-function DescribeStep({ t, description, setDescription, onSubmit }: {
-  t: (key: import("@/lib/i18n").TKey) => string; description: string; setDescription: (v: string) => void; onSubmit: () => void;
+function DescribeStep({ t, locale, description, setDescription, onSubmit }: {
+  t: (key: import("@/lib/i18n").TKey) => string; locale: string; description: string; setDescription: (v: string) => void; onSubmit: () => void;
 }) {
+  const examples = EXAMPLES[locale] ?? EXAMPLES.en;
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-border bg-card p-4">
@@ -332,6 +361,7 @@ function DescribeStep({ t, description, setDescription, onSubmit }: {
           onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") onSubmit(); }}
           placeholder={t("machineBuilder.describePlaceholder")}
           rows={3}
+          autoFocus
           className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50 resize-none"
         />
         <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
@@ -350,7 +380,7 @@ function DescribeStep({ t, description, setDescription, onSubmit }: {
       <div>
         <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground mb-3">{t("machineBuilder.tryExample")}</p>
         <div className="flex flex-col gap-2">
-          {EXAMPLES.map(ex => (
+          {examples.map(ex => (
             <button
               key={ex}
               onClick={() => setDescription(ex)}
