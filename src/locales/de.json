@@ -367,7 +367,8 @@
     "addToCart": "In den Warenkorb",
     "addedToCart": "✓ In den Warenkorb gelegt",
     "requestQuote": "Angebot anfragen",
-    "askAi": "Unsicher? KI-Ingenieur fragen"
+    "askAi": "Unsicher? KI-Ingenieur fragen",
+    "contactForDelivery": "Lieferzeit auf Anfrage"
   },
   "rfqPage": {
     "title": "Angebotsanfrage",

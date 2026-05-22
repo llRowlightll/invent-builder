@@ -367,7 +367,8 @@
     "addToCart": "Lägg i korg",
     "addedToCart": "✓ Tillagd i korg",
     "requestQuote": "Begär offert",
-    "askAi": "Osäker? Fråga AI-ingenjören"
+    "askAi": "Osäker? Fråga AI-ingenjören",
+    "contactForDelivery": "Kontakta oss för leveranstid"
   },
   "rfqPage": {
     "title": "Offertförfrågan",

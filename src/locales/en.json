@@ -367,7 +367,8 @@
     "addToCart": "Add to cart",
     "addedToCart": "✓ Added to cart",
     "requestQuote": "Request quote",
-    "askAi": "Unsure? Ask the AI engineer"
+    "askAi": "Unsure? Ask the AI engineer",
+    "contactForDelivery": "Contact us for lead time"
   },
   "rfqPage": {
     "title": "Quote Request",

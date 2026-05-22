@@ -54,8 +54,6 @@ function makeSpecGroups(t: ReturnType<typeof makeT>): SpecGroup[] {
         { kind: "spec", label: t("comparePage.label_application"),  key: "application" },
         { kind: "flat", label: t("comparePage.label_availability"),
             get: (p) => p.availability === "stock" ? t("comparePage.label_in_stock") : p.availability === "order" ? t("comparePage.label_order") : p.availability ?? "—" },
-        { kind: "flat", label: t("comparePage.label_lead_time"),
-            get: (p) => p.lead_time_days ? `${p.lead_time_days} ${t("comparePage.label_days")}` : "—" },
         { kind: "flat", label: t("comparePage.label_weight"),       get: (p) => p.weight_kg != null ? `${p.weight_kg} kg` : "—" },
         { kind: "spec", label: t("comparePage.label_weight"),       key: "weight" },
       ],

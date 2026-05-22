@@ -127,7 +127,6 @@ function ProductDetail() {
         </div>
         <aside className="rounded-lg border border-border bg-surface-alt p-4 space-y-3 text-sm">
           <Row k={t("productPage.category")} v={product.category.name} />
-          <Row k={t("productPage.leadTime")} v={`${product.lead_time_days ?? "—"} ${t("productPage.days")}`} />
           {product.ip_rating && <Row k="IP" v={product.ip_rating} />}
           {product.fieldbus && <Row k={t("productPage.fieldbus")} v={product.fieldbus} />}
           {product.voltage && <Row k={t("productPage.voltage")} v={product.voltage} />}
@@ -158,22 +157,8 @@ function ProductDetail() {
           <div className="border-t border-border pt-3 mt-1 space-y-2">
             {/* Availability */}
             <div className="flex items-center gap-2 text-xs">
-              {product.availability === "stock" ? (
-                <>
-                  <span className="size-2 rounded-full bg-[oklch(0.55_0.15_155)] shrink-0" />
-                  <span className="text-[oklch(0.45_0.15_155)] font-medium">{t("productPage.inStock12")}</span>
-                </>
-              ) : product.availability === "fast" ? (
-                <>
-                  <span className="size-2 rounded-full bg-gold shrink-0" />
-                  <span className="text-foreground font-medium">{t("productPage.fast35")}</span>
-                </>
-              ) : (
-                <>
-                  <span className="size-2 rounded-full bg-muted-foreground shrink-0" />
-                  <span className="text-muted-foreground">{t("productPage.leadTime")}: {product.lead_time_days ?? 14} {t("productPage.days")}</span>
-                </>
-              )}
+              <span className="size-2 rounded-full bg-muted-foreground shrink-0" />
+              <span className="text-muted-foreground">{t("productPage.contactForDelivery")}</span>
             </div>
 
             {/* RFQ */}
@@ -204,16 +189,7 @@ function ProductDetail() {
             v={`${(product.purchase_price / (1 - (product.margin ?? 0.35))).toFixed(2)} kr`}
           />
         )}
-        <Row
-          k={t("productPage.estimatedDelivery")}
-          v={
-            product.availability === "stock"
-              ? t("productPage.inStock12")
-              : product.availability === "fast"
-              ? t("productPage.fast35")
-              : `${product.lead_time_days ?? 14} ${t("productPage.days")}`
-          }
-        />
+        <Row k={t("productPage.estimatedDelivery")} v={t("productPage.contactForDelivery")} />
       </section>
 
       {Object.keys(product.specs).length > 0 && (

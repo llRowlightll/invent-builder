@@ -526,8 +526,6 @@ function ProductCard({
 }) {
   const tCard = makeT(locale as Locale);
   const [added, setAdded] = useState(false);
-  const lt = p.lead_time_days;
-  const fast = lt != null && lt <= 7;
 
   function handleAddToCart() {
     addToShoppingList({ id: p.id, sku: p.sku, name: p.name });
@@ -583,16 +581,7 @@ function ProductCard({
         </div>
       )}
 
-      <div className="mt-auto pt-3 flex items-center justify-between gap-2 border-t border-border mt-2">
-        <span
-          className={`text-[10px] px-2 py-0.5 rounded uppercase tracking-wider ${
-            fast
-              ? "bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)]"
-              : "bg-muted text-muted-foreground"
-          }`}
-        >
-          {fast ? tCard("productsPage.inStock") : lt != null ? `${lt}d` : "—"}
-        </span>
+      <div className="mt-auto pt-3 flex items-center justify-end gap-2 border-t border-border mt-2">
         <div className="flex items-center gap-2">
           <button
             type="button"
