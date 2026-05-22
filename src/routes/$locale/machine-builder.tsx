@@ -655,54 +655,126 @@ function exportBomPdf(bom: BomLine[], title: string, explanation: string, select
 
 // ── Economic BOM helpers ────────────────────────────────────────────────────
 
-/**
- * Guess the catalog category slug from a BOM line's role text / SKU.
- * Returns null when we can't confidently match (e.g. hoses, fittings — margin too low to swap).
- */
+/** Guess catalog category slug from BOM role text / SKU. Null = skip (hoses, fittings etc.) */
 function roleToCategory(role: string, sku: string): string | null {
   const r = role.toLowerCase();
   const s = sku.toLowerCase();
-  if (/cylinder|aktuator|actuator|hauptaktu|main act/.test(r)
-    || /dsbc|advu|cq2|cp96|p1d|dnce|ley|advc|dsnu|mb|cena|nsc/.test(s)) return "cylinder";
+  if (/cylinder|aktuator|actuator|main act|axel \d/.test(r)
+    || /dsbc|advu|cq2|cp96|p1d|dnce|ley|advc|dsnu|mb|cena/.test(s)) return "cylinder";
   if (/gripper|grepp|k[aä]ft|jaw/.test(r) || /hgp|mhz|mhc|pgn/.test(s)) return "gripper";
   if (/vakuum.*gen|ejektor|vacuum.*gen|ejector/.test(r) || /vadmi|zu0|ovem/.test(s)) return "vacuum";
-  if (/frl|filter.*reg|luftbered/.test(r) || /ms4|ms6|lf/.test(s)) return "frl";
+  if (/frl|filter.*reg|luftbered/.test(r) || /ms4|ms6\b|lf\b/.test(s)) return "frl";
   if (/styrventil|kontrollventil|control.*valve|solenoid/.test(r) && !/terminal/.test(r)) return "valve";
-  if (/ventilterminal|valve.*terminal|vtsa/.test(r) || /vtsa/.test(s)) return "valve-terminal";
-  if (/givare|sensor|ändl[äa]ge|end.pos/.test(r) || /smt|d-a9|ese/.test(s)) return "sensor";
-  // hoses, fittings, bolts — small unit value, skip
-  return null;
+  if (/ventilterminal|valve.*terminal/.test(r) || /vtsa/.test(s)) return "valve-terminal";
+  if (/givare|sensor|ändl[äa]ge|end.pos/.test(r) || /smt-|d-a9/.test(s)) return "sensor";
+  return null; // hoses, fittings — skip
+}
+
+/** Parse minimum technical requirements from the user's question answers. */
+function parseRequirements(answers: Record<string, string>) {
+  // Min force (N) from weight answer
+  const w = answers.weight ?? "";
+  const minForce =
+    /< 1|under 1/i.test(w)  ? 20  :
+    /1.{0,3}5 kg/i.test(w)  ? 75  :
+    /5.{0,3}20/i.test(w)    ? 300 :
+    /20.{0,3}50/i.test(w)   ? 750 :
+    /> 50|50 kg/i.test(w)   ? 1500 : 0;
+
+  // Min stroke (mm) — check stroke, stroke_z, stroke_x
+  const s = [answers.stroke, answers.stroke_z, answers.stroke_x].filter(Boolean).join(" ");
+  const minStroke =
+    /< 50/i.test(s)        ? 0   :
+    /50.{0,3}150/i.test(s) ? 50  :
+    /150.{0,3}300/i.test(s)? 150 :
+    /300.{0,3}500/i.test(s)? 300 :
+    /> 500/i.test(s)       ? 500 : 0;
+
+  // IP requirement from environment
+  const env = answers.environment ?? "";
+  const needsHighIP = /livsmedel|washdown|ip6/i.test(env);
+
+  return { minForce, minStroke, needsHighIP };
+}
+
+/** Approximate force in N at 6 bar for a bore_mm. */
+const boreForce = (bore: number) => Math.PI * (bore / 2) ** 2 * 6 * 0.1; // bar→N/mm²
+
+export interface AltTiers {
+  economic: ProductRow[];  // meets requirements, lowest price
+  best:     ProductRow[];  // meets requirements, most force/stroke
+  compact:  ProductRow[];  // meets requirements, smallest bore
 }
 
 /**
- * Find up to `maxAlts` cheaper alternatives for a BOM line from the real catalog.
- * Matches on category + (for cylinders) bore spec within ±15 mm.
- * Excludes same brand as current pick and products without a purchase_price.
+ * Find tiered alternatives for one BOM line, filtered by the customer's stated requirements.
+ * All alternatives must be a different brand AND meet min force + min stroke from answers.
  */
-function findAlternatives(line: BomLine, catalog: ProductRow[], maxAlts = 3): ProductRow[] {
+function findAlternativesTiered(
+  line: BomLine,
+  catalog: ProductRow[],
+  answers: Record<string, string>,
+): AltTiers {
   const cat = roleToCategory(line.role, line.sku);
-  if (!cat) return [];
+  if (!cat) return { economic: [], best: [], compact: [] };
 
+  const { minForce, minStroke, needsHighIP } = parseRequirements(answers);
   const currentBrand = line.product?.brand?.slug ?? "";
-  const currentPrice = line.product?.purchase_price ?? Infinity;
   const currentBore  = parseFloat(line.product?.specs["bore_mm"]?.value ?? "0");
+  const isCylinder   = cat === "cylinder";
 
-  return catalog
-    .filter(p => {
-      if (p.purchase_price == null) return false;
-      if (p.brand.slug === currentBrand)  return false; // different brand only
-      if (p.purchase_price >= currentPrice) return false; // must be cheaper
-      // Category match — flexible: slug contains the keyword
-      if (!p.category.slug.includes(cat)) return false;
-      // Bore matching for cylinders (±20 mm)
-      if (currentBore > 0) {
-        const bore = parseFloat(p.specs["bore_mm"]?.value ?? "0");
-        if (bore <= 0 || Math.abs(bore - currentBore) > 20) return false;
+  const candidates = catalog.filter(p => {
+    if (p.purchase_price == null)      return false;
+    if (p.brand.slug === currentBrand) return false;
+    if (!p.category.slug.includes(cat)) return false;
+
+    if (isCylinder) {
+      const bore   = parseFloat(p.specs["bore_mm"]?.value ?? "0");
+      const stroke = parseFloat(p.specs["stroke_max"]?.value ?? p.specs["stroke_mm"]?.value ?? "0");
+
+      if (bore <= 0) return false;
+      // Bore range: allow ±25 mm of current for general pool
+      if (currentBore > 0 && Math.abs(bore - currentBore) > 25) return false;
+      // Must deliver enough force
+      if (minForce > 0 && boreForce(bore) < minForce) return false;
+      // Must have enough stroke
+      if (minStroke > 0 && stroke > 0 && stroke < minStroke) return false;
+      // IP requirement
+      if (needsHighIP) {
+        const ip = p.ip_rating ?? "";
+        if (ip && !/6[79]/i.test(ip)) return false;
       }
-      return true;
+    }
+    return true;
+  });
+
+  // Deduplicate by sku across tiers
+  const used = new Set<string>();
+  const pick = (sorted: ProductRow[], n = 2) =>
+    sorted.filter(p => !used.has(p.sku)).slice(0, n).map(p => { used.add(p.sku); return p; });
+
+  const byPrice     = [...candidates].sort((a, b) => (a.purchase_price ?? 0) - (b.purchase_price ?? 0));
+  const byForce     = [...candidates].sort((a, b) => {
+    const bA = parseFloat(a.specs["bore_mm"]?.value ?? "0");
+    const bB = parseFloat(b.specs["bore_mm"]?.value ?? "0");
+    return isCylinder ? bB - bA : (b.purchase_price ?? 0) - (a.purchase_price ?? 0);
+  });
+  const byCompact   = [...candidates]
+    .filter(p => {
+      const bore = parseFloat(p.specs["bore_mm"]?.value ?? "0");
+      return !isCylinder || (bore > 0 && bore <= (currentBore || 999));
     })
-    .sort((a, b) => (a.purchase_price ?? 0) - (b.purchase_price ?? 0))
-    .slice(0, maxAlts);
+    .sort((a, b) => {
+      const bA = parseFloat(a.specs["bore_mm"]?.value ?? "0");
+      const bB = parseFloat(b.specs["bore_mm"]?.value ?? "0");
+      return bA - bB;
+    });
+
+  const economic = pick(byPrice);
+  const best     = pick(byForce);
+  const compact  = pick(byCompact);
+
+  return { economic, best, compact };
 }
 
 // ── Result Step ─────────────────────────────────────────────────────────────
@@ -726,29 +798,29 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
   const [chosenAlt, setChosenAlt] = useState<Record<number, ProductRow | null>>({});
   useEffect(() => setMounted(true), []);
 
-  // Per-line alternatives (computed once when eco mode opens)
+  // Per-line tiered alternatives — respects customer's stated requirements
   const alternatives = useMemo(() =>
-    bom.map(line => findAlternatives(line, catalog)),
-    [bom, catalog]
+    bom.map(line => findAlternativesTiered(line, catalog, answers)),
+    [bom, catalog, answers]
   );
 
-  // Total potential savings (cheapest alt × qty, only lines with a current price)
+  // Total potential savings using cheapest economic tier
   const potentialSavings = useMemo(() => {
     return bom.reduce((sum, line, i) => {
-      const alts = alternatives[i];
-      if (!alts.length || line.product?.purchase_price == null) return sum;
-      const cheapest = alts[0].purchase_price ?? 0;
-      const current  = line.product.purchase_price;
-      return sum + (current - cheapest) * line.quantity;
+      const cheapest = alternatives[i].economic[0];
+      if (!cheapest || line.product?.purchase_price == null) return sum;
+      const saving = line.product.purchase_price - (cheapest.purchase_price ?? 0);
+      return saving > 0 ? sum + saving * line.quantity : sum;
     }, 0);
   }, [bom, alternatives]);
 
-  // Active savings (only chosen alts)
+  // Active savings (chosen alts)
   const activeSavings = useMemo(() => {
     return bom.reduce((sum, line, i) => {
       const alt = chosenAlt[i];
       if (!alt || line.product?.purchase_price == null) return sum;
-      return sum + (line.product.purchase_price - (alt.purchase_price ?? 0)) * line.quantity;
+      const saving = line.product.purchase_price - (alt.purchase_price ?? 0);
+      return saving > 0 ? sum + saving * line.quantity : sum;
     }, 0);
   }, [bom, chosenAlt]);
 
@@ -971,56 +1043,80 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
                       <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">{line.reason}</td>
                     </tr>
 
-                    {/* Economic alternatives row */}
-                    {ecoMode && alts.length > 0 && (
-                      <tr key={`eco-${i}`} className="border-b border-[oklch(0.7_0.1_155)/30] bg-[oklch(0.97_0.03_155)/50]">
-                        <td colSpan={5} className="px-4 py-2">
-                          <div className="flex items-start gap-2 flex-wrap">
-                            <span className="text-[10px] text-[oklch(0.45_0.12_155)] font-semibold uppercase tracking-wider mt-1.5 shrink-0">
-                              Alternativ:
-                            </span>
-                            {alts.map((alt) => {
-                              const origPrice = originalLine.product?.purchase_price;
-                              const altSellPrice = sellingPrice(alt);
-                              const savingPerUnit = origPrice != null ? origPrice - (alt.purchase_price ?? 0) : null;
-                              const isChosen = chosenAlt[i]?.sku === alt.sku;
-                              return (
-                                <button
-                                  key={alt.sku}
-                                  onClick={() => setChosenAlt(prev => ({
-                                    ...prev,
-                                    [i]: isChosen ? null : alt,
-                                  }))}
-                                  className={`inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg border transition ${
-                                    isChosen
-                                      ? "border-[oklch(0.6_0.15_155)] bg-[oklch(0.88_0.08_155)] text-[oklch(0.32_0.12_155)] font-semibold"
-                                      : "border-border bg-card text-foreground hover:border-[oklch(0.6_0.15_155)]"
-                                  }`}
-                                >
-                                  <span className="text-muted-foreground">{alt.brand.name}</span>
-                                  <span className="font-medium">{alt.name.split(" ").slice(0, 3).join(" ")}</span>
-                                  {altSellPrice && <span className="font-mono">{altSellPrice} kr</span>}
-                                  {savingPerUnit && savingPerUnit > 0 && (
-                                    <span className="text-[oklch(0.45_0.15_155)] font-semibold">
-                                      −{(savingPerUnit / (1 - 0.35)).toFixed(0)} kr/st
-                                    </span>
-                                  )}
-                                  {isChosen && <span>✓</span>}
-                                </button>
-                              );
-                            })}
-                            {isSwapped && (
-                              <button
-                                onClick={() => setChosenAlt(prev => ({ ...prev, [i]: null }))}
-                                className="text-xs text-muted-foreground hover:text-foreground ml-1"
-                              >
-                                ↩ Återställ AI-val
-                              </button>
+                    {/* Tiered alternatives row */}
+                    {ecoMode && (() => {
+                      const tiers = alternatives[i];
+                      const hasAny = tiers.economic.length + tiers.best.length + tiers.compact.length > 0;
+                      if (!hasAny) return null;
+
+                      const origPrice = originalLine.product?.purchase_price;
+
+                      const AltChip = ({ alt, tier }: { alt: ProductRow; tier: string }) => {
+                        const isChosen = chosenAlt[i]?.sku === alt.sku;
+                        const altSell  = sellingPrice(alt);
+                        const saving   = origPrice != null ? origPrice - (alt.purchase_price ?? 0) : null;
+                        const bore     = alt.specs["bore_mm"]?.value;
+                        return (
+                          <button
+                            onClick={() => setChosenAlt(prev => ({ ...prev, [i]: isChosen ? null : alt }))}
+                            className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition ${
+                              isChosen
+                                ? "border-info bg-info/10 text-info font-semibold"
+                                : "border-border bg-card text-foreground hover:border-info/60"
+                            }`}
+                          >
+                            <span className="text-muted-foreground text-[10px]">{alt.brand.name}</span>
+                            <span className="font-medium truncate max-w-[140px]">{alt.name.split(" ").slice(0,4).join(" ")}</span>
+                            {bore && <span className="font-mono text-[10px] text-muted-foreground">⌀{bore}</span>}
+                            {altSell && <span className="font-mono">{altSell} kr</span>}
+                            {saving != null && saving > 0 && (
+                              <span className="text-[oklch(0.42_0.15_155)] font-semibold">−{(saving/(1-0.35)).toFixed(0)} kr</span>
                             )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
+                            {saving != null && saving < 0 && (
+                              <span className="text-info font-semibold">+{(Math.abs(saving)/(1-0.35)).toFixed(0)} kr</span>
+                            )}
+                            {isChosen && <span className="text-info">✓</span>}
+                          </button>
+                        );
+                      };
+
+                      const TIERS: { key: keyof AltTiers; icon: string; label: string; hint: string }[] = [
+                        { key: "economic", icon: "💰", label: "Ekonomisk",      hint: "Lägst pris — uppfyller krav" },
+                        { key: "best",     icon: "🏆", label: "Bäst prestanda", hint: "Högst kraft/slag — uppfyller krav" },
+                        { key: "compact",  icon: "📐", label: "Kompakt",        hint: "Minst byggmått — uppfyller krav" },
+                      ];
+
+                      return (
+                        <tr key={`eco-${i}`} className="border-b border-border/60 bg-surface-alt/50">
+                          <td colSpan={5} className="px-4 py-2.5">
+                            <div className="space-y-1.5">
+                              {TIERS.map(({ key, icon, label, hint }) => {
+                                const items = tiers[key];
+                                if (!items.length) return null;
+                                return (
+                                  <div key={key} className="flex items-center gap-2 flex-wrap min-h-[28px]">
+                                    <span className="text-[10px] font-semibold text-muted-foreground w-32 shrink-0 flex items-center gap-1" title={hint}>
+                                      <span>{icon}</span> {label}
+                                    </span>
+                                    {items.map(alt => <AltChip key={alt.sku} alt={alt} tier={key} />)}
+                                  </div>
+                                );
+                              })}
+                              {isSwapped && (
+                                <div className="pt-0.5">
+                                  <button
+                                    onClick={() => setChosenAlt(prev => ({ ...prev, [i]: null }))}
+                                    className="text-[11px] text-muted-foreground hover:text-foreground transition"
+                                  >
+                                    ↩ Återställ AI-val
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })()}
                   </>
                 );
               })}
