@@ -7,10 +7,10 @@ export const LOCALES = ["sv", "en", "de", "es"] as const;
 export function hreflangLinks(path: string = "") {
   const suffix = path ? `/${path}` : "";
   return [
-    { rel: "alternate", hreflang: "sv", href: `${SITE}/sv${suffix}` },
-    { rel: "alternate", hreflang: "en", href: `${SITE}/en${suffix}` },
-    { rel: "alternate", hreflang: "de", href: `${SITE}/de${suffix}` },
-    { rel: "alternate", hreflang: "es", href: `${SITE}/es${suffix}` },
-    { rel: "alternate", hreflang: "x-default", href: `${SITE}/sv${suffix}` },
+    { rel: "alternate", hrefLang: "sv", href: `${SITE}/sv${suffix}` },
+    { rel: "alternate", hrefLang: "en", href: `${SITE}/en${suffix}` },
+    { rel: "alternate", hrefLang: "de", href: `${SITE}/de${suffix}` },
+    { rel: "alternate", hrefLang: "es", href: `${SITE}/es${suffix}` },
+    { rel: "alternate", hrefLang: "x-default", href: `${SITE}/sv${suffix}` },
   ];
 }
