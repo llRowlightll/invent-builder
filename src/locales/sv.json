@@ -365,7 +365,9 @@
     "inStock12": "1–2 arbetsdagar",
     "fast35": "3–5 arbetsdagar",
     "addToCart": "Lägg i korg",
-    "addedToCart": "✓ Tillagd i korg"
+    "addedToCart": "✓ Tillagd i korg",
+    "requestQuote": "Begär offert",
+    "askAi": "Osäker? Fråga AI-ingenjören"
   },
   "rfqPage": {
     "title": "Offertförfrågan",

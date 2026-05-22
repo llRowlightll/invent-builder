@@ -365,7 +365,9 @@
     "inStock12": "1–2 business days",
     "fast35": "3–5 business days",
     "addToCart": "Add to cart",
-    "addedToCart": "✓ Added to cart"
+    "addedToCart": "✓ Added to cart",
+    "requestQuote": "Request quote",
+    "askAi": "Unsure? Ask the AI engineer"
   },
   "rfqPage": {
     "title": "Quote Request",

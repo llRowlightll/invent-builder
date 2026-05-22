@@ -154,6 +154,45 @@ function ProductDetail() {
           >
             {t("common.compare")}
           </Link>
+
+          <div className="border-t border-border pt-3 mt-1 space-y-2">
+            {/* Availability */}
+            <div className="flex items-center gap-2 text-xs">
+              {product.availability === "stock" ? (
+                <>
+                  <span className="size-2 rounded-full bg-[oklch(0.55_0.15_155)] shrink-0" />
+                  <span className="text-[oklch(0.45_0.15_155)] font-medium">{t("productPage.inStock12")}</span>
+                </>
+              ) : product.availability === "fast" ? (
+                <>
+                  <span className="size-2 rounded-full bg-gold shrink-0" />
+                  <span className="text-foreground font-medium">{t("productPage.fast35")}</span>
+                </>
+              ) : (
+                <>
+                  <span className="size-2 rounded-full bg-muted-foreground shrink-0" />
+                  <span className="text-muted-foreground">{t("productPage.leadTime")}: {product.lead_time_days ?? 14} {t("productPage.days")}</span>
+                </>
+              )}
+            </div>
+
+            {/* RFQ */}
+            <Link
+              to="/$locale/contact" params={{ locale } as never}
+              className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-md border border-border text-sm text-foreground hover:border-info hover:text-info transition"
+            >
+              <span>📋</span> {t("productPage.requestQuote")}
+            </Link>
+
+            {/* AI shortcut */}
+            <Link
+              to="/$locale/chat" params={{ locale }}
+              className="flex items-center gap-2 w-full px-3 py-2 rounded-md bg-surface-alt text-xs text-muted-foreground hover:text-info transition"
+            >
+              <span className="text-info">✦</span>
+              <span>{t("productPage.askAi")}</span>
+            </Link>
+          </div>
         </aside>
       </div>
 

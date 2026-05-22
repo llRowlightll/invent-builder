@@ -365,7 +365,9 @@
     "inStock12": "1–2 Werktage",
     "fast35": "3–5 Werktage",
     "addToCart": "In den Warenkorb",
-    "addedToCart": "✓ In den Warenkorb gelegt"
+    "addedToCart": "✓ In den Warenkorb gelegt",
+    "requestQuote": "Angebot anfragen",
+    "askAi": "Unsicher? KI-Ingenieur fragen"
   },
   "rfqPage": {
     "title": "Angebotsanfrage",
