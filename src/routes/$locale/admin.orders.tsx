@@ -100,6 +100,33 @@ function OrderEditModal({ order, onClose, onSaved }: { order: OrderRow; onClose:
     };
     const { data } = await supabase.from("orders").update(patch).eq("id", order.id).select().single();
     if (data) onSaved(data as OrderRow);
+
+    // Skicka statusmejl till kunden om status ändrats
+    const statusChanged = form.status !== order.status || form.payment_status !== order.payment_status;
+    const notifyStatuses = ["confirmed","picking","shipped","delivered","invoiced","paid","cancelled"];
+    if (statusChanged && notifyStatuses.includes(form.status)) {
+      const orderRef = order.id.slice(0, 8).toUpperCase();
+      fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_ref: orderRef,
+          contact_email: order.customer_email,
+          contact_name: order.customer_name,
+          status: form.status,
+          po_number: form.po_number || order.po_number,
+          estimated_delivery: form.estimated_delivery || order.estimated_delivery,
+          tracking_number: form.tracking_number || order.tracking_number,
+          carrier: form.carrier || order.carrier,
+          invoice_number: form.invoice_number || order.invoice_number,
+          invoice_url: form.invoice_url || order.invoice_url,
+          invoice_due_date: form.invoice_due_date || order.invoice_due_date,
+          total_inc_vat: order.total_inc_vat,
+          currency: order.currency,
+        }),
+      }).catch(console.error);
+    }
+
     setSaving(false);
     onClose();
   }

@@ -129,6 +129,7 @@ function MachineBuilderPage() {
   const [rfqEmail, setRfqEmail] = useState("");
   const [rfqCompany, setRfqCompany] = useState("");
   const [rfqPhone, setRfqPhone] = useState("");
+  const [rfqPoNumber, setRfqPoNumber] = useState("");
 
   useEffect(() => { loadCatalog().then(setCatalog).catch(() => {}); }, []);
 
@@ -293,12 +294,14 @@ function MachineBuilderPage() {
           rfqEmail={rfqEmail}
           rfqCompany={rfqCompany}
           rfqPhone={rfqPhone}
+          rfqPoNumber={rfqPoNumber}
           rfqSent={rfqSent}
           rfqId={rfqId}
           setRfqName={setRfqName}
           setRfqEmail={setRfqEmail}
           setRfqCompany={setRfqCompany}
           setRfqPhone={setRfqPhone}
+          setRfqPoNumber={setRfqPoNumber}
           setRfqSent={setRfqSent}
           setRfqId={setRfqId}
           onRestart={restart}
@@ -780,14 +783,14 @@ function findAlternativesTiered(
 
 // ── Result Step ─────────────────────────────────────────────────────────────
 function ResultStep({ t, locale, title, explanation, selected, bom, catalog, description, answers,
-  rfqName, rfqEmail, rfqCompany, rfqPhone, rfqSent, rfqId,
-  setRfqName, setRfqEmail, setRfqCompany, setRfqPhone, setRfqSent, setRfqId, onRestart }: {
+  rfqName, rfqEmail, rfqCompany, rfqPhone, rfqPoNumber, rfqSent, rfqId,
+  setRfqName, setRfqEmail, setRfqCompany, setRfqPhone, setRfqPoNumber, setRfqSent, setRfqId, onRestart }: {
   t: (key: import("@/lib/i18n").TKey) => string; locale: string; title: string; explanation: string;
   selected: ActuatorOption; bom: BomLine[]; catalog: ProductRow[]; description: string; answers: Record<string, string>;
-  rfqName: string; rfqEmail: string; rfqCompany: string; rfqPhone: string;
+  rfqName: string; rfqEmail: string; rfqCompany: string; rfqPhone: string; rfqPoNumber: string;
   rfqSent: boolean; rfqId: string;
   setRfqName: (v: string) => void; setRfqEmail: (v: string) => void;
-  setRfqCompany: (v: string) => void; setRfqPhone: (v: string) => void;
+  setRfqCompany: (v: string) => void; setRfqPhone: (v: string) => void; setRfqPoNumber: (v: string) => void;
   setRfqSent: (v: boolean) => void; setRfqId: (v: string) => void;
   onRestart: () => void;
 }) {
@@ -910,29 +913,60 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
         await supabase.from("rfq_items").insert(itemRows);
       }
 
-      setRfqId(rfqRow.id.slice(0, 8).toUpperCase());
+      const orderRef = rfqRow.id.slice(0, 8).toUpperCase();
+      setRfqId(orderRef);
       setRfqSent(true);
 
-      // Fire-and-forget admin notification email
-      const notifyItems = itemRows
-        .filter(Boolean)
-        .map((ir) => {
-          const product = catalog.find((p) => p.id === (ir as { product_id: string }).product_id);
-          const bomLine = bom.find((l) => l.sku === product?.sku);
-          return { sku: product?.sku ?? "", name: product?.name ?? "", qty: bomLine?.quantity ?? 1, role: bomLine?.role ?? "" };
-        });
+      // Build item list for emails + order record
+      const notifyItems = activeBom.map((l) => {
+        const product = l.product ?? catalog.find(p => p.sku === l.sku);
+        return {
+          sku: l.sku,
+          name: product?.name ?? l.role,
+          qty: l.quantity,
+          unit_price: product?.price ?? undefined,
+          role: l.role,
+        };
+      });
+      const totalExVat = activeBom.reduce((sum, l) => {
+        const price = (l.product ?? catalog.find(p => p.sku === l.sku))?.price ?? 0;
+        return sum + price * l.quantity;
+      }, 0);
+
+      // Auto-create order record
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (userId) {
+        supabase.from("orders").insert({
+          user_id: userId,
+          rfq_id: rfqRow.id,
+          customer_name: rfqName.trim(),
+          customer_company: rfqCompany.trim() || null,
+          customer_email: rfqEmail.trim(),
+          po_number: rfqPoNumber.trim() || null,
+          status: "new",
+          items: notifyItems,
+          total_ex_vat: totalExVat > 0 ? totalExVat : null,
+          total_inc_vat: totalExVat > 0 ? totalExVat * 1.25 : null,
+          currency: "SEK",
+        }).then(({ error: oErr }) => { if (oErr) console.error("order insert:", oErr); });
+      }
+
+      // Fire-and-forget: admin notification + customer confirmation email
       fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/rfq-notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           rfq_id: rfqRow.id,
+          order_ref: orderRef,
           contact_name: rfqName.trim(),
           contact_email: rfqEmail.trim(),
           contact_phone: rfqPhone.trim() || null,
           company: rfqCompany.trim() || null,
+          po_number: rfqPoNumber.trim() || null,
           title: title || `Maskinbyggare — ${selected.name}`,
           message,
           items: notifyItems,
+          total_ex_vat: totalExVat > 0 ? totalExVat : null,
         }),
       }).catch(console.error);
     } catch (e) {
@@ -1202,6 +1236,12 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
                 placeholder="Telefon (valfritt)"
                 type="tel"
                 className="px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
+              />
+              <input
+                value={rfqPoNumber}
+                onChange={e => setRfqPoNumber(e.target.value)}
+                placeholder={t("ordersPage.poNumber") + " (valfritt — t.ex. från SAP/Ariba)"}
+                className="px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50 font-mono"
               />
             </div>
             {rfqError && <p className="text-xs text-destructive">{rfqError}</p>}
