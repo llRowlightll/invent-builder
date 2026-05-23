@@ -133,6 +133,37 @@ function MachineBuilderPage() {
 
   useEffect(() => { loadCatalog().then(setCatalog).catch(() => {}); }, []);
 
+  // Fix 3: Ladda sparat projekt från sessionStorage (navigering från /projects)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("mv_load_project");
+      if (!raw) return;
+      sessionStorage.removeItem("mv_load_project"); // rensa direkt
+      const proj = JSON.parse(raw) as {
+        id: string; name: string; description: string | null;
+        answers: Record<string, string>; bom_lines: Array<{ sku: string; role: string; qty: number; unit_price?: number; name?: string }>;
+      };
+      // Fyll i beskrivning och hoppa till resultatsteget
+      setDescription(proj.description ?? proj.name);
+      setAnswers(proj.answers ?? {});
+      // Rekonstruera BOM-rader
+      const loadedBom: BomLine[] = (proj.bom_lines ?? []).map(l => ({
+        sku: l.sku,
+        role: l.role,
+        quantity: l.qty,
+        product: undefined, // fylls i av enrichWithCatalog nedan
+      }));
+      setBom(loadedBom);
+      setBomTitle(proj.name);
+      setBomExplanation("Laddat från sparat projekt: " + proj.name);
+      setSelected({ id: "loaded", name: proj.name, desc: "", tags: [] } as never);
+      setStep("result");
+    } catch {
+      // JSON-parse-fel eller sessionStorage blockerat — ignorera
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function enrichWithCatalog<T extends { sku: string; product?: ProductRow }>(items: T[]): T[] {
     return items.map(item => ({
       ...item,
@@ -881,11 +912,12 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
       const ecoNote = activeSavings > 0 ? `\n\nEkonomisk BOM vald — besparing: ${activeSavings.toFixed(0)} kr` : "";
       const message = `${description}\n\nStycklista: ${bomSummary}${ecoNote}`;
 
-      // Insert RFQ
+      // Insert RFQ — user_id är null för anonyma användare (nullable efter migration)
+      const authUser = (await supabase.auth.getUser()).data.user;
       const { data: rfqRow, error: rfqErr } = await supabase
         .from("rfqs")
         .insert({
-          user_id: (await supabase.auth.getUser()).data.user?.id ?? "00000000-0000-0000-0000-000000000000",
+          user_id: authUser?.id ?? null,
           title: title || `Maskinbyggare — ${selected.name}`,
           contact_name: rfqName.trim(),
           contact_email: rfqEmail.trim(),
@@ -933,11 +965,10 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
         return sum + price * l.quantity;
       }, 0);
 
-      // Auto-create order record
-      const userId = (await supabase.auth.getUser()).data.user?.id;
-      if (userId) {
+      // Auto-create order record (även för anonyma — user_id är nullable)
+      if (authUser?.id || rfqName.trim()) {
         supabase.from("orders").insert({
-          user_id: userId,
+          user_id: authUser?.id ?? null,
           rfq_id: rfqRow.id,
           customer_name: rfqName.trim(),
           customer_company: rfqCompany.trim() || null,

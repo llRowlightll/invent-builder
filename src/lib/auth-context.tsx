@@ -62,3 +62,12 @@ export function useIsAdmin(): boolean {
     user?.app_metadata?.role === "admin"
   );
 }
+
+/** Returns { isAdmin, authLoading } — use authLoading to avoid flash-redirect before auth is ready. */
+export function useAdminGuard(): { isAdmin: boolean; authLoading: boolean } {
+  const { user, loading } = useAuth();
+  return {
+    isAdmin: user?.email === ADMIN_EMAIL || user?.app_metadata?.role === "admin",
+    authLoading: loading,
+  };
+}

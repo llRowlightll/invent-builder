@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useIsAdmin } from "@/lib/auth-context";
+import { useAdminGuard } from "@/lib/auth-context";
 
 export const Route = createFileRoute("/$locale/admin/orders")({
   component: AdminOrdersPage,
@@ -206,7 +206,7 @@ function OrderEditModal({ order, onClose, onSaved }: { order: OrderRow; onClose:
 
 function AdminOrdersPage() {
   const { locale } = Route.useParams();
-  const isAdmin = useIsAdmin();
+  const { isAdmin, authLoading } = useAdminGuard();
   const navigate = useNavigate();
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -214,10 +214,11 @@ function AdminOrdersPage() {
   const [filterStatus, setFilterStatus] = useState("all");
 
   useEffect(() => {
+    if (authLoading) return; // vänta tills auth är klar innan redirect-beslut
     if (!isAdmin) { navigate({ to: "/$locale/login", params: { locale } }); return; }
     supabase.from("orders").select("*").order("created_at", { ascending: false })
       .then(({ data }) => { setOrders((data as OrderRow[]) ?? []); setLoading(false); });
-  }, [isAdmin]);
+  }, [isAdmin, authLoading]);
 
   const filtered = filterStatus === "all" ? orders : orders.filter(o => o.status === filterStatus);
   const fmt = (n: number | null) => n ? n.toLocaleString("sv-SE", { style:"currency", currency:"SEK", maximumFractionDigits:0 }) : "—";

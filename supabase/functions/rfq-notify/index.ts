@@ -109,8 +109,9 @@ function itemsTable(items: Item[]): string {
 // ── Customer confirmation email ───────────────────────────────────────────────
 function customerHtml(p: Payload): string {
   const total = p.total_ex_vat
-    ? `<p style="text-align:right;font-size:14px;margin:4px 0 16px;">
-        <strong>Totalt exkl. moms: ${p.total_ex_vat.toLocaleString("sv-SE")} kr</strong>
+    ? `<p style="text-align:right;font-size:13px;margin:4px 0 16px;color:#64748b;">
+        Indikativt totalpris exkl. moms: <strong>${p.total_ex_vat.toLocaleString("sv-SE")} kr</strong>
+        <br><span style="font-size:11px;">Slutpris bekräftas i orderbekräftelse från oss</span>
        </p>`
     : "";
 

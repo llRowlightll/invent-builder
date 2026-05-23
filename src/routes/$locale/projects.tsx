@@ -77,14 +77,22 @@ function ProjectsPage() {
   }
 
   function openProject(project: ProjectRow) {
-    // Serialisera projektet till URL-state via maskinbyggaren
-    const params = new URLSearchParams({
-      load: project.id,
-    });
+    // Spara projektdata i sessionStorage — machine-builder läser det vid mount
+    try {
+      sessionStorage.setItem("mv_load_project", JSON.stringify({
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        answers: project.answers,
+        bom_lines: project.bom_lines,
+        locale: project.locale,
+      }));
+    } catch {
+      // sessionStorage kan vara blockerat i privat läge — ignorera
+    }
     navigate({
       to: "/$locale/machine-builder" as never,
       params: { locale } as never,
-      search: { load: project.id } as never,
     });
   }
 
