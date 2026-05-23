@@ -7,6 +7,7 @@ const Machine3DScene = lazy(() =>
 import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth-context";
 import type { ProductRow } from "@/lib/types";
 
 export const Route = createFileRoute("/$locale/machine-builder")({
@@ -793,6 +794,13 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
   const [mounted, setMounted] = useState(false);
   const [rfqLoading, setRfqLoading] = useState(false);
   const [rfqError, setRfqError] = useState("");
+  // Save project
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [projectName, setProjectName] = useState("");
+  const [projectDesc, setProjectDesc] = useState("");
+  const [projectSaving, setProjectSaving] = useState(false);
+  const [projectSaved, setProjectSaved] = useState(false);
+  const { user } = useAuth();
   // Economic BOM
   const [ecoMode, setEcoMode] = useState(false);
   const [chosenAlt, setChosenAlt] = useState<Record<number, ProductRow | null>>({});
@@ -833,6 +841,29 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
     }),
     [bom, chosenAlt]
   );
+
+  async function saveProject() {
+    if (!user || !projectName.trim()) return;
+    setProjectSaving(true);
+    const bomSnapshot = activeBom.map(l => ({
+      sku: l.sku, role: l.role, qty: l.quantity,
+      unit_price: l.product?.price ?? undefined,
+      name: l.product?.name ?? l.sku,
+    }));
+    await supabase.from("projects").insert({
+      user_id: user.id,
+      name: projectName.trim(),
+      description: projectDesc.trim() || null,
+      locale,
+      answers,
+      bom_lines: bomSnapshot,
+    });
+    setProjectSaving(false);
+    setProjectSaved(true);
+    setShowSaveModal(false);
+    setProjectName("");
+    setProjectDesc("");
+  }
 
   async function submitRfq() {
     if (!rfqName.trim() || !rfqEmail.trim()) return;
@@ -1184,6 +1215,77 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
           </div>
         )}
       </div>
+
+      {/* Save project */}
+      <div className="flex items-center gap-3 flex-wrap pt-1">
+        {user ? (
+          projectSaved ? (
+            <span className="inline-flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
+              ✓ {t("projects.saved")}
+              <Link to="/$locale/projects" params={{ locale } as never} className="underline text-info">
+                → {t("projects.title")}
+              </Link>
+            </span>
+          ) : (
+            <button
+              onClick={() => setShowSaveModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-primary text-primary text-sm font-medium hover:bg-primary hover:text-primary-foreground transition"
+            >
+              💾 {t("projects.saveBtn")}
+            </button>
+          )
+        ) : (
+          <Link to="/$locale/login" params={{ locale } as never}
+            className="text-xs text-muted-foreground hover:text-info">
+            🔒 {t("projects.notLoggedIn")}
+          </Link>
+        )}
+      </div>
+
+      {/* Save project modal */}
+      {showSaveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setShowSaveModal(false)}>
+          <div className="bg-card rounded-xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-foreground">{t("projects.modalTitle")}</h2>
+              <button onClick={() => setShowSaveModal(false)} className="text-muted-foreground hover:text-foreground text-xl">✕</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Namn *</label>
+                <input
+                  value={projectName}
+                  onChange={e => setProjectName(e.target.value)}
+                  placeholder={t("projects.namePlaceholder")}
+                  autoFocus
+                  className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Anteckning</label>
+                <textarea
+                  value={projectDesc}
+                  onChange={e => setProjectDesc(e.target.value)}
+                  placeholder={t("projects.descPlaceholder")}
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setShowSaveModal(false)}
+                className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted transition">
+                Avbryt
+              </button>
+              <button onClick={saveProject} disabled={!projectName.trim() || projectSaving}
+                className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition disabled:opacity-40">
+                {projectSaving ? t("projects.saving") : t("projects.confirmSave")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex items-center justify-between flex-wrap gap-3 pt-2">

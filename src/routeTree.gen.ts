@@ -20,6 +20,7 @@ import { Route as LocaleTalkRouteImport } from './routes/$locale/talk'
 import { Route as LocaleSignupRouteImport } from './routes/$locale/signup'
 import { Route as LocaleShoppingListRouteImport } from './routes/$locale/shopping-list'
 import { Route as LocaleSettingsRouteImport } from './routes/$locale/settings'
+import { Route as LocaleProjectsRouteImport } from './routes/$locale/projects'
 import { Route as LocaleProjectRouteImport } from './routes/$locale/project'
 import { Route as LocaleProfileRouteImport } from './routes/$locale/profile'
 import { Route as LocaleProductsRouteImport } from './routes/$locale/products'
@@ -48,6 +49,7 @@ import { Route as LocaleAssemblySlugRouteImport } from './routes/$locale/assembl
 import { Route as LocaleAdminRfqRouteImport } from './routes/$locale/admin.rfq'
 import { Route as LocaleAdminProductsRouteImport } from './routes/$locale/admin.products'
 import { Route as LocaleAdminPricingRouteImport } from './routes/$locale/admin.pricing'
+import { Route as LocaleAdminOrdersRouteImport } from './routes/$locale/admin.orders'
 import { Route as LocaleAdminKnowledgeRouteImport } from './routes/$locale/admin.knowledge'
 import { Route as LocaleAdminIntegrationsRouteImport } from './routes/$locale/admin.integrations'
 import { Route as LocaleAdminImportRouteImport } from './routes/$locale/admin.import'
@@ -110,6 +112,11 @@ const LocaleShoppingListRoute = LocaleShoppingListRouteImport.update({
 const LocaleSettingsRoute = LocaleSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleProjectsRoute = LocaleProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
   getParentRoute: () => LocaleRoute,
 } as any)
 const LocaleProjectRoute = LocaleProjectRouteImport.update({
@@ -254,6 +261,11 @@ const LocaleAdminPricingRoute = LocaleAdminPricingRouteImport.update({
   path: '/pricing',
   getParentRoute: () => LocaleAdminRoute,
 } as any)
+const LocaleAdminOrdersRoute = LocaleAdminOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => LocaleAdminRoute,
+} as any)
 const LocaleAdminKnowledgeRoute = LocaleAdminKnowledgeRouteImport.update({
   id: '/knowledge',
   path: '/knowledge',
@@ -318,6 +330,7 @@ export interface FileRoutesByFullPath {
   '/$locale/products': typeof LocaleProductsRoute
   '/$locale/profile': typeof LocaleProfileRoute
   '/$locale/project': typeof LocaleProjectRoute
+  '/$locale/projects': typeof LocaleProjectsRoute
   '/$locale/settings': typeof LocaleSettingsRoute
   '/$locale/shopping-list': typeof LocaleShoppingListRoute
   '/$locale/signup': typeof LocaleSignupRoute
@@ -333,6 +346,7 @@ export interface FileRoutesByFullPath {
   '/$locale/admin/import': typeof LocaleAdminImportRoute
   '/$locale/admin/integrations': typeof LocaleAdminIntegrationsRoute
   '/$locale/admin/knowledge': typeof LocaleAdminKnowledgeRoute
+  '/$locale/admin/orders': typeof LocaleAdminOrdersRoute
   '/$locale/admin/pricing': typeof LocaleAdminPricingRoute
   '/$locale/admin/products': typeof LocaleAdminProductsRoute
   '/$locale/admin/rfq': typeof LocaleAdminRfqRoute
@@ -366,6 +380,7 @@ export interface FileRoutesByTo {
   '/$locale/products': typeof LocaleProductsRoute
   '/$locale/profile': typeof LocaleProfileRoute
   '/$locale/project': typeof LocaleProjectRoute
+  '/$locale/projects': typeof LocaleProjectsRoute
   '/$locale/settings': typeof LocaleSettingsRoute
   '/$locale/shopping-list': typeof LocaleShoppingListRoute
   '/$locale/signup': typeof LocaleSignupRoute
@@ -381,6 +396,7 @@ export interface FileRoutesByTo {
   '/$locale/admin/import': typeof LocaleAdminImportRoute
   '/$locale/admin/integrations': typeof LocaleAdminIntegrationsRoute
   '/$locale/admin/knowledge': typeof LocaleAdminKnowledgeRoute
+  '/$locale/admin/orders': typeof LocaleAdminOrdersRoute
   '/$locale/admin/pricing': typeof LocaleAdminPricingRoute
   '/$locale/admin/products': typeof LocaleAdminProductsRoute
   '/$locale/admin/rfq': typeof LocaleAdminRfqRoute
@@ -416,6 +432,7 @@ export interface FileRoutesById {
   '/$locale/products': typeof LocaleProductsRoute
   '/$locale/profile': typeof LocaleProfileRoute
   '/$locale/project': typeof LocaleProjectRoute
+  '/$locale/projects': typeof LocaleProjectsRoute
   '/$locale/settings': typeof LocaleSettingsRoute
   '/$locale/shopping-list': typeof LocaleShoppingListRoute
   '/$locale/signup': typeof LocaleSignupRoute
@@ -431,6 +448,7 @@ export interface FileRoutesById {
   '/$locale/admin/import': typeof LocaleAdminImportRoute
   '/$locale/admin/integrations': typeof LocaleAdminIntegrationsRoute
   '/$locale/admin/knowledge': typeof LocaleAdminKnowledgeRoute
+  '/$locale/admin/orders': typeof LocaleAdminOrdersRoute
   '/$locale/admin/pricing': typeof LocaleAdminPricingRoute
   '/$locale/admin/products': typeof LocaleAdminProductsRoute
   '/$locale/admin/rfq': typeof LocaleAdminRfqRoute
@@ -467,6 +485,7 @@ export interface FileRouteTypes {
     | '/$locale/products'
     | '/$locale/profile'
     | '/$locale/project'
+    | '/$locale/projects'
     | '/$locale/settings'
     | '/$locale/shopping-list'
     | '/$locale/signup'
@@ -482,6 +501,7 @@ export interface FileRouteTypes {
     | '/$locale/admin/import'
     | '/$locale/admin/integrations'
     | '/$locale/admin/knowledge'
+    | '/$locale/admin/orders'
     | '/$locale/admin/pricing'
     | '/$locale/admin/products'
     | '/$locale/admin/rfq'
@@ -515,6 +535,7 @@ export interface FileRouteTypes {
     | '/$locale/products'
     | '/$locale/profile'
     | '/$locale/project'
+    | '/$locale/projects'
     | '/$locale/settings'
     | '/$locale/shopping-list'
     | '/$locale/signup'
@@ -530,6 +551,7 @@ export interface FileRouteTypes {
     | '/$locale/admin/import'
     | '/$locale/admin/integrations'
     | '/$locale/admin/knowledge'
+    | '/$locale/admin/orders'
     | '/$locale/admin/pricing'
     | '/$locale/admin/products'
     | '/$locale/admin/rfq'
@@ -564,6 +586,7 @@ export interface FileRouteTypes {
     | '/$locale/products'
     | '/$locale/profile'
     | '/$locale/project'
+    | '/$locale/projects'
     | '/$locale/settings'
     | '/$locale/shopping-list'
     | '/$locale/signup'
@@ -579,6 +602,7 @@ export interface FileRouteTypes {
     | '/$locale/admin/import'
     | '/$locale/admin/integrations'
     | '/$locale/admin/knowledge'
+    | '/$locale/admin/orders'
     | '/$locale/admin/pricing'
     | '/$locale/admin/products'
     | '/$locale/admin/rfq'
@@ -676,6 +700,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/$locale/settings'
       preLoaderRoute: typeof LocaleSettingsRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/projects': {
+      id: '/$locale/projects'
+      path: '/projects'
+      fullPath: '/$locale/projects'
+      preLoaderRoute: typeof LocaleProjectsRouteImport
       parentRoute: typeof LocaleRoute
     }
     '/$locale/project': {
@@ -874,6 +905,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAdminPricingRouteImport
       parentRoute: typeof LocaleAdminRoute
     }
+    '/$locale/admin/orders': {
+      id: '/$locale/admin/orders'
+      path: '/orders'
+      fullPath: '/$locale/admin/orders'
+      preLoaderRoute: typeof LocaleAdminOrdersRouteImport
+      parentRoute: typeof LocaleAdminRoute
+    }
     '/$locale/admin/knowledge': {
       id: '/$locale/admin/knowledge'
       path: '/knowledge'
@@ -941,6 +979,7 @@ interface LocaleAdminRouteChildren {
   LocaleAdminImportRoute: typeof LocaleAdminImportRoute
   LocaleAdminIntegrationsRoute: typeof LocaleAdminIntegrationsRoute
   LocaleAdminKnowledgeRoute: typeof LocaleAdminKnowledgeRoute
+  LocaleAdminOrdersRoute: typeof LocaleAdminOrdersRoute
   LocaleAdminPricingRoute: typeof LocaleAdminPricingRoute
   LocaleAdminProductsRoute: typeof LocaleAdminProductsRoute
   LocaleAdminRfqRoute: typeof LocaleAdminRfqRoute
@@ -954,6 +993,7 @@ const LocaleAdminRouteChildren: LocaleAdminRouteChildren = {
   LocaleAdminImportRoute: LocaleAdminImportRoute,
   LocaleAdminIntegrationsRoute: LocaleAdminIntegrationsRoute,
   LocaleAdminKnowledgeRoute: LocaleAdminKnowledgeRoute,
+  LocaleAdminOrdersRoute: LocaleAdminOrdersRoute,
   LocaleAdminPricingRoute: LocaleAdminPricingRoute,
   LocaleAdminProductsRoute: LocaleAdminProductsRoute,
   LocaleAdminRfqRoute: LocaleAdminRfqRoute,
@@ -996,6 +1036,7 @@ interface LocaleRouteChildren {
   LocaleProductsRoute: typeof LocaleProductsRoute
   LocaleProfileRoute: typeof LocaleProfileRoute
   LocaleProjectRoute: typeof LocaleProjectRoute
+  LocaleProjectsRoute: typeof LocaleProjectsRoute
   LocaleSettingsRoute: typeof LocaleSettingsRoute
   LocaleShoppingListRoute: typeof LocaleShoppingListRoute
   LocaleSignupRoute: typeof LocaleSignupRoute
@@ -1029,6 +1070,7 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleProductsRoute: LocaleProductsRoute,
   LocaleProfileRoute: LocaleProfileRoute,
   LocaleProjectRoute: LocaleProjectRoute,
+  LocaleProjectsRoute: LocaleProjectsRoute,
   LocaleSettingsRoute: LocaleSettingsRoute,
   LocaleShoppingListRoute: LocaleShoppingListRoute,
   LocaleSignupRoute: LocaleSignupRoute,

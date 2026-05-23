@@ -14,6 +14,147 @@ export type Database = {
   }
   public: {
     Tables: {
+      orders: {
+        Row: {
+          id: string
+          user_id: string
+          project_id: string | null
+          rfq_id: string | null
+          customer_name: string
+          customer_company: string | null
+          customer_email: string
+          customer_org_nr: string | null
+          po_number: string | null
+          peppol_id: string | null
+          status: string
+          items: Json
+          total_ex_vat: number | null
+          vat_rate: number
+          total_inc_vat: number | null
+          currency: string
+          estimated_delivery: string | null
+          shipped_at: string | null
+          delivered_at: string | null
+          tracking_number: string | null
+          carrier: string | null
+          invoice_number: string | null
+          invoice_url: string | null
+          invoice_date: string | null
+          invoice_due_date: string | null
+          fortnox_invoice_id: string | null
+          payment_status: string
+          paid_at: string | null
+          internal_notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          project_id?: string | null
+          rfq_id?: string | null
+          customer_name: string
+          customer_company?: string | null
+          customer_email: string
+          customer_org_nr?: string | null
+          po_number?: string | null
+          peppol_id?: string | null
+          status?: string
+          items?: Json
+          total_ex_vat?: number | null
+          vat_rate?: number
+          total_inc_vat?: number | null
+          currency?: string
+          estimated_delivery?: string | null
+          shipped_at?: string | null
+          delivered_at?: string | null
+          tracking_number?: string | null
+          carrier?: string | null
+          invoice_number?: string | null
+          invoice_url?: string | null
+          invoice_date?: string | null
+          invoice_due_date?: string | null
+          fortnox_invoice_id?: string | null
+          payment_status?: string
+          paid_at?: string | null
+          internal_notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          project_id?: string | null
+          rfq_id?: string | null
+          customer_name?: string
+          customer_company?: string | null
+          customer_email?: string
+          customer_org_nr?: string | null
+          po_number?: string | null
+          peppol_id?: string | null
+          status?: string
+          items?: Json
+          total_ex_vat?: number | null
+          vat_rate?: number
+          total_inc_vat?: number | null
+          currency?: string
+          estimated_delivery?: string | null
+          shipped_at?: string | null
+          delivered_at?: string | null
+          tracking_number?: string | null
+          carrier?: string | null
+          invoice_number?: string | null
+          invoice_url?: string | null
+          invoice_date?: string | null
+          invoice_due_date?: string | null
+          fortnox_invoice_id?: string | null
+          payment_status?: string
+          paid_at?: string | null
+          internal_notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      projects: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          description: string | null
+          locale: string
+          answers: Json
+          bom_lines: Json
+          bom_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          description?: string | null
+          locale?: string
+          answers?: Json
+          bom_lines?: Json
+          bom_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          description?: string | null
+          locale?: string
+          answers?: Json
+          bom_lines?: Json
+          bom_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bom_items: {
         Row: {
           bom_id: string
