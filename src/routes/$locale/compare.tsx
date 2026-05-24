@@ -161,27 +161,42 @@ function makeSpecGroups(t: ReturnType<typeof makeT>): SpecGroup[] {
   ];
 }
 
-// Build a unique list of rows (remove duplicate keys, remove rows where all products return "—")
+// Build a unique list of rows (merge rows with same label, remove rows where all products return "—")
 function buildRows(group: SpecGroup, compared: ProductRow[]): Array<{ label: string; cells: string[]; isDifferent: boolean }> {
-  const seen = new Set<string>();
-  const result: Array<{ label: string; cells: string[]; isDifferent: boolean }> = [];
+  // Group rows by label so e.g. bore_mm + bore_diameter_mm + bore_diameter all merge into one "Borrdiameter" row
+  type RowDef = SpecRowDef & { _label: string };
+  const byLabel = new Map<string, RowDef[]>();
 
   for (const row of group.rows) {
-    const key = row.kind === "flat" ? `flat:${row.label}` : `spec:${row.key}`;
-    if (seen.has(key)) continue;
+    const label = row.kind === "flat" ? `flat:${row.label}` : row.label;
+    if (!byLabel.has(label)) byLabel.set(label, []);
+    byLabel.get(label)!.push({ ...row, _label: label });
+  }
 
+  const result: Array<{ label: string; cells: string[]; isDifferent: boolean }> = [];
+
+  for (const [, defs] of byLabel) {
+    const displayLabel = defs[0].label;
+
+    // For each product, pick the first non-"—" value across all keys for this label
     const cells = compared.map((p) => {
-      if (row.kind === "flat") return row.get(p);
-      const s = p.specs[row.key];
-      return s ? `${s.value}${s.unit ? " " + s.unit : ""}` : "—";
+      for (const def of defs) {
+        if (def.kind === "flat") {
+          const v = def.get(p);
+          if (v && v !== "—") return v;
+        } else {
+          const s = p.specs[def.key];
+          if (s) return `${s.value}${s.unit ? " " + s.unit : ""}`;
+        }
+      }
+      return "—";
     });
 
     const allDash = cells.every((c) => c === "—");
-    if (allDash) continue; // don't show rows where every product has no data
+    if (allDash) continue;
 
-    seen.add(key);
     const isDifferent = new Set(cells).size > 1;
-    result.push({ label: row.label, cells, isDifferent });
+    result.push({ label: displayLabel, cells, isDifferent });
   }
   return result;
 }
