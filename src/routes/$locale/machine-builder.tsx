@@ -694,15 +694,62 @@ function exportBomPdf(bom: BomLine[], title: string, explanation: string, select
 function roleToCategory(role: string, sku: string): string | null {
   const r = role.toLowerCase();
   const s = sku.toLowerCase();
+
+  // ── Elektrisk aktuator (före pneumatisk cylinder — mer specifik) ──────────
+  if (/elektr|electric|servo|stepper|spindle|spindel|kugelgewind|ball.screw|linjär.*driv|linear.*driv|elektrisk.*axel|servo.*axel|elektrisk.*cylinder|electric.*cylinder/.test(r)
+    || /dnce|epco|egsk|egsp|ley\b|lesh|6e-0|mw-elk/.test(s)) return "electric-actuator";
+
+  // ── Linjärmodul / gantry / toothed-belt-axel ────────────────────────────
+  if (/linjärmodul|linear.*modul|linjär.*axel|tandbältsaxel|toothed.belt|ball.screw.axis|gantry|kantilever|elektr.*glid|electrical.*slide|electric.*slide/.test(r)
+    || /festo-155|festo-175|festo-530|festo-556|festo-562|festo-802|festo-811|festo-147|mw-s10/.test(s)) return "linear-module";
+
+  // ── Pneumatisk cylinder (standard) ──────────────────────────────────────
   if (/cylinder|aktuator|actuator|main act|axel \d/.test(r)
-    || /dsbc|advu|cq2|cp96|p1d|dnce|ley|advc|dsnu|mb|cena/.test(s)) return "cylinder";
+    || /dsbc|advu|cq2|cp96|p1d|advc|dsnu|mb\b|cena/.test(s)) return "cylinder";
+
+  // ── Gripper ──────────────────────────────────────────────────────────────
   if (/gripper|grepp|k[aä]ft|jaw/.test(r) || /hgp|mhz|mhc|pgn/.test(s)) return "gripper";
+
+  // ── Vakuum / ejektor ─────────────────────────────────────────────────────
   if (/vakuum.*gen|ejektor|vacuum.*gen|ejector/.test(r) || /vadmi|zu0|ovem/.test(s)) return "vacuum";
-  if (/frl|filter.*reg|luftbered/.test(r) || /ms4|ms6\b|lf\b/.test(s)) return "frl";
-  if (/styrventil|kontrollventil|control.*valve|solenoid/.test(r) && !/terminal/.test(r)) return "valve";
-  if (/ventilterminal|valve.*terminal/.test(r) || /vtsa/.test(s)) return "valve-terminal";
-  if (/givare|sensor|ändl[äa]ge|end.pos/.test(r) || /smt-|d-a9/.test(s)) return "sensor";
-  return null; // hoses, fittings — skip
+
+  // ── FRL (filter-regulator-lubricator) ────────────────────────────────────
+  if (/frl|filter.*reg|luftbered|air.*prep|tryckreducer/.test(r)
+    || /ms4|ms6\b|lf\b|aw\d|ac\d|festo-ms|mc-fr|mc-frl|mx-fr|mw-frl/.test(s)) return "frl";
+
+  // ── Styrventil (solenoid) ────────────────────────────────────────────────
+  if (/styrventil|kontrollventil|control.*valve|solenoid|magnetventil/.test(r)
+    && !/terminal/.test(r)) return "valve";
+
+  // ── Ventilterminal ───────────────────────────────────────────────────────
+  if (/ventilterminal|valve.*terminal/.test(r) || /vtsa|vtug|mpa-s|ex500/.test(s)) return "valve-terminal";
+
+  // ── Sensor / ändlägesgivare ──────────────────────────────────────────────
+  if (/givare|sensor|ändl[äa]ge|end.pos|reed|proximity|närhets|tryckvakt|pressure.*switch/.test(r)
+    || /smt-|sme-|sies|siet|d-a7|d-a9|d-m9|zse/.test(s)) return "sensor";
+
+  // ── Koppling / push-in fitting ───────────────────────────────────────────
+  if (/koppling|fitting|anslut|push.?in|snabbanslut|kd3/.test(r)
+    || /^qs-|^qs[lsyt]-|kq2|kd3/.test(s)) return "fitting";
+
+  // ── Slang / tubing ───────────────────────────────────────────────────────
+  if (/slang|slange|tub|tube|hose|rör/.test(r) || /^pan-|^tu\d|^pun/.test(s)) return "tubing";
+
+  // ── Ljuddämpare ──────────────────────────────────────────────────────────
+  if (/ljuddämp|silencer|muffler|avgasdämp/.test(r) || /^u-1|^u-m|^an[12]|^an5/.test(s)) return "silencer";
+
+  // ── Flödesreglering / hastighetsstyrventil ───────────────────────────────
+  if (/stryp|flödesregl|speed.*control|hastighetsstyr|flow.*control|snabbutluft|quick.*exhaust/.test(r)
+    || /^grla|^grlz|^as\d|vfoe|vhs/.test(s)) return "flow-control";
+
+  // ── Fäste / monteringstillbehör ──────────────────────────────────────────
+  if (/fäst|mount|bracket|konsol|adapter|gaffel|sväng|pivot|flange|foot/.test(r)
+    || /^hnc-|^sncs|^fnc-|^crhn|cs16|^la-/.test(s)) return "mounting";
+
+  // ── Sensorkabel ──────────────────────────────────────────────────────────
+  if (/kabel|cable|ledning|sensor.*kabel/.test(r) || /nebu|^e2-m/.test(s)) return "cable";
+
+  return null;
 }
 
 /** Parse minimum technical requirements from the user's question answers. */
@@ -757,11 +804,15 @@ function findAlternativesTiered(
   const currentBrand = line.product?.brand?.slug ?? "";
   const currentBore  = parseFloat(line.product?.specs["bore_mm"]?.value ?? "0");
   const isCylinder   = cat === "cylinder";
+  const isElectric   = cat === "electric-actuator" || cat === "linear-module";
 
   const candidates = catalog.filter(p => {
     if (p.purchase_price == null)      return false;
     if (p.brand.slug === currentBrand) return false;
     if (!p.category.slug.includes(cat)) return false;
+
+    // Elektriska aktuatorer och linjärmoduler — enkelt filter, ingen bore-logik
+    if (isElectric) return true;
 
     if (isCylinder) {
       const bore   = parseFloat(p.specs["bore_mm"]?.value ?? "0");

@@ -1,11 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "maskinval",
+  "name": "tanstack-start-app",
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "src/server.ts",
-  "routes": [
-    { "pattern": "maskinval.se/*", "zone_name": "maskinval.se" },
-    { "pattern": "www.maskinval.se/*", "zone_name": "maskinval.se" }
-  ]
+  "main": "src/server.ts"
 }
