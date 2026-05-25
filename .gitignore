@@ -30,3 +30,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Product PDFs (too large for git – stored locally at docs/pdfs/)
+docs/pdfs/**/*.pdf
+docs/pdfs/**/*.zip
