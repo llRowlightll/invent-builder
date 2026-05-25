@@ -53,12 +53,21 @@ function ShoppingListPage() {
     setItems(getCartItems());
   }, []);
 
-  // Pre-fill form when user logs in
+  // Pre-fill form from company_profiles when user logs in
   useEffect(() => {
-    if (user) {
-      setRfqName((prev) => prev || user.user_metadata?.full_name || "");
-      setRfqEmail((prev) => prev || user.email || "");
-    }
+    if (!user) return;
+    setRfqEmail((prev) => prev || user.email || "");
+    supabase
+      .from("company_profiles")
+      .select("display_name,email,company_name,phone")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.display_name) setRfqName((prev) => prev || data.display_name!);
+        if (data?.email) setRfqEmail((prev) => prev || data.email!);
+        if (data?.company_name) setRfqCompany((prev) => prev || data.company_name!);
+        if (data?.phone) setRfqPhone((prev) => prev || data.phone!);
+      });
   }, [user]);
 
   // Persist list + broadcast count for nav badge
@@ -151,6 +160,7 @@ function ShoppingListPage() {
       const { data: rfqRow } = await supabase
         .from("rfqs")
         .insert({
+          user_id: user.id,
           status: "new",
           title,
           contact_name: rfqName.trim(),
@@ -172,21 +182,22 @@ function ShoppingListPage() {
           })),
         );
 
+        const orderRef = rfqRow.id.slice(0, 8).toUpperCase();
         fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/rfq-notify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             rfq_id: rfqRow.id,
+            order_ref: orderRef,
             contact_name: rfqName.trim(),
             contact_email: rfqEmail.trim(),
             contact_phone: rfqPhone.trim() || null,
             company: rfqCompany.trim() || null,
+            message: rfqMessage.trim() || null,
             title,
             items: items.map((i) => ({ sku: i.sku, name: i.name, qty: i.qty, role: "ordered" })),
           }),
         }).catch(console.error);
-
-        setRfqId(rfqRow.id);
       }
 
       setRfqSent(true);
