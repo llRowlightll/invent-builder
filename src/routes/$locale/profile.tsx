@@ -1,8 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { makeT, type Locale } from "@/lib/i18n";
 import { useAuth, useIsAdmin } from "@/lib/auth-context";
+import { saveProfileFn } from "@/lib/profile.functions";
 
 export const Route = createFileRoute("/$locale/profile")({
   component: ProfilePage,
@@ -46,7 +48,9 @@ function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [edit, setEdit] = useState<Partial<Profile>>({});
+  const saveProfile = useServerFn(saveProfileFn);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFirstLoad = useRef(true);
 
@@ -100,7 +104,7 @@ function ProfilePage() {
   // Auto-save on edit change (debounced 1.5 s) — skip the very first population
   useEffect(() => {
     if (isFirstLoad.current) { isFirstLoad.current = false; return; }
-    if (!user || !profile) return;
+    if (!user) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       persistProfile(edit);
@@ -111,26 +115,30 @@ function ProfilePage() {
   async function persistProfile(data: Partial<Profile>) {
     if (!user) return;
     setSaving(true);
-    const complete = !!(data.company_name && data.industry && data.role && data.employees && data.phone);
-    const { error } = await (supabase as any).from("company_profiles").upsert({
-      id: user.id,
-      email: user.email,
-      ...data,
-      profile_complete: complete,
-    });
-    if (error) {
-      console.error("profile save error", error);
+    setSaveError(null);
+    try {
+      // Get current session token — needed for server-side auth verification
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) throw new Error("Ingen aktiv session — logga in igen.");
+
+      const updated = await saveProfile({
+        data: { token, profile: data as Record<string, unknown> },
+      });
+
+      if (updated) setProfile(updated as unknown as Profile);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Okänt fel";
+      console.error("profile save error", msg);
+      setSaveError(`Kunde inte spara: ${msg}`);
+    } finally {
       setSaving(false);
-      return;
     }
-    const { data: updated } = await (supabase as any).from("company_profiles").select("*").eq("id", user.id).maybeSingle();
-    if (updated) setProfile(updated as Profile);
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
   }
 
-  async function saveProfile(e: React.FormEvent) {
+  async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
     if (debounceRef.current) clearTimeout(debounceRef.current);
     await persistProfile(edit);
@@ -208,7 +216,7 @@ function ProfilePage() {
       )}
 
       {/* Edit form */}
-      <form onSubmit={saveProfile} className="space-y-6">
+      <form onSubmit={handleSaveProfile} className="space-y-6">
         <section>
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">{t("profilePage.contactDetails")}</h2>
           <div className="grid sm:grid-cols-2 gap-4">
@@ -293,6 +301,12 @@ function ProfilePage() {
             </Field>
           </div>
         </section>
+
+        {saveError && (
+          <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+            ⚠ {saveError}
+          </div>
+        )}
 
         <div className="flex items-center gap-3 pt-2">
           <button type="submit" disabled={saving}
