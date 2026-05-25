@@ -14,6 +14,26 @@ export const Route = createFileRoute("/$locale/orders")({
   component: OrdersPage,
 });
 
+interface RfqRow {
+  id: string;
+  status: string | null;
+  title: string | null;
+  contact_name: string | null;
+  company: string | null;
+  message: string | null;
+  quote_amount: number | null;
+  quote_currency: string | null;
+  created_at: string;
+}
+
+const RFQ_STATUS_META: Record<string, { dot: string; text: string; label: string }> = {
+  new:        { dot: "bg-info",                       text: "text-info",                        label: "Mottagen" },
+  processing: { dot: "bg-[oklch(0.72_0.18_80)]",     text: "text-[oklch(0.55_0.18_80)]",       label: "Under behandling" },
+  quoted:     { dot: "bg-[oklch(0.60_0.18_290)]",    text: "text-[oklch(0.60_0.18_290)]",      label: "Offert skickad" },
+  accepted:   { dot: "bg-[oklch(0.60_0.18_155)]",    text: "text-[oklch(0.60_0.18_155)]",      label: "Accepterad" },
+  rejected:   { dot: "bg-destructive",               text: "text-destructive",                 label: "Avvisad" },
+};
+
 interface OrderItem {
   sku: string;
   name: string;
@@ -190,16 +210,32 @@ export function OrdersPage() {
   const t = makeT(locale as Locale);
   const { user } = useAuth();
   const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [rfqs, setRfqs] = useState<RfqRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"orders" | "rfqs">("orders");
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
-    supabase
-      .from("orders")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => { setOrders((data as unknown as OrderRow[]) ?? []); setLoading(false); });
+    Promise.all([
+      supabase
+        .from("orders")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("rfqs")
+        .select("id,status,title,contact_name,company,message,quote_amount,quote_currency,created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
+    ]).then(([{ data: ordData }, { data: rfqData }]) => {
+      setOrders((ordData as unknown as OrderRow[]) ?? []);
+      setRfqs((rfqData as unknown as RfqRow[]) ?? []);
+      // Default to RFQ tab if no orders but there are RFQs
+      if ((!ordData || ordData.length === 0) && rfqData && rfqData.length > 0) {
+        setTab("rfqs");
+      }
+      setLoading(false);
+    });
   }, [user]);
 
   if (!user) {
@@ -221,18 +257,38 @@ export function OrdersPage() {
         <p className="text-sm text-muted-foreground mt-1">{t("ordersPage.pageSubtitle")}</p>
       </div>
 
-      <div className="flex gap-1 mb-8 border-b border-border">
+      {/* Page-level nav tabs */}
+      <div className="flex gap-1 mb-6 border-b border-border">
         {[
           { to: "/$locale/projects", label: t("projects.title") },
           { to: "/$locale/orders",   label: t("ordersPage.myOrders") },
           { to: "/$locale/profile",  label: t("profilePage.title") },
-        ].map(tab => (
-          <Link key={tab.to} to={tab.to as never} params={{ locale } as never}
+        ].map(navTab => (
+          <Link key={navTab.to} to={navTab.to as never} params={{ locale } as never}
             className="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition"
             activeProps={{ className:"border-primary text-foreground" }}
             inactiveProps={{ className:"border-transparent text-muted-foreground hover:text-foreground" }}>
-            {tab.label}
+            {navTab.label}
           </Link>
+        ))}
+      </div>
+
+      {/* Sub-tabs: Orders vs RFQs */}
+      <div className="flex gap-3 mb-6">
+        {(["orders", "rfqs"] as const).map((t2) => (
+          <button
+            key={t2}
+            onClick={() => setTab(t2)}
+            className={`text-sm px-4 py-1.5 rounded-full border transition font-medium ${
+              tab === t2
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border text-muted-foreground hover:border-info hover:text-foreground"
+            }`}
+          >
+            {t2 === "orders"
+              ? `${t("ordersPage.myOrders")} ${orders.length > 0 ? `(${orders.length})` : ""}`
+              : `${locale === "sv" ? "Förfrågningar" : "Requests"} ${rfqs.length > 0 ? `(${rfqs.length})` : ""}`}
+          </button>
         ))}
       </div>
 
@@ -240,21 +296,83 @@ export function OrdersPage() {
         <div className="space-y-3">
           {[1,2].map(i => <div key={i} className="h-40 bg-muted rounded-xl animate-pulse" />)}
         </div>
-      ) : orders.length === 0 ? (
-        <div className="text-center py-20 border-2 border-dashed border-border rounded-xl">
-          <div className="text-4xl mb-3">📋</div>
-          <p className="text-muted-foreground text-sm">{t("ordersPage.noOrders")}</p>
-          <Link to="/$locale/machine-builder" params={{ locale }}
-            className="mt-4 inline-block text-sm text-primary hover:underline">
-            ✦ {t("nav.machineBuilder")} →
-          </Link>
-        </div>
+      ) : tab === "orders" ? (
+        orders.length === 0 ? (
+          <div className="text-center py-20 border-2 border-dashed border-border rounded-xl">
+            <div className="text-4xl mb-3">📋</div>
+            <p className="text-muted-foreground text-sm">{t("ordersPage.noOrders")}</p>
+            <Link to="/$locale/machine-builder" params={{ locale }}
+              className="mt-4 inline-block text-sm text-primary hover:underline">
+              ✦ {t("nav.machineBuilder")} →
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {orders.map(order => (
+              <OrderCard key={order.id} order={order} t={t as (k: string) => string} locale={locale} />
+            ))}
+          </div>
+        )
       ) : (
-        <div className="space-y-4">
-          {orders.map(order => (
-            <OrderCard key={order.id} order={order} t={t as (k: string) => string} locale={locale} />
-          ))}
-        </div>
+        /* RFQ tab */
+        rfqs.length === 0 ? (
+          <div className="text-center py-20 border-2 border-dashed border-border rounded-xl">
+            <div className="text-4xl mb-3">📥</div>
+            <p className="text-muted-foreground text-sm">
+              {locale === "sv" ? "Inga förfrågningar ännu." : "No requests yet."}
+            </p>
+            <Link to="/$locale/shopping-list" params={{ locale }}
+              className="mt-4 inline-block text-sm text-info hover:underline">
+              {locale === "sv" ? "Skapa offertförfrågan →" : "Create a quote request →"}
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {rfqs.map(rfq => {
+              const meta = RFQ_STATUS_META[rfq.status ?? "new"] ?? RFQ_STATUS_META.new;
+              const locStr = locale === "sv" ? "sv-SE" : locale;
+              return (
+                <Link
+                  key={rfq.id}
+                  to="/$locale/rfq/$rfqId"
+                  params={{ locale, rfqId: rfq.id }}
+                  className="flex items-start gap-4 bg-card border border-border rounded-xl p-5 hover:border-info transition group"
+                >
+                  <span className={`mt-1 size-2.5 rounded-full shrink-0 ${meta.dot}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <span className="font-semibold text-foreground group-hover:text-info transition">
+                        {rfq.title ?? `${locale === "sv" ? "Förfrågan" : "Request"} #${rfq.id.slice(0,8).toUpperCase()}`}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground shrink-0">
+                        {new Date(rfq.created_at).toLocaleDateString(locStr, { year:"numeric", month:"short", day:"numeric" })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 flex-wrap">
+                      <span className={`text-xs font-medium ${meta.text}`}>
+                        {meta.label}
+                      </span>
+                      {rfq.quote_amount && (
+                        <span className="text-xs text-muted-foreground">
+                          {locale === "sv" ? "Offert:" : "Quote:"}{" "}
+                          <strong className="text-foreground">
+                            {rfq.quote_amount.toLocaleString(locStr, { style:"currency", currency: rfq.quote_currency ?? "SEK", maximumFractionDigits:0 })}
+                          </strong>
+                        </span>
+                      )}
+                      {rfq.message && (
+                        <span className="text-xs text-muted-foreground truncate max-w-[280px]">
+                          &quot;{rfq.message.slice(0, 80)}{rfq.message.length > 80 ? "…" : ""}&quot;
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-muted-foreground group-hover:text-info text-sm shrink-0 transition">→</span>
+                </Link>
+              );
+            })}
+          </div>
+        )
       )}
     </div>
   );
