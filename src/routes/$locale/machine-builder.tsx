@@ -213,7 +213,7 @@ function MachineBuilderPage() {
     setError("");
     setStep("bom_loading");
     try {
-      const data = await advisorCall({ action: "bom", description, answers, selected_sku: opt.sku, locale });
+      const data = await advisorCall({ action: "bom", answers, primarySku: opt.sku });
       const enriched = enrichWithCatalog<BomLine>(data.bom ?? []);
       setBom(enriched);
       setBomTitle(data.title ?? "");
