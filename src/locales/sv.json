@@ -756,6 +756,8 @@
     "confirmDelete": "Är du säker? Projektet tas bort permanent.",
     "createdAt": "Sparat",
     "bomLines": "artiklar i stycklista",
-    "notLoggedIn": "Logga in för att spara projekt"
+    "notLoggedIn": "Logga in för att spara projekt",
+    "autoSaved": "Autosparat som projekt",
+    "rename": "Byt namn"
   }
 }

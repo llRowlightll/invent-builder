@@ -756,6 +756,8 @@
     "confirmDelete": "¿Seguro? El proyecto se eliminará permanentemente.",
     "createdAt": "Guardado",
     "bomLines": "artículos en BOM",
-    "notLoggedIn": "Inicia sesión para guardar proyectos"
+    "notLoggedIn": "Inicia sesión para guardar proyectos",
+    "autoSaved": "Guardado automáticamente",
+    "rename": "Renombrar"
   }
 }

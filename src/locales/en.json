@@ -756,6 +756,8 @@
     "confirmDelete": "Are you sure? The project will be permanently deleted.",
     "createdAt": "Saved",
     "bomLines": "BOM items",
-    "notLoggedIn": "Log in to save projects"
+    "notLoggedIn": "Log in to save projects",
+    "autoSaved": "Auto-saved as project",
+    "rename": "Rename"
   }
 }

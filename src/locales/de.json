@@ -756,6 +756,8 @@
     "confirmDelete": "Sind Sie sicher? Das Projekt wird dauerhaft gelöscht.",
     "createdAt": "Gespeichert",
     "bomLines": "Stücklistenpositionen",
-    "notLoggedIn": "Anmelden, um Projekte zu speichern"
+    "notLoggedIn": "Anmelden, um Projekte zu speichern",
+    "autoSaved": "Als Projekt gespeichert",
+    "rename": "Umbenennen"
   }
 }

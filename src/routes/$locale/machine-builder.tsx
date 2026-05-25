@@ -196,7 +196,7 @@ function MachineBuilderPage() {
       }));
       setBom(loadedBom);
       setBomTitle(proj.name);
-      setBomExplanation("Laddat från sparat projekt: " + proj.name);
+      setBomExplanation((locale === "sv" ? "Laddat från sparat projekt: " : "Loaded from saved project: ") + proj.name);
       setSelected({ id: "loaded", name: proj.name, desc: "", tags: [] } as never);
       setStep("result");
     } catch {
@@ -1400,7 +1400,7 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
         {user ? (
           (projectSaved || autoSaved) ? (
             <span className="inline-flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
-              ✓ {autoSaved && !projectSaved ? "Autosparat som projekt" : t("projects.saved")}
+              ✓ {autoSaved && !projectSaved ? t("projects.autoSaved" as never) : t("projects.saved")}
               <Link to="/$locale/projects" params={{ locale } as never} className="underline text-info">
                 → {t("projects.title")}
               </Link>
@@ -1409,7 +1409,7 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
                   onClick={() => setShowSaveModal(true)}
                   className="ml-1 text-xs text-muted-foreground hover:text-foreground underline"
                 >
-                  Byt namn
+                  {t("projects.rename" as never)}
                 </button>
               )}
             </span>
