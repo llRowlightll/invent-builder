@@ -372,7 +372,8 @@
     "addedToCart": "✓ Añadido al carrito",
     "requestQuote": "Solicitar oferta",
     "askAi": "¿Dudas? Pregunta al ingeniero IA",
-    "contactForDelivery": "Consultar plazo de entrega"
+    "contactForDelivery": "Consultar plazo de entrega",
+    "orderAvailable": "Pedir"
   },
   "rfqPage": {
     "title": "Solicitud de oferta",

@@ -112,11 +112,17 @@ function ProfilePage() {
     if (!user) return;
     setSaving(true);
     const complete = !!(data.company_name && data.industry && data.role && data.employees && data.phone);
-    await (supabase as any).from("company_profiles").upsert({
+    const { error } = await (supabase as any).from("company_profiles").upsert({
       id: user.id,
+      email: user.email,
       ...data,
       profile_complete: complete,
     });
+    if (error) {
+      console.error("profile save error", error);
+      setSaving(false);
+      return;
+    }
     const { data: updated } = await (supabase as any).from("company_profiles").select("*").eq("id", user.id).maybeSingle();
     if (updated) setProfile(updated as Profile);
     setSaving(false);

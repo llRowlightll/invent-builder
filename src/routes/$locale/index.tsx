@@ -106,7 +106,7 @@ function Landing() {
   function onSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!q.trim()) return;
-    navigate({ to: "/$locale/products", params: { locale }, search: { q: q.trim() } });
+    navigate({ to: "/$locale/chat", params: { locale }, search: { q: q.trim() } as never });
   }
 
   return (
@@ -165,7 +165,7 @@ function Landing() {
             {["Festo DSBC cylinder", "SMC CQ2 kompakt", "Parker P1D pneumatisk", "vakuumgrepp"].map((s) => (
               <button
                 key={s}
-                onClick={() => { setQ(s); navigate({ to: "/$locale/products", params: { locale }, search: { q: s } }); }}
+                onClick={() => { setQ(s); navigate({ to: "/$locale/chat", params: { locale }, search: { q: s } as never }); }}
                 className="underline underline-offset-2 hover:text-primary-foreground transition"
               >
                 {s}

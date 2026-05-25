@@ -158,7 +158,13 @@ function OrderCard({ order, t, locale }: { order: OrderRow; t: (k: string) => st
               <div className="flex items-center gap-3 min-w-0">
                 <span className="text-muted-foreground shrink-0">{item.qty}×</span>
                 <div className="min-w-0">
-                  <span className="font-mono text-xs text-primary">{item.sku}</span>
+                  <Link
+                    to="/$locale/product/$sku"
+                    params={{ locale, sku: item.sku } as never}
+                    className="font-mono text-xs text-primary hover:underline"
+                  >
+                    {item.sku}
+                  </Link>
                   <span className="ml-2 text-foreground truncate">{item.name}</span>
                 </div>
               </div>

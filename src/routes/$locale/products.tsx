@@ -437,9 +437,18 @@ function ProductsPage() {
           {filtered.length === 0 && (
             <li className="col-span-full text-center py-16 text-sm text-muted-foreground">
               <div className="text-2xl mb-3">◎</div>
-              {aiResult
-                ? t("productsPage.noResultsAi")
-                : t("productsPage.noResultsManual")}
+              <p className="mb-3">
+                {aiResult
+                  ? t("productsPage.noResultsAi")
+                  : t("productsPage.noResultsManual")}
+              </p>
+              <Link
+                to="/$locale/contact"
+                params={{ locale } as never}
+                className="inline-flex items-center gap-1.5 text-xs px-4 py-2 rounded-md border border-border hover:border-info hover:text-info transition"
+              >
+                📋 {t("productPage.requestQuote")}
+              </Link>
             </li>
           )}
         </ul>

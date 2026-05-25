@@ -407,7 +407,7 @@ function LocaleLayout() {
             <ul className="space-y-1">
               <li><Link to="/$locale/products" params={{ locale }} className="hover:text-info">{t("nav.products")}</Link></li>
               <li><Link to="/$locale/new" params={{ locale }} className="hover:text-info">{t("nav.new")}</Link></li>
-              <li><Link to="/$locale/chat" params={{ locale }} className="hover:text-info">{t("nav.chat")}</Link></li>
+              <li><Link to="/$locale/chat" params={{ locale }} search={{} as never} className="hover:text-info">{t("nav.chat")}</Link></li>
               <li><Link to="/$locale/compare" params={{ locale }} className="hover:text-info">{t("nav.compare")}</Link></li>
               <li><Link to="/$locale/advisor" params={{ locale }} className="hover:text-info">{t("nav.advisor")}</Link></li>
               <li><Link to="/$locale/machine-builder" params={{ locale }} className="hover:text-info">{t("nav.machineBuilder")}</Link></li>

@@ -1108,14 +1108,14 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {compareSkus && (
-              <Link
-                to="/$locale/compare"
-                params={{ locale } as never}
-                search={{ skus: compareSkus }}
+              <a
+                href={`/${locale}/compare?skus=${encodeURIComponent(compareSkus)}`}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-xs px-3 py-1.5 rounded-md border border-border hover:border-info transition"
               >
                 ⇔ {t("machineBuilder.compareBom")}
-              </Link>
+              </a>
             )}
             <button
               onClick={() => exportBomCsv(activeBom, title)}

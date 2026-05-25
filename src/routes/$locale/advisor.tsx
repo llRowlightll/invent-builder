@@ -184,6 +184,7 @@ function AdvisorPage() {
             <Link
               to="/$locale/chat"
               params={{ locale }}
+              search={{} as never}
               className="shrink-0 px-4 py-2 rounded-md bg-info text-primary-foreground text-sm font-semibold hover:opacity-90 transition"
             >
               {t("advisorPage2.openChat")}

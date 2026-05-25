@@ -509,6 +509,7 @@ function NewPage() {
           <Link
             to="/$locale/chat"
             params={{ locale: locale as Locale }}
+            search={{} as never}
             className="px-4 py-2 rounded-md border border-border text-sm hover:border-info hover:text-info transition"
           >
             {t("newPage.ctaAI")}

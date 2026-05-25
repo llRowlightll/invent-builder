@@ -157,8 +157,8 @@ function ProductDetail() {
           <div className="border-t border-border pt-3 mt-1 space-y-2">
             {/* Availability */}
             <div className="flex items-center gap-2 text-xs">
-              <span className="size-2 rounded-full bg-muted-foreground shrink-0" />
-              <span className="text-muted-foreground">{t("productPage.contactForDelivery")}</span>
+              <span className="size-2 rounded-full bg-info shrink-0" />
+              <span className="text-foreground font-medium">{t("productPage.orderAvailable")}</span>
             </div>
 
             {/* RFQ */}
@@ -171,7 +171,7 @@ function ProductDetail() {
 
             {/* AI shortcut */}
             <Link
-              to="/$locale/chat" params={{ locale }}
+              to="/$locale/chat" params={{ locale }} search={{} as never}
               className="flex items-center gap-2 w-full px-3 py-2 rounded-md bg-surface-alt text-xs text-muted-foreground hover:text-info transition"
             >
               <span className="text-info">✦</span>
@@ -183,12 +183,6 @@ function ProductDetail() {
 
       <section className="mt-6 rounded-lg border border-border bg-card p-4 space-y-2 text-sm">
         <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-3">{t("productPage.priceSection")}</h2>
-        {product.purchase_price != null && (
-          <Row
-            k={t("productPage.sellingPrice")}
-            v={`${(product.purchase_price / (1 - (product.margin ?? 0.35))).toFixed(2)} kr`}
-          />
-        )}
         <Row k={t("productPage.estimatedDelivery")} v={t("productPage.contactForDelivery")} />
       </section>
 

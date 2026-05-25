@@ -11,6 +11,9 @@ import { addToShoppingList } from "@/lib/cart";
 import { diversifyResults } from "@/lib/search-diversity";
 
 export const Route = createFileRoute("/$locale/chat")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: typeof search.q === "string" ? search.q : undefined,
+  }),
   head: ({ params }) => {
     const t = makeT(params.locale as Locale);
     return {
@@ -102,6 +105,7 @@ function renderChatText(text: string) {
 
 function ChatPage() {
   const { locale } = Route.useParams();
+  const { q: initialQ } = Route.useSearch();
   const t = makeT(locale as Locale);
   const navigate = useNavigate();
   const isSv = locale === "sv";
@@ -123,6 +127,7 @@ function ChatPage() {
   const [compare, setCompare] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const sentInitialQ = useRef(false);
 
   useEffect(() => {
     loadCatalog().then(setCatalog).catch(console.error);
@@ -135,10 +140,20 @@ function ChatPage() {
     }
   }, [msgs]);
 
-  async function send() {
-    if (!text.trim() || !catalog || busy) return;
-    const q = text.trim();
-    setText("");
+  // Auto-send query from ?q= param (e.g. from homepage search)
+  useEffect(() => {
+    if (!initialQ || !catalog || sentInitialQ.current) return;
+    sentInitialQ.current = true;
+    setText(initialQ);
+    setTimeout(() => {
+      setText("");
+      sendQuery(initialQ);
+    }, 0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQ, catalog]);
+
+  async function sendQuery(q: string) {
+    if (!q.trim() || !catalog || busy) return;
     setMsgs((m) => [...m, { role: "user", text: q }]);
     setBusy(true);
 
@@ -366,6 +381,13 @@ function ChatPage() {
       setBusy(false);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
+  }
+
+  function send() {
+    if (!text.trim()) return;
+    const q = text.trim();
+    setText("");
+    sendQuery(q);
   }
 
   function toggleCompare(sku: string) {

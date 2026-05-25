@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { makeT, type Locale } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/integrations/supabase/client";
+import { addToShoppingList } from "@/lib/cart";
 
 export const Route = createFileRoute("/$locale/projects")({
   head: () => ({
@@ -211,6 +212,17 @@ function ProjectsPage() {
                   >
                     {t("projects.loadProject")}
                   </button>
+                  {lines.length > 0 && (
+                    <button
+                      onClick={() => {
+                        lines.forEach((l) => addToShoppingList({ id: l.sku, sku: l.sku, name: l.role || l.sku }));
+                        navigate({ to: "/$locale/contact", params: { locale } as never });
+                      }}
+                      className="px-3 py-1.5 text-xs font-medium rounded-md border border-border text-foreground hover:border-info hover:text-info transition"
+                    >
+                      📋 {t("productPage.requestQuote")}
+                    </button>
+                  )}
                   <button
                     onClick={() => deleteProject(project.id)}
                     disabled={deleting === project.id}
