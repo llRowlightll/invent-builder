@@ -54,7 +54,7 @@ function ProjectsPage() {
       .eq("user_id", user.id)
       .order("updated_at", { ascending: false })
       .then(({ data }) => {
-        setProjects((data as ProjectRow[]) ?? []);
+        setProjects((data as unknown as ProjectRow[]) ?? []);
         setLoading(false);
       });
   }, [user]);

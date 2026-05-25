@@ -169,7 +169,8 @@ function ConfiguratorPage() {
       <div className="p-8 text-center text-gray-500">
         <p className="text-lg font-medium mb-2">Produktfamilj ej hittad</p>
         <Link
-          to={`/${locale}/configure`}
+          to={"/$locale/configure" as never}
+          params={{ locale } as never}
           className="text-blue-600 hover:underline text-sm"
         >
           Tillbaka till alla produkter
@@ -187,7 +188,7 @@ function ConfiguratorPage() {
     <div className="max-w-5xl mx-auto px-4 py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-gray-500 mb-6">
-        <Link to={`/${locale}/configure`} className="hover:text-blue-600">
+        <Link to={"/$locale/configure" as never} params={{ locale } as never} className="hover:text-blue-600">
           Konfigurator
         </Link>
         <span>›</span>

@@ -199,7 +199,7 @@ export function OrdersPage() {
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
-      .then(({ data }) => { setOrders((data as OrderRow[]) ?? []); setLoading(false); });
+      .then(({ data }) => { setOrders((data as unknown as OrderRow[]) ?? []); setLoading(false); });
   }, [user]);
 
   if (!user) {
@@ -252,7 +252,7 @@ export function OrdersPage() {
       ) : (
         <div className="space-y-4">
           {orders.map(order => (
-            <OrderCard key={order.id} order={order} t={t} locale={locale} />
+            <OrderCard key={order.id} order={order} t={t as (k: string) => string} locale={locale} />
           ))}
         </div>
       )}

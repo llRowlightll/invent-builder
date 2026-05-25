@@ -443,7 +443,7 @@ function ProductsPage() {
                   : t("productsPage.noResultsManual")}
               </p>
               <Link
-                to="/$locale/contact"
+                to="/$locale/advisor"
                 params={{ locale } as never}
                 className="inline-flex items-center gap-1.5 text-xs px-4 py-2 rounded-md border border-border hover:border-info hover:text-info transition"
               >

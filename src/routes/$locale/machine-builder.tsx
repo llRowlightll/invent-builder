@@ -151,6 +151,7 @@ function MachineBuilderPage() {
         sku: l.sku,
         role: l.role,
         quantity: l.qty,
+        reason: "",
         product: undefined, // fylls i av enrichWithCatalog nedan
       }));
       setBom(loadedBom);
@@ -932,7 +933,7 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
     setProjectSaving(true);
     const bomSnapshot = activeBom.map(l => ({
       sku: l.sku, role: l.role, qty: l.quantity,
-      unit_price: l.product?.price ?? undefined,
+      unit_price: l.product?.purchase_price ?? undefined,
       name: l.product?.name ?? l.sku,
     }));
     await supabase.from("projects").insert({
@@ -990,7 +991,7 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
             ? { rfq_id: rfqRow.id, product_id: product.id, qty: l.quantity, role: l.role }
             : null;
         })
-        .filter(Boolean);
+        .filter((x): x is NonNullable<typeof x> => x !== null);
 
       if (itemRows.length > 0) {
         await supabase.from("rfq_items").insert(itemRows);
@@ -1007,12 +1008,12 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
           sku: l.sku,
           name: product?.name ?? l.role,
           qty: l.quantity,
-          unit_price: product?.price ?? undefined,
+          unit_price: product?.purchase_price ?? undefined,
           role: l.role,
         };
       });
       const totalExVat = activeBom.reduce((sum, l) => {
-        const price = (l.product ?? catalog.find(p => p.sku === l.sku))?.price ?? 0;
+        const price = (l.product ?? catalog.find(p => p.sku === l.sku))?.purchase_price ?? 0;
         return sum + price * l.quantity;
       }, 0);
 

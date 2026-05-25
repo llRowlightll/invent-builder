@@ -163,7 +163,7 @@ function ProductDetail() {
 
             {/* RFQ */}
             <Link
-              to="/$locale/contact" params={{ locale } as never}
+              to="/$locale/advisor" params={{ locale } as never}
               className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-md border border-border text-sm text-foreground hover:border-info hover:text-info transition"
             >
               <span>📋</span> {t("productPage.requestQuote")}
