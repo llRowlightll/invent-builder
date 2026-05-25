@@ -48,6 +48,8 @@ export interface AiSearchResult {
   brand_slug?: string;
   keywords: string[];
   spec_filters: { key: string; min?: number; max?: number; exact?: string }[];
+  /** Pre-ranked SKUs from the ai-search edge function — shown first in results */
+  ranked_skus?: string[];
   followup?: string;
   source: "ai" | "fallback";
 }
@@ -203,13 +205,44 @@ export const aiSearchProducts = createServerFn({ method: "POST" })
       const res = await fetch(AI_SEARCH_EDGE, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: data.query, locale: data.locale ?? "sv" }),
+        body: JSON.stringify({ query: data.query, limit: 12 }),
       });
       if (!res.ok) throw new Error(`Edge fn ${res.status}`);
-      return await res.json();
+
+      const edgeData = await res.json() as {
+        query: string;
+        results: Array<{ sku: string; name: string; category: string; brand: string; match_reason: string; score: number }>;
+        pdf_context_found: boolean;
+      };
+
+      const results = edgeData.results ?? [];
+      if (results.length === 0) return fallbackSearch(data.query, data.locale !== "en");
+
+      // Derive AiSearchResult fields from ranked results
+      const topResult = results[0];
+      const isSv = data.locale !== "en";
+      const explanation = results.slice(0, 3)
+        .map((r) => `${r.name}: ${r.match_reason}`)
+        .join(". ") || (isSv ? `Sökresultat för "${data.query}".` : `Search results for "${data.query}".`);
+
+      // Pick the dominant category from top results
+      const categoryCounts: Record<string, number> = {};
+      results.forEach((r) => { if (r.category) categoryCounts[r.category] = (categoryCounts[r.category] ?? 0) + 1; });
+      const category_slug = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+      const brand_slug = topResult.brand?.toLowerCase().replace(/\s+/g, "-") || undefined;
+
+      return {
+        explanation,
+        category_slug,
+        brand_slug,
+        keywords: data.query.split(/\s+/).filter((w) => w.length > 2),
+        spec_filters: [],
+        ranked_skus: results.map((r) => r.sku),
+        source: "ai",
+      };
     } catch (e) {
       console.error("aiSearchProducts edge fn failed", e);
-      return fallbackSearch(data.query, data.locale === "sv");
+      return fallbackSearch(data.query, data.locale !== "en");
     }
   });
 

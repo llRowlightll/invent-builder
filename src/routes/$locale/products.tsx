@@ -132,7 +132,7 @@ function ProductsPage() {
     if (!items) return [];
     const ql = q.toLowerCase();
 
-    return items.filter((p) => {
+    const base = items.filter((p) => {
       if (brands.size && !brands.has(p.brand.slug)) return false;
       if (cats.size && !cats.has(p.category.slug)) return false;
       if (grades.size && !grades.has(gradeOf(p))) return false;
@@ -177,6 +177,17 @@ function ProductsPage() {
 
       return true;
     });
+
+    // When AI returned ranked SKUs, sort those to the top
+    if (aiResult?.ranked_skus?.length) {
+      const rankMap = new Map(aiResult.ranked_skus.map((sku, i) => [sku, i]));
+      return [...base].sort((a, b) => {
+        const ra = rankMap.get(a.sku) ?? 9999;
+        const rb = rankMap.get(b.sku) ?? 9999;
+        return ra - rb;
+      });
+    }
+    return base;
   }, [items, q, brands, cats, grades, aiResult]);
 
   function toggleSet<T>(set: Set<T>, val: T, setter: (s: Set<T>) => void) {
