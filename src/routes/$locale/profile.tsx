@@ -1,10 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { makeT, type Locale } from "@/lib/i18n";
 import { useAuth, useIsAdmin } from "@/lib/auth-context";
-import { saveProfileFn } from "@/lib/profile.functions";
 
 export const Route = createFileRoute("/$locale/profile")({
   component: ProfilePage,
@@ -50,7 +48,6 @@ function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [edit, setEdit] = useState<Partial<Profile>>({});
-  const saveProfile = useServerFn(saveProfileFn);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFirstLoad = useRef(true);
 
@@ -117,16 +114,25 @@ function ProfilePage() {
     setSaving(true);
     setSaveError(null);
     try {
-      // Get current session token — needed for server-side auth verification
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-      if (!token) throw new Error("Ingen aktiv session — logga in igen.");
-
-      const updated = await saveProfile({
-        data: { token, profile: data as Record<string, unknown> },
+      const { data: rows, error } = await (supabase as any).rpc("save_my_profile", {
+        p_display_name:    data.display_name    ?? null,
+        p_company_name:    data.company_name    ?? null,
+        p_org_number:      data.org_number      ?? null,
+        p_industry:        data.industry        ?? null,
+        p_role:            data.role            ?? null,
+        p_employees:       data.employees       ?? null,
+        p_phone:           data.phone           ?? null,
+        p_address_street:  data.address_street  ?? null,
+        p_address_postal:  data.address_postal  ?? null,
+        p_address_city:    data.address_city    ?? null,
+        p_address_country: data.address_country ?? "SE",
+        p_locale:          locale               ?? "sv",
       });
 
-      if (updated) setProfile(updated as unknown as Profile);
+      if (error) throw new Error(error.message);
+
+      const updated = Array.isArray(rows) ? rows[0] : rows;
+      if (updated) setProfile(updated as Profile);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err: unknown) {
