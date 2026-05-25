@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
-import { aiSearchProducts, aiExplain, aiAskKnowledge, aiExtractDimensions, type AiSearchResult } from "@/lib/ai.functions";
+import { aiSearchProducts, aiExplain, aiAskKnowledge, aiExtractDimensions, aiSystemDesign, type AiSearchResult } from "@/lib/ai.functions";
 import { computePhysics } from "@/lib/physics";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
@@ -109,6 +109,7 @@ function ChatPage() {
   const explain = useServerFn(aiExplain);
   const askKnowledge = useServerFn(aiAskKnowledge);
   const extractDims = useServerFn(aiExtractDimensions);
+  const systemDesign = useServerFn(aiSystemDesign);
 
   const [catalog, setCatalog] = useState<ProductRow[] | null>(null);
   const [text, setText] = useState("");
@@ -285,11 +286,17 @@ function ChatPage() {
 
       // ── 8. Build response messages ──────────────────────────────────────
       if (physics.isSystem && systemGroups.length > 0) {
-        // System answer: show explanation + each subsystem group
-        const sysExplanation = isSv
-          ? `Pick & place-system kräver tre delar. Här är ett förslag på komponenter för varje del:`
-          : `A pick & place system requires three parts. Here are component suggestions for each:`;
-        setMsgs((m) => [...m, { role: "assistant", text: sysExplanation }]);
+        // System answer: generate full 5-section engineering design, then show product cards per subsystem
+        const foundProductsSummary = systemGroups.map((grp) => ({
+          label: grp.label,
+          skus: grp.products.map((p) => p.sku),
+        }));
+
+        // Show product cards immediately while AI generates the design
+        const introText = isSv
+          ? `Pick & place-system — genererar komplett systemdesign...`
+          : `Pick & place system — generating complete system design...`;
+        setMsgs((m) => [...m, { role: "assistant", text: introText }]);
 
         for (const grp of systemGroups) {
           setMsgs((m) => [
@@ -298,6 +305,28 @@ function ChatPage() {
             { role: "products" as MsgRole, products: grp.products },
           ]);
         }
+
+        // Async: replace intro with full engineering design output
+        systemDesign({
+          data: {
+            dims,
+            physics: { technology: physics.technology, reasoning: physics.reasoning, warnings: physics.warnings, isSystem: physics.isSystem },
+            foundProducts: foundProductsSummary,
+            locale,
+          },
+        }).then((result) => {
+          setMsgs((m) => {
+            // Replace the intro "generating..." message with the full design
+            let idx = -1;
+            for (let i = m.length - 1; i >= 0; i--) {
+              if (m[i].text === introText) { idx = i; break; }
+            }
+            if (idx === -1) return [...m, { role: "assistant" as MsgRole, text: result.design }];
+            return [...m.slice(0, idx), { role: "assistant" as MsgRole, text: result.design }, ...m.slice(idx + 1)];
+          });
+        }).catch(() => {
+          // On failure, leave the product cards — they are still useful
+        });
       } else if (deduped.length > 0) {
         // Normal product results
         const countText = isSv
