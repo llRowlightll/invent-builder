@@ -198,6 +198,8 @@ function ShoppingListPage() {
             items: items.map((i) => ({ sku: i.sku, name: i.name, qty: i.qty, role: "ordered" })),
           }),
         }).catch(console.error);
+
+        setRfqId(rfqRow.id); // full UUID so the "View RFQ" link resolves correctly
       }
 
       setRfqSent(true);
