@@ -13,11 +13,14 @@ const cors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const ADMIN_EMAIL = "info@maskinval.se";
+
 interface Payload {
   order_ref:        string;
   contact_email:    string;
   contact_name:     string;
   status:           string;
+  quote_amount?:    number | null;   // for "quoted" status
   po_number?:       string | null;
   estimated_delivery?: string | null;
   tracking_number?: string | null;
@@ -31,6 +34,20 @@ interface Payload {
 }
 
 const STATUS_SV: Record<string, { emoji: string; label: string; body: string }> = {
+  // ── RFQ statuses ───────────────────────────────────────────────
+  quoted: {
+    emoji: "📋", label: "Offert skickad",
+    body: "Vi har granskat din förfrågan och skickar nu en offert. Se detaljer nedan."
+  },
+  accepted: {
+    emoji: "✅", label: "Accepterad",
+    body: "Tack för att du accepterade offerten! Vi bekräftar ordern och återkommer med leveransinfo."
+  },
+  rejected: {
+    emoji: "❌", label: "Avvisad",
+    body: "Vi har tyvärr inte möjlighet att lämna offert på denna förfrågan. Kontakta oss om du har frågor."
+  },
+  // ── Order statuses ─────────────────────────────────────────────
   confirmed: {
     emoji: "✅", label: "Bekräftad",
     body: "Din order är nu bekräftad. Vi förbereder leveransen."
@@ -91,6 +108,18 @@ function buildEmail(p: Payload): { subject: string; html: string } {
 
   // Extra info blocks per status
   let extra = "";
+
+  if (p.status === "quoted" && p.quote_amount) {
+    const fmtMoney2 = (n: number) => n.toLocaleString("sv-SE", { style: "currency", currency: p.currency || "SEK", maximumFractionDigits: 0 });
+    extra = `
+    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:16px 20px;margin:20px 0;">
+      <p style="margin:0 0 4px;font-size:12px;color:#0369a1;font-weight:600;">OFFERTBELOPP (exkl. moms)</p>
+      <p style="margin:0 0 12px;font-size:28px;font-weight:700;color:#0c4a6e;">${fmtMoney2(p.quote_amount)}</p>
+      <p style="margin:0;font-size:12px;color:#0369a1;">
+        Offerten är giltig i 30 dagar. Svara på detta mejl för att acceptera eller ställa frågor.
+      </p>
+    </div>`;
+  }
 
   if (p.status === "shipped" && (p.tracking_number || p.estimated_delivery)) {
     extra = `
@@ -156,10 +185,14 @@ Deno.serve(async (req) => {
   try {
     const payload: Payload = await req.json();
     const { subject, html } = buildEmail(payload);
+
+    // Include admin as BCC on quote emails so we have a copy
+    const bcc = payload.status === "quoted" ? [ADMIN_EMAIL] : undefined;
+
     const res = await fetch(RESEND_API, {
       method: "POST",
       headers: { Authorization: `Bearer ${RESEND_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: FROM, to: payload.contact_email, subject, html }),
+      body: JSON.stringify({ from: FROM, to: payload.contact_email, bcc, subject, html }),
     });
     const data = await res.json();
     return new Response(JSON.stringify({ ok: res.ok, data }), {
