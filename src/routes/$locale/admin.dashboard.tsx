@@ -75,7 +75,7 @@ function AdminDashboard() {
         supabase.from("rfqs").select("*", { count: "exact", head: true }).eq("status", "new"),
         supabase.from("rfqs").select("id,contact_name,company,contact_email,status,created_at,quote_amount")
           .order("created_at", { ascending: false }).limit(8),
-        supabase.rpc("rfq_status_counts").then((r) => r).catch(() => ({ data: null })),
+        Promise.resolve(supabase.rpc("rfq_status_counts")).catch(() => ({ data: null })),
       ]);
 
       setStats({

@@ -2145,7 +2145,18 @@ export type Database = {
         }
         Returns: Json
       }
+      fetch_products_for_advisor: {
+        Args: { p_category_slug?: string; p_limit?: number }
+        Returns: Json
+      }
       has_role: { Args: { check_role: string; uid: string }; Returns: boolean }
+      rfq_status_counts: {
+        Args: never
+        Returns: {
+          n: number
+          status: string
+        }[]
+      }
       save_my_profile: {
         Args: {
           p_address_city?: string
@@ -2341,4 +2352,3 @@ export const Constants = {
     },
   },
 } as const
-

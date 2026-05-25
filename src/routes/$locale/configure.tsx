@@ -160,7 +160,8 @@ function ConfigureIndexPage() {
 
               {/* CTA */}
               <Link
-                to={`/${locale}/configurator/${family.slug}`}
+                to={"/$locale/configurator/$family" as never}
+                params={{ locale, family: family.slug } as never}
                 className="mt-4 flex items-center justify-between w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
               >
                 <span>Konfigurera</span>
