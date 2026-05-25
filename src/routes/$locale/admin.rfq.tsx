@@ -50,6 +50,7 @@ export default function AdminRfqPage() {
   const [selected, setSelected] = useState<Rfq | null>(null);
   const [items, setItems] = useState<RfqItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const [emailSent, setEmailSent] = useState<string | null>(null); // stores status that triggered email
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [search, setSearch] = useState("");
 
@@ -77,6 +78,7 @@ export default function AdminRfqPage() {
     setEditStatus(rfq.status ?? "new");
     setEditNotes(rfq.internal_notes ?? "");
     setEditQuote(rfq.quote_amount?.toString() ?? "");
+    setEmailSent(null);
 
     // Load items with product info
     const { data } = await supabase
@@ -93,9 +95,15 @@ export default function AdminRfqPage() {
     })));
   }
 
+  // Statuses that trigger a customer notification email
+  const EMAIL_STATUSES = ["quoted", "accepted", "rejected"];
+
   async function save() {
     if (!selected) return;
     setSaving(true);
+
+    const previousStatus = selected.status ?? "new";
+
     const { data, error } = await supabase
       .from("rfqs")
       .update({
@@ -108,10 +116,34 @@ export default function AdminRfqPage() {
       .eq("id", selected.id)
       .select()
       .single();
+
     if (!error && data) {
       setRfqs((prev) => prev.map((r) => r.id === selected.id ? data as Rfq : r));
       setSelected(data as Rfq);
+
+      // Fire customer email when status transitions to a notification-worthy status
+      const statusChanged = editStatus !== previousStatus;
+      if (statusChanged && EMAIL_STATUSES.includes(editStatus) && selected.contact_email) {
+        const orderRef = selected.id.slice(0, 8).toUpperCase();
+        fetch(
+          "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              order_ref: orderRef,
+              contact_email: selected.contact_email,
+              contact_name: selected.contact_name ?? "",
+              status: editStatus,
+              quote_amount: editQuote ? Number(editQuote) : null,
+            }),
+          }
+        )
+          .then((r) => { if (r.ok) setEmailSent(editStatus); })
+          .catch(console.error);
+      }
     }
+
     setSaving(false);
   }
 
@@ -300,6 +332,16 @@ export default function AdminRfqPage() {
                   >
                     {saving ? "Sparar…" : "Spara ändringar"}
                   </button>
+
+                  {emailSent && (
+                    <div className="flex items-center gap-2 text-xs text-[oklch(0.60_0.18_155)] bg-[oklch(0.60_0.18_155)]/10 rounded-md px-3 py-2">
+                      <span>✓</span>
+                      <span>
+                        E-post skickad till <strong>{selected.contact_email}</strong>
+                        {" "}(status: {STATUS_MAP[emailSent]?.label ?? emailSent})
+                      </span>
+                    </div>
+                  )}
 
                   {/* Send quote email */}
                   {selected.contact_email && (

@@ -71,9 +71,18 @@ function AdvisorPage() {
   useEffect(() => {
     if (!user) return;
     setEmail(user.email ?? "");
-    // Try to get display_name from user metadata
+    // First try user_metadata for instant fill, then confirm from company_profiles
     const meta = user.user_metadata as Record<string, string> | undefined;
     if (meta?.display_name) setName(meta.display_name);
+    supabase
+      .from("company_profiles")
+      .select("display_name,company_name")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.display_name) setName((prev) => prev || data.display_name!);
+        if (data?.company_name) setCompany((prev) => prev || data.company_name!);
+      });
   }, [user]);
 
   const grouped = useMemo(() => {
