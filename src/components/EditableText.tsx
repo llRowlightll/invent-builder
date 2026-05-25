@@ -1,11 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useEditMode } from "@/lib/edit-mode-context";
 
 interface EditableTextProps {
   contentKey: string;
   locale: string;
   fallback: string;
-  as?: keyof JSX.IntrinsicElements;
+  as?: string;
   className?: string;
   multiline?: boolean;
 }
@@ -42,7 +42,7 @@ export function EditableText({
   }
 
   if (!isEditMode) {
-    return <Tag className={className}>{value}</Tag>;
+    return React.createElement(Tag, { className }, value);
   }
 
   if (editing) {
@@ -86,16 +86,18 @@ export function EditableText({
     );
   }
 
-  return (
-    <Tag
-      className={`${className} group relative cursor-pointer outline-2 outline-dashed outline-info/40 hover:outline-info rounded px-0.5 transition-all`}
-      onClick={() => setEditing(true)}
-      title="Klicka för att redigera"
-    >
-      {value}
-      <span className="absolute -top-2 -right-2 hidden group-hover:flex items-center justify-center size-4 rounded-full bg-info text-white text-[8px] font-bold shadow z-10">
-        ✎
-      </span>
-    </Tag>
+  return React.createElement(
+    Tag,
+    {
+      className: `${className} group relative cursor-pointer outline-2 outline-dashed outline-info/40 hover:outline-info rounded px-0.5 transition-all`,
+      onClick: () => setEditing(true),
+      title: "Klicka för att redigera",
+    },
+    value,
+    React.createElement(
+      "span",
+      { className: "absolute -top-2 -right-2 hidden group-hover:flex items-center justify-center size-4 rounded-full bg-info text-white text-[8px] font-bold shadow z-10" },
+      "✎"
+    )
   );
 }

@@ -117,7 +117,7 @@ function ValveBlock({
         const xOff = count === 1 ? 0 : (i - 0.5) * 0.22;
         return (
           <mesh key={i} position={[xOff, 0, 0.13]}>
-            <cylinderGeometry args={[0.05, 0.05, 0.2, 12]} rotation={[0, 0, 0]} />
+            <cylinderGeometry args={[0.05, 0.05, 0.2, 12]} />
             <meshStandardMaterial color="#6366f1" metalness={0.4} roughness={0.5} />
           </mesh>
         );
@@ -181,13 +181,13 @@ function EndEffector({
         {/* Suction cups */}
         {[-bodyR * 1.1, bodyR * 1.1].map((z) => (
           <group key={z} position={[0.06, 0, z]}>
-            <mesh>
-              <cylinderGeometry args={[bodyR * 1.4, bodyR * 0.9, 0.06, 20]} rotation={[0, 0, Math.PI / 2]} />
+            <mesh rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[bodyR * 1.4, bodyR * 0.9, 0.06, 20]} />
               <meshStandardMaterial color="#1d4ed8" transparent opacity={0.5} side={THREE.DoubleSide} />
             </mesh>
             {/* Cup rim */}
-            <mesh position={[0.04, 0, 0]}>
-              <torusGeometry args={[bodyR * 1.4, 0.015, 8, 24]} rotation={[0, 0, Math.PI / 2]} />
+            <mesh position={[0.04, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+              <torusGeometry args={[bodyR * 1.4, 0.015, 8, 24]} />
               <meshStandardMaterial color="#1e40af" />
             </mesh>
           </group>
