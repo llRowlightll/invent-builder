@@ -109,6 +109,7 @@ function MachineBuilderPage() {
   const { locale } = Route.useParams();
   const t = makeT(locale as Locale);
   const isSv = locale === "sv";
+  const { user } = useAuth();
 
   const [step, setStep] = useState<Step>("describe");
   const [description, setDescription] = useState("");
@@ -130,8 +131,47 @@ function MachineBuilderPage() {
   const [rfqCompany, setRfqCompany] = useState("");
   const [rfqPhone, setRfqPhone] = useState("");
   const [rfqPoNumber, setRfqPoNumber] = useState("");
+  const [autoSaved, setAutoSaved] = useState(false);
 
   useEffect(() => { loadCatalog().then(setCatalog).catch(() => {}); }, []);
+
+  // Pre-fill RFQ form from company profile when user logs in
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("company_profiles")
+      .select("display_name,email,company_name,phone")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        if (data.display_name && !rfqName) setRfqName(data.display_name);
+        if (data.email && !rfqEmail) setRfqEmail(data.email);
+        if (data.company_name && !rfqCompany) setRfqCompany(data.company_name);
+        if (data.phone && !rfqPhone) setRfqPhone(data.phone);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Auto-save BOM as project when result step is reached (logged-in users only)
+  useEffect(() => {
+    if (step !== "result" || !user || autoSaved || bom.length === 0) return;
+    const name = bomTitle || `Maskinbyggare — ${new Date().toLocaleDateString("sv-SE")}`;
+    const bomSnapshot = bom.map(l => ({
+      sku: l.sku, role: l.role, qty: l.quantity,
+      unit_price: l.product?.purchase_price ?? undefined,
+      name: l.product?.name ?? l.sku,
+    }));
+    supabase.from("projects").insert({
+      user_id: user.id,
+      name,
+      description: description.trim() || null,
+      locale,
+      answers,
+      bom_lines: bomSnapshot,
+    }).then(() => setAutoSaved(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, user]);
 
   // Fix 3: Ladda sparat projekt från sessionStorage (navigering från /projects)
   useEffect(() => {
@@ -329,6 +369,7 @@ function MachineBuilderPage() {
           rfqPoNumber={rfqPoNumber}
           rfqSent={rfqSent}
           rfqId={rfqId}
+          autoSaved={autoSaved}
           setRfqName={setRfqName}
           setRfqEmail={setRfqEmail}
           setRfqCompany={setRfqCompany}
@@ -866,12 +907,12 @@ function findAlternativesTiered(
 
 // ── Result Step ─────────────────────────────────────────────────────────────
 function ResultStep({ t, locale, title, explanation, selected, bom, catalog, description, answers,
-  rfqName, rfqEmail, rfqCompany, rfqPhone, rfqPoNumber, rfqSent, rfqId,
+  rfqName, rfqEmail, rfqCompany, rfqPhone, rfqPoNumber, rfqSent, rfqId, autoSaved,
   setRfqName, setRfqEmail, setRfqCompany, setRfqPhone, setRfqPoNumber, setRfqSent, setRfqId, onRestart }: {
   t: (key: import("@/lib/i18n").TKey) => string; locale: string; title: string; explanation: string;
   selected: ActuatorOption; bom: BomLine[]; catalog: ProductRow[]; description: string; answers: Record<string, string>;
   rfqName: string; rfqEmail: string; rfqCompany: string; rfqPhone: string; rfqPoNumber: string;
-  rfqSent: boolean; rfqId: string;
+  rfqSent: boolean; rfqId: string; autoSaved: boolean;
   setRfqName: (v: string) => void; setRfqEmail: (v: string) => void;
   setRfqCompany: (v: string) => void; setRfqPhone: (v: string) => void; setRfqPoNumber: (v: string) => void;
   setRfqSent: (v: boolean) => void; setRfqId: (v: string) => void;
@@ -1136,6 +1177,7 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/20">
+                <th className="w-12 px-2 py-2.5" aria-label="Bild" />
                 <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">SKU</th>
                 <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("machineBuilder.nameCol")}</th>
                 <th className="text-center px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("machineBuilder.qtyCol")}</th>
@@ -1158,6 +1200,20 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
                     <tr key={i} className={`border-b border-border last:border-0 transition ${
                       isSwapped ? "bg-[oklch(0.95_0.04_155)/30]" : i % 2 === 0 ? "" : "bg-muted/10"
                     }`}>
+                      <td className="px-2 py-2 w-12">
+                        {line.product?.image_url ? (
+                          <img
+                            src={line.product.image_url}
+                            alt={line.product.name}
+                            className="size-10 object-contain rounded border border-border bg-white p-0.5"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="size-10 rounded border border-border bg-muted flex items-center justify-center text-muted-foreground text-lg">
+                            📦
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         {line.product ? (
                           <Link
@@ -1342,12 +1398,20 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
       {/* Save project */}
       <div className="flex items-center gap-3 flex-wrap pt-1">
         {user ? (
-          projectSaved ? (
+          (projectSaved || autoSaved) ? (
             <span className="inline-flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
-              ✓ {t("projects.saved")}
+              ✓ {autoSaved && !projectSaved ? "Autosparat som projekt" : t("projects.saved")}
               <Link to="/$locale/projects" params={{ locale } as never} className="underline text-info">
                 → {t("projects.title")}
               </Link>
+              {autoSaved && !projectSaved && (
+                <button
+                  onClick={() => setShowSaveModal(true)}
+                  className="ml-1 text-xs text-muted-foreground hover:text-foreground underline"
+                >
+                  Byt namn
+                </button>
+              )}
             </span>
           ) : (
             <button
