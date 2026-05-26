@@ -1,4 +1,4 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
@@ -50,6 +50,7 @@ function ProductDetail() {
   const [related, setRelated] = useState<ProductRow[]>([]);
   const [alternatives, setAlternatives] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
   const [addedToCart, setAddedToCart] = useState(false);
 
   useEffect(() => {
@@ -161,13 +162,17 @@ function ProductDetail() {
               <span className="text-foreground font-medium">{t("productPage.orderAvailable")}</span>
             </div>
 
-            {/* RFQ */}
-            <Link
-              to="/$locale/advisor" params={{ locale } as never}
+            {/* RFQ — add to list and go straight to shopping list */}
+            <button
+              type="button"
+              onClick={() => {
+                addToShoppingList({ id: product.id, sku: product.sku, name: product.name });
+                navigate({ to: "/$locale/shopping-list", params: { locale } });
+              }}
               className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-md border border-border text-sm text-foreground hover:border-info hover:text-info transition"
             >
               <span>📋</span> {t("productPage.requestQuote")}
-            </Link>
+            </button>
 
             {/* AI shortcut */}
             <Link
