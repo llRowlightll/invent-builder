@@ -336,6 +336,7 @@ function MachineBuilderPage() {
       {step === "questions" && (
         <QuestionsStep
           t={t}
+          locale={locale}
           summary={qSummary}
           questions={questions}
           answers={answers}
@@ -491,10 +492,11 @@ function DescribeStep({ t, locale, description, setDescription, onSubmit }: {
 }
 
 // ── Questions Step ──────────────────────────────────────────────────────────
-function QuestionsStep({ t, summary, questions, answers, setAnswers, onSubmit, onBack }: {
-  t: (key: import("@/lib/i18n").TKey) => string; summary: string; questions: Question[]; answers: Record<string, string>;
+function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onSubmit, onBack }: {
+  t: (key: import("@/lib/i18n").TKey) => string; locale: string; summary: string; questions: Question[]; answers: Record<string, string>;
   setAnswers: (a: Record<string, string>) => void; onSubmit: () => void; onBack: () => void;
 }) {
+  const isSv = locale === "sv";
   // Physical measurement fields (mm, kg, N, m/s, bar…) must be > 0.
   // Count/class fields (st, stycken, ISO-klass, or no unit) allow 0.
   const requiresPositive = (q: Question) =>
@@ -940,7 +942,6 @@ function findAlternativesTiered(
   const isElectric   = cat === "electric-actuator" || cat === "linear-module";
 
   const candidates = catalog.filter(p => {
-    if (p.purchase_price == null)      return false;
     if (p.brand.slug === currentBrand) return false;
     if (!p.category.slug.includes(cat)) return false;
 
@@ -972,7 +973,11 @@ function findAlternativesTiered(
   const pick = (sorted: ProductRow[], n = 2) =>
     sorted.filter(p => !used.has(p.sku)).slice(0, n).map(p => { used.add(p.sku); return p; });
 
-  const byPrice     = [...candidates].sort((a, b) => (a.purchase_price ?? 0) - (b.purchase_price ?? 0));
+  const byPrice     = [...candidates].sort((a, b) => {
+    if (a.purchase_price == null && b.purchase_price != null) return 1;
+    if (a.purchase_price != null && b.purchase_price == null) return -1;
+    return (a.purchase_price ?? 0) - (b.purchase_price ?? 0);
+  });
   const byForce     = [...candidates].sort((a, b) => {
     const bA = parseFloat(a.specs["bore_mm"]?.value ?? "0");
     const bB = parseFloat(b.specs["bore_mm"]?.value ?? "0");
@@ -1031,17 +1036,7 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
     [bom, catalog, answers]
   );
 
-  // Total potential savings using cheapest economic tier
-  const potentialSavings = useMemo(() => {
-    return bom.reduce((sum, line, i) => {
-      const cheapest = alternatives[i].economic[0];
-      if (!cheapest || line.product?.purchase_price == null) return sum;
-      const saving = line.product.purchase_price - (cheapest.purchase_price ?? 0);
-      return saving > 0 ? sum + saving * line.quantity : sum;
-    }, 0);
-  }, [bom, alternatives]);
-
-  // Active savings (chosen alts)
+  // Active savings (chosen alts — used in RFQ email note)
   const activeSavings = useMemo(() => {
     return bom.reduce((sum, line, i) => {
       const alt = chosenAlt[i];
@@ -1222,8 +1217,8 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
         <div className="px-4 py-3 bg-muted/40 border-b border-border flex items-start sm:items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="text-sm font-semibold">{t("machineBuilder.bomTitle")}</div>
-            {/* Economic BOM toggle */}
-            {potentialSavings > 10 && (
+            {/* Alternatives toggle */}
+            {alternatives.some(a => a.economic.length + a.best.length + a.compact.length > 0) && (
               <button
                 onClick={() => { setEcoMode(v => !v); if (!ecoMode) setChosenAlt({}); }}
                 className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-semibold transition ${
@@ -1232,13 +1227,8 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
                     : "border-[oklch(0.7_0.1_155)] text-[oklch(0.45_0.15_155)] hover:bg-[oklch(0.92_0.06_155)/50]"
                 }`}
               >
-                <span>💰</span>
-                {ecoMode
-                  ? (activeSavings > 0
-                      ? `Spara ${activeSavings.toFixed(0)} kr valda · stäng`
-                      : "Välj alternativ nedan · stäng")
-                  : `Ekonomisk BOM — upp till ${potentialSavings.toFixed(0)} kr billigare`
-                }
+                <span>🔄</span>
+                {ecoMode ? "Stäng alternativ" : "Alternativa produkter"}
               </button>
             )}
           </div>
@@ -1282,12 +1272,7 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
             <tbody>
               {activeBom.map((line, i) => {
                 const originalLine = bom[i];
-                const alts = alternatives[i];
                 const isSwapped = !!chosenAlt[i];
-                const sellingPrice = (p: ProductRow) =>
-                  p.purchase_price != null
-                    ? (p.purchase_price / (1 - (p.margin ?? 0.35))).toFixed(0)
-                    : null;
 
                 return (
                   <>
@@ -1328,11 +1313,6 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
                             </span>
                           )}
                         </div>
-                        {line.product?.purchase_price != null && (
-                          <div className="text-[11px] text-muted-foreground mt-0.5">
-                            {sellingPrice(line.product)} kr/st
-                          </div>
-                        )}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className="inline-flex items-center justify-center size-6 rounded bg-muted text-xs font-semibold">{line.quantity}</span>
@@ -1347,13 +1327,10 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
                       const hasAny = tiers.economic.length + tiers.best.length + tiers.compact.length > 0;
                       if (!hasAny) return null;
 
-                      const origPrice = originalLine.product?.purchase_price;
-
                       const AltChip = ({ alt, tier }: { alt: ProductRow; tier: string }) => {
                         const isChosen = chosenAlt[i]?.sku === alt.sku;
-                        const altSell  = sellingPrice(alt);
-                        const saving   = origPrice != null ? origPrice - (alt.purchase_price ?? 0) : null;
                         const bore     = alt.specs["bore_mm"]?.value;
+                        const stroke   = alt.specs["stroke_max"]?.value ?? alt.specs["stroke_mm"]?.value;
                         return (
                           <button
                             onClick={() => setChosenAlt(prev => ({ ...prev, [i]: isChosen ? null : alt }))}
@@ -1366,20 +1343,14 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
                             <span className="text-muted-foreground text-[10px]">{alt.brand.name}</span>
                             <span className="font-medium truncate max-w-[140px]">{alt.name.split(" ").slice(0,4).join(" ")}</span>
                             {bore && <span className="font-mono text-[10px] text-muted-foreground">⌀{bore}</span>}
-                            {altSell && <span className="font-mono">{altSell} kr</span>}
-                            {saving != null && saving > 0 && (
-                              <span className="text-[oklch(0.42_0.15_155)] font-semibold">−{(saving/(1-0.35)).toFixed(0)} kr</span>
-                            )}
-                            {saving != null && saving < 0 && (
-                              <span className="text-info font-semibold">+{(Math.abs(saving)/(1-0.35)).toFixed(0)} kr</span>
-                            )}
+                            {stroke && <span className="font-mono text-[10px] text-muted-foreground">{stroke}mm</span>}
                             {isChosen && <span className="text-info">✓</span>}
                           </button>
                         );
                       };
 
                       const TIERS: { key: keyof AltTiers; icon: string; label: string; hint: string }[] = [
-                        { key: "economic", icon: "💰", label: "Ekonomisk",      hint: "Lägst pris — uppfyller krav" },
+                        { key: "economic", icon: "🔄", label: "Alternativ",     hint: "Alternativa produkter — uppfyller krav" },
                         { key: "best",     icon: "🏆", label: "Bäst prestanda", hint: "Högst kraft/slag — uppfyller krav" },
                         { key: "compact",  icon: "📐", label: "Kompakt",        hint: "Minst byggmått — uppfyller krav" },
                       ];
@@ -1388,6 +1359,7 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
                         <tr key={`eco-${i}`} className="border-b border-border/60 bg-surface-alt/50">
                           <td colSpan={5} className="px-4 py-2.5">
                             <div className="space-y-1.5">
+                              <p className="text-[11px] text-muted-foreground mb-1">Välj ett alternativ och skicka en offertförfrågan — vi återkommer med pris.</p>
                               {TIERS.map(({ key, icon, label, hint }) => {
                                 const items = tiers[key];
                                 if (!items.length) return null;

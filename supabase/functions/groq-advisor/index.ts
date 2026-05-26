@@ -1,0 +1,638 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
+// v23 — fix SPECIFY in BOM + SKU validation in options
+// Options: filter out AI-hallucinated SKUs not present in productMap (catalog).
+// BOM: strengthen prompt so primarySku is mandatory first row; post-process guarantees it.
+// Inherits v22: washdown/food-grade environment support.
+
+const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") ?? "";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+const GROQ_MODEL = "llama-3.3-70b-versatile";
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+async function callGroq(
+  messages: Array<{ role: string; content: string }>,
+  maxTokens = 2000,
+  jsonMode = true
+): Promise<string | null> {
+  const body: Record<string, unknown> = {
+    model: GROQ_MODEL, messages, max_tokens: maxTokens, temperature: 0.2,
+  };
+  if (jsonMode) body.response_format = { type: "json_object" };
+  const res = await fetch(GROQ_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) { console.error("Groq error:", await res.text()); return null; }
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content ?? null;
+}
+
+async function searchKnowledge(query: string, limit = 6): Promise<string> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/search_knowledge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({ query_text: query, match_count: limit }),
+    });
+    if (!res.ok) return "";
+    const chunks = await res.json();
+    if (!Array.isArray(chunks) || !chunks.length) return "";
+    return chunks.map((c: { content: string; source_file?: string; brand?: string }) =>
+      `[${c.brand ?? "doc"} — ${c.source_file ?? ""}]\n${c.content}`
+    ).join("\n\n---\n\n");
+  } catch { return ""; }
+}
+
+interface CatalogProduct {
+  sku: string; name: string; category: string; brand: string;
+  key_specs: Record<string, unknown>; purchase_price?: number;
+}
+
+async function fetchProducts(categorySlugs: string[], limit = 30): Promise<CatalogProduct[]> {
+  const results = await Promise.all(
+    categorySlugs.map(async (slug) => {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/fetch_products_for_advisor`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ p_category_slug: slug, p_limit: limit }),
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    })
+  );
+  return results.flat() as CatalogProduct[];
+}
+
+function balancedSlice(products: CatalogProduct[], maxTotal: number): CatalogProduct[] {
+  const byCategory = new Map<string, CatalogProduct[]>();
+  for (const p of products) {
+    if (!byCategory.has(p.category)) byCategory.set(p.category, []);
+    byCategory.get(p.category)!.push(p);
+  }
+  const numCats = byCategory.size;
+  if (numCats === 0) return [];
+  const perCat = Math.max(8, Math.ceil(maxTotal / numCats));
+  const result: CatalogProduct[] = [];
+  for (const ps of byCategory.values()) {
+    result.push(...ps.slice(0, perCat));
+    if (result.length >= maxTotal * 1.5) break;
+  }
+  return result.slice(0, maxTotal);
+}
+
+function detectCategories(text: string): string[] {
+  const t = text.toLowerCase();
+  const slugs = new Set<string>();
+  if (/lyft|press|klämm|stansa|trycka|cylinder|pneumatisk|luft|piston|double.act/i.test(t))
+    slugs.add("cylinder");
+  if (/elektrisk|servo|stepper|präcis|positionering|linjäraxel|electric|ball.screw|kuggrem|kuggremsaxel|elaxel|eldriven/i.test(t)) {
+    slugs.add("electric-actuator");
+    slugs.add("linear-module");
+  }
+  if (/linjär.*modul|slide|guidning|linear.*module|linear.*axis|linjär.*axel|linjärmodul|egc\b|lefs\b|lesh\b|egsk\b|egsp\b|hmr\b|osp.e|lbb\b|hlr\b|elga\b/i.test(t))
+    slugs.add("linear-module");
+  if (/roter|vrida|sväng|rotary/i.test(t)) slugs.add("rotary-actuator");
+  if (/vakuum|sugg|sugkopp|vacuum|suction|plocka|pick.*place|pick.and.place|lyft.*upp|grepp|grip|känslig|inte.*repa|skada.*inte|kretskort|pcb|elektronik|glas|optik/i.test(t))
+    slugs.add("vacuum");
+  if (/gripper|klämma|jaw|parallel.grip/i.test(t)) slugs.add("gripper");
+  if (/ventil(?!terminal)|valve(?!.terminal)|solenoid/i.test(t)) slugs.add("valve");
+  if (/ventilterminal|valve.terminal|vtug|vtsa|mpa\b|cpv\b|ventilblock|manifold|fördelare/i.test(t))
+    slugs.add("valve-terminal");
+  if (/sensor|detek|proximity|reed/i.test(t)) slugs.add("sensor");
+  // Cleanroom (actual ISO-class rooms): switch to electric-only
+  // Note: use \bclean\b to avoid matching "clean design" product names
+  if (/\brenrum\b|\bcleanroom\b|\bclean\s+room\b|programmera|mjukstart|mjukstopp/i.test(t)) {
+    slugs.delete("cylinder");
+    slugs.add("electric-actuator");
+    slugs.add("linear-module");
+  }
+  // Pick & place: cylinders + vacuum + linear-module (electric option)
+  if (/pick.and.place|pick.*place|plocka.*placera|plocka.*flytta|lyfter.*flytta|flytta.*lyft|transfer.*station|montering|montage/i.test(t)) {
+    slugs.add("cylinder");
+    slugs.add("vacuum");
+    slugs.add("linear-module");
+  }
+  if (slugs.size === 0) slugs.add("cylinder");
+  return Array.from(slugs);
+}
+
+function parseStrokeFromSpecs(specs: Record<string, unknown>): number {
+  for (const key of ["stroke_mm", "stroke_max", "max_stroke_mm", "max_stroke"]) {
+    const v = specs[key];
+    if (v != null) { const n = parseFloat(String(v)); if (!isNaN(n) && n > 0) return n; }
+  }
+  const rangeStr = specs["stroke_range"];
+  if (rangeStr) {
+    const m = String(rangeStr).match(/(\d+)[–—\-](\d+)/);
+    if (m) return parseInt(m[2]);
+    const single = parseFloat(String(rangeStr));
+    if (!isNaN(single) && single > 0) return single;
+  }
+  return 0;
+}
+
+function strokeLabel(specs: Record<string, unknown>): string {
+  for (const key of ["stroke_mm", "stroke_max", "max_stroke_mm", "max_stroke"]) {
+    const v = specs[key]; if (v != null) return `${v} mm`;
+  }
+  if (specs["stroke_range"]) return String(specs["stroke_range"]);
+  return "?";
+}
+
+function extractMinStroke(answers: Record<string, string>, description: string): number {
+  for (const [k, v] of Object.entries(answers)) {
+    if (/stroke|slag|sträcka|avstånd|rörelse|längd|travel|distance/i.test(k)) {
+      const digits = v.replace(/[^0-9.]/g, "");
+      const n = parseFloat(digits);
+      if (!isNaN(n) && n >= 5 && n <= 15000) return n;
+    }
+  }
+  const allText = Object.values(answers).join(" ") + " " + description;
+  let maxFound = 0;
+  for (const m of allText.matchAll(/(\d{2,5})\s*mm/gi)) {
+    const v = parseInt(m[1]);
+    if (v >= 50 && v <= 10000 && v > maxFound) maxFound = v;
+  }
+  if (maxFound > 0) return maxFound;
+  const rangeMatch = allText.match(/(\d+)[–—\-](\d+)\s*mm/);
+  if (rangeMatch) return parseInt(rangeMatch[2]);
+  if (/> 500|mer.{0,5}500/i.test(allText)) return 500;
+  if (/300.{0,5}500/i.test(allText)) return 300;
+  if (/150.{0,5}300/i.test(allText)) return 150;
+  if (/50.{0,5}150/i.test(allText)) return 50;
+  return 0;
+}
+
+function extractPerAxisStrokes(answers: Record<string, string>): { axis: string; stroke: number }[] {
+  const result: { axis: string; stroke: number }[] = [];
+  for (const [k, v] of Object.entries(answers)) {
+    if (/stroke|slag|sträcka|avstånd|rörelse|längd|travel|distance/i.test(k)) {
+      const digits = v.replace(/[^0-9.]/g, "");
+      const n = parseFloat(digits);
+      if (!isNaN(n) && n >= 5 && n <= 15000) {
+        const axisMatch = k.match(/[xyz]$/i);
+        result.push({ axis: axisMatch ? axisMatch[0].toUpperCase() : "?", stroke: n });
+      }
+    }
+  }
+  return result;
+}
+
+function needsMultiAxis(text: string): boolean {
+  return /x.*z|z.*x|x.*y|y.*x|två axl|två rörel|horisontell.*vertikal|vertikal.*horisontell|pick.and.place|pick.*place|plocka.*placera|plocka.*flytta|lyfter.*flytta|flytta.*lyft|2-axl|2 axl|multi.*axl|cartesian|portalsystem|lyfter.*flyttar|lyfter.*och.*flyttar/i.test(text);
+}
+
+function needsVacuumGrip(text: string): boolean {
+  return /kretskort|pcb|elektronik|glas|optik|repas|inte.*repa|skada.*grepp|känslig.*yta|vacuum.grip|sugkopp|suction.cup/i.test(text);
+}
+
+function needsValveTerminal(text: string): boolean {
+  return (
+    needsMultiAxis(text) ||
+    /ventilterminal|valve.terminal|vtug|vtsa|mpa\b|cpv\b|ventilblock|manifold/i.test(text) ||
+    /tre.*cylindr|fyra.*cylindr|3\s*cylindr|4\s*cylindr|3\s*cyl|4\s*cyl|several.*actuat|multiple.*actuat|multiple.*cyl|två.*cylindr|två cyl/i.test(text)
+  );
+}
+
+/**
+ * Detects washdown / food-grade / wet-environment requirements.
+ * These applications require IP67/IP69K and stainless or food-grade plastic —
+ * standard aluminum cylinders will corrode immediately.
+ */
+function needsWashdown(text: string): boolean {
+  return /washdown|wash[-\s]down|livsmedel|food[-\s]grade|food[-\s]safe|mejeri|dairy|slakteri|slakter|livsmedelsgodkänd|livsmedelsgodkand|ip[-\s]?69|högtrycksspolning|högtryck.*spol|spol.*kemik|kemisk.*reng|cip\b|sip\b|hygienic|hygienisk|clean[-\s]design|cleandesign|rostfri|stainless|korrosionsskyddad|vätsk.*milj|blot.*milj/i.test(text);
+}
+
+/** Returns true if a product is suitable for washdown environments. */
+function isWashdownProduct(p: CatalogProduct): boolean {
+  const ip = String(p.key_specs?.ip_rating ?? "").toLowerCase();
+  const name = (p.name + " " + p.brand).toLowerCase();
+  // Products without stroke spec are support items (sensors, fittings) — include regardless
+  if (parseStrokeFromSpecs(p.key_specs ?? {}) === 0) return true;
+  return (
+    ip.includes("ip67") || ip.includes("ip69") ||
+    name.includes("stainless") || name.includes("rostfri") ||
+    name.includes("corrosion") || name.includes("crdsnu") ||
+    name.includes("clean design") || name.includes("cleandesign") ||
+    name.includes("serie 90") || name.includes("washdown") ||
+    name.includes("food grade") || name.includes("hygienic")
+  );
+}
+
+function buildCustomSolutionOption(
+  minStroke: number, isSv: boolean, maxCatalogStroke: number, catalogCanHandle: boolean
+) {
+  const strokeInfo = !catalogCanHandle && maxCatalogStroke > 0
+    ? (isSv
+        ? `Längsta katalogprodukten når ${maxCatalogStroke} mm — under kravet på ${minStroke} mm. Vi sourcerar speciallösningar från Festo, SMC eller Parker.`
+        : `Longest catalog product reaches ${maxCatalogStroke} mm — below your ${minStroke} mm requirement. We source custom solutions from Festo, SMC or Parker.`)
+    : (isSv
+        ? `Vill du ha en lösning helt anpassad efter era exakta krav? Vi sköter leverantörsdialogen och levererar en komplett offert med exakt pris och leveranstid.`
+        : `Want a solution fully tailored to your exact requirements? We manage the supplier dialogue and deliver a complete quote with exact pricing and lead time.`);
+  return {
+    sku: "CUSTOM-SOLUTION",
+    name: isSv ? "Kundspecifik lösning" : "Custom engineered solution",
+    badge: isSv ? "Kundlösning" : "Custom solution",
+    bore_mm: null, stroke_mm: null, force_n: null,
+    why: strokeInfo,
+    pros: isSv
+      ? ["Exakt anpassad till era krav", "Vi kör dialogen med leverantören", "Offert med pris och leveranstid"]
+      : ["Exactly matched to your requirements", "We manage the supplier dialogue", "Quote with pricing and lead time"],
+    cons: isSv
+      ? ["Längre ledtid än lagerprodukt", "Kräver offertförfrågan"]
+      : ["Longer lead time than stock items", "Requires a quote request"],
+  };
+}
+
+function sanitizeSingleAxisBom(
+  bom: Array<{ sku: string; quantity: number; role: string; reason: string }>,
+  primarySku: string
+): Array<{ sku: string; quantity: number; role: string; reason: string }> {
+  const SECOND_AXIS = /\b(z|y)[-\s]?axel\b|\b(z|y)[-\s]?axis\b|axel\s*[2-9]|axis\s*[2-9]|second.axis|andre.axel/i;
+  let result = bom.filter(line => {
+    if (line.sku === primarySku) return true;
+    if (SECOND_AXIS.test(line.role)) return false;
+    return true;
+  });
+  const primaryRows = result.filter(l => l.sku === primarySku);
+  const otherRows   = result.filter(l => l.sku !== primarySku);
+  if (primaryRows.length > 1) {
+    result = [{ ...primaryRows[0], quantity: 1 }, ...otherRows];
+  } else if (primaryRows.length === 1 && primaryRows[0].quantity > 1) {
+    result = [{ ...primaryRows[0], quantity: 1 }, ...otherRows];
+  }
+  result = result.map(line => ({
+    ...line,
+    role: line.role
+      .replace(/\s*\/\s*[XYZ][-\s]?axel[^,/]*/gi, '')
+      .replace(/[XYZ][-\s]?axel\s*/gi, '')
+      .trim(),
+  }));
+  const SINGLE_PER_AXIS = /motor(?!\s*kabel)|controller|kontroller|\bdrive\b|styrenhet/i;
+  result = result.map(line => {
+    if (line.sku === primarySku) return line;
+    if (line.quantity === 2 && SINGLE_PER_AXIS.test(line.role)) return { ...line, quantity: 1 };
+    return line;
+  });
+  const merged = new Map<string, { sku: string; quantity: number; role: string; reason: string }>();
+  for (const line of result) {
+    const ex = merged.get(line.sku);
+    if (ex) {
+      ex.quantity += line.quantity;
+      if (!ex.role.includes(line.role)) ex.role = ex.role + " / " + line.role;
+    } else {
+      merged.set(line.sku, { ...line });
+    }
+  }
+  return Array.from(merged.values());
+}
+
+// ── ACTION: questions ─────────────────────────────────────────────────────────
+async function handleQuestions(description: string, locale: string): Promise<Response> {
+  const isSv = locale === "sv";
+  const pdfCtx = await searchKnowledge(description, 4);
+  const lang = isSv ? "svenska" : "English";
+  const isMulti = needsMultiAxis(description);
+  const isVac = needsVacuumGrip(description);
+  const isWashdown = needsWashdown(description);
+  const isElectric = /elektrisk|electric|servo|stepper|elaxel|eldriven|kuggrem|ball.screw/i.test(description);
+  const isCylinder = !isElectric;
+  const strokeStated = /(\d{2,4})\s*mm/i.test(description);
+  const isCleanroom = !isWashdown && /\brenrum\b|\bcleanroom\b|\bclean\s+room\b/i.test(description);
+
+  const contextRules = [
+    isMulti ? `- MULTI-AXIS SYSTEM DETECTED. Ask about EACH axis separately (stroke X, stroke Z/lift). Make clear in summary that multiple axes are needed.` : "",
+    isVac   ? `- SENSITIVE ITEM DETECTED (PCB/glass/delicate). Ask about gripper type: recommend vacuum suction cups, ask if ESD-safe materials are required.` : "",
+    (isCylinder || isElectric) && !strokeStated
+      ? `- STROKE NOT STATED: You MUST include a question asking for the required stroke/travel length (mm). This is mandatory for actuator selection.` : "",
+    isElectric
+      ? `- ELECTRIC SYSTEM: Ask about required repeatability/accuracy (±0.05 mm? ±0.5 mm?), max speed (m/s), and drive type preference (ball screw = precise, belt = fast).` : "",
+    // Washdown / food-grade: ask about IP class and material — NOT cleanroom ISO class
+    isWashdown
+      ? `- WASHDOWN / FOOD-GRADE ENVIRONMENT DETECTED. Do NOT ask about cleanroom ISO class. Instead ask:\n  (1) Required IP protection class: IP67 (splash/immersion) or IP69K (high-pressure steam/chemical jets)?\n  (2) Material class: Stainless steel 316L, food-grade plastic (POM/PA), or standard with coating?\n  (3) Certifications needed: FDA / EC 1935/2004 / EHEDG?`
+      : "",
+    // Cleanroom (only if NOT washdown — they are different environments)
+    isCleanroom
+      ? `- CLEANROOM DETECTED: ask about ISO class, note pneumatics may be excluded in high-class rooms.` : "",
+    `- If stroke is already stated, do NOT ask if they want a longer stroke. Accept stated value as absolute.`,
+    `- Do NOT ask hypothetical questions. Only ask what is needed to select the right product.`,
+    `- If programmable stops: ask about number of positions and accuracy.`,
+  ].filter(Boolean).join("\n");
+
+  const system = `You are a senior automation engineer. Generate 4-6 precise technical questions. All text in ${lang}.\n\nRULES:\n${contextRules}\n\nJSON:\n{ "summary": "one precise sentence in ${lang}", "questions": [ { "id": "snake_case", "label": "question in ${lang}", "hint": "why this matters", "type": "choice", "options": ["opt1","opt2"] } ] }\ntype = 'choice' (with options) or 'number' (with unit).${pdfCtx ? "\n\nDocs:\n" + pdfCtx : ""}`;
+
+  const raw = await callGroq([
+    { role: "system", content: system },
+    { role: "user", content: `Application: ${description}` },
+  ], 1500, true);
+  if (!raw) return Response.json({ summary: "", questions: [] }, { headers: CORS });
+  try { return Response.json(JSON.parse(raw), { headers: CORS }); }
+  catch { return Response.json({ summary: "", questions: [] }, { headers: CORS }); }
+}
+
+// ── ACTION: options ───────────────────────────────────────────────────────────
+async function handleOptions(
+  description: string, answers: Record<string, string>, locale: string
+): Promise<Response> {
+  const isSv = locale === "sv";
+  const combinedText = description + " " + Object.values(answers).join(" ");
+  const categories = detectCategories(combinedText);
+  const minStroke = extractMinStroke(answers, description);
+  const isCleanroom = /\brenrum\b|\bcleanroom\b|\bclean\s+room\b/i.test(combinedText);
+  const needsProgrammable = /programmer|stopp-position|servo|positioner/i.test(combinedText);
+  const isMultiAxis = needsMultiAxis(combinedText);
+  const isVacuum = needsVacuumGrip(combinedText);
+  const valveTerminal = needsValveTerminal(combinedText);
+  const isWashdown = needsWashdown(combinedText);
+
+  const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
+  const maxRequiredStroke = perAxisStrokes.length > 0
+    ? Math.max(...perAxisStrokes.map(a => a.stroke))
+    : minStroke;
+
+  const [allProducts, pdfCtx] = await Promise.all([
+    fetchProducts(categories, 80),
+    searchKnowledge(combinedText, 5),
+  ]);
+
+  const productMap = new Map<string, CatalogProduct>(allProducts.map(p => [p.sku, p]));
+
+  // For washdown environments: actuators (products WITH stroke spec) must be IP67/IP69K or stainless.
+  // Support items (no stroke spec) are always included.
+  const washdownFiltered = isWashdown
+    ? allProducts.filter(p => isWashdownProduct(p))
+    : allProducts;
+
+  const qualified: CatalogProduct[] = [];
+  let bestFallback: CatalogProduct | null = null;
+  let bestFallbackStroke = 0;
+  let maxCatalogStroke = 0;
+
+  for (const p of washdownFiltered) {
+    const maxStroke = parseStrokeFromSpecs(p.key_specs ?? {});
+    if (maxStroke > maxCatalogStroke) maxCatalogStroke = maxStroke;
+    if (maxRequiredStroke === 0 || maxStroke === 0) {
+      qualified.push(p);
+    } else if (maxStroke >= maxRequiredStroke) {
+      qualified.push(p);
+    } else {
+      if (maxStroke > bestFallbackStroke) { bestFallbackStroke = maxStroke; bestFallback = p; }
+    }
+  }
+
+  // If washdown filter left no qualified actuators, fall back to full list with a warning
+  const showProducts = qualified.length > 0 ? qualified : (bestFallback ? [bestFallback] : (isWashdown ? allProducts : []));
+  const catalogCanHandle = qualified.length > 0;
+
+  let catalogNote = "";
+  if (isWashdown && qualified.length === 0) {
+    catalogNote = `CATALOG: No IP67/IP69K or stainless product meets ${maxRequiredStroke}mm stroke. Show closest available and note limitation.`;
+  } else if (qualified.length === 0 && bestFallback) {
+    catalogNote = `CATALOG: No product meets ${maxRequiredStroke}mm stroke. Longest available: ${bestFallback.name} at ${bestFallbackStroke}mm. Use badge 'Närmaste katalogalternativ'.`;
+  } else if (maxRequiredStroke > 0 && washdownFiltered.length - qualified.length > 0) {
+    catalogNote = `CATALOG: ${washdownFiltered.length - qualified.length} products excluded (stroke < ${maxRequiredStroke}mm).`;
+  }
+  if (isWashdown) {
+    catalogNote = (catalogNote ? catalogNote + " " : "") +
+      `WASHDOWN: Only IP67/IP69K or stainless products are shown (${washdownFiltered.length} of ${allProducts.length} total).`;
+  }
+
+  const productList = balancedSlice(showProducts, 45)
+    .map(p => `${p.sku}: ${p.name} [${p.brand}/${p.category}] stroke=${strokeLabel(p.key_specs ?? {})} ip=${p.key_specs?.ip_rating ?? "std"} specs:${JSON.stringify(p.key_specs ?? {})}`)
+    .join("\n");
+
+  const lang = isSv ? "svenska" : "English";
+  const badges = isSv
+    ? "'Bästa valet'|'Kompakt alternativ'|'Budgetalternativ'|'Premium alternativ'|'Närmaste katalogalternativ'"
+    : "'Best choice'|'Compact option'|'Budget option'|'Premium option'|'Closest catalog option'";
+
+  const multiAxisRule = isMultiAxis
+    ? perAxisStrokes.length > 0
+      ? `MULTI-AXIS SYSTEM — axis requirements: ${perAxisStrokes.map(a => `${a.axis}-axis ${a.stroke}mm`).join(", ")}. ` +
+        `Show 2-3 options for the PRIMARY actuator (horizontal / largest axis = ${maxRequiredStroke}mm). ` +
+        `Each option card = ONE primary actuator product from catalog. ` +
+        `The BOM step will add Z-axis actuator, vacuum, valve terminal and other components. ` +
+        `Do NOT try to show a complete system in the options — just the primary actuator.`
+      : `MULTI-AXIS: Show 2-3 options for the primary (longest-stroke) actuator. BOM handles secondary axes.`
+    : "";
+
+  const washdownRule = isWashdown
+    ? `WASHDOWN / FOOD-GRADE ENVIRONMENT — SAFETY CRITICAL:\n` +
+      `Standard aluminum cylinders corrode within days under chemical washdown. NEVER recommend them here.\n` +
+      `ONLY recommend products with IP67/IP69K rating OR stainless steel / corrosion-resistant construction.\n` +
+      `Preferred products: Festo CRDSNU (corrosion-resistant stainless), Camozzi Serie 90 (stainless IP67).\n` +
+      `If no washdown product meets the stroke requirement, say so clearly and recommend the custom solution.`
+    : "";
+
+  const rules = [
+    isCleanroom      ? "CRITICAL: cleanroom — ONLY electric actuators, NO pneumatic cylinders." : "",
+    needsProgrammable ? "CRITICAL: programmable stops — only servo/stepper with controller." : "",
+    !isMultiAxis && maxRequiredStroke > 0
+      ? `STROKE RULE: Required stroke = ${maxRequiredStroke}mm. ONLY recommend products with max_stroke >= ${maxRequiredStroke}mm.`
+      : "",
+    washdownRule,
+    multiAxisRule,
+    isVacuum
+      ? `VACUUM GRIP: Sensitive items. For vacuum-handled parts, primary actuator handles transport — vacuum system goes in BOM.`
+      : "",
+    valveTerminal
+      ? `VALVE TERMINAL: Multi-actuator system. This will be in the BOM — do NOT list it as a primary option.`
+      : "",
+    catalogNote,
+  ].filter(Boolean).join("\n\n");
+
+  const system = `You are a senior automation engineer selecting actuator options. All text in ${lang}.\n\n${rules}\n\nReturn 1-3 catalog options. Do NOT add a custom solution (added by code).\n\nJSON:\n{ "summary": "technical summary in ${lang}",\n  "options": [ { "sku": "CATALOG_SKU", "name": "product name", "badge": ${badges}, "bore_mm": null|number, "stroke_mm": null|number, "force_n": null|number, "why": "justification in ${lang}", "pros": ["..."], "cons": ["..."] } ] }`;
+
+  const userMsg = `Application: ${description}\nAnswers: ${Object.entries(answers).map(([k,v])=>`${k}=${v}`).join(", ")}\n\nCatalog (pre-filtered${isWashdown ? " to IP67/IP69K + stainless" : ""}${maxRequiredStroke > 0 ? `, stroke >= ${maxRequiredStroke}mm` : ""}):\n${productList}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
+
+  const raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 2000, true);
+
+  let parsed: { summary: string; options: Array<Record<string, unknown>> };
+  try { parsed = raw ? JSON.parse(raw) : { summary: "", options: [] }; }
+  catch { parsed = { summary: "", options: [] }; }
+
+  // v23: remove any option where SKU was hallucinated (not in catalog)
+  parsed.options = (parsed.options ?? []).filter(opt => {
+    const sku = opt.sku as string;
+    if (sku === "CUSTOM-SOLUTION") return true;
+    return productMap.has(sku);
+  }).map(opt => {
+    const sku = opt.sku as string;
+    if (sku === "CUSTOM-SOLUTION") return opt;
+    const cat = productMap.get(sku)!;
+    const actualMax = parseStrokeFromSpecs(cat.key_specs ?? {});
+    opt.stroke_mm = actualMax > 0 ? actualMax : null;
+    if (maxRequiredStroke > 0 && actualMax > 0 && actualMax < maxRequiredStroke) {
+      opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
+      opt.why = `${opt.why ?? ""} ⚠️ Max stroke ${actualMax} mm — krav ${maxRequiredStroke} mm.`;
+    }
+    // Flag if AI somehow picked a non-washdown product in a washdown scenario
+    if (isWashdown && !isWashdownProduct(cat)) {
+      opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
+      opt.why = `${opt.why ?? ""} ⚠️ Standardprodukt — verifiera korrosionsskydd för washdown-miljö.`;
+    }
+    return opt;
+  });
+
+  if (maxRequiredStroke > 0) {
+    parsed.options = [...parsed.options, buildCustomSolutionOption(maxRequiredStroke, isSv, maxCatalogStroke, catalogCanHandle)];
+  }
+
+  return Response.json(parsed, { headers: CORS });
+}
+
+// ── ACTION: bom ───────────────────────────────────────────────────────────────
+async function handleBom(
+  description: string, answers: Record<string, string>, primarySku: string, locale: string
+): Promise<Response> {
+  const isSv = locale === "sv";
+  const combinedText = (description ?? "") + " " + Object.values(answers).join(" ");
+  const categories = detectCategories(combinedText);
+  const isElectric = categories.some(c => c === "electric-actuator" || c === "linear-module");
+  const isCleanroom = /\brenrum\b|\bcleanroom\b|\bclean\s+room\b/i.test(combinedText);
+  const isMultiAxis = needsMultiAxis(combinedText);
+  const isVacuum = needsVacuumGrip(combinedText);
+  const valveTerminal = needsValveTerminal(combinedText);
+  const isWashdown = needsWashdown(combinedText);
+  const minStroke = extractMinStroke(answers, description);
+
+  const bomCategories = [
+    ...categories,
+    isVacuum      ? "vacuum" : null,
+    valveTerminal ? "valve-terminal" : null,
+    "sensor",
+    isElectric    ? "cable" : "fitting",
+    !isElectric   ? "frl" : null,
+  ].filter(Boolean) as string[];
+
+  const [products, pdfCtx] = await Promise.all([
+    fetchProducts([...new Set(bomCategories)], 30),
+    searchKnowledge(combinedText + " BOM komplett system", 5),
+  ]);
+
+  const productList = balancedSlice(products, 60)
+    .map(p => `${p.sku}: ${p.name} [${p.brand}/${p.category}] ip=${p.key_specs?.ip_rating ?? "std"}`).join("\n");
+
+  const lang = isSv ? "svenska" : "English";
+
+  const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
+  const axisStrokeNote = isMultiAxis && perAxisStrokes.length > 0
+    ? `Axis strokes from requirements: ${perAxisStrokes.map(a => `${a.axis}=${a.stroke}mm`).join(", ")}. Size each axis actuator to meet its stroke.`
+    : "";
+
+  const rules = [
+    isElectric
+      ? `ELECTRIC BOM: MUST include linear axis + motor + motor controller + motor cable + encoder cable. FORBIDDEN: pneumatic valves, valve terminals, FRL, air fittings, silencers.`
+      : "",
+    isCleanroom ? `CLEANROOM: All parts cleanroom-compatible.` : "",
+    isVacuum ? `VACUUM: Include suction cups (qty = number of items handled simultaneously if stated) + ejector + vacuum sensor.` : "",
+    isWashdown
+      ? `WASHDOWN / FOOD-GRADE: ALL components must be IP67/IP69K or stainless steel / food-grade plastic. ` +
+        `NO standard aluminum cylinders. NO standard plastic fittings. ` +
+        `Prefer Festo CRDSNU, Camozzi Serie 90, stainless FRL, IP67 sensors. ` +
+        `Add a note in the reason field for each BOM line confirming its washdown compatibility.`
+      : "",
+    !isMultiAxis
+      ? `SINGLE-AXIS: ONE actuator (${primarySku}) only. No X/Z/Y axis split.`
+      : `MULTI-AXIS: Primary actuator = ${primarySku} (largest axis). Also add a separate actuator for each additional axis. ${axisStrokeNote}`,
+    valveTerminal && !isElectric ? `VALVE TERMINAL: ONE combined unit, not individual valves.` : "",
+    `MANDATORY: The FIRST row of the BOM MUST be sku="${primarySku}" with quantity=1. Do NOT substitute a different product for this row.`,
+    `SKU RULES: Only use SKUs that appear verbatim in the catalog list below. Use SPECIFY only if a truly needed component (not the primary actuator) is absent from catalog. One row per SKU.`,
+  ].filter(Boolean).join(" | ");
+
+  const system = `You are a senior automation engineer. Build a complete BOM. All text in ${lang}.\n\n${rules}\n\nJSON: { "title": "short title", "explanation": "2-3 sentences", "bom": [ { "sku": "SKU or SPECIFY", "quantity": 1, "role": "function", "reason": "why" } ] }`;
+
+  const reqLines = Object.entries(answers)
+    .map(([k, v]) => {
+      let label = k.replace(/_/g, " ");
+      if (!isMultiAxis) label = label.replace(/\s*[xyz]$/i, "").replace(/\s*(stroke)\s*/i, "stroke").trim();
+      return `${label}: ${v}`;
+    }).join(", ");
+
+  const userMsg = `Application: ${description}\nRequirements: ${reqLines}\nPrimary actuator: ${primarySku}\n\nCatalog:\n${productList}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
+
+  const raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 2500, true);
+  if (!raw) return Response.json({ title: "", explanation: "", bom: [] }, { headers: CORS });
+
+  let parsed: { title: string; explanation: string; bom: Array<{ sku: string; quantity: number; role: string; reason: string }> };
+  try { parsed = JSON.parse(raw); }
+  catch { return Response.json({ title: "", explanation: "", bom: [] }, { headers: CORS }); }
+
+  if (!isMultiAxis) {
+    parsed.bom = sanitizeSingleAxisBom(parsed.bom ?? [], primarySku);
+  } else {
+    const merged = new Map<string, { sku: string; quantity: number; role: string; reason: string }>();
+    for (const line of (parsed.bom ?? [])) {
+      const ex = merged.get(line.sku);
+      if (ex) {
+        ex.quantity += line.quantity;
+        if (!ex.role.includes(line.role)) ex.role += " / " + line.role;
+      } else {
+        merged.set(line.sku, { ...line });
+      }
+    }
+    parsed.bom = Array.from(merged.values());
+  }
+
+  // v23: guarantee primarySku is always the first BOM row, injecting it if the AI omitted it
+  if (primarySku && primarySku !== "CUSTOM-SOLUTION") {
+    const hasPrimary = parsed.bom.some(l => l.sku === primarySku);
+    if (!hasPrimary) {
+      // AI omitted the primary actuator entirely — inject it
+      parsed.bom = [
+        {
+          sku: primarySku,
+          quantity: 1,
+          role: isSv ? "Primär aktuator" : "Primary actuator",
+          reason: isSv ? "Vald primär komponent (tillagd automatiskt)" : "Selected primary component (auto-injected)",
+        },
+        ...parsed.bom,
+      ];
+    } else {
+      // Primary is somewhere in the BOM — move it to position 0
+      const primaryRow = parsed.bom.find(l => l.sku === primarySku)!;
+      parsed.bom = [primaryRow, ...parsed.bom.filter(l => l.sku !== primarySku)];
+    }
+  }
+
+  return Response.json(parsed, { headers: CORS });
+}
+
+// ── ACTION: chat ──────────────────────────────────────────────────────────────
+async function handleChat(
+  messages: Array<{ role: string; content: string }>, contextQuery?: string
+): Promise<Response> {
+  const pdfCtx = contextQuery ? await searchKnowledge(contextQuery, 5) : "";
+  const system = `Du är Maskinvals AI-assistent, expert på industriell automation. Hjälper ingenjörer välja komponenter och lösa tekniska problem. Svar på svenska.${pdfCtx ? `\n\nReferensdokumentation:\n${pdfCtx}` : ""}`;
+  const raw = await callGroq([{ role: "system", content: system }, ...messages], 1000, false);
+  if (!raw) return Response.json({ reply: "Kunde inte svara just nu. Försök igen." }, { headers: CORS });
+  return Response.json({ reply: raw }, { headers: CORS });
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+  try {
+    const body = await req.json();
+    const { action, description, answers, messages, primarySku, contextQuery, locale } = body;
+    const loc = locale ?? "sv";
+    if (action === "questions") return handleQuestions(description ?? "", loc);
+    if (action === "options")   return handleOptions(description ?? "", answers ?? {}, loc);
+    if (action === "bom")       return handleBom(description ?? "", answers ?? {}, primarySku ?? "", loc);
+    if (action === "chat")      return handleChat(messages ?? [], contextQuery);
+    return Response.json({ error: "Unknown action" }, { status: 400, headers: CORS });
+  } catch (e) {
+    console.error("groq-advisor error:", e);
+    return Response.json({ error: String(e) }, { status: 500, headers: CORS });
+  }
+});
