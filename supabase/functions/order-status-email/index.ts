@@ -186,8 +186,8 @@ Deno.serve(async (req) => {
     const payload: Payload = await req.json();
     const { subject, html } = buildEmail(payload);
 
-    // Include admin as BCC on quote emails so we have a copy
-    const bcc = payload.status === "quoted" ? [ADMIN_EMAIL] : undefined;
+    // BCC admin on quote + acceptance so they see both sides of the conversation
+    const bcc = (payload.status === "quoted" || payload.status === "accepted") ? [ADMIN_EMAIL] : undefined;
 
     const res = await fetch(RESEND_API, {
       method: "POST",

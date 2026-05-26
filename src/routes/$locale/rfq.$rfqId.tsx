@@ -22,6 +22,8 @@ interface RfqRow {
   contact_phone: string | null;
   company: string | null;
   message: string | null;
+  quote_amount: number | null;
+  quote_currency: string | null;
   created_at: string;
   bom_id: string | null;
   shipment_status: string | null;
@@ -58,6 +60,8 @@ function RfqPage() {
   const isAdmin = useIsAdmin();
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingResult, setBookingResult] = useState<string | null>(null);
+  const [accepting, setAccepting] = useState(false);
+  const [acceptError, setAcceptError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/$locale/login", params: { locale } });
@@ -102,9 +106,33 @@ function RfqPage() {
     setBookingLoading(false);
   }
 
+  async function acceptQuote(decision: "accepted" | "rejected") {
+    if (!rfq) return;
+    setAccepting(true);
+    setAcceptError(null);
+    const { error } = await supabase.from("rfqs").update({ status: decision }).eq("id", rfq.id);
+    if (error) { setAcceptError(error.message); setAccepting(false); return; }
+    setRfq({ ...rfq, status: decision });
+    // Fire confirmation email to customer
+    fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        order_ref: rfq.id.slice(0, 8).toUpperCase(),
+        contact_email: rfq.contact_email,
+        contact_name: rfq.contact_name ?? "",
+        status: decision,
+        quote_amount: rfq.quote_amount,
+        currency: rfq.quote_currency ?? "SEK",
+      }),
+    }).catch(console.error);
+    setAccepting(false);
+  }
+
   if (loading || !user || !rfq)
     return <div className="container-page py-16 text-sm text-muted-foreground">{t("common.loading")}</div>;
 
+  const isRejected = rfq.status === "rejected";
   const effectiveStatus = rfq.shipment_status ?? rfq.status;
   const activeStep = STATUS_STEPS.indexOf(effectiveStatus);
 
@@ -133,33 +161,105 @@ function RfqPage() {
       </div>
 
       {/* Status timeline */}
-      <div className="mt-6 rounded-xl border border-border bg-card p-5">
-        <div className="flex items-center gap-0">
-          {STATUS_STEPS.map((s, i) => {
-            const done = i <= activeStep;
-            const active = i === activeStep;
-            return (
-              <div key={s} className="flex items-center flex-1">
-                <div className="flex flex-col items-center">
-                  <div className={`size-6 rounded-full border-2 flex items-center justify-center text-[10px] font-bold transition ${
-                    active ? "bg-info border-info text-primary-foreground scale-110" :
-                    done ? "bg-info/20 border-info text-info" :
-                    "bg-surface-alt border-border text-muted-foreground"
-                  }`}>
-                    {done && !active ? "✓" : i + 1}
-                  </div>
-                  <span className={`mt-1.5 text-[9px] text-center leading-tight max-w-[50px] ${active ? "font-semibold text-foreground" : done ? "text-info" : "text-muted-foreground"}`}>
-                    {statusLabel(t, s)}
-                  </span>
-                </div>
-                {i < STATUS_STEPS.length - 1 && (
-                  <div className={`flex-1 h-0.5 mb-3 mx-1 ${i < activeStep ? "bg-info/50" : "bg-border"}`} />
-                )}
-              </div>
-            );
-          })}
+      {isRejected ? (
+        <div className="mt-6 rounded-xl border border-destructive/30 bg-destructive/5 p-5 flex items-center gap-4">
+          <span className="text-2xl">❌</span>
+          <div>
+            <p className="font-semibold text-foreground">{t("rfqPage.statusRejected") || "Förfrågan avvisad"}</p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {locale === "sv"
+                ? "Vi hade tyvärr inte möjlighet att lämna offert på denna förfrågan. Kontakta oss om du har frågor."
+                : "We were unfortunately unable to quote on this request. Contact us if you have questions."}
+            </p>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="mt-6 rounded-xl border border-border bg-card p-5">
+          <div className="flex items-center gap-0">
+            {STATUS_STEPS.map((s, i) => {
+              const done = i <= activeStep;
+              const active = i === activeStep;
+              return (
+                <div key={s} className="flex items-center flex-1">
+                  <div className="flex flex-col items-center">
+                    <div className={`size-6 rounded-full border-2 flex items-center justify-center text-[10px] font-bold transition ${
+                      active ? "bg-info border-info text-primary-foreground scale-110" :
+                      done ? "bg-info/20 border-info text-info" :
+                      "bg-surface-alt border-border text-muted-foreground"
+                    }`}>
+                      {done && !active ? "✓" : i + 1}
+                    </div>
+                    <span className={`mt-1.5 text-[9px] text-center leading-tight max-w-[50px] ${active ? "font-semibold text-foreground" : done ? "text-info" : "text-muted-foreground"}`}>
+                      {statusLabel(t, s)}
+                    </span>
+                  </div>
+                  {i < STATUS_STEPS.length - 1 && (
+                    <div className={`flex-1 h-0.5 mb-3 mx-1 ${i < activeStep ? "bg-info/50" : "bg-border"}`} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Quote amount block — shown when status is "quoted" */}
+      {rfq.status === "quoted" && rfq.quote_amount && (
+        <div className="mt-4 rounded-xl border border-[oklch(0.75_0.12_290)] bg-[oklch(0.97_0.03_290)] p-5">
+          <p className="text-xs uppercase tracking-wider text-[oklch(0.50_0.15_290)] font-semibold mb-1">
+            {locale === "sv" ? "Offertbelopp (exkl. moms)" : "Quoted price (excl. VAT)"}
+          </p>
+          <p className="text-3xl font-bold text-foreground">
+            {rfq.quote_amount.toLocaleString(locale === "sv" ? "sv-SE" : locale, {
+              style: "currency",
+              currency: rfq.quote_currency ?? "SEK",
+              maximumFractionDigits: 0,
+            })}
+          </p>
+          <p className="text-xs text-muted-foreground mt-2">
+            {locale === "sv"
+              ? "Offerten är giltig i 30 dagar. Acceptera nedan för att bekräfta ordern."
+              : "The quote is valid for 30 days. Accept below to confirm the order."}
+          </p>
+          {/* Accept / Reject CTA */}
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              onClick={() => acceptQuote("accepted")}
+              disabled={accepting}
+              className="px-5 py-2.5 rounded-md bg-[oklch(0.55_0.15_155)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition"
+            >
+              {accepting ? "…" : locale === "sv" ? "✓ Acceptera offert" : "✓ Accept quote"}
+            </button>
+            <button
+              onClick={() => acceptQuote("rejected")}
+              disabled={accepting}
+              className="px-5 py-2.5 rounded-md border border-border text-muted-foreground text-sm font-medium hover:border-destructive hover:text-destructive disabled:opacity-50 transition"
+            >
+              {locale === "sv" ? "Neka" : "Decline"}
+            </button>
+          </div>
+          {acceptError && (
+            <p className="mt-2 text-sm text-destructive">{acceptError}</p>
+          )}
+        </div>
+      )}
+
+      {/* Accepted confirmation */}
+      {rfq.status === "accepted" && (
+        <div className="mt-4 rounded-xl border border-[oklch(0.72_0.12_155)] bg-[oklch(0.96_0.04_155)] p-5 flex items-center gap-4">
+          <span className="text-2xl">✅</span>
+          <div>
+            <p className="font-semibold text-foreground">
+              {locale === "sv" ? "Offert accepterad" : "Quote accepted"}
+            </p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {locale === "sv"
+                ? "Tack! Vi bekräftar ordern och återkommer med leveransinfo."
+                : "Thank you! We are confirming your order and will be in touch with delivery details."}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Contact info */}
       <div className="mt-4 rounded-xl border border-border bg-card p-4 text-sm space-y-2">

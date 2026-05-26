@@ -343,7 +343,6 @@ export function getProductImage(
   product: { category: { slug: string }; brand: { slug: string }; family?: string | null; image_url?: string | null },
   square = false
 ): string {
-  // Prefer real product photo when available, otherwise fall back to category illustration
-  if (product.image_url) return product.image_url;
+  // Always use the flat category illustration — consistent across all products.
   return getCategoryImage(product.category.slug, square);
 }
