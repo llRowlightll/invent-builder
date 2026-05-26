@@ -165,7 +165,7 @@ function RfqPage() {
         <div className="mt-6 rounded-xl border border-destructive/30 bg-destructive/5 p-5 flex items-center gap-4">
           <span className="text-2xl">❌</span>
           <div>
-            <p className="font-semibold text-foreground">{t("rfqPage.statusRejected") || "Förfrågan avvisad"}</p>
+            <p className="font-semibold text-foreground">{t("rfqPage.statusRejected")}</p>
             <p className="text-sm text-muted-foreground mt-0.5">
               {locale === "sv"
                 ? "Vi hade tyvärr inte möjlighet att lämna offert på denna förfrågan. Kontakta oss om du har frågor."

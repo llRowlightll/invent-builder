@@ -396,6 +396,7 @@
     "statusProcessing": "Processing",
     "statusQuoted": "Quoted",
     "statusAccepted": "Accepted",
+    "statusRejected": "Declined",
     "statusShipped": "Shipped",
     "statusDelivered": "Delivered",
     "trackOrder": "Track shipment →",

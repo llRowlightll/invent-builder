@@ -396,6 +396,7 @@
     "statusProcessing": "En proceso",
     "statusQuoted": "Cotización enviada",
     "statusAccepted": "Aceptada",
+    "statusRejected": "Rechazada",
     "statusShipped": "Enviada",
     "statusDelivered": "Entregada",
     "trackOrder": "Rastrear envío →",

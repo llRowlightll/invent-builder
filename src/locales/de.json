@@ -396,6 +396,7 @@
     "statusProcessing": "In Bearbeitung",
     "statusQuoted": "Angebot verschickt",
     "statusAccepted": "Akzeptiert",
+    "statusRejected": "Abgelehnt",
     "statusShipped": "Versendet",
     "statusDelivered": "Geliefert",
     "trackOrder": "Sendung verfolgen →",

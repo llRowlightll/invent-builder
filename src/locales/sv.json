@@ -396,6 +396,7 @@
     "statusProcessing": "Under behandling",
     "statusQuoted": "Offert skickad",
     "statusAccepted": "Accepterad",
+    "statusRejected": "Avvisad",
     "statusShipped": "Skickad",
     "statusDelivered": "Levererad",
     "trackOrder": "Spåra försändelse →",
