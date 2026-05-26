@@ -495,7 +495,15 @@ function QuestionsStep({ t, summary, questions, answers, setAnswers, onSubmit, o
   t: (key: import("@/lib/i18n").TKey) => string; summary: string; questions: Question[]; answers: Record<string, string>;
   setAnswers: (a: Record<string, string>) => void; onSubmit: () => void; onBack: () => void;
 }) {
-  const allAnswered = questions.length > 0 && questions.every(q => answers[q.id]);
+  const allAnswered = questions.length > 0 && questions.every(q => {
+    const val = answers[q.id];
+    if (!val) return false;
+    if (q.type === "number") {
+      const n = parseFloat(val);
+      return !isNaN(n) && n > 0;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-4">
@@ -539,17 +547,35 @@ function QuestionsStep({ t, summary, questions, answers, setAnswers, onSubmit, o
               </div>
             ) : (
               /* Fallback for number, text, or any other type Groq returns */
-              <div className="ml-7 flex items-center gap-2">
-                <input
-                  type={q.type === "number" ? "number" : "text"}
-                  min={q.type === "number" ? 0 : undefined}
-                  value={answers[q.id] ?? ""}
-                  onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
-                  placeholder={q.type === "number" ? "0" : t("machineBuilder.typeAnswer")}
-                  className="w-48 px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
-                />
-                {q.unit && <span className="text-sm text-muted-foreground">{q.unit}</span>}
-              </div>
+              (() => {
+                const raw = answers[q.id];
+                const numVal = raw !== undefined && raw !== "" ? parseFloat(raw) : null;
+                const isInvalid = q.type === "number" && raw !== undefined && raw !== "" && (isNaN(numVal!) || numVal! <= 0);
+                return (
+                  <div className="ml-7 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type={q.type === "number" ? "number" : "text"}
+                        min={q.type === "number" ? 1 : undefined}
+                        value={raw ?? ""}
+                        onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
+                        placeholder={q.type === "number" ? t("machineBuilder.enterValue") : t("machineBuilder.typeAnswer")}
+                        className={`w-48 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 bg-background transition ${
+                          isInvalid
+                            ? "border-destructive focus:ring-destructive/50"
+                            : "border-input focus:ring-info/50"
+                        }`}
+                      />
+                      {q.unit && <span className="text-sm text-muted-foreground">{q.unit}</span>}
+                    </div>
+                    {isInvalid && (
+                      <p className="text-xs text-destructive">
+                        {isSv ? "Ange ett värde större än 0" : "Please enter a value greater than 0"}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()
             )}
           </div>
         ))}
