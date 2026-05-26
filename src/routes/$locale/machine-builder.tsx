@@ -249,8 +249,18 @@ function MachineBuilderPage() {
     }
   }
 
-  // Step 3 → BOM
+  // Step 3 → BOM (or advisor redirect for custom solutions)
   async function handleSelect(opt: ActuatorOption) {
+    if (opt.sku === "CUSTOM-SOLUTION") {
+      const context = [
+        description,
+        Object.keys(answers).length
+          ? "\n\nKrav:\n" + Object.entries(answers).map(([k, v]) => `${k}: ${v}`).join("\n")
+          : "",
+      ].join("");
+      window.location.href = `/${locale}/advisor?q=${encodeURIComponent(context)}`;
+      return;
+    }
     setSelected(opt);
     setError("");
     setStep("bom_loading");
@@ -590,56 +600,99 @@ function OptionsStep({ t, summary, options, onSelect, onBack }: {
       </p>
 
       <div className="space-y-3">
-        {options.map(opt => (
-          <button
-            key={opt.sku}
-            onClick={() => onSelect(opt)}
-            className="w-full text-left rounded-xl border-2 border-border bg-card hover:border-info hover:shadow-md transition-all p-5 group"
-          >
-            <div className="flex items-start justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${BADGE_COLORS[opt.badge] ?? "bg-muted text-muted-foreground"}`}>
-                  {opt.badge}
+        {options.map(opt => {
+          const isCustom = opt.sku === "CUSTOM-SOLUTION";
+
+          if (isCustom) {
+            return (
+              <button
+                key="CUSTOM-SOLUTION"
+                onClick={() => onSelect(opt)}
+                className="w-full text-left rounded-xl border-2 border-gold/40 bg-gold/5 hover:border-gold hover:shadow-md transition-all p-5 group"
+              >
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-gold/20 text-[oklch(0.45_0.12_80)]">
+                      Kundlösning
+                    </span>
+                    <span className="font-semibold text-foreground group-hover:text-[oklch(0.55_0.15_80)] transition">{opt.name}</span>
+                  </div>
+                  <span className="text-[oklch(0.55_0.15_80)] text-sm font-medium shrink-0">
+                    🤝 Skicka förfrågan →
+                  </span>
+                </div>
+                <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{opt.why}</p>
+                <div className="mt-3 grid sm:grid-cols-2 gap-3">
+                  <div>
+                    {opt.pros?.map((p, i) => (
+                      <div key={i} className="text-xs text-[oklch(0.45_0.12_80)] flex items-center gap-1 mt-1">
+                        <span>✓</span> {p}
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    {opt.cons?.map((c, i) => (
+                      <div key={i} className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                        <span>—</span> {c}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </button>
+            );
+          }
+
+          return (
+            <button
+              key={opt.sku}
+              onClick={() => onSelect(opt)}
+              className="w-full text-left rounded-xl border-2 border-border bg-card hover:border-info hover:shadow-md transition-all p-5 group"
+            >
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${BADGE_COLORS[opt.badge] ?? "bg-muted text-muted-foreground"}`}>
+                    {opt.badge}
+                  </span>
+                  <span className="font-semibold text-foreground group-hover:text-info transition">{opt.name}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{opt.sku}</span>
+                </div>
+                <span className="text-info text-sm font-medium shrink-0">
+                  {t("machineBuilder.select")}
                 </span>
-                <span className="font-semibold text-foreground group-hover:text-info transition">{opt.name}</span>
-                <span className="font-mono text-xs text-muted-foreground">{opt.sku}</span>
               </div>
-              <span className="text-info text-sm font-medium shrink-0">
-                {t("machineBuilder.select")}
-              </span>
-            </div>
 
-            {/* Specs */}
-            {(opt.bore_mm || opt.stroke_mm || opt.force_n) && (
-              <div className="flex flex-wrap gap-2 mt-3">
-                {opt.bore_mm ? <SpecChip label="Bore" value={`${opt.bore_mm} mm`} /> : null}
-                {opt.stroke_mm ? <SpecChip label="Max stroke" value={`${opt.stroke_mm} mm`} /> : null}
-                {opt.force_n ? <SpecChip label="Force @ 6 bar" value={`${opt.force_n} N`} /> : null}
-              </div>
-            )}
+              {/* Specs */}
+              {(opt.bore_mm || opt.stroke_mm || opt.force_n) && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {opt.bore_mm ? <SpecChip label="Bore" value={`${opt.bore_mm} mm`} /> : null}
+                  {opt.stroke_mm ? <SpecChip label="Max stroke" value={`${opt.stroke_mm} mm`} /> : null}
+                  {opt.force_n ? <SpecChip label="Force @ 6 bar" value={`${opt.force_n} N`} /> : null}
+                </div>
+              )}
 
-            {/* Why */}
-            <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{opt.why}</p>
+              {/* Why */}
+              <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{opt.why}</p>
 
-            {/* Pros / Cons */}
-            <div className="mt-3 grid sm:grid-cols-2 gap-3">
-              <div>
-                {opt.pros?.map((p, i) => (
-                  <div key={i} className="text-xs text-[oklch(0.45_0.12_155)] flex items-center gap-1 mt-1">
-                    <span className="text-[oklch(0.55_0.15_155)]">✓</span> {p}
-                  </div>
-                ))}
+              {/* Pros / Cons */}
+              <div className="mt-3 grid sm:grid-cols-2 gap-3">
+                <div>
+                  {opt.pros?.map((p, i) => (
+                    <div key={i} className="text-xs text-[oklch(0.45_0.12_155)] flex items-center gap-1 mt-1">
+                      <span className="text-[oklch(0.55_0.15_155)]">✓</span> {p}
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  {opt.cons?.map((c, i) => (
+                    <div key={i} className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                      <span className="text-muted-foreground">—</span> {c}
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div>
-                {opt.cons?.map((c, i) => (
-                  <div key={i} className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                    <span className="text-muted-foreground">—</span> {c}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex items-center justify-start pt-1">

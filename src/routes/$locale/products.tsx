@@ -456,6 +456,7 @@ function ProductsPage() {
               <Link
                 to="/$locale/advisor"
                 params={{ locale } as never}
+                search={{ q: undefined }}
                 className="inline-flex items-center gap-1.5 text-xs px-4 py-2 rounded-md border border-border hover:border-info hover:text-info transition"
               >
                 📋 {t("productPage.requestQuote")}

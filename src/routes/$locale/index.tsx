@@ -309,6 +309,7 @@ function Landing() {
               <Link
                 to="/$locale/advisor"
                 params={{ locale }}
+                search={{ q: undefined }}
                 className="inline-flex items-center gap-1.5 text-sm px-4 py-2.5 rounded-md bg-primary text-primary-foreground hover:opacity-90 transition"
               >
                 {t("index.startAdvisor")}
@@ -366,6 +367,7 @@ function Landing() {
             <Link
               to="/$locale/advisor"
               params={{ locale }}
+              search={{ q: undefined }}
               className="inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-md border border-border hover:border-info hover:text-info transition"
             >
               👷 Prata med en ingenjör

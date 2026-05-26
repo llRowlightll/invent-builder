@@ -10,6 +10,9 @@ import { fetchCompanySettings, type CompanySettings } from "@/lib/company-settin
 import { analyzeDocument, type ComponentIdentification } from "@/lib/document-ai";
 
 export const Route = createFileRoute("/$locale/advisor")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: typeof search.q === "string" ? search.q : undefined,
+  }),
   head: ({ params }) => {
     const locale = params.locale;
     const t = makeT(locale as Locale);
@@ -42,6 +45,7 @@ type Step = "select" | "ai" | "form";
 
 function AdvisorPage() {
   const { locale } = Route.useParams();
+  const { q: prefillQ } = Route.useSearch();
   const t = makeT(locale as Locale);
   const { user } = useAuth();
   const isSv = locale === "sv";
@@ -50,7 +54,7 @@ function AdvisorPage() {
   const [useCases, setUseCases] = useState<UseCase[]>([]);
   const [catalog, setCatalog] = useState<ProductRow[]>([]);
   const [selected, setSelected] = useState("");
-  const [step, setStep] = useState<Step>("select");
+  const [step, setStep] = useState<Step>(prefillQ ? "form" : "select");
   const [showProducts, setShowProducts] = useState(false);
 
   // Contact form state
@@ -80,6 +84,8 @@ function AdvisorPage() {
       .order("sort_order")
       .then(({ data }) => setUseCases((data as UseCase[]) ?? []));
     loadCatalog().then(setCatalog);
+    // Pre-fill message from ?q= (e.g. from machine-builder "Kundlösning" card)
+    if (prefillQ) setMessage(prefillQ);
   }, []);
 
   // Pre-fill from profile if logged in
