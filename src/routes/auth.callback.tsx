@@ -1,8 +1,7 @@
 /**
  * /auth/callback
- * Supabase redirects here after email confirmation.
+ * Supabase redirects here after email confirmation AND password reset.
  * The hash fragment contains either the session tokens or an error.
- * We exchange it, then redirect to the locale-aware profile completion page.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -14,10 +13,17 @@ export const Route = createFileRoute("/auth/callback")({
 });
 
 function AuthCallback() {
-  const [status, setStatus] = useState<"processing" | "error">("processing");
+  const [status, setStatus] = useState<"processing" | "error" | "recovery">("processing");
   const [errorMsg, setErrorMsg] = useState("");
   const [email, setEmail] = useState("");
   const [resent, setResent] = useState(false);
+
+  // Password reset state
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [resetting, setResetting] = useState(false);
+  const [resetDone, setResetDone] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   useEffect(() => {
     const hash = window.location.hash.substring(1);
@@ -25,6 +31,7 @@ function AuthCallback() {
 
     const errorCode = params2.get("error_code");
     const errorDesc = params2.get("error_description");
+    const type = params2.get("type");
 
     if (errorCode) {
       setStatus("error");
@@ -36,28 +43,60 @@ function AuthCallback() {
       return;
     }
 
-    // Let the Supabase client process the hash (it reads access_token etc)
+    // Let the Supabase client process the hash
     supabase.auth.getSession().then(async ({ data }) => {
       if (data.session) {
-        const locale = getCookie("lifemap_locale") ?? detectBrowserLocale();
-        window.location.replace(`/${locale}/profile`);
+        if (type === "recovery") {
+          // Password reset flow — show the change-password form
+          setStatus("recovery");
+        } else {
+          const locale = getCookie("lifemap_locale") ?? detectBrowserLocale();
+          window.location.replace(`/${locale}/profile`);
+        }
       } else {
-        // Give the onAuthStateChange a moment to process the hash
         const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
           if (session) {
             sub.subscription.unsubscribe();
-            const locale = getCookie("lifemap_locale") ?? detectBrowserLocale();
-            window.location.replace(`/${locale}/profile`);
+            if (event === "PASSWORD_RECOVERY") {
+              setStatus("recovery");
+            } else {
+              const locale = getCookie("lifemap_locale") ?? detectBrowserLocale();
+              window.location.replace(`/${locale}/profile`);
+            }
           }
         });
-        // Timeout fallback
         setTimeout(() => {
-          setStatus("error");
-          setErrorMsg("Sessionen kunde inte bekräftas. Försök logga in igen.");
+          if (status === "processing") {
+            setStatus("error");
+            setErrorMsg("Sessionen kunde inte bekräftas. Försök logga in igen.");
+          }
         }, 5000);
       }
     });
   }, []);
+
+  async function handlePasswordReset(e: React.FormEvent) {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setResetError("Lösenorden matchar inte.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      setResetError("Lösenordet måste vara minst 8 tecken.");
+      return;
+    }
+    setResetting(true);
+    setResetError(null);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setResetting(false);
+    if (error) {
+      setResetError(error.message);
+    } else {
+      setResetDone(true);
+      const locale = getCookie("lifemap_locale") ?? detectBrowserLocale();
+      setTimeout(() => window.location.replace(`/${locale}/profile`), 2000);
+    }
+  }
 
   async function resendEmail(e: React.FormEvent) {
     e.preventDefault();
@@ -72,6 +111,63 @@ function AuthCallback() {
         <div className="text-center space-y-3">
           <div className="inline-block size-8 rounded-full border-2 border-info/30 border-t-info animate-spin" />
           <p className="text-sm text-muted-foreground">Bekräftar din e-post…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === "recovery") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="max-w-sm w-full space-y-5">
+          <div className="text-center">
+            <div className="text-4xl mb-3">🔑</div>
+            <h1 className="text-xl font-semibold">Välj nytt lösenord</h1>
+            <p className="text-sm text-muted-foreground mt-1">Ange ditt nya lösenord nedan.</p>
+          </div>
+
+          {resetDone ? (
+            <div className="rounded-xl border border-[oklch(0.72_0.12_155)] bg-[oklch(0.96_0.04_155)] p-5 text-center space-y-2">
+              <div className="text-2xl">✓</div>
+              <p className="font-semibold">Lösenordet är uppdaterat!</p>
+              <p className="text-sm text-muted-foreground">Omdirigerar till din profil…</p>
+            </div>
+          ) : (
+            <form onSubmit={handlePasswordReset} className="space-y-4">
+              <label className="block">
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">Nytt lösenord</span>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  autoFocus
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minst 8 tecken"
+                  className="mt-1.5 w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">Bekräfta lösenord</span>
+                <input
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Upprepa lösenordet"
+                  className="mt-1.5 w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
+                />
+              </label>
+              {resetError && <p className="text-sm text-destructive">{resetError}</p>}
+              <button
+                type="submit"
+                disabled={resetting}
+                className="w-full rounded-md bg-primary text-primary-foreground py-2.5 text-sm font-medium disabled:opacity-50"
+              >
+                {resetting ? "Sparar…" : "Spara nytt lösenord"}
+              </button>
+            </form>
+          )}
         </div>
       </div>
     );
