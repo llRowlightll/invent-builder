@@ -265,7 +265,7 @@ function MachineBuilderPage() {
     setError("");
     setStep("bom_loading");
     try {
-      const data = await advisorCall({ action: "bom", answers, primarySku: opt.sku });
+      const data = await advisorCall({ action: "bom", description, answers, primarySku: opt.sku, locale });
       const enriched = enrichWithCatalog<BomLine>(data.bom ?? []);
       setBom(enriched);
       setBomTitle(data.title ?? "");
@@ -796,11 +796,12 @@ function roleToCategory(role: string, sku: string): string | null {
 
   // ── Elektrisk aktuator (före pneumatisk cylinder — mer specifik) ──────────
   if (/elektr|electric|servo|stepper|spindle|spindel|kugelgewind|ball.screw|linjär.*driv|linear.*driv|elektrisk.*axel|servo.*axel|elektrisk.*cylinder|electric.*cylinder/.test(r)
-    || /dnce|epco|egsk|egsp|ley\b|lesh|6e-0|mw-elk/.test(s)) return "electric-actuator";
+    || /dnce|epco|egsk|egsp|ley\b|lesh|lefs|lecp|6e-0|mw-elk/.test(s)) return "electric-actuator";
 
   // ── Linjärmodul / gantry / toothed-belt-axel ────────────────────────────
   if (/linjärmodul|linear.*modul|linjär.*axel|tandbältsaxel|toothed.belt|ball.screw.axis|gantry|kantilever|elektr.*glid|electrical.*slide|electric.*slide/.test(r)
-    || /festo-155|festo-175|festo-530|festo-556|festo-562|festo-802|festo-811|festo-147|mw-s10/.test(s)) return "linear-module";
+    || /festo-155|festo-175|festo-530|festo-556|festo-562|festo-802|festo-811|festo-147|mw-s10/.test(s)
+    || /festo-egc|festo-elga|parker-hmr|parker-hmrs|parker-hmrb|parker-lbb|parker-hlr|parker-ospe|parker-eth/.test(s)) return "linear-module";
 
   // ── Pneumatisk cylinder (standard) ──────────────────────────────────────
   if (/cylinder|aktuator|actuator|main act|axel \d/.test(r)
@@ -1600,7 +1601,7 @@ function BomSystemView({ bom, selected, locale }: { bom: BomLine[]; selected: Ac
   const [active, setActive] = useState<number | null>(null);
   const [view, setView] = useState<"diagram" | "3d" | "cards">("diagram");
 
-  const isElectric = /DNCE|LEY|LEF|EGC|ELGA/i.test(selected.sku);
+  const isElectric = /DNCE|LEY|LEF|EGC|ELGA|EGSK|EGSP|LESH|LEFS|LECP|HMR|OSPE|LBB|HLR|PARKER-ETH|PARKER-HMR|PARKER-LBB|PARKER-HLR|PARKER-OSPE/i.test(selected.sku);
   const classified = bom.map((line, i) => ({
     ...line,
     nodeType: classifyRole(line.role, line.sku),
