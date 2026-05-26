@@ -336,7 +336,11 @@ export function OrdersPage() {
                   key={rfq.id}
                   to="/$locale/rfq/$rfqId"
                   params={{ locale, rfqId: rfq.id }}
-                  className="flex items-start gap-4 bg-card border border-border rounded-xl p-5 hover:border-info transition group"
+                  className={`flex items-start gap-4 bg-card rounded-xl p-5 hover:border-info transition group border ${
+                    rfq.status === "quoted"
+                      ? "border-[oklch(0.75_0.10_55)] bg-[oklch(0.99_0.02_55)]"
+                      : "border-border"
+                  }`}
                 >
                   <span className={`mt-1 size-2.5 rounded-full shrink-0 ${meta.dot}`} />
                   <div className="flex-1 min-w-0">
@@ -360,7 +364,12 @@ export function OrdersPage() {
                           </strong>
                         </span>
                       )}
-                      {rfq.message && (
+                      {rfq.status === "quoted" && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[oklch(0.94_0.06_55)] text-[oklch(0.42_0.14_55)] border border-[oklch(0.82_0.10_55)] font-semibold animate-pulse">
+                          {locale === "sv" ? "⚡ Svar krävs" : "⚡ Action required"}
+                        </span>
+                      )}
+                      {!rfq.quote_amount && rfq.message && (
                         <span className="text-xs text-muted-foreground truncate max-w-[280px]">
                           &quot;{rfq.message.slice(0, 80)}{rfq.message.length > 80 ? "…" : ""}&quot;
                         </span>

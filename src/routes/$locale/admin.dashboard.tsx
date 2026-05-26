@@ -13,6 +13,7 @@ type Stats = {
   chunks: number;
   profiles: number;
   rfq_new: number;
+  rfq_accepted: number;
 };
 
 type RecentRfq = {
@@ -64,6 +65,7 @@ function AdminDashboard() {
         { count: chunks },
         { count: profiles },
         { count: rfq_new },
+        { count: rfq_accepted },
         { data: recentData },
         { data: statusData },
       ] = await Promise.all([
@@ -73,6 +75,7 @@ function AdminDashboard() {
         supabase.from("knowledge_chunks").select("*", { count: "exact", head: true }),
         supabase.from("company_profiles").select("*", { count: "exact", head: true }),
         supabase.from("rfqs").select("*", { count: "exact", head: true }).eq("status", "new"),
+        supabase.from("rfqs").select("*", { count: "exact", head: true }).eq("status", "accepted"),
         supabase.from("rfqs").select("id,contact_name,company,contact_email,status,created_at,quote_amount")
           .order("created_at", { ascending: false }).limit(8),
         Promise.resolve(supabase.rpc("rfq_status_counts")).catch(() => ({ data: null })),
@@ -85,6 +88,7 @@ function AdminDashboard() {
         chunks: chunks ?? 0,
         profiles: profiles ?? 0,
         rfq_new: rfq_new ?? 0,
+        rfq_accepted: rfq_accepted ?? 0,
       });
       setRecent((recentData as RecentRfq[]) ?? []);
 
@@ -137,11 +141,12 @@ function AdminDashboard() {
       {loading ? (
         <div className="text-sm text-muted-foreground animate-pulse">Laddar statistik…</div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
           <StatCard label="Produkter" value={stats!.products} icon="📦" to={`/${locale}/admin/products`} />
           <StatCard label="Totalt RFQs" value={stats!.rfqs} icon="📋" to={`/${locale}/admin/rfq`} />
           <StatCard label="RFQs denna vecka" value={stats!.rfqs_week} icon="📈" highlight={stats!.rfqs_week > 0} to={`/${locale}/admin/rfq`} />
           <StatCard label="Nya (ohanterade)" value={stats!.rfq_new} icon="🔔" highlight={stats!.rfq_new > 0} to={`/${locale}/admin/rfq`} />
+          <StatCard label="Accepterade (skapa order)" value={stats!.rfq_accepted} icon="✅" highlight={stats!.rfq_accepted > 0} to={`/${locale}/admin/rfq`} />
           <StatCard label="Knowledge chunks" value={stats!.chunks} icon="🧠" to={`/${locale}/admin/knowledge`} />
           <StatCard label="Kunder" value={stats!.profiles} icon="👥" to={`/${locale}/admin/crm`} />
         </div>
