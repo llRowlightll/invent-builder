@@ -4,7 +4,7 @@
  * The hash fragment contains either the session tokens or an error.
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getCookie, detectBrowserLocale } from "@/lib/i18n";
 
@@ -14,6 +14,7 @@ export const Route = createFileRoute("/auth/callback")({
 
 function AuthCallback() {
   const [status, setStatus] = useState<"processing" | "error" | "recovery">("processing");
+  const handled = useRef(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [email, setEmail] = useState("");
   const [resent, setResent] = useState(false);
@@ -46,8 +47,8 @@ function AuthCallback() {
     // Let the Supabase client process the hash
     supabase.auth.getSession().then(async ({ data }) => {
       if (data.session) {
+        handled.current = true;
         if (type === "recovery") {
-          // Password reset flow — show the change-password form
           setStatus("recovery");
         } else {
           const locale = getCookie("lifemap_locale") ?? detectBrowserLocale();
@@ -56,6 +57,7 @@ function AuthCallback() {
       } else {
         const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
           if (session) {
+            handled.current = true;
             sub.subscription.unsubscribe();
             if (event === "PASSWORD_RECOVERY") {
               setStatus("recovery");
@@ -65,8 +67,9 @@ function AuthCallback() {
             }
           }
         });
+        // Only show error if nothing handled the auth within 5 s
         setTimeout(() => {
-          if (status === "processing") {
+          if (!handled.current) {
             setStatus("error");
             setErrorMsg("Sessionen kunde inte bekräftas. Försök logga in igen.");
           }
