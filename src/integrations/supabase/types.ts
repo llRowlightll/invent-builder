@@ -1651,24 +1651,33 @@ export type Database = {
       rfq_items: {
         Row: {
           id: string
+          note: string | null
           product_id: string | null
           qty: number | null
           rfq_id: string
           role: string | null
+          unit_price: number | null
+          unit_price_currency: string | null
         }
         Insert: {
           id?: string
+          note?: string | null
           product_id?: string | null
           qty?: number | null
           rfq_id: string
           role?: string | null
+          unit_price?: number | null
+          unit_price_currency?: string | null
         }
         Update: {
           id?: string
+          note?: string | null
           product_id?: string | null
           qty?: number | null
           rfq_id?: string
           role?: string | null
+          unit_price?: number | null
+          unit_price_currency?: string | null
         }
         Relationships: [
           {
@@ -1737,6 +1746,10 @@ export type Database = {
       }
       rfqs: {
         Row: {
+          address_city: string | null
+          address_country: string | null
+          address_postal: string | null
+          address_street: string | null
           bom_id: string | null
           carrier: string | null
           company: string | null
@@ -1754,6 +1767,8 @@ export type Database = {
           internal_notes: string | null
           label_url: string | null
           message: string | null
+          org_number: string | null
+          po_number: string | null
           quote_amount: number | null
           quote_currency: string | null
           shipment_status: string | null
@@ -1764,8 +1779,13 @@ export type Database = {
           tracking_number: string | null
           updated_at: string | null
           user_id: string | null
+          vat_number: string | null
         }
         Insert: {
+          address_city?: string | null
+          address_country?: string | null
+          address_postal?: string | null
+          address_street?: string | null
           bom_id?: string | null
           carrier?: string | null
           company?: string | null
@@ -1783,6 +1803,8 @@ export type Database = {
           internal_notes?: string | null
           label_url?: string | null
           message?: string | null
+          org_number?: string | null
+          po_number?: string | null
           quote_amount?: number | null
           quote_currency?: string | null
           shipment_status?: string | null
@@ -1793,8 +1815,13 @@ export type Database = {
           tracking_number?: string | null
           updated_at?: string | null
           user_id?: string | null
+          vat_number?: string | null
         }
         Update: {
+          address_city?: string | null
+          address_country?: string | null
+          address_postal?: string | null
+          address_street?: string | null
           bom_id?: string | null
           carrier?: string | null
           company?: string | null
@@ -1812,6 +1839,8 @@ export type Database = {
           internal_notes?: string | null
           label_url?: string | null
           message?: string | null
+          org_number?: string | null
+          po_number?: string | null
           quote_amount?: number | null
           quote_currency?: string | null
           shipment_status?: string | null
@@ -1822,6 +1851,7 @@ export type Database = {
           tracking_number?: string | null
           updated_at?: string | null
           user_id?: string | null
+          vat_number?: string | null
         }
         Relationships: [
           {
@@ -2352,3 +2382,4 @@ export const Constants = {
     },
   },
 } as const
+

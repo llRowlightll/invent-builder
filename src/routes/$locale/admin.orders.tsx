@@ -295,10 +295,21 @@ function AdminOrdersPage() {
                     {order.tracking_number && <div className="font-mono text-[10px]">{order.tracking_number}</div>}
                   </td>
                   <td className="px-4 py-3">
-                    <button onClick={() => setEditing(order)}
-                      className="px-3 py-1 text-xs rounded-md border border-border hover:border-primary text-muted-foreground hover:text-foreground transition">
-                      Redigera
-                    </button>
+                    <div className="flex gap-1.5">
+                      <button onClick={() => setEditing(order)}
+                        className="px-3 py-1 text-xs rounded-md border border-border hover:border-primary text-muted-foreground hover:text-foreground transition">
+                        Redigera
+                      </button>
+                      <a
+                        href={`/${locale}/admin/orderbekraftelse/${order.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1 text-xs rounded-md border border-[oklch(0.72_0.12_290)] text-[oklch(0.50_0.18_290)] hover:bg-[oklch(0.97_0.02_290)] transition"
+                        title="Öppna orderbekräftelse (OC)"
+                      >
+                        OC
+                      </a>
+                    </div>
                   </td>
                 </tr>
               ))}

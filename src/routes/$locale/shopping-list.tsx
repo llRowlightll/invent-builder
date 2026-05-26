@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { analyzeDocument, type PoExtraction } from "@/lib/document-ai";
 import { makeT, type Locale } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import { loadCatalog } from "@/lib/catalog";
@@ -40,9 +41,14 @@ function ShoppingListPage() {
   const [rfqEmail, setRfqEmail] = useState("");
   const [rfqPhone, setRfqPhone] = useState("");
   const [rfqCompany, setRfqCompany] = useState("");
+  const [rfqOrgNumber, setRfqOrgNumber] = useState("");
+  const [rfqPoNumber, setRfqPoNumber] = useState("");
   const [rfqMessage, setRfqMessage] = useState("");
   const [rfqSending, setRfqSending] = useState(false);
   const [rfqSent, setRfqSent] = useState(false);
+  const [poReading, setPoReading] = useState(false);
+  const [poReadError, setPoReadError] = useState<string | null>(null);
+  const poInputRef = useRef<HTMLInputElement>(null);
   const [rfqId, setRfqId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,7 +65,7 @@ function ShoppingListPage() {
     setRfqEmail((prev) => prev || user.email || "");
     supabase
       .from("company_profiles")
-      .select("display_name,email,company_name,phone")
+      .select("display_name,email,company_name,phone,org_number")
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data }) => {
@@ -67,6 +73,7 @@ function ShoppingListPage() {
         if (data?.email) setRfqEmail((prev) => prev || data.email!);
         if (data?.company_name) setRfqCompany((prev) => prev || data.company_name!);
         if (data?.phone) setRfqPhone((prev) => prev || data.phone!);
+        if (data?.org_number) setRfqOrgNumber((prev) => prev || data.org_number!);
       });
   }, [user]);
 
@@ -167,6 +174,8 @@ function ShoppingListPage() {
           contact_email: rfqEmail.trim(),
           contact_phone: rfqPhone.trim() || null,
           company: rfqCompany.trim() || null,
+          org_number: rfqOrgNumber.trim() || null,
+          po_number: rfqPoNumber.trim() || null,
           message: rfqMessage.trim() || null,
         })
         .select("id")
@@ -208,6 +217,24 @@ function ShoppingListPage() {
       console.error(err);
     }
     setRfqSending(false);
+  }
+
+  async function readPoFile(file: File) {
+    setPoReading(true);
+    setPoReadError(null);
+    try {
+      const extracted = await analyzeDocument(file, "po") as PoExtraction;
+      if (extracted.company_name) setRfqCompany((p) => p || extracted.company_name!);
+      if (extracted.contact_name) setRfqName((p) => p || extracted.contact_name!);
+      if (extracted.contact_email) setRfqEmail((p) => p || extracted.contact_email!);
+      if (extracted.contact_phone) setRfqPhone((p) => p || extracted.contact_phone!);
+      if (extracted.org_number) setRfqOrgNumber((p) => p || extracted.org_number!);
+      if (extracted.po_number) setRfqPoNumber((p) => p || extracted.po_number!);
+    } catch (err) {
+      setPoReadError(locale === "sv" ? "Kunde inte läsa dokumentet. Försök med en tydligare bild." : "Could not read the document. Try a clearer image.");
+      console.error(err);
+    }
+    setPoReading(false);
   }
 
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
@@ -537,6 +564,22 @@ function ShoppingListPage() {
                 <h2 className="text-lg font-semibold">{t("shoppingList.contactForm")}</h2>
                 <p className="text-sm text-muted-foreground mt-1 mb-4">{t("shoppingList.contactFormHint")}</p>
 
+                {/* PO upload — pre-fills fields automatically */}
+                <input ref={poInputRef} type="file" accept="image/*,application/pdf" className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) readPoFile(f); e.target.value = ""; }} />
+                <button
+                  type="button"
+                  onClick={() => poInputRef.current?.click()}
+                  disabled={poReading}
+                  className="mb-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-dashed border-info/50 text-info text-sm hover:bg-info/5 transition disabled:opacity-50"
+                >
+                  {poReading
+                    ? <><span className="size-3 rounded-full border-2 border-info/30 border-t-info animate-spin" /> {locale === "sv" ? "Läser PO…" : "Reading PO…"}</>
+                    : <><span>📎</span> {locale === "sv" ? "Ladda upp PO — fyller i fälten automatiskt" : "Upload PO — auto-fills fields"}</>
+                  }
+                </button>
+                {poReadError && <p className="text-xs text-destructive mb-3">{poReadError}</p>}
+
                 <div className="space-y-2.5">
                   <div className="grid sm:grid-cols-2 gap-2.5">
                     <input
@@ -565,6 +608,20 @@ function ShoppingListPage() {
                       placeholder={t("shoppingList.phonePlaceholder")}
                       value={rfqPhone}
                       onChange={(e) => setRfqPhone(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-2.5">
+                    <input
+                      className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30"
+                      placeholder={locale === "sv" ? "Org.nr (t.ex. 556000-0000)" : "Org. number"}
+                      value={rfqOrgNumber}
+                      onChange={(e) => setRfqOrgNumber(e.target.value)}
+                    />
+                    <input
+                      className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30"
+                      placeholder={locale === "sv" ? "Ert PO-nummer (valfritt)" : "Your PO number (optional)"}
+                      value={rfqPoNumber}
+                      onChange={(e) => setRfqPoNumber(e.target.value)}
                     />
                   </div>
                   <textarea

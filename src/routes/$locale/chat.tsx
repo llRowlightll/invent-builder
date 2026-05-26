@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
-import { aiSearchProducts, aiExplain, aiAskKnowledge, aiExtractDimensions, aiSystemDesign, type AiSearchResult } from "@/lib/ai.functions";
+import { aiSearchProducts, aiExplain, aiAskKnowledge, aiExtractDimensions, aiSystemDesign, aiVisionChat, type AiSearchResult, type ChatMessage } from "@/lib/ai.functions";
+import { fileToBase64 } from "@/lib/document-ai";
 import { computePhysics } from "@/lib/physics";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
@@ -30,9 +31,37 @@ type MsgRole = "user" | "assistant" | "products";
 interface Msg {
   role: MsgRole;
   text?: string;
+  imagePreview?: string;  // data URL for user-uploaded images
   products?: ProductRow[];
   aiResult?: AiSearchResult;
   sources?: string[];  // RAG source citations
+  followups?: string[]; // clickable follow-up suggestion chips
+}
+
+/** Build conversation history from visible messages (last N text exchanges) */
+function buildHistory(msgs: Msg[]): ChatMessage[] {
+  return msgs
+    .filter((m): m is Msg & { text: string } => (m.role === "user" || m.role === "assistant") && !!m.text)
+    .slice(-8) // last 8 text messages
+    .map(m => ({ role: m.role as "user" | "assistant", content: m.text }));
+}
+
+/** Generate smart follow-up chip suggestions based on what the AI found */
+function generateFollowups(aiResult: AiSearchResult, isSv: boolean): string[] {
+  const chips: string[] = [];
+  if (!aiResult.brand_slug) {
+    chips.push(isSv ? "Vilket märke föredrar du?" : "Which brand do you prefer?");
+  }
+  if (aiResult.category_slug?.includes("cylinder")) {
+    chips.push(isSv ? "Behövs kapslingsklass IP67?" : "Do you need IP67 rating?");
+  }
+  if (aiResult.category_slug?.includes("electric") || aiResult.category_slug?.includes("servo")) {
+    chips.push(isSv ? "Vilket fieldbus — PROFINET eller EtherNet/IP?" : "Which fieldbus — PROFINET or EtherNet/IP?");
+  }
+  if (!aiResult.category_slug?.includes("vacuum") && !aiResult.category_slug?.includes("gripper")) {
+    chips.push(isSv ? "Visa relaterade tillbehör och ventiler" : "Show related accessories and valves");
+  }
+  return chips.slice(0, 2);
 }
 
 // Detect if query is a product-search or a general knowledge question
@@ -114,9 +143,13 @@ function ChatPage() {
   const askKnowledge = useServerFn(aiAskKnowledge);
   const extractDims = useServerFn(aiExtractDimensions);
   const systemDesign = useServerFn(aiSystemDesign);
+  const visionChat = useServerFn(aiVisionChat);
 
   const [catalog, setCatalog] = useState<ProductRow[] | null>(null);
   const [text, setText] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [msgs, setMsgs] = useState<Msg[]>([
     {
       role: "assistant",
@@ -154,13 +187,15 @@ function ChatPage() {
 
   async function sendQuery(q: string) {
     if (!q.trim() || !catalog || busy) return;
+    // Capture history BEFORE adding new message (React state is still previous snapshot here)
+    const history = buildHistory(msgs);
     setMsgs((m) => [...m, { role: "user", text: q }]);
     setBusy(true);
 
     try {
       // ── 1. Knowledge Q&A (non-product questions) ────────────────────────
       if (isKnowledgeQuestion(q)) {
-        const result = await askKnowledge({ data: { question: q, locale } });
+        const result = await askKnowledge({ data: { question: q, locale, history } });
         setMsgs((m) => [...m, { role: "assistant", text: result.answer, sources: result.sources }]);
         setBusy(false);
         setTimeout(() => inputRef.current?.focus(), 100);
@@ -168,7 +203,7 @@ function ChatPage() {
       }
 
       // ── 2. Extract physical dimensions (LLM: numbers only) ─────────────
-      const dims = await extractDims({ data: { text: q, locale } });
+      const dims = await extractDims({ data: { text: q, locale, history } });
 
       // ── 3. Physics computation (deterministic TypeScript) ───────────────
       const physics = computePhysics(dims);
@@ -350,10 +385,10 @@ function ChatPage() {
         setMsgs((m) => [
           ...m,
           { role: "assistant", text: countText },
-          { role: "products" as MsgRole, products: deduped.slice(0, 6) },
+          { role: "products" as MsgRole, products: deduped.slice(0, 6), aiResult },
         ]);
 
-        // Async explanation
+        // Async explanation + followup chips
         const ctx = `Krav: ${q}\nFysik: ${physics.reasoning.join("; ")}\nProdukter: ${deduped.slice(0, 3).map((p) => `${p.name} (${p.sku})`).join(", ")}`;
         explain({
           data: {
@@ -364,7 +399,12 @@ function ChatPage() {
             locale,
           },
         }).then((exp) => {
-          if (exp.source === "ai") setMsgs((m) => [...m, { role: "assistant", text: exp.text }]);
+          const chips = generateFollowups(aiResult, isSv);
+          if (exp.source === "ai") {
+            setMsgs((m) => [...m, { role: "assistant", text: exp.text, followups: chips }]);
+          } else if (chips.length > 0) {
+            setMsgs((m) => [...m, { role: "assistant", followups: chips }]);
+          }
         });
       } else {
         // No results after physics filter
@@ -383,11 +423,72 @@ function ChatPage() {
     }
   }
 
+  async function sendWithImage(file: File, question: string) {
+    if (busy) return;
+    // Capture history before adding the new message
+    const history = buildHistory(msgs);
+    // Use the already-computed data URL (from handleImageSelect) — no objectURL to revoke
+    const preview = imagePreview ?? "";
+    const label = question.trim() || (isSv ? "Identifiera denna komponent" : "Identify this component");
+    setMsgs((m) => [...m, { role: "user", text: label, imagePreview: preview || undefined }]);
+    setBusy(true);
+    setImageFile(null);
+    setImagePreview(null);
+    setText("");
+
+    try {
+      const { data: imageBase64, mime_type: mimeType } = await fileToBase64(file);
+      const result = await visionChat({ data: { imageBase64, mimeType, question: label, locale, history } });
+      setMsgs((m) => [...m, { role: "assistant", text: result.text }]);
+
+      // If vision gave us a search query, auto-run product search
+      if (result.searchQuery && catalog) {
+        const aiResult = await aiSearch({ data: { query: result.searchQuery, locale } });
+        if (aiResult.ranked_skus?.length || aiResult.keywords?.length) {
+          let found = catalog.filter((p) =>
+            aiResult.ranked_skus?.includes(p.sku) ||
+            aiResult.keywords?.some((k) => p.name.toLowerCase().includes(k.toLowerCase()) || p.sku.toLowerCase().includes(k.toLowerCase()))
+          ).slice(0, 6);
+          if (found.length) {
+            setMsgs((m) => [...m, {
+              role: "assistant",
+              text: isSv ? `Hittade ${found.length} relaterade produkter:` : `Found ${found.length} related products:`,
+            }, { role: "products", products: found, aiResult }]);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Vision chat error:", err);
+      setMsgs((m) => [...m, { role: "assistant", text: isSv ? "Bildanalys misslyckades." : "Image analysis failed." }]);
+    }
+    setBusy(false);
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }
+
   function send() {
+    if (imageFile) {
+      sendWithImage(imageFile, text);
+      return;
+    }
     if (!text.trim()) return;
     const q = text.trim();
     setText("");
     sendQuery(q);
+  }
+
+  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  function clearImage() {
+    setImageFile(null);
+    setImagePreview(null);
   }
 
   function toggleCompare(sku: string) {
@@ -402,19 +503,57 @@ function ChatPage() {
 
       {/* Input — always at top */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
+        {/* Image preview strip */}
+        {imagePreview && (
+          <div className="px-3 pt-3 flex items-start gap-2">
+            <div className="relative">
+              <img src={imagePreview} alt="Vald bild" className="h-16 w-16 object-cover rounded-md border border-border" />
+              <button
+                onClick={clearImage}
+                className="absolute -top-1.5 -right-1.5 size-4 rounded-full bg-destructive text-white text-[10px] flex items-center justify-center leading-none"
+              >✕</button>
+            </div>
+            <p className="text-xs text-muted-foreground pt-1">
+              {isSv ? "Bild bifogad — skriv en fråga eller skicka direkt för identifiering" : "Image attached — add a question or send for identification"}
+            </p>
+          </div>
+        )}
         <div className="p-3 flex gap-2">
+          {/* Hidden file input */}
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleImageSelect}
+          />
+          {/* Image button */}
+          <button
+            onClick={() => imageInputRef.current?.click()}
+            disabled={busy}
+            title={isSv ? "Bifoga bild på komponent eller maskin" : "Attach image of component or machine"}
+            className={`px-2.5 py-2.5 rounded-md border transition flex-shrink-0 text-base ${
+              imageFile
+                ? "border-info bg-info/10 text-info"
+                : "border-border text-muted-foreground hover:border-info hover:text-info"
+            } disabled:opacity-40`}
+          >
+            📷
+          </button>
           <input
             ref={inputRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
-            placeholder={t("chatPage.inputPlaceholder")}
+            placeholder={imageFile
+              ? (isSv ? "Vad vill du veta om bilden? (valfritt)" : "What do you want to know about the image? (optional)")
+              : t("chatPage.inputPlaceholder")}
             className="flex-1 px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
             autoFocus
           />
           <button
             onClick={send}
-            disabled={busy || !text.trim()}
+            disabled={busy || (!text.trim() && !imageFile)}
             className="px-4 py-2.5 rounded-md bg-info text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition flex items-center gap-1.5"
           >
             {busy
@@ -475,16 +614,23 @@ function ChatPage() {
           {visibleMsgs.map((m, i) => {
             if (m.role === "products" && m.products) {
               return (
-                <div key={i} className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {m.products.map((p) => (
-                    <ProductCard
-                      key={p.id}
-                      p={p}
-                      locale={locale}
-                      inCompare={compare.includes(p.sku)}
-                      onCompare={() => toggleCompare(p.sku)}
-                    />
-                  ))}
+                <div key={i}>
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {m.products.map((p) => (
+                      <ProductCard
+                        key={p.id}
+                        p={p}
+                        locale={locale}
+                        inCompare={compare.includes(p.sku)}
+                        onCompare={() => toggleCompare(p.sku)}
+                      />
+                    ))}
+                  </div>
+                  {m.products.length > 1 && (
+                    <div className="mt-2 flex justify-end">
+                      <AddAllButton products={m.products} locale={locale} />
+                    </div>
+                  )}
                 </div>
               );
             }
@@ -492,14 +638,31 @@ function ChatPage() {
               return (
                 <div key={i} className="flex items-start gap-2">
                   <span className="size-6 rounded-full bg-info/15 text-info text-xs flex items-center justify-center shrink-0 mt-0.5">✦</span>
-                  <div className="rounded-xl px-4 py-3 text-sm bg-surface-alt border border-border text-foreground max-w-2xl">
-                    {m.text && renderChatText(m.text)}
-                    {m.sources && m.sources.length > 0 && (
-                      <div className="mt-2 pt-2 border-t border-border/50 flex flex-wrap gap-1">
-                        {m.sources.map((s, si) => (
-                          <span key={si} className="text-[10px] px-1.5 py-0.5 rounded bg-info/10 text-info/80 font-mono">
-                            📄 {s}
-                          </span>
+                  <div className="space-y-2 max-w-2xl w-full">
+                    {(m.text || m.sources) && (
+                      <div className="rounded-xl px-4 py-3 text-sm bg-surface-alt border border-border text-foreground">
+                        {m.text && renderChatText(m.text)}
+                        {m.sources && m.sources.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-border/50 flex flex-wrap gap-1">
+                            {m.sources.map((s, si) => (
+                              <span key={si} className="text-[10px] px-1.5 py-0.5 rounded bg-info/10 text-info/80 font-mono">
+                                📄 {s}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {m.followups && m.followups.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pl-1">
+                        {m.followups.map((q) => (
+                          <button
+                            key={q}
+                            onClick={() => { setText(q); inputRef.current?.focus(); }}
+                            className="text-[11px] px-3 py-1.5 rounded-full border border-info/40 text-info hover:bg-info/10 transition bg-info/5"
+                          >
+                            {q} →
+                          </button>
                         ))}
                       </div>
                     )}
@@ -510,8 +673,11 @@ function ChatPage() {
             if (m.role === "user") {
               return (
                 <div key={i} className="flex justify-end">
-                  <div className="rounded-xl px-4 py-2.5 text-sm bg-primary text-primary-foreground max-w-[80%]">
-                    {m.text}
+                  <div className="rounded-xl px-4 py-2.5 text-sm bg-primary text-primary-foreground max-w-[80%] space-y-2">
+                    {m.imagePreview && (
+                      <img src={m.imagePreview} alt="" className="rounded-lg max-h-40 object-contain" />
+                    )}
+                    {m.text && <div>{m.text}</div>}
                   </div>
                 </div>
               );
@@ -522,6 +688,30 @@ function ChatPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function AddAllButton({ products, locale }: { products: ProductRow[]; locale: string }) {
+  const [added, setAdded] = useState(false);
+  const isSv = locale === "sv";
+  function handleAddAll() {
+    products.forEach((p) => addToShoppingList({ id: p.id, sku: p.sku, name: p.name }));
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2000);
+  }
+  return (
+    <button
+      onClick={handleAddAll}
+      className={`text-xs px-3 py-1.5 rounded-md border transition ${
+        added
+          ? "border-[oklch(0.60_0.18_155)] text-[oklch(0.50_0.18_155)] bg-[oklch(0.95_0.04_155)]"
+          : "border-border text-muted-foreground hover:border-info hover:text-info"
+      }`}
+    >
+      {added
+        ? `✓ ${isSv ? "Lade till alla" : "Added all"}`
+        : `+ ${isSv ? `Lägg till alla ${products.length} i varukorgen` : `Add all ${products.length} to cart`}`}
+    </button>
   );
 }
 

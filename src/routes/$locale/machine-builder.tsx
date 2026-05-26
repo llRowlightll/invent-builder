@@ -131,6 +131,7 @@ function MachineBuilderPage() {
   const [rfqCompany, setRfqCompany] = useState("");
   const [rfqPhone, setRfqPhone] = useState("");
   const [rfqPoNumber, setRfqPoNumber] = useState("");
+  const [rfqOrgNumber, setRfqOrgNumber] = useState("");
   const [autoSaved, setAutoSaved] = useState(false);
 
   useEffect(() => { loadCatalog().then(setCatalog).catch(() => {}); }, []);
@@ -140,7 +141,7 @@ function MachineBuilderPage() {
     if (!user) return;
     supabase
       .from("company_profiles")
-      .select("display_name,email,company_name,phone")
+      .select("display_name,email,company_name,phone,org_number")
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data }) => {
@@ -149,6 +150,7 @@ function MachineBuilderPage() {
         if (data.email && !rfqEmail) setRfqEmail(data.email);
         if (data.company_name && !rfqCompany) setRfqCompany(data.company_name);
         if (data.phone && !rfqPhone) setRfqPhone(data.phone);
+        if (data.org_number && !rfqOrgNumber) setRfqOrgNumber(data.org_number);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -367,6 +369,7 @@ function MachineBuilderPage() {
           rfqCompany={rfqCompany}
           rfqPhone={rfqPhone}
           rfqPoNumber={rfqPoNumber}
+          rfqOrgNumber={rfqOrgNumber}
           rfqSent={rfqSent}
           rfqId={rfqId}
           autoSaved={autoSaved}
@@ -375,6 +378,7 @@ function MachineBuilderPage() {
           setRfqCompany={setRfqCompany}
           setRfqPhone={setRfqPhone}
           setRfqPoNumber={setRfqPoNumber}
+          setRfqOrgNumber={setRfqOrgNumber}
           setRfqSent={setRfqSent}
           setRfqId={setRfqId}
           onRestart={restart}
@@ -907,14 +911,15 @@ function findAlternativesTiered(
 
 // ── Result Step ─────────────────────────────────────────────────────────────
 function ResultStep({ t, locale, title, explanation, selected, bom, catalog, description, answers,
-  rfqName, rfqEmail, rfqCompany, rfqPhone, rfqPoNumber, rfqSent, rfqId, autoSaved,
-  setRfqName, setRfqEmail, setRfqCompany, setRfqPhone, setRfqPoNumber, setRfqSent, setRfqId, onRestart }: {
+  rfqName, rfqEmail, rfqCompany, rfqPhone, rfqPoNumber, rfqOrgNumber, rfqSent, rfqId, autoSaved,
+  setRfqName, setRfqEmail, setRfqCompany, setRfqPhone, setRfqPoNumber, setRfqOrgNumber, setRfqSent, setRfqId, onRestart }: {
   t: (key: import("@/lib/i18n").TKey) => string; locale: string; title: string; explanation: string;
   selected: ActuatorOption; bom: BomLine[]; catalog: ProductRow[]; description: string; answers: Record<string, string>;
-  rfqName: string; rfqEmail: string; rfqCompany: string; rfqPhone: string; rfqPoNumber: string;
+  rfqName: string; rfqEmail: string; rfqCompany: string; rfqPhone: string; rfqPoNumber: string; rfqOrgNumber: string;
   rfqSent: boolean; rfqId: string; autoSaved: boolean;
   setRfqName: (v: string) => void; setRfqEmail: (v: string) => void;
   setRfqCompany: (v: string) => void; setRfqPhone: (v: string) => void; setRfqPoNumber: (v: string) => void;
+  setRfqOrgNumber: (v: string) => void;
   setRfqSent: (v: boolean) => void; setRfqId: (v: string) => void;
   onRestart: () => void;
 }) {
@@ -1016,6 +1021,8 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
           contact_email: rfqEmail.trim(),
           contact_phone: rfqPhone.trim() || null,
           company: rfqCompany.trim() || null,
+          po_number: rfqPoNumber.trim() || null,
+          org_number: rfqOrgNumber.trim() || null,
           message,
           status: "new",
         })
@@ -1380,6 +1387,12 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
                 value={rfqPoNumber}
                 onChange={e => setRfqPoNumber(e.target.value)}
                 placeholder={t("ordersPage.poNumber") + " (valfritt — t.ex. från SAP/Ariba)"}
+                className="px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50 font-mono"
+              />
+              <input
+                value={rfqOrgNumber}
+                onChange={e => setRfqOrgNumber(e.target.value)}
+                placeholder="Organisationsnummer (valfritt — t.ex. 556000-0000)"
                 className="px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50 font-mono"
               />
             </div>

@@ -11,6 +11,8 @@ type RfqItem = {
   product_id: string | null;
   qty: number | null;
   role: string | null;
+  unit_price: number | null;
+  note: string | null;
   product?: { sku: string; name: string } | null;
 };
 
@@ -22,6 +24,8 @@ type Rfq = {
   contact_email: string | null;
   contact_phone: string | null;
   company: string | null;
+  org_number: string | null;
+  po_number: string | null;
   message: string | null;
   internal_notes: string | null;
   quote_amount: number | null;
@@ -53,6 +57,9 @@ export default function AdminRfqPage() {
   const [emailSent, setEmailSent] = useState<string | null>(null); // stores status that triggered email
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [creatingOrder, setCreatingOrder] = useState(false);
+  const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
+  const [createOrderError, setCreateOrderError] = useState<string | null>(null);
 
   // Edit fields for selected
   const [editStatus, setEditStatus] = useState("");
@@ -79,11 +86,13 @@ export default function AdminRfqPage() {
     setEditNotes(rfq.internal_notes ?? "");
     setEditQuote(rfq.quote_amount?.toString() ?? "");
     setEmailSent(null);
+    setCreatedOrderId(null);
+    setCreateOrderError(null);
 
     // Load items with product info
     const { data } = await supabase
       .from("rfq_items")
-      .select("id, rfq_id, product_id, qty, role, products(sku, name)")
+      .select("id, rfq_id, product_id, qty, role, unit_price, note, products(sku, name)")
       .eq("rfq_id", rfq.id);
     setItems((data ?? []).map((d: Record<string, unknown>) => ({
       id: d.id as string,
@@ -91,6 +100,8 @@ export default function AdminRfqPage() {
       product_id: d.product_id as string | null,
       qty: d.qty as number | null,
       role: d.role as string | null,
+      unit_price: d.unit_price as number | null,
+      note: d.note as string | null,
       product: d.products as { sku: string; name: string } | null,
     })));
   }
@@ -146,6 +157,64 @@ export default function AdminRfqPage() {
 
     setSaving(false);
   }
+
+  async function createOrder() {
+    if (!selected) return;
+    setCreatingOrder(true);
+    setCreatedOrderId(null);
+
+    // Map RFQ items → order items, using unit_price if admin already set it
+    const orderItems = items.map((it) => {
+      const unitEx = (it as RfqItem & { unit_price?: number | null }).unit_price ?? 0;
+      const qty    = it.qty ?? 1;
+      return {
+        sku:                it.product?.sku ?? "—",
+        name:               it.product?.name ?? "Okänd produkt",
+        qty,
+        unit_price_ex_vat:  unitEx,
+        total_price_ex_vat: unitEx * qty,
+        brand:              "",
+      };
+    });
+
+    const totalEx  = orderItems.reduce((s, i) => s + i.total_price_ex_vat, 0);
+    const vatRate  = 0.25;
+    const totalInc = totalEx * (1 + vatRate);
+
+    const { data, error } = await supabase
+      .from("orders")
+      .insert({
+        rfq_id:           selected.id,
+        user_id:          selected.user_id ?? null,
+        customer_name:    selected.contact_name ?? "",
+        customer_company: selected.company ?? null,
+        customer_email:   selected.contact_email ?? "",
+        customer_org_nr:  selected.org_number ?? null,
+        po_number:        selected.po_number ?? null,
+        status:           "new",
+        payment_status:   "unpaid",
+        currency:         selected.quote_currency ?? "SEK",
+        vat_rate:         vatRate,
+        total_ex_vat:     totalEx || null,
+        total_inc_vat:    totalInc || null,
+        items:            orderItems,
+        internal_notes:   selected.internal_notes
+          ? `Skapad från RFQ ${selected.id.slice(0, 8).toUpperCase()}.\n${selected.internal_notes}`
+          : `Skapad från RFQ ${selected.id.slice(0, 8).toUpperCase()}.`,
+      })
+      .select("id")
+      .single();
+
+    setCreatingOrder(false);
+    if (!error && data) {
+      setCreatedOrderId(data.id);
+      setCreateOrderError(null);
+    } else {
+      setCreateOrderError(error?.message ?? "Okänt fel vid ordersskapande");
+    }
+  }
+
+  const { locale } = Route.useParams();
 
   const filtered = rfqs.filter((r) => {
     if (filterStatus !== "all" && r.status !== filterStatus) return false;
@@ -351,6 +420,53 @@ export default function AdminRfqPage() {
                     >
                       ✉ Skicka offert via e-post
                     </a>
+                  )}
+
+                  {/* Offert document link — always visible when there are items */}
+                  {items.length > 0 && (
+                    <a
+                      href={`/${locale}/admin/offert/${selected.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block w-full text-center text-sm font-medium px-4 py-2 rounded-md border border-[oklch(0.72_0.12_290)] text-[oklch(0.50_0.18_290)] hover:bg-[oklch(0.97_0.02_290)] transition"
+                    >
+                      📄 Öppna / redigera offert (OE)
+                    </a>
+                  )}
+
+                  {/* Create order from accepted RFQ */}
+                  {selected.status === "accepted" && (
+                    <div className="pt-2 border-t border-border space-y-2">
+                      {createdOrderId ? (
+                        <div className="rounded-md bg-[oklch(0.96_0.04_155)] border border-[oklch(0.72_0.12_155)] px-4 py-3 text-sm space-y-1">
+                          <p className="font-semibold text-[oklch(0.32_0.12_155)]">✓ Order skapad!</p>
+                          <div className="flex gap-3">
+                            <a href={`/${locale}/admin/orders`} className="text-info text-xs underline hover:opacity-80">
+                              Orderhantering →
+                            </a>
+                            <a href={`/${locale}/admin/orderbekraftelse/${createdOrderId}`} target="_blank" rel="noreferrer" className="text-info text-xs underline hover:opacity-80">
+                              Öppna OC →
+                            </a>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            onClick={createOrder}
+                            disabled={creatingOrder}
+                            className="w-full text-sm font-medium px-4 py-2.5 rounded-md bg-[oklch(0.60_0.18_155)] text-white hover:opacity-90 disabled:opacity-50 transition"
+                          >
+                            {creatingOrder ? "Skapar order…" : "📦 Skapa order"}
+                          </button>
+                          {createOrderError && (
+                            <p className="text-xs text-destructive">{createOrderError}</p>
+                          )}
+                        </>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Skapar ett orderdokument. Sätt priser i offerten innan du skapar ordern.
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>

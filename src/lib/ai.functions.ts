@@ -6,6 +6,9 @@ const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = "llama-3.3-70b-versatile";
 const AI_SEARCH_EDGE = "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/ai-search";
 
+/** Shared conversation message type for passing chat history to AI functions */
+export type ChatMessage = { role: "user" | "assistant"; content: string };
+
 // Server-side Supabase client (uses env vars available in Cloudflare Workers)
 function getSupabase() {
   const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
@@ -132,7 +135,7 @@ export const aiExtractRequirements = createServerFn({ method: "POST" })
 
 // ─── RAG: Ask anything — searches PDF knowledge base + answers with context ───
 export const aiAskKnowledge = createServerFn({ method: "POST" })
-  .inputValidator((d: { question: string; locale?: string }) => d)
+  .inputValidator((d: { question: string; locale?: string; history?: ChatMessage[] }) => d)
   .handler(async ({ data }): Promise<{ answer: string; sources: string[]; source: "ai" | "fallback" }> => {
     const isSv = data.locale === "sv";
 
@@ -146,6 +149,7 @@ export const aiAskKnowledge = createServerFn({ method: "POST" })
       `State specific products, bore sizes, force calculations, and standards (ISO 15552, IEC 61131-3, PLd/SIL2) where relevant.`,
       `If the context contains the answer, cite the source. If not in context, answer from engineering knowledge and state this clearly.`,
       `Never invent part numbers. If a specific SKU is needed, describe the selection criteria instead.`,
+      `Use conversation history to understand follow-up questions and references to previous answers.`,
       langInstruction(data.locale),
     ].join(" ");
 
@@ -153,8 +157,12 @@ export const aiAskKnowledge = createServerFn({ method: "POST" })
       ? `Technical documentation context:\n\n${context}\n\n---\n\nQuestion: ${data.question}`
       : `Question: ${data.question}\n\n(No specific documentation found — answer from general knowledge, clearly stating this.)`;
 
+    // Include up to 6 previous messages for context
+    const history = (data.history ?? []).slice(-6);
+
     const raw = await callGateway([
       { role: "system", content: systemPrompt },
+      ...history,
       { role: "user", content: userPrompt },
     ]);
 
@@ -285,9 +293,17 @@ function fallbackSearch(query: string, isSv: boolean): AiSearchResult {
 // All physics calculations (bore sizing, force, tech routing) happen
 // in physics.ts — never delegated to the LLM.
 export const aiExtractDimensions = createServerFn({ method: "POST" })
-  .inputValidator((d: { text: string; locale?: string }) => d)
+  .inputValidator((d: { text: string; locale?: string; history?: ChatMessage[] }) => d)
   .handler(async ({ data }): Promise<PhysicsDimensions & { source: "ai" | "fallback" }> => {
-    const prompt = `Extract ONLY the factual numbers and category signals from this industrial application description.
+    // Build context hint from recent history so follow-ups like "smaller?" resolve correctly
+    const historyContext = (data.history ?? []).slice(-4)
+      .map(h => `${h.role === "user" ? "User" : "Assistant"}: ${h.content.slice(0, 200)}`)
+      .join("\n");
+    const contextPrefix = historyContext
+      ? `Previous conversation context (use to resolve references like "smaller", "faster", etc.):\n${historyContext}\n\n`
+      : "";
+
+    const prompt = `${contextPrefix}Extract ONLY the factual numbers and category signals from this industrial application description.
 Return ONLY valid JSON with these optional fields:
 {
   "mass_kg": number or null,            // load/mass in kg (convert lbs if needed)
@@ -654,4 +670,100 @@ Solenoid valve → Vacuum generator → Suction cup → Part-present sensor
 • Standard modules are IP20 — IP54 variants required if coolant mist or dust present`;
 
     return { design: fallback, source: "fallback" };
+  });
+
+// ─── Vision chat — identify component/machine from image ────────────────────
+// Uses Anthropic claude-haiku-4-5 (vision). Falls back gracefully if no API key.
+export const aiVisionChat = createServerFn({ method: "POST" })
+  .inputValidator((d: { imageBase64: string; mimeType: string; question?: string; locale?: string; history?: ChatMessage[] }) => d)
+  .handler(async ({ data }): Promise<{ text: string; searchQuery: string | null; error: string | null }> => {
+    const { imageBase64, mimeType, question, locale } = data;
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return {
+        text: locale === "sv"
+          ? "Bildanalys är inte aktiverad. Sätt ANTHROPIC_API_KEY i miljövariablerna."
+          : "Image analysis is not enabled. Set ANTHROPIC_API_KEY in environment variables.",
+        searchQuery: null,
+        error: "no_key",
+      };
+    }
+
+    const isSv = locale === "sv";
+    const defaultQ = isSv
+      ? "Vad är detta för komponent? Identifiera tillverkare och modell om möjligt, beskriv vad den gör och ge rekommendationer för ersättning eller relaterade produkter."
+      : "What is this component? Identify manufacturer and model if possible, describe what it does, and give recommendations for replacement or related products.";
+
+    const searchHint = isSv
+      ? 'Inkludera i slutet av ditt svar ett JSON-block med denna exakta form (på en rad): <search>{"query":"sökterm","category":"slug eller null"}</search>'
+      : 'Include at the end of your response a JSON block in this exact form (one line): <search>{"query":"search term","category":"slug or null"}</search>';
+    const userPrompt = (question?.trim() || defaultQ) + "\n\n" + searchHint;
+
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5",
+          max_tokens: 700,
+          system: isSv
+            ? "Du är en expert på industriell automation och hjälper B2B-kunder att identifiera komponenter och hitta lösningar. Svara alltid på svenska."
+            : "You are an industrial automation expert helping B2B customers identify components and find solutions.",
+          messages: [
+            // Previous text exchanges for context
+            ...(data.history ?? []).slice(-4).map(h => ({
+              role: h.role,
+              content: h.content,
+            })),
+            // Current message with image
+            {
+              role: "user",
+              content: [
+                { type: "image", source: { type: "base64", media_type: mimeType, data: imageBase64 } },
+                { type: "text", text: userPrompt },
+              ],
+            },
+          ],
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error("Anthropic vision error:", errText);
+        return {
+          text: isSv ? "Bildanalys misslyckades. Försök igen." : "Image analysis failed. Please try again.",
+          searchQuery: null,
+          error: "api_error",
+        };
+      }
+
+      const result = await res.json() as { content: Array<{ type: string; text: string }> };
+      const raw = result.content?.[0]?.text ?? "";
+
+      // Extract the search hint
+      const searchMatch = raw.match(/<search>([\s\S]*?)<\/search>/);
+      let searchQuery: string | null = null;
+      if (searchMatch) {
+        try {
+          const hint = JSON.parse(searchMatch[1]);
+          searchQuery = hint.query ?? null;
+        } catch { /* ignore */ }
+      }
+
+      // Clean the response text
+      const cleanText = raw.replace(/<search>[\s\S]*?<\/search>/g, "").trim();
+
+      return { text: cleanText, searchQuery, error: null };
+    } catch (err) {
+      console.error("aiVisionChat error:", err);
+      return {
+        text: isSv ? "Bildanalys misslyckades. Kontrollera anslutningen." : "Image analysis failed. Check your connection.",
+        searchQuery: null,
+        error: String(err),
+      };
+    }
   });
