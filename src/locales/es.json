@@ -616,7 +616,19 @@
     "stepResult": "Resultado",
     "back": "Atrás",
     "errorGeneric": "Algo salió mal. Por favor, inténtelo de nuevo.",
-    "metaDesc": "Construya su máquina paso a paso — IA hace las preguntas correctas, sugiere los mejores componentes y genera una lista de materiales completa."
+    "metaDesc": "Construya su máquina paso a paso — IA hace las preguntas correctas, sugiere los mejores componentes y genera una lista de materiales completa.",
+    "invalidPositive": "Por favor, introduzca un valor mayor que 0",
+    "altProductsBtn": "Productos alternativos",
+    "altProductsClose": "Cerrar alternativas",
+    "altProductsHint": "Seleccione una alternativa y envíe una solicitud de presupuesto — le responderemos con precios.",
+    "altTierEconomic": "Alternativa",
+    "altTierBest": "Mejor rendimiento",
+    "altTierCompact": "Compacto",
+    "altHintEconomic": "Productos alternativos — cumple requisitos",
+    "altHintBest": "Mayor fuerza/carrera — cumple requisitos",
+    "altHintCompact": "Menor tamaño — cumple requisitos",
+    "altSwappedBadge": "↓ Alternativa",
+    "altResetSwap": "↩ Restablecer selección IA"
   },
   "wizardPage": {
     "generateButton": "Generar",

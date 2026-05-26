@@ -616,7 +616,19 @@
     "stepResult": "Resultat",
     "back": "Tillbaka",
     "errorGeneric": "Något gick fel. Försök igen.",
-    "metaDesc": "Bygg din maskin steg för steg — AI ställer rätt frågor, föreslår bästa komponenter och genererar komplett stycklista."
+    "metaDesc": "Bygg din maskin steg för steg — AI ställer rätt frågor, föreslår bästa komponenter och genererar komplett stycklista.",
+    "invalidPositive": "Ange ett värde större än 0",
+    "altProductsBtn": "Alternativa produkter",
+    "altProductsClose": "Stäng alternativ",
+    "altProductsHint": "Välj ett alternativ och skicka en offertförfrågan — vi återkommer med pris.",
+    "altTierEconomic": "Alternativ",
+    "altTierBest": "Bäst prestanda",
+    "altTierCompact": "Kompakt",
+    "altHintEconomic": "Alternativa produkter — uppfyller krav",
+    "altHintBest": "Högst kraft/slag — uppfyller krav",
+    "altHintCompact": "Minst byggmått — uppfyller krav",
+    "altSwappedBadge": "↓ Alternativ",
+    "altResetSwap": "↩ Återställ AI-val"
   },
   "wizardPage": {
     "generateButton": "Generera",

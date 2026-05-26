@@ -616,7 +616,19 @@
     "stepResult": "Ergebnis",
     "back": "Zurück",
     "errorGeneric": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
-    "metaDesc": "Bauen Sie Ihre Maschine Schritt für Schritt — KI stellt die richtigen Fragen, schlägt die besten Komponenten vor und generiert eine vollständige Stückliste."
+    "metaDesc": "Bauen Sie Ihre Maschine Schritt für Schritt — KI stellt die richtigen Fragen, schlägt die besten Komponenten vor und generiert eine vollständige Stückliste.",
+    "invalidPositive": "Bitte geben Sie einen Wert größer als 0 ein",
+    "altProductsBtn": "Alternative Produkte",
+    "altProductsClose": "Alternativen schließen",
+    "altProductsHint": "Wählen Sie eine Alternative und senden Sie eine Angebotsanfrage — wir melden uns mit Preisen.",
+    "altTierEconomic": "Alternative",
+    "altTierBest": "Beste Leistung",
+    "altTierCompact": "Kompakt",
+    "altHintEconomic": "Alternative Produkte — erfüllt Anforderungen",
+    "altHintBest": "Höchste Kraft/Hub — erfüllt Anforderungen",
+    "altHintCompact": "Kleinster Einbauraum — erfüllt Anforderungen",
+    "altSwappedBadge": "↓ Alternative",
+    "altResetSwap": "↩ KI-Auswahl zurücksetzen"
   },
   "wizardPage": {
     "generateButton": "Generieren",

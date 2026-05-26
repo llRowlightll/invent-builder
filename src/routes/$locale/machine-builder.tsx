@@ -579,7 +579,7 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
                     </div>
                     {isInvalid && (
                       <p className="text-xs text-destructive">
-                        {isSv ? "Ange ett värde större än 0" : "Please enter a value greater than 0"}
+                        {t("machineBuilder.invalidPositive")}
                       </p>
                     )}
                   </div>
@@ -1228,7 +1228,7 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
                 }`}
               >
                 <span>🔄</span>
-                {ecoMode ? "Stäng alternativ" : "Alternativa produkter"}
+                {ecoMode ? t("machineBuilder.altProductsClose") : t("machineBuilder.altProductsBtn")}
               </button>
             )}
           </div>
@@ -1309,7 +1309,7 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
                           {line.product?.name ?? <span className="text-muted-foreground italic">{t("machineBuilder.notInCatalog")}</span>}
                           {isSwapped && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-[oklch(0.88_0.08_155)] text-[oklch(0.35_0.12_155)] font-semibold">
-                              ↓ Ekonomisk
+                              {t("machineBuilder.altSwappedBadge")}
                             </span>
                           )}
                         </div>
@@ -1350,16 +1350,16 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
                       };
 
                       const TIERS: { key: keyof AltTiers; icon: string; label: string; hint: string }[] = [
-                        { key: "economic", icon: "🔄", label: "Alternativ",     hint: "Alternativa produkter — uppfyller krav" },
-                        { key: "best",     icon: "🏆", label: "Bäst prestanda", hint: "Högst kraft/slag — uppfyller krav" },
-                        { key: "compact",  icon: "📐", label: "Kompakt",        hint: "Minst byggmått — uppfyller krav" },
+                        { key: "economic", icon: "🔄", label: t("machineBuilder.altTierEconomic"), hint: t("machineBuilder.altHintEconomic") },
+                        { key: "best",     icon: "🏆", label: t("machineBuilder.altTierBest"),     hint: t("machineBuilder.altHintBest") },
+                        { key: "compact",  icon: "📐", label: t("machineBuilder.altTierCompact"),  hint: t("machineBuilder.altHintCompact") },
                       ];
 
                       return (
                         <tr key={`eco-${i}`} className="border-b border-border/60 bg-surface-alt/50">
                           <td colSpan={5} className="px-4 py-2.5">
                             <div className="space-y-1.5">
-                              <p className="text-[11px] text-muted-foreground mb-1">Välj ett alternativ och skicka en offertförfrågan — vi återkommer med pris.</p>
+                              <p className="text-[11px] text-muted-foreground mb-1">{t("machineBuilder.altProductsHint")}</p>
                               {TIERS.map(({ key, icon, label, hint }) => {
                                 const items = tiers[key];
                                 if (!items.length) return null;
@@ -1378,7 +1378,7 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
                                     onClick={() => setChosenAlt(prev => ({ ...prev, [i]: null }))}
                                     className="text-[11px] text-muted-foreground hover:text-foreground transition"
                                   >
-                                    ↩ Återställ AI-val
+                                    {t("machineBuilder.altResetSwap")}
                                   </button>
                                 </div>
                               )}
