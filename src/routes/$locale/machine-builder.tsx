@@ -24,6 +24,7 @@ export const Route = createFileRoute("/$locale/machine-builder")({
 });
 
 const ADVISOR_URL = "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/groq-advisor";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string ?? "";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface Question {
@@ -97,7 +98,11 @@ const EXAMPLES: Record<string, string[]> = {
 async function advisorCall(body: object) {
   const res = await fetch(ADVISOR_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+    },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Advisor error ${res.status}`);
