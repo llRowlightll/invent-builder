@@ -161,6 +161,38 @@ function detectCategories(text: string): string[] {
   return Array.from(slugs);
 }
 
+/**
+ * Parse the maximum operating temperature from a product's key_specs.
+ * Handles formats: "5-60", "-10 to 80", "5…60°C", "T: -10...+80°C"
+ * Returns 0 if unknown (no spec present).
+ */
+function parseProductTempMax(specs: Record<string, unknown>): number {
+  for (const key of ["temp_max", "temp_range", "operating_temp", "temperature_range", "temperature_max", "temp_rating", "ambient_temp"]) {
+    const v = specs[key];
+    if (v == null) continue;
+    const s = String(v).replace(/[°Cc]/g, "");
+    // Try "X to Y" or "X-Y" or "X…Y" — take the rightmost/largest number as max
+    const allNums = [...s.matchAll(/([-]?\d+(?:\.\d+)?)/g)].map(m => parseFloat(m[1]));
+    if (allNums.length > 0) return Math.max(...allNums);
+  }
+  return 0; // unknown — do not block
+}
+
+/**
+ * Extract the highest temperature requirement from description + answers.
+ * Returns 0 if no temperature mentioned or below standard threshold (80°C).
+ * We use 80°C as threshold because standard NBR seals are rated to ~80°C;
+ * anything above warrants a spec check.
+ */
+function extractRequiredMaxTemp(text: string, answers: Record<string, string>): number {
+  const allText = text + " " + Object.values(answers).join(" ");
+  const matches = [...allText.matchAll(/(\d{2,3})\s*°?\s*[cC]\b/gi)].map(m => parseInt(m[1]));
+  const grad = allText.match(/(\d{2,3})\s*grad/i);
+  if (grad) matches.push(parseInt(grad[1]));
+  const relevant = matches.filter(t => t > 80 && t < 1200);
+  return relevant.length > 0 ? Math.max(...relevant) : 0;
+}
+
 function parseStrokeFromSpecs(specs: Record<string, unknown>): number {
   for (const key of ["stroke_mm", "stroke_max", "max_stroke_mm", "max_stroke"]) {
     const v = specs[key];
@@ -492,6 +524,7 @@ async function handleOptions(
   const isSilSafety = needsSilSafety(combinedText);
   const isOutdoor = needsOutdoor(combinedText);
   const isPharmaGmp = needsPharmaGmp(combinedText);
+  const requiredTemp = extractRequiredMaxTemp(combinedText, answers);
 
   const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
   const maxRequiredStroke = perAxisStrokes.length > 0
@@ -550,12 +583,24 @@ async function handleOptions(
       `WASHDOWN: Only IP67/IP69K or stainless products are shown (${washdownFiltered.length} of ${allProducts.length} total).`;
   }
 
-  // v24: Sort by stroke-relevance, then take top 25 (was balancedSlice 45).
-  // This ensures Groq sees the most relevant products first and the catalog differs between requests.
-  const sortedProducts = sortByStrokeMatch(showProducts, maxRequiredStroke);
+  // v27: Temperature filter — remove products whose known max temp is below the requirement.
+  // Products with NO temp spec (tempMax=0) are kept (we don't block on unknown data).
+  const tempFiltered = requiredTemp > 0
+    ? showProducts.filter(p => {
+        const tempMax = parseProductTempMax(p.key_specs ?? {});
+        return tempMax === 0 || tempMax >= requiredTemp;
+      })
+    : showProducts;
+  const tempFilteredCount = showProducts.length - tempFiltered.length;
+  if (tempFilteredCount > 0) {
+    console.log(`[options] temp filter: removed ${tempFilteredCount} products (tempMax < ${requiredTemp}°C)`);
+  }
+
+  // Sort by stroke-relevance, then take top 25.
+  const sortedProducts = sortByStrokeMatch(tempFiltered.length > 0 ? tempFiltered : showProducts, maxRequiredStroke);
   const catalogProducts = sortedProducts.slice(0, 25);
   console.log(
-    `[options] categories=${categories} minStroke=${minStroke} qualified=${qualified.length}` +
+    `[options] categories=${categories} minStroke=${minStroke} requiredTemp=${requiredTemp} qualified=${qualified.length}` +
     ` catalog=${catalogProducts.length}/${showProducts.length} isWashdown=${isWashdown}`
   );
 
@@ -613,7 +658,9 @@ async function handleOptions(
     isHydraulic ? `• ⚠️ HYDRAULIC APPLICATION — pneumatic catalog does NOT cover hydraulic (100–350 bar oil) systems. Recommend CUSTOM-SOLUTION.` : "",
     isVeryHighForce ? `• ⚠️ HIGH FORCE (>8 kN) — may exceed pneumatic actuator capability. Verify bore size or consider hydraulics/custom.` : "",
     isVerticalLoad ? `• ⚠️ VERTICAL/HANGING LOAD — cylinder holds weight. A lock valve (pilot-operated check valve) is MANDATORY to prevent load drop on air-pressure loss.` : "",
-    isHighTemp ? `• ⚠️ HIGH TEMPERATURE (>80°C) — standard NBR seals fail. PTFE or FKM (Viton) seals required.` : "",
+    requiredTemp > 0
+      ? `• Required operating temperature: ${requiredTemp}°C — DISQUALIFY any product whose temp_range max < ${requiredTemp}°C. Compare EXACT numbers. Do NOT mark a product as "temperature resistant" if its spec (e.g. 60°C) is below the requirement (${requiredTemp}°C).`
+      : (isHighTemp ? `• ⚠️ HIGH TEMPERATURE (>80°C) — standard NBR seals fail. PTFE or FKM (Viton) seals required.` : ""),
     isLowTemp  ? `• ⚠️ LOW TEMPERATURE (<-10°C) — standard seals harden/crack. LT-rated or FKM seals required.` : "",
     isOxygenClean ? `• ⛔ OXYGEN-ENRICHED ATMOSPHERE — oil-lubricated pneumatics create fire/explosion risk. Oil-free components ONLY.` : "",
     isSilSafety ? `• ⚠️ SAFETY FUNCTION (SIL/PLe) — components in safety circuits require IEC 62061 / ISO 13849 certification.` : "",
@@ -657,6 +704,18 @@ async function handleOptions(
     if (isWashdown && !isWashdownProduct(cat)) {
       opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
       opt.why = `${opt.why ?? ""} ⚠️ Standardprodukt — verifiera korrosionsskydd för washdown-miljö.`;
+    }
+    // v27: Hard numerical temperature validation — catches hallucinated "✓ Hög temperaturbeständighet"
+    if (requiredTemp > 0) {
+      const productTempMax = parseProductTempMax(cat.key_specs ?? {});
+      if (productTempMax > 0 && productTempMax < requiredTemp) {
+        opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
+        const warn = isSv
+          ? `⛔ VARNING: Produktens temperaturområde (max ${productTempMax}°C) understiger applikationskravet (${requiredTemp}°C). EJ godkänd för denna temperatur.`
+          : `⛔ WARNING: Product temp range (max ${productTempMax}°C) is below requirement (${requiredTemp}°C). NOT approved for this temperature.`;
+        opt.why = warn + (opt.why ? " " + opt.why : "");
+        console.warn(`[options] temp mismatch: ${sku} max=${productTempMax}°C < required=${requiredTemp}°C`);
+      }
     }
     return opt;
   });
