@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v25 — ATEX/EX-zone safety block: three-layer filter prevents electric components in explosive atmospheres
 // v24 — fix "same answer regardless of input" bug
 // Root cause: detectCategories always fell back to ["cylinder"] → same 45 catalog products → Groq at temp 0.2 always picked same 3.
 // Fix: sort catalog by stroke-match relevance, reduce to 25 products, temperature 0.35 for options, requirements block at top of system prompt.
@@ -142,6 +143,12 @@ function detectCategories(text: string): string[] {
     slugs.add("electric-actuator");
     slugs.add("linear-module");
   }
+  // ATEX / EX-zone: electric actuators are FORBIDDEN — strip them from categories
+  if (needsAtex(t)) {
+    slugs.delete("electric-actuator");
+    slugs.delete("linear-module");
+    if (slugs.size === 0) slugs.add("cylinder");
+  }
   // Pick & place: cylinders + vacuum + linear-module (electric option)
   if (/pick.and.place|pick.*place|plocka.*placera|plocka.*flytta|lyfter.*flytta|flytta.*lyft|transfer.*station|montering|montage/i.test(t)) {
     slugs.add("cylinder");
@@ -227,6 +234,26 @@ function needsValveTerminal(text: string): boolean {
     needsMultiAxis(text) ||
     /ventilterminal|valve.terminal|vtug|vtsa|mpa\b|cpv\b|ventilblock|manifold/i.test(text) ||
     /tre.*cylindr|fyra.*cylindr|3\s*cylindr|4\s*cylindr|3\s*cyl|4\s*cyl|several.*actuat|multiple.*actuat|multiple.*cyl|två.*cylindr|två cyl/i.test(text)
+  );
+}
+
+/**
+ * Detects ATEX / explosive-atmosphere requirements (Zone 1 or Zone 2).
+ * In these zones ALL standard electrical components (motors, servo axes, 24V sensors)
+ * are strictly forbidden unless explicitly ATEX/NAMUR-certified.
+ */
+function needsAtex(text: string): boolean {
+  return /\batex\b|\bex[.\s-]?zon[e]?\b|\bexplosionsskyddad\b|\bexplosionsfarlig\b|\bflammable[.\s]?gas\b|\bbrännbar[.\s]?gas\b|\bnamur\b|\bzone\s?[12]\b|\bzon\s?[12]\b|\bii\s?[23]\s?[gd]\b|\bii[abc]\b|\bex\s?klass\b|\bex[.\s]?klassad\b/i.test(text);
+}
+
+/** Returns true if a product is an electric actuator/motor/drive — forbidden in ATEX zones. */
+function isElectricActuator(p: CatalogProduct): boolean {
+  const name = (p.name + " " + p.brand).toLowerCase();
+  return (
+    p.category === "electric-actuator" ||
+    p.category === "linear-module" ||
+    /\begsk\b|\belgc\b|\belga\b|\blesh\b|\blefs\b|\bosp[-.]?e\b|\bhmr\b|\blbb\b|\bhlr\b/i.test(name) ||
+    /servo|stepper|ball.screw|kuggrem|electric.*axis|linjärmodul.*el|eldriven/i.test(name)
   );
 }
 
@@ -380,6 +407,7 @@ async function handleOptions(
   const isVacuum = needsVacuumGrip(combinedText);
   const valveTerminal = needsValveTerminal(combinedText);
   const isWashdown = needsWashdown(combinedText);
+  const isAtex = needsAtex(combinedText);
 
   const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
   const maxRequiredStroke = perAxisStrokes.length > 0
@@ -393,11 +421,16 @@ async function handleOptions(
 
   const productMap = new Map<string, CatalogProduct>(allProducts.map(p => [p.sku, p]));
 
+  // ATEX: strip all electric actuators BEFORE any other filtering — they are categorically forbidden.
+  const atexFiltered = isAtex
+    ? allProducts.filter(p => !isElectricActuator(p))
+    : allProducts;
+
   // For washdown environments: actuators (products WITH stroke spec) must be IP67/IP69K or stainless.
   // Support items (no stroke spec) are always included.
   const washdownFiltered = isWashdown
-    ? allProducts.filter(p => isWashdownProduct(p))
-    : allProducts;
+    ? atexFiltered.filter(p => isWashdownProduct(p))
+    : atexFiltered;
 
   const qualified: CatalogProduct[] = [];
   let bestFallback: CatalogProduct | null = null;
@@ -491,6 +524,7 @@ async function handleOptions(
     maxRequiredStroke > 0
       ? `• Required stroke/travel: ${maxRequiredStroke} mm — DISQUALIFY any product with max_stroke < ${maxRequiredStroke} mm`
       : "",
+    isAtex ? `• ⛔ ATEX / EX-ZONE (Zone 1/2) — ABSOLUTE PROHIBITION: NO electric actuators, NO servo motors, NO linear modules (EGSK/EGC/LESH/OSP-E etc.), NO standard 24V sensors. ONLY pneumatic or explicitly ATEX/NAMUR-certified components.` : "",
     isWashdown ? `• Environment: WASHDOWN / FOOD-GRADE — IP67/IP69K or stainless steel ONLY` : "",
     isCleanroom ? `• Environment: CLEANROOM — electric actuators ONLY, NO pneumatics` : "",
     needsProgrammable ? `• Control: programmable stops — servo/stepper + controller ONLY` : "",
@@ -545,7 +579,10 @@ async function handleBom(
   const isSv = locale === "sv";
   const combinedText = (description ?? "") + " " + Object.values(answers).join(" ");
   const categories = detectCategories(combinedText);
-  const isElectric = categories.some(c => c === "electric-actuator" || c === "linear-module");
+  const isAtex = needsAtex(combinedText);
+  // In ATEX zones, electric actuators are forbidden — detectCategories already strips them,
+  // but force isElectric=false to prevent electric accessories (cables, drives) being fetched.
+  const isElectric = !isAtex && categories.some(c => c === "electric-actuator" || c === "linear-module");
   const isCleanroom = /\brenrum\b|\bcleanroom\b|\bclean\s+room\b/i.test(combinedText);
   const isMultiAxis = needsMultiAxis(combinedText);
   const isVacuum = needsVacuumGrip(combinedText);
@@ -567,7 +604,12 @@ async function handleBom(
     searchKnowledge(combinedText + " BOM komplett system", 5),
   ]);
 
-  const productList = balancedSlice(products, 60)
+  // ATEX: strip ALL electric actuators from the catalog before Groq sees it — hard block layer 2
+  const atexSafeProducts = isAtex
+    ? products.filter(p => !isElectricActuator(p))
+    : products;
+
+  const productList = balancedSlice(atexSafeProducts, 60)
     .map(p => `${p.sku}: ${p.name} [${p.brand}/${p.category}] ip=${p.key_specs?.ip_rating ?? "std"}`).join("\n");
 
   const lang = isSv ? "svenska" : "English";
@@ -580,6 +622,14 @@ async function handleBom(
   const rules = [
     isElectric
       ? `ELECTRIC BOM: MUST include linear axis + motor + motor controller + motor cable + encoder cable. FORBIDDEN: pneumatic valves, valve terminals, FRL, air fittings, silencers.`
+      : "",
+    isAtex
+      ? `⛔ ATEX / EX-ZONE (Zone 1/2) — SÄKERHETSKRITISKT / SAFETY CRITICAL: ` +
+        `ABSOLUT FÖRBJUDET att inkludera elektriska axlar (EGSK, EGC, ELGA, LESH, LEFS, OSP-E, HMR, LBB, HLR), ` +
+        `servomotorer, steppermotorer, motorstyrningar, 24V-sensorer eller andra elektriska komponenter utan explicit ATEX-certifiering. ` +
+        `ALLA komponenter i BOM måste vara pneumatiska, mekaniska, eller ha "ATEX" / "NAMUR" i produktnamnet. ` +
+        `För synkronisering av flera axlar: använd 2× pneumatiska cylindrar med mekanisk koppling — ALDRIG elektriska axlar. ` +
+        `Om ATEX-certifierad sensor saknas i katalogen: skriv SPECIFY med reason="ATEX-certifierad sensor krävs (Ex ia IIC / NAMUR)".`
       : "",
     isCleanroom ? `CLEANROOM: All parts cleanroom-compatible.` : "",
     isVacuum ? `VACUUM: Include suction cups (qty = number of items handled simultaneously if stated) + ejector + vacuum sensor.` : "",
@@ -629,6 +679,26 @@ async function handleBom(
       }
     }
     parsed.bom = Array.from(merged.values());
+  }
+
+  // v25: ATEX hard block (layer 3) — strip any electric actuator that slipped through prompt + catalog filters
+  if (isAtex) {
+    const electricSKUs = new Set(products.filter(p => isElectricActuator(p)).map(p => p.sku));
+    const stripped = parsed.bom.filter(l => {
+      if (l.sku === primarySku) return true; // never remove the selected primary
+      if (electricSKUs.has(l.sku)) {
+        console.warn(`[bom] ATEX: stripped electric component ${l.sku} (${l.role})`);
+        return false;
+      }
+      // Also catch by name pattern for any hallucinated SKUs
+      const nameUpper = l.role.toUpperCase() + " " + l.sku.toUpperCase();
+      if (/EGSK|ELGA|EGC|LESH|LEFS|OSP-E|HMR|LBB|HLR|SERVO|STEPPER|24V|MOTOR.*DRIVE|ELECTRIC.*SLIDE/i.test(nameUpper)) {
+        console.warn(`[bom] ATEX: stripped by name pattern ${l.sku} (${l.role})`);
+        return false;
+      }
+      return true;
+    });
+    parsed.bom = stripped;
   }
 
   // v23: guarantee primarySku is always the first BOM row, injecting it if the AI omitted it
