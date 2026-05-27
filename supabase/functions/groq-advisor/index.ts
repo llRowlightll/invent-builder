@@ -1,5 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v28 — fix parseProductTempMax regression: "5-60°C" parsed max=5 (treated hyphen as negative sign)
+//        → all standard products filtered out → only CUSTOM-SOLUTION shown for any application.
+//        Fix: split on range separators first, then extract digits, avoiding sign confusion.
+// v27 — hard numerical temperature validation (catches hallucinated "✓ Hög temperaturbeständighet")
 // v26 — Proactive safety: 13 new hazard detectors (vertical load, high/low temp, hydraulic, high force,
 //        oxygen-clean, high-cycle, high-speed, SIL, outdoor, pharma/GMP, ATEX dust Zone 20/21/22)
 // v25 — ATEX/EX-zone safety block: three-layer filter prevents electric components in explosive atmospheres
@@ -70,7 +74,10 @@ async function fetchProducts(categorySlugs: string[], limit = 30): Promise<Catal
         headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
         body: JSON.stringify({ p_category_slug: slug, p_limit: limit }),
       });
-      if (!res.ok) return [];
+      if (!res.ok) {
+        console.error(`[fetchProducts] slug=${slug} status=${res.status}`);
+        return [];
+      }
       const data = await res.json();
       return Array.isArray(data) ? data : [];
     })
@@ -170,10 +177,14 @@ function parseProductTempMax(specs: Record<string, unknown>): number {
   for (const key of ["temp_max", "temp_range", "operating_temp", "temperature_range", "temperature_max", "temp_rating", "ambient_temp"]) {
     const v = specs[key];
     if (v == null) continue;
-    const s = String(v).replace(/[°Cc]/g, "");
-    // Try "X to Y" or "X-Y" or "X…Y" — take the rightmost/largest number as max
-    const allNums = [...s.matchAll(/([-]?\d+(?:\.\d+)?)/g)].map(m => parseFloat(m[1]));
-    if (allNums.length > 0) return Math.max(...allNums);
+    const s = String(v).replace(/[°Cc]/g, "").trim();
+    // Split on range separators (dash/en-dash/to/bis) then extract all positive integers.
+    // "5-60"   → ["5","60"]  → max 60   ✓
+    // "-10-80" → ["-10","80"] split → keep 10,80 → max 80  ✓
+    // "-10 to 80" → same → max 80  ✓
+    const parts = s.split(/(?:\s+to\s+|\s+bis\s+|[–—]|\s*-\s*(?=\d))/i);
+    const positiveNums = parts.flatMap(p => (p.match(/\d+(?:\.\d+)?/g) ?? [])).map(parseFloat);
+    if (positiveNums.length > 0) return Math.max(...positiveNums);
   }
   return 0; // unknown — do not block
 }
