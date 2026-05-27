@@ -1,5 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v32 — V10/10 questions upgrade: SIL/PL + NSF-H1 questions when vertical+washdown detected;
+//        buildCustomSolutionOption now generates context-specific product-family recommendations
+//        (SMC HY, Parker P1S, Bosch Rexroth EMC-HD-XC, two architectural paths for washdown+vertical)
+// v31 — V10/10 upgrade: dryroom/battery detector (Cu/Zn/Ni ban), ball-screw×high-speed post-filter,
+//        upgraded system prompt to "Unbeatable Automation Engineer" spec with strict numerical validation
+// v30 — switch back to Groq (new account key, generous quota) — faster latency than Gemini
 // v29 — switch LLM provider from Groq to Google Gemini 2.0 Flash (OpenAI-compatible API)
 //        Groq free tier: 100K tokens/day. Gemini free tier: 1500 req/day + 1M tokens/min — far more generous.
 // v28 — fix parseProductTempMax regression: "5-60°C" parsed max=5 (treated hyphen as negative sign)
@@ -15,12 +21,12 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 // Inherits v23: SKU validation in options, primarySku guaranteed first in BOM.
 // Inherits v22: washdown/food-grade environment support.
 
-const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
+const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-// Gemini 2.5 Flash via OpenAI-compatible endpoint — free tier: 1500 req/day, 1M TPM
-const LLM_MODEL = "gemini-2.5-flash";
-const LLM_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+// Groq — llama-3.3-70b-versatile: fast, reliable, generous free quota
+const LLM_MODEL = "llama-3.3-70b-versatile";
+const LLM_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -40,7 +46,7 @@ async function callGroq(
   if (jsonMode) body.response_format = { type: "json_object" };
   const res = await fetch(LLM_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${GEMINI_API_KEY}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
     body: JSON.stringify(body),
   });
   if (!res.ok) { console.error("LLM error:", await res.text()); return null; }
@@ -364,6 +370,33 @@ function needsAtexDust(text: string): boolean {
   return /\bzon\s*2[012]\b|\bzone\s*2[012]\b|\bdamm.*explosion\b|\bexplosivt.*damm\b|\bcombustible.*dust\b|\bbrännbart.*damm\b|\bsädes\b.*\bexplos\b|\bmjöl.*explos\b|\bträ.*damm.*explos\b|\bcoal.*dust\b|\bkol.*damm\b|\bii[i]?\s*[23][d]\b|\bdust.*atex\b|\batex.*dust\b/i.test(text);
 }
 
+/**
+ * Battery manufacturing / Dryroom environment.
+ * Prohibits copper (Cu), zinc (Zn) and nickel (Ni) in any wetted or moving part.
+ * Standard ball screws, zinc-coated guides and most greases are FORBIDDEN.
+ * Dew point typically -40 to -60 °C — particle generation is a critical risk.
+ */
+function needsBatteryDryroom(text: string): boolean {
+  return /\bdryroom\b|\bdry\s*room\b|\btorrkammare\b|\blitiumjon\b|\blithium[-\s]?ion\b|\bli[-\s]?ion\b|\bbatterifabrik\b|\bbattery\s*(?:manufactur|produc|cell|fabrik)\b|\bbatteriproduk\b|\bbattericell\b|\bkatod(?:material)?\b|\banod(?:material)?\b|\belektrod(?:material)?\b|\belectrode\b|\bpouch\s*cell\b|\blitiumbatteri\b|\bcell\s*monter\b|\bcu\/zn\/ni\b|\bkoppar.*zink.*nickel\b/i.test(text);
+}
+
+/** Returns true if a product is ball-screw driven (not belt or direct linear motor). */
+function isBallScrewProduct(p: CatalogProduct): boolean {
+  const s = (p.name + " " + p.sku + " " + JSON.stringify(p.key_specs ?? {})).toLowerCase();
+  return /\begsk\b|\bkulskruv\b|\bball\s*screw\b|\bspindel\b|\bspindle\b|\blead\s*screw\b|\bleadscrew\b/i.test(s);
+}
+
+/** Extract numeric speed in m/s from free text + answers (for mechanism compatibility check). */
+function extractSpeedMs(text: string, answers: Record<string, string>): number {
+  const all = text + " " + Object.values(answers).join(" ");
+  // Match e.g. "1.2 m/s", "0,8m/s", "800 mm/s"
+  const msMatch = all.match(/(\d+(?:[.,]\d+)?)\s*m\/s/i);
+  if (msMatch) return parseFloat(msMatch[1].replace(",", "."));
+  const mmMatch = all.match(/(\d+(?:[.,]\d+)?)\s*mm\/s/i);
+  if (mmMatch) return parseFloat(mmMatch[1].replace(",", ".")) / 1000;
+  return 0;
+}
+
 /** Returns true if a product is an electric actuator/motor/drive — forbidden in ATEX zones. */
 function isElectricActuator(p: CatalogProduct): boolean {
   const name = (p.name + " " + p.brand).toLowerCase();
@@ -400,22 +433,92 @@ function isWashdownProduct(p: CatalogProduct): boolean {
   );
 }
 
+interface CustomSolutionContext {
+  isWashdown?: boolean;
+  isVertical?: boolean;
+  isFoodGrade?: boolean;
+  isBatteryDryroom?: boolean;
+  isHydraulic?: boolean;
+  isAtex?: boolean;
+  isSilSafety?: boolean;
+  maxCatalogStroke?: number;
+  catalogCanHandle?: boolean;
+}
+
 function buildCustomSolutionOption(
-  minStroke: number, isSv: boolean, maxCatalogStroke: number, catalogCanHandle: boolean
+  minStroke: number, isSv: boolean, maxCatalogStroke: number, catalogCanHandle: boolean,
+  ctx: CustomSolutionContext = {}
 ) {
-  const strokeInfo = !catalogCanHandle && maxCatalogStroke > 0
-    ? (isSv
-        ? `Längsta katalogprodukten når ${maxCatalogStroke} mm — under kravet på ${minStroke} mm. Vi sourcerar speciallösningar från Festo, SMC eller Parker.`
-        : `Longest catalog product reaches ${maxCatalogStroke} mm — below your ${minStroke} mm requirement. We source custom solutions from Festo, SMC or Parker.`)
-    : (isSv
-        ? `Vill du ha en lösning helt anpassad efter era exakta krav? Vi sköter leverantörsdialogen och levererar en komplett offert med exakt pris och leveranstid.`
-        : `Want a solution fully tailored to your exact requirements? We manage the supplier dialogue and deliver a complete quote with exact pricing and lead time.`);
+  const { isWashdown, isVertical, isFoodGrade, isBatteryDryroom, isHydraulic, isAtex, isSilSafety } = ctx;
+
+  // Build a context-specific "why" with product family recommendations
+  let whyLines: string[] = [];
+
+  if (!catalogCanHandle && maxCatalogStroke > 0 && minStroke > 0) {
+    whyLines.push(isSv
+      ? `Längsta katalogprodukten når ${maxCatalogStroke} mm — kravet är ${minStroke} mm.`
+      : `Longest catalog product reaches ${maxCatalogStroke} mm — requirement is ${minStroke} mm.`);
+  }
+
+  // Washdown + vertical + food = most demanding scenario — give two explicit architectural paths
+  if (isWashdown && isVertical && isFoodGrade) {
+    whyLines.push(isSv
+      ? `⚙️ Rekommenderade arkitekturval för slakteri/IP69K-miljö:\n` +
+        `▸ ALT A – Pneumatisk rostfri cylinder (316L): SMC HY-serien (IP69K, NSF-H1-smörjning, EHEDG-hygienisk design) eller Parker P1S Stainless Washdown Cylinder. Komplettera med pneumatisk stångbroms (rod lock) för säker hållning vid strömavbrott.\n` +
+        `▸ ALT B – Kapslad el-cylinder IP69K: Bosch Rexroth EMC-HD-XC (IP69K rostfritt, PROFINET-nativ) eller Parker ETH-serie Washdown. Kräver integrerad motorbroms + säkerhetsventil för SIL 2/PLd.`
+      : `⚙️ Recommended architectural paths for slaughterhouse/IP69K:\n` +
+        `▸ ALT A – Stainless pneumatic cylinder (316L): SMC HY-Series (IP69K, NSF-H1 lube, EHEDG hygienic design) or Parker P1S Stainless Washdown. Add pneumatic rod lock for safe holding on power loss.\n` +
+        `▸ ALT B – Enclosed IP69K electric cylinder: Bosch Rexroth EMC-HD-XC (IP69K stainless, native PROFINET) or Parker ETH Washdown series. Requires integrated motor brake + safety valve for SIL 2/PLd.`);
+  } else if (isWashdown && isFoodGrade) {
+    whyLines.push(isSv
+      ? `Miljökrav IP69K + livsmedel kräver: SMC HY-serien (316L, NSF-H1) eller Parker P1S Washdown. Verifierat EHEDG-utförande rekommenderas.`
+      : `IP69K + food-grade requires: SMC HY-Series (316L, NSF-H1) or Parker P1S Washdown. EHEDG-certified design recommended.`);
+  } else if (isWashdown) {
+    whyLines.push(isSv
+      ? `IP69K-krav: Festo CRDSNU (rostfri), Camozzi Serie 90 (IP67+), SMC CDQ2-serien (IP67) eller Parker P1S. Inga standardaluminiumcylindrar.`
+      : `IP69K requirement: Festo CRDSNU (stainless), Camozzi Serie 90 (IP67+), SMC CDQ2-series (IP67) or Parker P1S. No standard aluminum.`);
+  }
+
+  if (isVertical && isSilSafety) {
+    whyLines.push(isSv
+      ? `⚠️ Vertikal last + säkerhetsfunktion: Mekanisk stångbroms (t.ex. SMC MHF2 rod lock) eller integrerad motorbroms OBLIGATORISK. Säkerhetsventil SIL 2-certifierad krävs per ISO 13849 PLd.`
+      : `⚠️ Vertical load + safety function: Mechanical rod lock (e.g. SMC MHF2) or integrated motor brake MANDATORY. SIL 2-certified safety valve required per ISO 13849 PLd.`);
+  } else if (isVertical) {
+    whyLines.push(isSv
+      ? `⚠️ Vertikal rörelse: Pilotmanövrerad backslagsventil eller stångbroms OBLIGATORISK för att förhindra fall vid lufttrycksfall.`
+      : `⚠️ Vertical movement: Pilot-operated check valve or rod lock MANDATORY to prevent drop on air loss.`);
+  }
+
+  if (isBatteryDryroom) {
+    whyLines.push(isSv
+      ? `⛔ Dryroom Cu/Zn/Ni-fritt: SMC 25-serien (Cu/Zn/Ni-fri, PFPE-smörjd). Begär materialdeklerationsintyg.`
+      : `⛔ Dryroom Cu/Zn/Ni-free: SMC 25-Series (Cu/Zn/Ni-free, PFPE-lubricated). Request material declaration.`);
+  }
+
+  if (isHydraulic) {
+    whyLines.push(isSv
+      ? `Hydraulisk applikation (100-350 bar): Parker HMI/HYD-serien, Bosch Rexroth CDL1 eller SMC CH-serien. Utanför pneumatisk standardkatalog.`
+      : `Hydraulic application (100-350 bar): Parker HMI/HYD-series, Bosch Rexroth CDL1 or SMC CH-series. Outside pneumatic standard catalog.`);
+  }
+
+  if (isAtex) {
+    whyLines.push(isSv
+      ? `ATEX-zon: Alla komponenter måste vara NAMUR/IECEx-certifierade. Parker P1X ATEX, SMC CDQMB-ATEX eller Norgren Excelon ATEX-serien.`
+      : `ATEX zone: All components must be NAMUR/IECEx-certified. Parker P1X ATEX, SMC CDQMB-ATEX or Norgren Excelon ATEX-series.`);
+  }
+
+  if (whyLines.length === 0) {
+    whyLines.push(isSv
+      ? `Vill du ha en lösning helt anpassad efter era exakta krav? Vi sköter leverantörsdialogen och levererar en komplett offert med exakt pris och leveranstid.`
+      : `Want a solution fully tailored to your exact requirements? We manage the supplier dialogue and deliver a complete quote with exact pricing and lead time.`);
+  }
+
   return {
     sku: "CUSTOM-SOLUTION",
     name: isSv ? "Kundspecifik lösning" : "Custom engineered solution",
     badge: isSv ? "Kundlösning" : "Custom solution",
-    bore_mm: null, stroke_mm: null, force_n: null,
-    why: strokeInfo,
+    bore_mm: null, stroke_mm: minStroke > 0 ? minStroke : null, force_n: null,
+    why: whyLines.join(" "),
     pros: isSv
       ? ["Exakt anpassad till era krav", "Vi kör dialogen med leverantören", "Offert med pris och leveranstid"]
       : ["Exactly matched to your requirements", "We manage the supplier dialogue", "Quote with pricing and lead time"],
@@ -476,10 +579,14 @@ async function handleQuestions(description: string, locale: string): Promise<Res
   const isMulti = needsMultiAxis(description);
   const isVac = needsVacuumGrip(description);
   const isWashdown = needsWashdown(description);
+  const isVertical = needsVerticalLoad(description);
+  const isFoodGrade = /livsmedel|food|slakteri|chark|mejeri|kött|meat|poultry|fjäderfä|dairy|fisk|fish|bageri|brewery|nsf|h1\b/i.test(description);
+  const isSafetyMentioned = /livsfara|fallskydd|safe.stop|nödstopp|låsenhet|locking|sil\b|pl[bcd]\b|skyddsdörr|skyddsgrind|guard/i.test(description);
   const isElectric = /elektrisk|electric|servo|stepper|elaxel|eldriven|kuggrem|ball.screw/i.test(description);
   const isCylinder = !isElectric;
   const strokeStated = /(\d{2,4})\s*mm/i.test(description);
   const isCleanroom = !isWashdown && /\brenrum\b|\bcleanroom\b|\bclean\s+room\b/i.test(description);
+  const hasProtocol = /profinet|ethercat|ethernet.ip|devicenet|canopen/i.test(description);
 
   const contextRules = [
     isMulti ? `- MULTI-AXIS SYSTEM DETECTED. Ask about EACH axis separately (stroke X, stroke Z/lift). Make clear in summary that multiple axes are needed.` : "",
@@ -490,11 +597,24 @@ async function handleQuestions(description: string, locale: string): Promise<Res
       ? `- ELECTRIC SYSTEM: Ask about required repeatability/accuracy (±0.05 mm? ±0.5 mm?), max speed (m/s), and drive type preference (ball screw = precise, belt = fast).` : "",
     // Washdown / food-grade: ask about IP class and material — NOT cleanroom ISO class
     isWashdown
-      ? `- WASHDOWN / FOOD-GRADE ENVIRONMENT DETECTED. Do NOT ask about cleanroom ISO class. Instead ask:\n  (1) Required IP protection class: IP67 (splash/immersion) or IP69K (high-pressure steam/chemical jets)?\n  (2) Material class: Stainless steel 316L, food-grade plastic (POM/PA), or standard with coating?\n  (3) Certifications needed: FDA / EC 1935/2004 / EHEDG?`
+      ? `- WASHDOWN / FOOD-GRADE ENVIRONMENT DETECTED. Do NOT ask about cleanroom ISO class. Instead ask:\n  (1) Required IP protection class: IP67 (splash/immersion) or IP69K (high-pressure steam/chemical jets, 100 bar, 80°C)?\n  (2) Material class: Stainless steel 316L, food-grade plastic (POM/PA), or standard with coating?\n  (3) Certifications needed: FDA / EC 1935/2004 / EHEDG?\n  (4) Lubrication requirement: Standard grease or NSF-H1 food-grade lubricant (mandatory for direct food contact zones)?`
+      : "",
+    // Vertical + safety — ALWAYS ask about SIL/PL if vertical load with safety mention
+    isVertical && isSafetyMentioned
+      ? `- VERTICAL AXIS WITH SAFETY HAZARD DETECTED. You MUST ask:\n  (1) Required safety integrity level: SIL 1 / SIL 2 / SIL 3 (IEC 62061) or Performance Level PL c / PL d / PL e (ISO 13849)?\n  (2) Mechanical holding requirement: Spring-applied rod lock (pneumatic cylinder) OR integrated motor brake (electric axis) OR external locking unit?\n  (3) Fail-safe behavior: Hold position on power loss (spring-set brake) or controlled retract?`
+      : (isVertical
+        ? `- VERTICAL AXIS DETECTED. Ask about mechanical holding: spring-applied brake or external locking unit required?`
+        : ""),
+    // Food + washdown: explicitly probe for NSF-H1 and EHEDG if not already covered
+    isFoodGrade && !isWashdown
+      ? `- FOOD INDUSTRY APPLICATION: Ask about lubrication (NSF-H1 required for food contact zones?) and surface finish (Ra ≤ 0.8 µm for EHEDG?).`
       : "",
     // Cleanroom (only if NOT washdown — they are different environments)
     isCleanroom
       ? `- CLEANROOM DETECTED: ask about ISO class, note pneumatics may be excluded in high-class rooms.` : "",
+    hasProtocol
+      ? `- COMMUNICATION PROTOCOL ALREADY STATED in description. Do NOT ask about it again unless clarification is needed. Accept the stated protocol.`
+      : "",
     `- If stroke is already stated, do NOT ask if they want a longer stroke. Accept stated value as absolute.`,
     `- Do NOT ask hypothetical questions. Only ask what is needed to select the right product.`,
     `- If programmable stops: ask about number of positions and accuracy.`,
@@ -538,6 +658,8 @@ async function handleOptions(
   const isSilSafety = needsSilSafety(combinedText);
   const isOutdoor = needsOutdoor(combinedText);
   const isPharmaGmp = needsPharmaGmp(combinedText);
+  const isBatteryDryroom = needsBatteryDryroom(combinedText);
+  const speedMs = extractSpeedMs(combinedText, answers);
   const requiredTemp = extractRequiredMaxTemp(combinedText, answers);
 
   const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
@@ -683,18 +805,40 @@ async function handleOptions(
     isOutdoor  ? `• Environment: OUTDOOR — minimum IP65, UV-resistant, stainless or coated construction.` : "",
     isHighCycle ? `• ⚠️ HIGH CYCLE RATE (>60/min) — standard lubrication and bearings may overheat. Oil-free or high-cycle rated variants.` : "",
     isHighSpeed ? `• ⚠️ HIGH SPEED (>1 m/s) — end-stop cushioning or external deceleration MANDATORY to prevent impact damage.` : "",
+    isBatteryDryroom
+      ? `• ⛔ BATTERY PRODUCTION / DRYROOM — CRITICAL MATERIAL RESTRICTIONS:\n` +
+        `  1. ABSOLUTE BAN on copper (Cu), zinc (Zn), and nickel (Ni) in any moving or wetted part. Standard ball screws and zinc-plated guides are FORBIDDEN — they shed particles that short-circuit lithium cells, causing thermal runaway.\n` +
+        `  2. Standard greases evaporate or solidify in dryroom conditions (dew point -40 to -60°C). Require PFPE-lubricated or dry-running variants ONLY.\n` +
+        `  3. For speeds >800 mm/s + high precision: ONLY belt-driven axes or linear motors. Ball screw drives cannot sustain these speeds without particle contamination.\n` +
+        `  4. PRIORITIZE SMC 25-Series or equivalent Cu/Zn/Ni-free product lines. If no catalog product meets material restrictions, output CUSTOM-SOLUTION with explicit Cu/Zn/Ni-free specification.`
+      : "",
+    speedMs > 0.8 && !isBatteryDryroom
+      ? `• ⚠️ HIGH SPEED ${(speedMs * 1000).toFixed(0)} mm/s — ball-screw drives (EGSK etc.) vibrate and wear rapidly above 800 mm/s under continuous cycling. Prefer belt-driven axes (EGSC, ELGC-TB) or linear motors at this speed.`
+      : "",
     isCleanroom ? `• Environment: CLEANROOM — electric actuators ONLY, NO pneumatics` : "",
     needsProgrammable ? `• Control: programmable stops — servo/stepper + controller ONLY` : "",
     isMultiAxis ? `• System: MULTI-AXIS — show PRIMARY actuator only; BOM handles secondary axes` : "",
   ].filter(Boolean).join("\n");
 
-  const system = `You are a senior automation engineer. Pick 1-3 products from the catalog that BEST match the requirements below. All text in ${lang}.${requirementLines ? `\n\nAPPLICATION REQUIREMENTS (must be satisfied):\n${requirementLines}` : ""}\n\n${rules}\n\nReturn ONLY JSON (no markdown):\n{ "summary": "1–2 sentence technical summary in ${lang}",\n  "options": [ { "sku": "CATALOG_SKU", "name": "product name", "badge": ${badges}, "bore_mm": null|number, "stroke_mm": null|number, "force_n": null|number, "why": "explain how this product meets the stated requirements, in ${lang}", "pros": ["..."], "cons": ["..."] } ] }`;
+  const system = `You are a brilliant, hyper-critical Senior Automation & Mechanical Design Engineer with zero tolerance for failures. Your standard: never guess, never hallucinate, never let a product pass if it violates physics, chemical restrictions, or hardware specs. All text in ${lang}.
+${requirementLines ? `\nAPPLICATION REQUIREMENTS — ALL MUST BE SATISFIED:\n${requirementLines}` : ""}
+${rules ? `\n${rules}` : ""}
+
+STRICT RULES YOU MUST FOLLOW:
+1. NUMERICAL VALIDATION: Do hard math. Compare customer input (Force, Speed, Stroke, Temp, Precision) directly against catalog specs. If a product's limit is below the requirement, mark it CRITICAL FAILURE — do NOT pick it as "Best Choice".
+2. MECHANISM HONESTY: If you mention "linear motor" in text, the SKU must be a linear motor. If you mention "belt drive", the SKU must be belt-driven. Never describe one mechanism and map it to another.
+3. CUSTOM-SOLUTION OVER FALSE MATCH: If no catalog product satisfies all requirements, output "CUSTOM-SOLUTION" as primary. Explain exactly which constraint fails (e.g. "Catalog lacks Cu/Zn/Ni-free 320mm axis; requires SMC 25-Series custom procurement").
+4. BRAND SPECIFICITY: When SMC, Parker, Bosch Rexroth, Norgren, Metal Work, or Camozzi have a specialist series for the detected environment (dryroom, ATEX, pharma, high-speed), name that series explicitly in the "why" field.
+5. COMPATIBILITY CHAINS: If the customer specifies a control system (EtherCAT, Profinet, ctrlX, etc.), the selected drive/servo MUST natively support that protocol — state the protocol compatibility explicitly.
+
+Return ONLY JSON (no markdown):
+{ "summary": "1–2 sentence technical summary in ${lang} — be specific about WHY these products were chosen (material restrictions met, protocol verified, stroke sufficient, etc.)",
+  "options": [ { "sku": "CATALOG_SKU", "name": "product name", "badge": ${badges}, "bore_mm": null|number, "stroke_mm": null|number, "force_n": null|number, "why": "precise engineering justification in ${lang}: which specs match, which restrictions are satisfied, which protocol/material/IP rating was verified", "pros": ["..."], "cons": ["..."] } ] }`;
 
   const userMsg = `Application: ${description}\nAnswers: ${Object.entries(answers).map(([k,v])=>`${k}=${v}`).join(", ")}\n\nCatalog (${catalogProducts.length} products, sorted by stroke relevance${maxRequiredStroke > 0 ? ` for ${maxRequiredStroke} mm` : ""}${isWashdown ? ", IP67/IP69K+stainless only" : ""}):\n${productList}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
 
   // v24: temperature 0.35 (was 0.2) — more context-sensitive, less "always pick same top 3"
-  // Note: 8000 tokens needed for Gemini 2.5-flash (reasoning model uses internal thinking tokens)
-  const raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 8000, true, 0.35);
+  const raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 2000, true, 0.35);
 
   let parsed: { summary: string; options: Array<Record<string, unknown>> };
   try { parsed = raw ? JSON.parse(raw) : { summary: "", options: [] }; }
@@ -720,6 +864,21 @@ async function handleOptions(
       opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
       opt.why = `${opt.why ?? ""} ⚠️ Standardprodukt — verifiera korrosionsskydd för washdown-miljö.`;
     }
+    // Ball-screw × high-speed incompatibility check
+    if (isHighSpeed && isBallScrewProduct(cat)) {
+      const speedStr = speedMs > 0 ? `${(speedMs * 1000).toFixed(0)} mm/s` : ">1000 mm/s";
+      const warn = isSv
+        ? `⚠️ VARNING: Kulskruvsaxel vid ${speedStr} — risk för vibrationer, snabbt slitage och partikelkontamination vid kontinuerlig cykling. Överväg kuggremsdrift (EGSC/ELGC-TB) eller linjärmotor.`
+        : `⚠️ WARNING: Ball-screw drive at ${speedStr} — risk of vibration, rapid wear and particle contamination under continuous cycling. Consider belt drive (EGSC/ELGC-TB) or linear motor.`;
+      opt.cons = [...((opt.cons as string[]) ?? []), warn];
+    }
+    // Dryroom/battery: flag any product with potential Cu/Zn/Ni content
+    if (isBatteryDryroom && sku !== "CUSTOM-SOLUTION") {
+      const materialWarn = isSv
+        ? `⚠️ DRYROOM VARNING: Verifiera att ${cat.name} är fri från koppar (Cu), zink (Zn) och nickel (Ni) i alla rörliga delar. Begär materialcertifikat (RoHS/material declaration). SMC 25-serien är primärt alternativ om Cu/Zn/Ni-frihet inte kan verifieras.`
+        : `⚠️ DRYROOM WARNING: Verify ${cat.name} is free of copper (Cu), zinc (Zn), and nickel (Ni) in all moving parts. Request material certificate (RoHS/material declaration). SMC 25-Series is the primary alternative if Cu/Zn/Ni-freedom cannot be confirmed.`;
+      opt.cons = [...((opt.cons as string[]) ?? []), materialWarn];
+    }
     // v27: Hard numerical temperature validation — catches hallucinated "✓ Hög temperaturbeständighet"
     if (requiredTemp > 0) {
       const productTempMax = parseProductTempMax(cat.key_specs ?? {});
@@ -735,9 +894,17 @@ async function handleOptions(
     return opt;
   });
 
-  if (maxRequiredStroke > 0) {
-    parsed.options = [...parsed.options, buildCustomSolutionOption(maxRequiredStroke, isSv, maxCatalogStroke, catalogCanHandle)];
-  }
+  // Always append a CUSTOM-SOLUTION card — with full context so it names the right product families
+  const customCtx: CustomSolutionContext = {
+    isWashdown,
+    isVertical: isVerticalLoad,
+    isFoodGrade: isPharmaGmp || /livsmedel|food|slakteri|chark|mejeri|kött|meat|poultry|fjäderfä|dairy|fisk|fish|bageri|brewery/i.test(combinedText),
+    isBatteryDryroom,
+    isHydraulic,
+    isAtex,
+    isSilSafety,
+  };
+  parsed.options = [...parsed.options, buildCustomSolutionOption(maxRequiredStroke, isSv, maxCatalogStroke, catalogCanHandle, customCtx)];
 
   return Response.json(parsed, { headers: CORS });
 }
@@ -762,6 +929,8 @@ async function handleBom(
   const isSilSafety = needsSilSafety(combinedText);
   const isOutdoor = needsOutdoor(combinedText);
   const isPharmaGmp = needsPharmaGmp(combinedText);
+  const isBatteryDryroom = needsBatteryDryroom(combinedText);
+  const speedMs = extractSpeedMs(combinedText, answers);
   // In ATEX zones, electric actuators are forbidden — detectCategories already strips them,
   // but force isElectric=false to prevent electric accessories (cables, drives) being fetched.
   const isElectric = !isAtex && !isAtexDust && categories.some(c => c === "electric-actuator" || c === "linear-module");
@@ -841,6 +1010,16 @@ async function handleBom(
     isHighSpeed
       ? `⚠️ HIGH SPEED (>1 m/s): End-stop cushioning MANDATORY — add adjustable cushions or external shock absorbers (stötdämpare) to BOM. SPECIFY with reason "Justerbar hydraulisk stötdämpare krävs vid höga slaghastigheter (>1 m/s)" if not in catalog.`
       : "",
+    isBatteryDryroom
+      ? `⛔ BATTERY PRODUCTION / DRYROOM — MATERIAL CRITICAL:\n` +
+        `1. ABSOLUTE BAN on Cu/Zn/Ni in any BOM component. Verify each SKU's material declaration before including.\n` +
+        `2. Standard greases are FORBIDDEN in dryroom — every lubricated component must use PFPE or be dry-running. Add SPECIFY row "PFPE-smörjkit / dryroom-smörjmedel" if not in catalog.\n` +
+        `3. Ball-screw primary actuator at high speed: flag with reason "⚠️ Verifiera Cu/Zn/Ni-frihet — kulskruv kan generera metallopartiklar i dryroom-miljö. Primärt alternativ: SMC 25-serien."\n` +
+        `4. Add a SPECIFY row for "Materialdeklerationsintyg (RoHS + Cu/Zn/Ni-fri)" as the LAST BOM row.`
+      : "",
+    speedMs > 0.8
+      ? `⚠️ HIGH SPEED ${(speedMs * 1000).toFixed(0)} mm/s: If BOM includes a ball-screw axis, add SPECIFY row "Kuggremsdrift eller linjärmotor rekommenderas vid >${(speedMs * 1000).toFixed(0)} mm/s — kulskruv slits snabbt och vibrerar".`
+      : "",
     isCleanroom ? `CLEANROOM: All parts cleanroom-compatible.` : "",
     isVacuum ? `VACUUM: Include suction cups (qty = number of items handled simultaneously if stated) + ejector + vacuum sensor.` : "",
     isWashdown
@@ -857,7 +1036,17 @@ async function handleBom(
     `SKU RULES: Only use SKUs that appear verbatim in the catalog list below. Use SPECIFY only if a truly needed component (not the primary actuator) is absent from catalog. One row per SKU.`,
   ].filter(Boolean).join(" | ");
 
-  const system = `You are a senior automation engineer. Build a complete BOM. All text in ${lang}.\n\n${rules}\n\nJSON: { "title": "short title", "explanation": "2-3 sentences", "bom": [ { "sku": "SKU or SPECIFY", "quantity": 1, "role": "function", "reason": "why" } ] }`;
+  const system = `You are a hyper-critical Senior Automation Engineer. Build a complete, technically exact Bill of Materials. All text in ${lang}.
+
+STRICT RULES:
+1. Every BOM row must satisfy the constraints in the rules below — if a standard SKU violates a constraint (material, IP rating, temperature, ATEX), replace it with SPECIFY and state the exact requirement.
+2. If you mention a mechanism type in the "role" or "reason" field, the SKU must match that mechanism — no mechanism mismatch allowed.
+3. Material restrictions are absolute: a product cannot appear in the BOM if its material violates an active restriction (Cu/Zn/Ni ban, oil-free, etc.) unless you add an explicit material verification note.
+4. Accessory completeness: for high-speed axes add cushioning/shock absorbers, for vertical loads add lock valves, for ATEX add NAMUR-certified sensors.
+
+${rules}
+
+JSON: { "title": "short technical title in ${lang}", "explanation": "2-3 sentences explaining the engineering rationale and any critical constraints", "bom": [ { "sku": "SKU or SPECIFY", "quantity": 1, "role": "component function in ${lang}", "reason": "precise technical reason: which spec was verified (stroke, IP, material, protocol, temp), in ${lang}" } ] }`;
 
   const reqLines = Object.entries(answers)
     .map(([k, v]) => {
@@ -868,7 +1057,7 @@ async function handleBom(
 
   const userMsg = `Application: ${description}\nRequirements: ${reqLines}\nPrimary actuator: ${primarySku}\n\nCatalog:\n${productList}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
 
-  const raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 8000, true);
+  const raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 2000, true);
   if (!raw) return Response.json({ title: "", explanation: "", bom: [] }, { headers: CORS });
 
   let parsed: { title: string; explanation: string; bom: Array<{ sku: string; quantity: number; role: string; reason: string }> };
