@@ -1,8 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-// v23 — fix SPECIFY in BOM + SKU validation in options
-// Options: filter out AI-hallucinated SKUs not present in productMap (catalog).
-// BOM: strengthen prompt so primarySku is mandatory first row; post-process guarantees it.
+// v24 — fix "same answer regardless of input" bug
+// Root cause: detectCategories always fell back to ["cylinder"] → same 45 catalog products → Groq at temp 0.2 always picked same 3.
+// Fix: sort catalog by stroke-match relevance, reduce to 25 products, temperature 0.35 for options, requirements block at top of system prompt.
+// Inherits v23: SKU validation in options, primarySku guaranteed first in BOM.
 // Inherits v22: washdown/food-grade environment support.
 
 const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") ?? "";
@@ -20,10 +21,11 @@ const CORS = {
 async function callGroq(
   messages: Array<{ role: string; content: string }>,
   maxTokens = 2000,
-  jsonMode = true
+  jsonMode = true,
+  temperature = 0.2
 ): Promise<string | null> {
   const body: Record<string, unknown> = {
-    model: GROQ_MODEL, messages, max_tokens: maxTokens, temperature: 0.2,
+    model: GROQ_MODEL, messages, max_tokens: maxTokens, temperature,
   };
   if (jsonMode) body.response_format = { type: "json_object" };
   const res = await fetch(GROQ_URL, {
@@ -88,6 +90,30 @@ function balancedSlice(products: CatalogProduct[], maxTotal: number): CatalogPro
     if (result.length >= maxTotal * 1.5) break;
   }
   return result.slice(0, maxTotal);
+}
+
+/**
+ * v24: Sort products so the most requirement-relevant ones appear first.
+ * Products with stroke matching requiredStroke go first (ascending overshoot).
+ * Products with no stroke spec (accessories, sensors) are appended at the end.
+ * Products that DON'T meet the stroke are sorted by descending stroke (closest fallback).
+ */
+function sortByStrokeMatch(products: CatalogProduct[], requiredStroke: number): CatalogProduct[] {
+  if (requiredStroke === 0) return products;
+  return [...products].sort((a, b) => {
+    const sA = parseStrokeFromSpecs(a.key_specs ?? {});
+    const sB = parseStrokeFromSpecs(b.key_specs ?? {});
+    // Accessories (no stroke) — keep at end
+    if (sA === 0 && sB === 0) return 0;
+    if (sA === 0) return 1;
+    if (sB === 0) return -1;
+    const aOk = sA >= requiredStroke;
+    const bOk = sB >= requiredStroke;
+    if (aOk && !bOk) return -1;
+    if (!aOk && bOk) return 1;
+    if (aOk && bOk) return sA - sB; // both qualify → prefer smallest (least oversized)
+    return sB - sA; // both too short → prefer longest (closest to requirement)
+  });
 }
 
 function detectCategories(text: string): string[] {
@@ -407,7 +433,16 @@ async function handleOptions(
       `WASHDOWN: Only IP67/IP69K or stainless products are shown (${washdownFiltered.length} of ${allProducts.length} total).`;
   }
 
-  const productList = balancedSlice(showProducts, 45)
+  // v24: Sort by stroke-relevance, then take top 25 (was balancedSlice 45).
+  // This ensures Groq sees the most relevant products first and the catalog differs between requests.
+  const sortedProducts = sortByStrokeMatch(showProducts, maxRequiredStroke);
+  const catalogProducts = sortedProducts.slice(0, 25);
+  console.log(
+    `[options] categories=${categories} minStroke=${minStroke} qualified=${qualified.length}` +
+    ` catalog=${catalogProducts.length}/${showProducts.length} isWashdown=${isWashdown}`
+  );
+
+  const productList = catalogProducts
     .map(p => `${p.sku}: ${p.name} [${p.brand}/${p.category}] stroke=${strokeLabel(p.key_specs ?? {})} ip=${p.key_specs?.ip_rating ?? "std"} specs:${JSON.stringify(p.key_specs ?? {})}`)
     .join("\n");
 
@@ -451,11 +486,23 @@ async function handleOptions(
     catalogNote,
   ].filter(Boolean).join("\n\n");
 
-  const system = `You are a senior automation engineer selecting actuator options. All text in ${lang}.\n\n${rules}\n\nReturn 1-3 catalog options. Do NOT add a custom solution (added by code).\n\nJSON:\n{ "summary": "technical summary in ${lang}",\n  "options": [ { "sku": "CATALOG_SKU", "name": "product name", "badge": ${badges}, "bore_mm": null|number, "stroke_mm": null|number, "force_n": null|number, "why": "justification in ${lang}", "pros": ["..."], "cons": ["..."] } ] }`;
+  // v24: requirements block at the very top so Groq can't ignore them
+  const requirementLines = [
+    maxRequiredStroke > 0
+      ? `• Required stroke/travel: ${maxRequiredStroke} mm — DISQUALIFY any product with max_stroke < ${maxRequiredStroke} mm`
+      : "",
+    isWashdown ? `• Environment: WASHDOWN / FOOD-GRADE — IP67/IP69K or stainless steel ONLY` : "",
+    isCleanroom ? `• Environment: CLEANROOM — electric actuators ONLY, NO pneumatics` : "",
+    needsProgrammable ? `• Control: programmable stops — servo/stepper + controller ONLY` : "",
+    isMultiAxis ? `• System: MULTI-AXIS — show PRIMARY actuator only; BOM handles secondary axes` : "",
+  ].filter(Boolean).join("\n");
 
-  const userMsg = `Application: ${description}\nAnswers: ${Object.entries(answers).map(([k,v])=>`${k}=${v}`).join(", ")}\n\nCatalog (pre-filtered${isWashdown ? " to IP67/IP69K + stainless" : ""}${maxRequiredStroke > 0 ? `, stroke >= ${maxRequiredStroke}mm` : ""}):\n${productList}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
+  const system = `You are a senior automation engineer. Pick 1-3 products from the catalog that BEST match the requirements below. All text in ${lang}.${requirementLines ? `\n\nAPPLICATION REQUIREMENTS (must be satisfied):\n${requirementLines}` : ""}\n\n${rules}\n\nReturn ONLY JSON (no markdown):\n{ "summary": "1–2 sentence technical summary in ${lang}",\n  "options": [ { "sku": "CATALOG_SKU", "name": "product name", "badge": ${badges}, "bore_mm": null|number, "stroke_mm": null|number, "force_n": null|number, "why": "explain how this product meets the stated requirements, in ${lang}", "pros": ["..."], "cons": ["..."] } ] }`;
 
-  const raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 2000, true);
+  const userMsg = `Application: ${description}\nAnswers: ${Object.entries(answers).map(([k,v])=>`${k}=${v}`).join(", ")}\n\nCatalog (${catalogProducts.length} products, sorted by stroke relevance${maxRequiredStroke > 0 ? ` for ${maxRequiredStroke} mm` : ""}${isWashdown ? ", IP67/IP69K+stainless only" : ""}):\n${productList}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
+
+  // v24: temperature 0.35 (was 0.2) — more context-sensitive, less "always pick same top 3"
+  const raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 2000, true, 0.35);
 
   let parsed: { summary: string; options: Array<Record<string, unknown>> };
   try { parsed = raw ? JSON.parse(raw) : { summary: "", options: [] }; }
