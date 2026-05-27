@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v29 — switch LLM provider from Groq to Google Gemini 2.0 Flash (OpenAI-compatible API)
+//        Groq free tier: 100K tokens/day. Gemini free tier: 1500 req/day + 1M tokens/min — far more generous.
 // v28 — fix parseProductTempMax regression: "5-60°C" parsed max=5 (treated hyphen as negative sign)
 //        → all standard products filtered out → only CUSTOM-SOLUTION shown for any application.
 //        Fix: split on range separators first, then extract digits, avoiding sign confusion.
@@ -13,11 +15,12 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 // Inherits v23: SKU validation in options, primarySku guaranteed first in BOM.
 // Inherits v22: washdown/food-grade environment support.
 
-const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") ?? "";
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-const GROQ_MODEL = "llama-3.3-70b-versatile";
-const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+// Gemini 2.5 Flash via OpenAI-compatible endpoint — free tier: 1500 req/day, 1M TPM
+const LLM_MODEL = "gemini-2.5-flash";
+const LLM_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -32,15 +35,15 @@ async function callGroq(
   temperature = 0.2
 ): Promise<string | null> {
   const body: Record<string, unknown> = {
-    model: GROQ_MODEL, messages, max_tokens: maxTokens, temperature,
+    model: LLM_MODEL, messages, max_tokens: maxTokens, temperature,
   };
   if (jsonMode) body.response_format = { type: "json_object" };
-  const res = await fetch(GROQ_URL, {
+  const res = await fetch(LLM_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${GEMINI_API_KEY}` },
     body: JSON.stringify(body),
   });
-  if (!res.ok) { console.error("Groq error:", await res.text()); return null; }
+  if (!res.ok) { console.error("LLM error:", await res.text()); return null; }
   const data = await res.json();
   return data.choices?.[0]?.message?.content ?? null;
 }
@@ -502,7 +505,7 @@ async function handleQuestions(description: string, locale: string): Promise<Res
   const raw = await callGroq([
     { role: "system", content: system },
     { role: "user", content: `Application: ${description}` },
-  ], 1500, true);
+  ], 4000, true);
   if (!raw) return Response.json({ summary: "", questions: [] }, { headers: CORS });
   try { return Response.json(JSON.parse(raw), { headers: CORS }); }
   catch { return Response.json({ summary: "", questions: [] }, { headers: CORS }); }
@@ -690,7 +693,8 @@ async function handleOptions(
   const userMsg = `Application: ${description}\nAnswers: ${Object.entries(answers).map(([k,v])=>`${k}=${v}`).join(", ")}\n\nCatalog (${catalogProducts.length} products, sorted by stroke relevance${maxRequiredStroke > 0 ? ` for ${maxRequiredStroke} mm` : ""}${isWashdown ? ", IP67/IP69K+stainless only" : ""}):\n${productList}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
 
   // v24: temperature 0.35 (was 0.2) — more context-sensitive, less "always pick same top 3"
-  const raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 2000, true, 0.35);
+  // Note: 8000 tokens needed for Gemini 2.5-flash (reasoning model uses internal thinking tokens)
+  const raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 8000, true, 0.35);
 
   let parsed: { summary: string; options: Array<Record<string, unknown>> };
   try { parsed = raw ? JSON.parse(raw) : { summary: "", options: [] }; }
@@ -864,7 +868,7 @@ async function handleBom(
 
   const userMsg = `Application: ${description}\nRequirements: ${reqLines}\nPrimary actuator: ${primarySku}\n\nCatalog:\n${productList}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
 
-  const raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 2500, true);
+  const raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 8000, true);
   if (!raw) return Response.json({ title: "", explanation: "", bom: [] }, { headers: CORS });
 
   let parsed: { title: string; explanation: string; bom: Array<{ sku: string; quantity: number; role: string; reason: string }> };
@@ -973,7 +977,7 @@ async function handleChat(
 ): Promise<Response> {
   const pdfCtx = contextQuery ? await searchKnowledge(contextQuery, 5) : "";
   const system = `Du är Maskinvals AI-assistent, expert på industriell automation. Hjälper ingenjörer välja komponenter och lösa tekniska problem. Svar på svenska.${pdfCtx ? `\n\nReferensdokumentation:\n${pdfCtx}` : ""}`;
-  const raw = await callGroq([{ role: "system", content: system }, ...messages], 1000, false);
+  const raw = await callGroq([{ role: "system", content: system }, ...messages], 4000, false);
   if (!raw) return Response.json({ reply: "Kunde inte svara just nu. Försök igen." }, { headers: CORS });
   return Response.json({ reply: raw }, { headers: CORS });
 }
