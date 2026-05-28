@@ -62,7 +62,12 @@ async function callGroq(
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
     body: JSON.stringify(body),
   });
-  if (!res.ok) { console.error("LLM error:", await res.text()); return null; }
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error("LLM error:", res.status, errText);
+    if (res.status === 429) throw new Error("RATE_LIMITED");
+    return null;
+  }
   const data = await res.json();
   return data.choices?.[0]?.message?.content ?? null;
 }
@@ -704,13 +709,20 @@ async function handleQuestions(description: string, locale: string): Promise<Res
 
   const system = `You are a senior automation engineer. Generate 4-6 precise technical questions. All text in ${lang}.\n\nRULES:\n${contextRules}\n\nJSON:\n{ "summary": "one precise sentence in ${lang}", "questions": [ { "id": "snake_case", "label": "question in ${lang}", "hint": "why this matters", "type": "choice", "options": ["opt1","opt2"] } ] }\ntype = 'choice' (with options) or 'number' (with unit).${pdfCtx ? "\n\nDocs:\n" + pdfCtx : ""}`;
 
-  const raw = await callGroq([
-    { role: "system", content: system },
-    { role: "user", content: `Application: ${description}` },
-  ], 4000, true);
-  if (!raw) return Response.json({ summary: "", questions: [] }, { headers: CORS });
-  try { return Response.json(JSON.parse(raw), { headers: CORS }); }
-  catch { return Response.json({ summary: "", questions: [] }, { headers: CORS }); }
+  try {
+    const raw = await callGroq([
+      { role: "system", content: system },
+      { role: "user", content: `Application: ${description}` },
+    ], 4000, true);
+    if (!raw) return Response.json({ summary: "", questions: [] }, { headers: CORS });
+    try { return Response.json(JSON.parse(raw), { headers: CORS }); }
+    catch { return Response.json({ summary: "", questions: [] }, { headers: CORS }); }
+  } catch (e) {
+    if ((e as Error).message === "RATE_LIMITED") {
+      return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
+    }
+    return Response.json({ summary: "", questions: [] }, { headers: CORS });
+  }
 }
 
 // ── ACTION: options ───────────────────────────────────────────────────────────
@@ -1014,7 +1026,13 @@ Return ONLY JSON (no markdown):
   const userMsg = `Application: ${description}\nAnswers: ${Object.entries(answers).map(([k,v])=>`${k}=${v}`).join(", ")}\n\nCatalog (${catalogProducts.length} products, sorted by stroke relevance${maxRequiredStroke > 0 ? ` for ${maxRequiredStroke} mm` : ""}${isWashdown ? ", IP67/IP69K+stainless only" : ""}):\n${productList}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
 
   // v24: temperature 0.35 (was 0.2) — more context-sensitive, less "always pick same top 3"
-  const raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 2000, true, 0.35);
+  let rawOptions: string | null;
+  try { rawOptions = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 2000, true, 0.35); }
+  catch (e) {
+    if ((e as Error).message === "RATE_LIMITED") return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
+    rawOptions = null;
+  }
+  const raw = rawOptions;
 
   let parsed: { summary: string; options: Array<Record<string, unknown>> };
   try { parsed = raw ? JSON.parse(raw) : { summary: "", options: [] }; }
@@ -1280,7 +1298,12 @@ JSON: { "title": "short technical title in ${lang}", "explanation": "2-3 sentenc
 
   const userMsg = `Application: ${description}\nRequirements: ${reqLines}\nPrimary actuator: ${primarySku}\n\nCatalog:\n${productList}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
 
-  const raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 2000, true);
+  let raw: string | null;
+  try { raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 2000, true); }
+  catch (e) {
+    if ((e as Error).message === "RATE_LIMITED") return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
+    raw = null;
+  }
   if (!raw) return Response.json({ title: "", explanation: "", bom: [] }, { headers: CORS });
 
   let parsed: { title: string; explanation: string; bom: Array<{ sku: string; quantity: number; role: string; reason: string }> };

@@ -616,6 +616,7 @@
     "stepResult": "Resultado",
     "back": "Atrás",
     "errorGeneric": "Algo salió mal. Por favor, inténtelo de nuevo.",
+    "errorRateLimit": "El servicio de IA está temporalmente sobrecargado — inténtelo de nuevo en un momento.",
     "metaDesc": "Construya su máquina paso a paso — IA hace las preguntas correctas, sugiere los mejores componentes y genera una lista de materiales completa.",
     "invalidPositive": "Por favor, introduzca un valor de 0 o mayor",
     "altProductsBtn": "Productos alternativos",

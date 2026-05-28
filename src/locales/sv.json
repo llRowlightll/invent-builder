@@ -616,6 +616,7 @@
     "stepResult": "Resultat",
     "back": "Tillbaka",
     "errorGeneric": "Något gick fel. Försök igen.",
+    "errorRateLimit": "AI-tjänsten är tillfälligt överbelastad — försök igen om någon minut.",
     "metaDesc": "Bygg din maskin steg för steg — AI ställer rätt frågor, föreslår bästa komponenter och genererar komplett stycklista.",
     "invalidPositive": "Ange ett värde som inte är negativt",
     "altProductsBtn": "Alternativa produkter",

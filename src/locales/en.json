@@ -616,6 +616,7 @@
     "stepResult": "Result",
     "back": "Back",
     "errorGeneric": "Something went wrong. Please try again.",
+    "errorRateLimit": "The AI service is temporarily overloaded — please try again in a moment.",
     "metaDesc": "Build your machine step by step — AI asks the right questions, suggests the best components and generates a complete BOM.",
     "invalidPositive": "Please enter a value of 0 or greater",
     "altProductsBtn": "Alternative products",

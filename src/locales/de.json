@@ -616,6 +616,7 @@
     "stepResult": "Ergebnis",
     "back": "Zurück",
     "errorGeneric": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
+    "errorRateLimit": "Der KI-Dienst ist vorübergehend überlastet — bitte versuchen Sie es in einem Moment erneut.",
     "metaDesc": "Bauen Sie Ihre Maschine Schritt für Schritt — KI stellt die richtigen Fragen, schlägt die besten Komponenten vor und generiert eine vollständige Stückliste.",
     "invalidPositive": "Bitte geben Sie einen Wert von 0 oder größer ein",
     "altProductsBtn": "Alternative Produkte",

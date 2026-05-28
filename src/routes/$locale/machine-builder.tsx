@@ -105,6 +105,7 @@ async function advisorCall(body: object) {
     },
     body: JSON.stringify(body),
   });
+  if (res.status === 503) throw new Error("RATE_LIMITED");
   if (!res.ok) throw new Error(`Advisor error ${res.status}`);
   return res.json();
 }
@@ -230,8 +231,8 @@ function MachineBuilderPage() {
       setQuestions(data.questions ?? []);
       setAnswers({});
       setStep("questions");
-    } catch {
-      setError(t("machineBuilder.errorGeneric"));
+    } catch (e) {
+      setError(t((e as Error).message === "RATE_LIMITED" ? "machineBuilder.errorRateLimit" : "machineBuilder.errorGeneric"));
       setStep("describe");
     }
   }
@@ -248,8 +249,8 @@ function MachineBuilderPage() {
       setOptions(enriched);
       setOptionsSummary(data.summary ?? "");
       setStep("options");
-    } catch {
-      setError(t("machineBuilder.errorGeneric"));
+    } catch (e) {
+      setError(t((e as Error).message === "RATE_LIMITED" ? "machineBuilder.errorRateLimit" : "machineBuilder.errorGeneric"));
       setStep("questions");
     }
   }
@@ -276,8 +277,8 @@ function MachineBuilderPage() {
       setBomTitle(data.title ?? "");
       setBomExplanation(data.explanation ?? "");
       setStep("result");
-    } catch {
-      setError(t("machineBuilder.errorGeneric"));
+    } catch (e) {
+      setError(t((e as Error).message === "RATE_LIMITED" ? "machineBuilder.errorRateLimit" : "machineBuilder.errorGeneric"));
       setStep("options");
     }
   }
