@@ -617,7 +617,7 @@
     "back": "Tillbaka",
     "errorGeneric": "Något gick fel. Försök igen.",
     "metaDesc": "Bygg din maskin steg för steg — AI ställer rätt frågor, föreslår bästa komponenter och genererar komplett stycklista.",
-    "invalidPositive": "Ange ett värde större än 0",
+    "invalidPositive": "Ange ett värde som inte är negativt",
     "altProductsBtn": "Alternativa produkter",
     "altProductsClose": "Stäng alternativ",
     "altProductsHint": "Välj ett alternativ och skicka en offertförfrågan — vi återkommer med pris.",

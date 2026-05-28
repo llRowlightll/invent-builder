@@ -617,7 +617,7 @@
     "back": "Zurück",
     "errorGeneric": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
     "metaDesc": "Bauen Sie Ihre Maschine Schritt für Schritt — KI stellt die richtigen Fragen, schlägt die besten Komponenten vor und generiert eine vollständige Stückliste.",
-    "invalidPositive": "Bitte geben Sie einen Wert größer als 0 ein",
+    "invalidPositive": "Bitte geben Sie einen Wert von 0 oder größer ein",
     "altProductsBtn": "Alternative Produkte",
     "altProductsClose": "Alternativen schließen",
     "altProductsHint": "Wählen Sie eine Alternative und senden Sie eine Angebotsanfrage — wir melden uns mit Preisen.",

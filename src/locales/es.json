@@ -617,7 +617,7 @@
     "back": "Atrás",
     "errorGeneric": "Algo salió mal. Por favor, inténtelo de nuevo.",
     "metaDesc": "Construya su máquina paso a paso — IA hace las preguntas correctas, sugiere los mejores componentes y genera una lista de materiales completa.",
-    "invalidPositive": "Por favor, introduzca un valor mayor que 0",
+    "invalidPositive": "Por favor, introduzca un valor de 0 o mayor",
     "altProductsBtn": "Productos alternativos",
     "altProductsClose": "Cerrar alternativas",
     "altProductsHint": "Seleccione una alternativa y envíe una solicitud de presupuesto — le responderemos con precios.",

@@ -502,10 +502,8 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
   setAnswers: (a: Record<string, string>) => void; onSubmit: () => void; onBack: () => void;
 }) {
   const isSv = locale === "sv";
-  // Physical measurement fields (mm, kg, N, m/s, bar…) must be > 0.
-  // Count/class fields (st, stycken, ISO-klass, or no unit) allow 0.
-  const requiresPositive = (q: Question) =>
-    !!q.unit && /^(mm|cm|m\/s|m\/min|kg|g|n|bar|kpa|hz|rpm)$/i.test(q.unit.trim());
+  // All number fields allow 0 — 0 is a valid answer (e.g. "0 mm precision" = no precision req,
+  // "0 bar" = no pressure needed). Only reject negative numbers and NaN.
 
   const allAnswered = questions.length > 0 && questions.every(q => {
     const val = answers[q.id];
@@ -513,7 +511,7 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
     if (q.type === "number") {
       const n = parseFloat(val);
       if (isNaN(n)) return false;
-      if (requiresPositive(q) && n <= 0) return false;
+      if (n < 0) return false;
     }
     return true;
   });
@@ -564,13 +562,13 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
                 const raw = answers[q.id];
                 const numVal = raw !== undefined && raw !== "" ? parseFloat(raw) : null;
                 const isInvalid = q.type === "number" && raw !== undefined && raw !== "" &&
-                  (isNaN(numVal!) || (requiresPositive(q) && numVal! <= 0));
+                  (isNaN(numVal!) || numVal! < 0);
                 return (
                   <div className="ml-7 space-y-1">
                     <div className="flex items-center gap-2">
                       <input
                         type={q.type === "number" ? "number" : "text"}
-                        min={q.type === "number" ? 1 : undefined}
+                        min={q.type === "number" ? 0 : undefined}
                         value={raw ?? ""}
                         onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
                         placeholder={q.type === "number" ? t("machineBuilder.enterValue") : t("machineBuilder.typeAnswer")}

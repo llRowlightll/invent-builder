@@ -617,7 +617,7 @@
     "back": "Back",
     "errorGeneric": "Something went wrong. Please try again.",
     "metaDesc": "Build your machine step by step — AI asks the right questions, suggests the best components and generates a complete BOM.",
-    "invalidPositive": "Please enter a value greater than 0",
+    "invalidPositive": "Please enter a value of 0 or greater",
     "altProductsBtn": "Alternative products",
     "altProductsClose": "Close alternatives",
     "altProductsHint": "Select an alternative and submit a quote request — we'll get back to you with pricing.",
