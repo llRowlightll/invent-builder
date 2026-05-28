@@ -362,6 +362,9 @@ function Scene({
 
   return (
     <>
+      {/* Scene background — must be set here so WebGL uses it, not the CSS wrapper */}
+      <color attach="background" args={["#f0f4f8"]} />
+
       {/* Lighting */}
       <ambientLight intensity={0.55} />
       <directionalLight position={[6, 9, 5]} intensity={1.1} castShadow
@@ -445,7 +448,7 @@ export function Machine3DScene(props: Machine3DSceneProps) {
       <Canvas
         camera={{ position: [5.5, 3.8, 4.5], fov: 42 }}
         shadows
-        gl={{ antialias: true, alpha: false }}
+        gl={{ antialias: true }}
         style={{ background: "linear-gradient(160deg, #f8fafc 0%, #e8edf5 100%)" }}
       >
         <Suspense fallback={null}>

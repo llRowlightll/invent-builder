@@ -399,6 +399,7 @@ function MachineBuilderPage() {
           setRfqSent={setRfqSent}
           setRfqId={setRfqId}
           onRestart={restart}
+          onBack={() => setStep("options")}
         />
       )}
     </div>
@@ -704,8 +705,8 @@ function OptionsStep({ t, summary, options, onSelect, onBack }: {
               {(opt.bore_mm || opt.stroke_mm || opt.force_n) && (
                 <div className="flex flex-wrap gap-2 mt-3">
                   {opt.bore_mm ? <SpecChip label="Bore" value={`${opt.bore_mm} mm`} /> : null}
-                  {opt.stroke_mm ? <SpecChip label="Max stroke" value={`${opt.stroke_mm} mm`} /> : null}
-                  {opt.force_n ? <SpecChip label="Force @ 6 bar" value={`${opt.force_n} N`} /> : null}
+                  {opt.stroke_mm ? <SpecChip label="Stroke" value={`${opt.stroke_mm} mm`} /> : null}
+                  {opt.force_n ? <SpecChip label={opt.bore_mm ? "Force @ 6 bar" : "Force"} value={`${opt.force_n} N`} /> : null}
                 </div>
               )}
 
@@ -1008,7 +1009,7 @@ function findAlternativesTiered(
 // ── Result Step ─────────────────────────────────────────────────────────────
 function ResultStep({ t, locale, title, explanation, selected, bom, catalog, description, answers,
   rfqName, rfqEmail, rfqCompany, rfqPhone, rfqPoNumber, rfqOrgNumber, rfqSent, rfqId, autoSaved,
-  setRfqName, setRfqEmail, setRfqCompany, setRfqPhone, setRfqPoNumber, setRfqOrgNumber, setRfqSent, setRfqId, onRestart }: {
+  setRfqName, setRfqEmail, setRfqCompany, setRfqPhone, setRfqPoNumber, setRfqOrgNumber, setRfqSent, setRfqId, onRestart, onBack }: {
   t: (key: import("@/lib/i18n").TKey) => string; locale: string; title: string; explanation: string;
   selected: ActuatorOption; bom: BomLine[]; catalog: ProductRow[]; description: string; answers: Record<string, string>;
   rfqName: string; rfqEmail: string; rfqCompany: string; rfqPhone: string; rfqPoNumber: string; rfqOrgNumber: string;
@@ -1017,7 +1018,7 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
   setRfqCompany: (v: string) => void; setRfqPhone: (v: string) => void; setRfqPoNumber: (v: string) => void;
   setRfqOrgNumber: (v: string) => void;
   setRfqSent: (v: boolean) => void; setRfqId: (v: string) => void;
-  onRestart: () => void;
+  onRestart: () => void; onBack: () => void;
 }) {
   const [mounted, setMounted] = useState(false);
   const [rfqLoading, setRfqLoading] = useState(false);
@@ -1552,9 +1553,14 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
 
       {/* Actions */}
       <div className="flex items-center justify-between flex-wrap gap-3 pt-2">
-        <button onClick={onRestart} className="text-sm text-muted-foreground hover:text-foreground transition">
-          {t("machineBuilder.startOver")}
-        </button>
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="text-sm text-muted-foreground hover:text-foreground transition">
+            ← {t("machineBuilder.back")}
+          </button>
+          <button onClick={onRestart} className="text-sm text-muted-foreground hover:text-foreground transition">
+            {t("machineBuilder.startOver")}
+          </button>
+        </div>
         <Link
           to="/$locale/products"
           params={{ locale } as never}
@@ -1577,13 +1583,17 @@ function classifyRole(role: string, sku: string): NodeType {
   if (/lufttill|supply|compressor|source|luft/.test(r)) return "supply";
   if (/frl|filter|regulator|lubric|luftbered/.test(r)) return "frl";
   if (/ventil|valve|direktional|styrventi|solenoid|5\/2|3\/2/.test(r)) return "valve";
+  // Drive check BEFORE actuator — "servo motor driver", "drivmodul" etc. contain
+  // "motor" which would otherwise hit the actuator branch first.
+  if (/servo.*motor|motor.*driv|motor.*kontroll|drivmodul|driv.*enhet|servo.*förstärk|servoförstärk|servo.*driv|drive.*module|drive.*controller|drive.*amplif|frekvensomriktare/.test(r)) return "drive";
+  // Cable check BEFORE sensor — "sensorkabel" / "sensor cable" contain the word "sensor"
+  if (/kabel|cable|kopplingskabel|ledning/.test(r) || /nebu|^e2-m/.test(s)) return "cable";
   if (/cylinder|aktuator|actuator|linjär|axel|shaft|motor|dnc|dng|dsm/.test(r) || /dnc|dng|dsbc|advu|ley|lef/.test(s)) return "actuator";
   if (/sensor|givare|switch|reed|närhets|proximity|position/.test(r)) return "sensor";
   if (/koppling|fitting|anslut|push-in|snabbanslut/.test(r)) return "fitting";
   if (/slang|slange|tub|tube|hose/.test(r)) return "fitting";
   if (/servo|drive|styrning|kontroller|frekvens/.test(r)) return "drive";
   if (/nät|power|supply|psu|24v|230v|matning/.test(r)) return "psu";
-  if (/kabel|cable|kopplingskabel|ledning/.test(r)) return "cable";
   if (/fäst|mount|bracket|konsol|adapter/.test(r)) return "mount";
   if (/grip|klämm|finger|jaw/.test(r) || /hgp|mhz|mhc|dhvz/.test(s)) return "gripper";
   if (/vakuum|vacuum|sug|ejek|suction/.test(r) || /vn|zse|svs/.test(s)) return "vacuum";

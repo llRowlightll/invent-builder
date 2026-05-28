@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v35 — Fix duplicate questions: add server-side dedup by id+label, add explicit "no duplicate" rule to prompt
 // v34 — Fix all remaining engineering issues:
 //   1. Horizontal precision filter (≤0.1mm removes belt+pneumatic for ALL axes, not just vertical)
 //   2. High-speed hard pre-filter: ball screws removed from catalog when speed>0.8m/s AND precision=0
@@ -730,6 +731,7 @@ async function handleQuestions(description: string, locale: string): Promise<Res
     `- If stroke is already stated, do NOT ask if they want a longer stroke. Accept stated value as absolute.`,
     `- Do NOT ask hypothetical questions. Only ask what is needed to select the right product.`,
     `- If programmable stops: ask about number of positions and accuracy.`,
+    `- CRITICAL: Every question MUST have a completely unique id AND unique label. NEVER repeat the same question twice. No duplicates allowed.`,
   ].filter(Boolean).join("\n");
 
   const system = `You are a senior automation engineer. Generate 4-6 precise technical questions. All text in ${lang}.\n\nRULES:\n${contextRules}\n\nJSON:\n{ "summary": "one precise sentence in ${lang}", "questions": [ { "id": "snake_case", "label": "question in ${lang}", "hint": "why this matters", "type": "choice", "options": ["opt1","opt2"] } ] }\ntype = 'choice' (with options) or 'number' (with unit).${pdfCtx ? "\n\nDocs:\n" + pdfCtx : ""}`;
@@ -740,7 +742,20 @@ async function handleQuestions(description: string, locale: string): Promise<Res
       { role: "user", content: `Application: ${description}` },
     ], 1200, true, 0.2, LLM_MODEL_FAST);
     if (!raw) return Response.json({ summary: "", questions: [] }, { headers: CORS });
-    try { return Response.json(JSON.parse(raw), { headers: CORS }); }
+    try {
+      const parsed = JSON.parse(raw);
+      // Deduplicate by id first, then by label prefix
+      const seenIds = new Set<string>();
+      const seenLabels = new Set<string>();
+      parsed.questions = (parsed.questions ?? []).filter((q: { id: string; label: string }) => {
+        const labelKey = q.label?.toLowerCase().replace(/\s+/g, " ").slice(0, 40) ?? "";
+        if (seenIds.has(q.id) || seenLabels.has(labelKey)) return false;
+        seenIds.add(q.id);
+        seenLabels.add(labelKey);
+        return true;
+      });
+      return Response.json(parsed, { headers: CORS });
+    }
     catch { return Response.json({ summary: "", questions: [] }, { headers: CORS }); }
   } catch (e) {
     if ((e as Error).message === "RATE_LIMITED") {
