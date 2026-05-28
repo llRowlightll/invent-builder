@@ -1,5 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v33 — Hard engineering-logic layer: precision×vertical pre-filter (removes pneumatic+belt when
+//        ≤0.1 mm + vertical), extractPrecisionMm detector, isBeltDrivenProduct, isPneumaticActuator,
+//        isAllowedForPrecisionVertical; 7-step self-validation system prompt; per-axis BOM rules;
+//        post-process: remove rodless cylinders from vertical precision apps
 // v32 — V10/10 questions upgrade: SIL/PL + NSF-H1 questions when vertical+washdown detected;
 //        buildCustomSolutionOption now generates context-specific product-family recommendations
 //        (SMC HY, Parker P1S, Bosch Rexroth EMC-HD-XC, two architectural paths for washdown+vertical)
@@ -397,6 +401,52 @@ function extractSpeedMs(text: string, answers: Record<string, string>): number {
   return 0;
 }
 
+/**
+ * Extract precision requirement (mm) from free text + answers.
+ * Handles: "±0.02 mm", "0.1mm precision", "repeterbarhet ±0.003mm", "20µm", "50 mikrometer"
+ * Returns 0 if not found (unknown → do not apply precision filter).
+ */
+function extractPrecisionMm(text: string, answers: Record<string, string>): number {
+  const all = text + " " + Object.values(answers).join(" ");
+  // µm / mikrometer → convert to mm
+  const umMatch = all.match(/(\d+(?:[.,]\d+)?)\s*(?:µm|um|mikrometer|micrometer)/i);
+  if (umMatch) return parseFloat(umMatch[1].replace(",", ".")) / 1000;
+  // "±0.02 mm", "0.02mm", "0,02 mm" — look for small decimal numbers near precision keywords
+  const precMatch = all.match(/(?:precision|accuracy|repeatability|noggrannhet|repeterbarhet|genomen|toleran)[^\d]{0,10}[±+\-]?\s*(\d+(?:[.,]\d+)?)\s*mm/i)
+    || all.match(/[±]\s*(\d+(?:[.,]\d+)?)\s*mm/i)
+    || all.match(/(\d+(?:[.,]\d+)?)\s*mm\s*(?:precision|accuracy|repeatability|noggrannhet|repeterbarhet)/i);
+  if (precMatch) return parseFloat(precMatch[1].replace(",", "."));
+  return 0;
+}
+
+/** Returns true if a product is belt-driven (not ball screw, not pneumatic). */
+function isBeltDrivenProduct(p: CatalogProduct): boolean {
+  const s = (p.name + " " + p.sku + " " + JSON.stringify(p.key_specs ?? {})).toLowerCase();
+  return /\bkuggrem\b|\btiming[\s-]?belt\b|\bsynchronous[\s-]?belt\b|\belgc[-.]?tb\b|\begsc\b|\belt[-\s]driv/i.test(s);
+}
+
+/** Returns true if a product is a pneumatic cylinder (actuator) — NOT an electric axis. */
+function isPneumaticActuatorProduct(p: CatalogProduct): boolean {
+  // Items without stroke spec are accessories — they are neither pneumatic nor electric actuators
+  if (parseStrokeFromSpecs(p.key_specs ?? {}) === 0) return false;
+  return !isElectricActuator(p);
+}
+
+/**
+ * PRECISION×VERTICAL RULE: if vertical movement + precision ≤ 0.1 mm,
+ * ONLY ball-screw / spindle driven electric actuators are physically valid.
+ * Pneumatic cylinders can't achieve <0.1mm repeatability.
+ * Belt drives introduce backlash (~0.05–0.3mm) that violates the precision budget.
+ * Returns true if the product is ALLOWED in this scenario.
+ */
+function isAllowedForPrecisionVertical(p: CatalogProduct): boolean {
+  const hasStroke = parseStrokeFromSpecs(p.key_specs ?? {}) > 0;
+  if (!hasStroke) return true; // accessories always included
+  if (!isElectricActuator(p)) return false; // no pneumatics
+  if (isBeltDrivenProduct(p)) return false; // no belt (backlash too high)
+  return true; // electric ball screw / spindle / linear motor
+}
+
 /** Returns true if a product is an electric actuator/motor/drive — forbidden in ATEX zones. */
 function isElectricActuator(p: CatalogProduct): boolean {
   const name = (p.name + " " + p.brand).toLowerCase();
@@ -660,6 +710,9 @@ async function handleOptions(
   const isPharmaGmp = needsPharmaGmp(combinedText);
   const isBatteryDryroom = needsBatteryDryroom(combinedText);
   const speedMs = extractSpeedMs(combinedText, answers);
+  const precisionMm = extractPrecisionMm(combinedText, answers);
+  // CRITICAL: vertical + precision ≤ 0.1 mm → ONLY ball-screw electric actuators allowed
+  const isHighPrecisionVertical = isVerticalLoad && precisionMm > 0 && precisionMm <= 0.1;
   const requiredTemp = extractRequiredMaxTemp(combinedText, answers);
 
   const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
@@ -685,12 +738,24 @@ async function handleOptions(
     ? atexFiltered.filter(p => isWashdownProduct(p))
     : atexFiltered;
 
+  // PRECISION×VERTICAL HARD FILTER (v33):
+  // If vertical AND precision ≤ 0.1 mm → physically impossible with pneumatics or belt drives.
+  // Pneumatic repeatability: ~±0.1–0.5 mm. Belt backlash: ~0.05–0.3 mm.
+  // Only ball-screw / spindle electric actuators can achieve ≤0.1 mm repeatability.
+  const precisionVerticalFiltered = isHighPrecisionVertical
+    ? washdownFiltered.filter(p => isAllowedForPrecisionVertical(p))
+    : washdownFiltered;
+  const precisionFilteredCount = washdownFiltered.length - precisionVerticalFiltered.length;
+  if (isHighPrecisionVertical && precisionFilteredCount > 0) {
+    console.log(`[options] precision-vertical pre-filter: removed ${precisionFilteredCount} pneumatic/belt products (vertical + precision=${precisionMm}mm ≤ 0.1mm)`);
+  }
+
   const qualified: CatalogProduct[] = [];
   let bestFallback: CatalogProduct | null = null;
   let bestFallbackStroke = 0;
   let maxCatalogStroke = 0;
 
-  for (const p of washdownFiltered) {
+  for (const p of precisionVerticalFiltered) {
     const maxStroke = parseStrokeFromSpecs(p.key_specs ?? {});
     if (maxStroke > maxCatalogStroke) maxCatalogStroke = maxStroke;
     if (maxRequiredStroke === 0 || maxStroke === 0) {
@@ -711,12 +776,13 @@ async function handleOptions(
     catalogNote = `CATALOG: No IP67/IP69K or stainless product meets ${maxRequiredStroke}mm stroke. Show closest available and note limitation.`;
   } else if (qualified.length === 0 && bestFallback) {
     catalogNote = `CATALOG: No product meets ${maxRequiredStroke}mm stroke. Longest available: ${bestFallback.name} at ${bestFallbackStroke}mm. Use badge 'Närmaste katalogalternativ'.`;
-  } else if (maxRequiredStroke > 0 && washdownFiltered.length - qualified.length > 0) {
-    catalogNote = `CATALOG: ${washdownFiltered.length - qualified.length} products excluded (stroke < ${maxRequiredStroke}mm).`;
+  } else if (maxRequiredStroke > 0 && precisionVerticalFiltered.length - qualified.length > 0) {
+    catalogNote = `CATALOG: ${precisionVerticalFiltered.length - qualified.length} products excluded (stroke < ${maxRequiredStroke}mm).`;
   }
   if (isWashdown) {
     catalogNote = (catalogNote ? catalogNote + " " : "") +
-      `WASHDOWN: Only IP67/IP69K or stainless products are shown (${washdownFiltered.length} of ${allProducts.length} total).`;
+      `WASHDOWN: Only IP67/IP69K or stainless products are shown (${washdownFiltered.length} of ${allProducts.length} total).` +
+      (isHighPrecisionVertical ? ` PRECISION-VERTICAL: ${precisionFilteredCount} pneumatic/belt products removed (≤${precisionMm}mm requires ball screw only).` : "");
   }
 
   // v27: Temperature filter — remove products whose known max temp is below the requirement.
@@ -789,6 +855,18 @@ async function handleOptions(
     maxRequiredStroke > 0
       ? `• Required stroke/travel: ${maxRequiredStroke} mm — DISQUALIFY any product with max_stroke < ${maxRequiredStroke} mm`
       : "",
+    precisionMm > 0
+      ? `• Required precision/repeatability: ±${precisionMm} mm — DISQUALIFY any product that cannot physically achieve this.`
+      : "",
+    isHighPrecisionVertical
+      ? `• ⛔ VERTICAL + HIGH PRECISION (±${precisionMm} mm): ABSOLUTE RULE — ONLY ball-screw / spindle electric actuators allowed.\n` +
+        `  ▸ FORBIDDEN: pneumatic cylinders (repeatability ±0.1–0.5 mm — cannot achieve ±${precisionMm} mm)\n` +
+        `  ▸ FORBIDDEN: belt-driven axes (backlash 0.05–0.3 mm — exceeds ±${precisionMm} mm budget)\n` +
+        `  ▸ REQUIRED: ball screw electric axis (EGSK, EGC, ELGC-BS, or equivalent) + servo motor with integrated brake\n` +
+        `  ▸ REQUIRED: brake motor on vertical axis — MANDATORY to hold load on power loss`
+      : (isVerticalLoad
+        ? `• ⚠️ VERTICAL AXIS — fail-safe holding brake MANDATORY. Servo motor with integrated brake OR pneumatic rod lock required.`
+        : ""),
     isAtex    ? `• ⛔ ATEX Zone 1/2 (gas) — NO electric actuators, NO servo, NO standard sensors. Pneumatic/NAMUR-certified ONLY.` : "",
     isAtexDust ? `• ⛔ ATEX Zone 20/21/22 (DUST explosion) — Equipment Group III, Category 2D/3D required. Different from gas zones — verify dust ignition temperature and MIE.` : "",
     isHydraulic ? `• ⚠️ HYDRAULIC APPLICATION — pneumatic catalog does NOT cover hydraulic (100–350 bar oil) systems. Recommend CUSTOM-SOLUTION.` : "",
@@ -820,20 +898,57 @@ async function handleOptions(
     isMultiAxis ? `• System: MULTI-AXIS — show PRIMARY actuator only; BOM handles secondary axes` : "",
   ].filter(Boolean).join("\n");
 
-  const system = `You are a brilliant, hyper-critical Senior Automation & Mechanical Design Engineer with zero tolerance for failures. Your standard: never guess, never hallucinate, never let a product pass if it violates physics, chemical restrictions, or hardware specs. All text in ${lang}.
-${requirementLines ? `\nAPPLICATION REQUIREMENTS — ALL MUST BE SATISFIED:\n${requirementLines}` : ""}
+  const system = `You are a Senior Automation & Mechanical Design Engineer AND a strict system validator. Your output is used directly by engineers to build real machines — it must be physically correct, safe, and complete. All text in ${lang}.
+${requirementLines ? `\nAPPLICATION REQUIREMENTS — HARD CONSTRAINTS:\n${requirementLines}` : ""}
 ${rules ? `\n${rules}` : ""}
 
-STRICT RULES YOU MUST FOLLOW:
-1. NUMERICAL VALIDATION: Do hard math. Compare customer input (Force, Speed, Stroke, Temp, Precision) directly against catalog specs. If a product's limit is below the requirement, mark it CRITICAL FAILURE — do NOT pick it as "Best Choice".
-2. MECHANISM HONESTY: If you mention "linear motor" in text, the SKU must be a linear motor. If you mention "belt drive", the SKU must be belt-driven. Never describe one mechanism and map it to another.
-3. CUSTOM-SOLUTION OVER FALSE MATCH: If no catalog product satisfies all requirements, output "CUSTOM-SOLUTION" as primary. Explain exactly which constraint fails (e.g. "Catalog lacks Cu/Zn/Ni-free 320mm axis; requires SMC 25-Series custom procurement").
-4. BRAND SPECIFICITY: When SMC, Parker, Bosch Rexroth, Norgren, Metal Work, or Camozzi have a specialist series for the detected environment (dryroom, ATEX, pharma, high-speed), name that series explicitly in the "why" field.
-5. COMPATIBILITY CHAINS: If the customer specifies a control system (EtherCAT, Profinet, ctrlX, etc.), the selected drive/servo MUST natively support that protocol — state the protocol compatibility explicitly.
+═══ 7-STEP ENGINEERING VALIDATION — MANDATORY BEFORE OUTPUT ═══
+
+STEP 1 — AXIS IDENTIFICATION
+Identify every axis in this system. For each axis: type (vertical/horizontal/rotary), mechanism technology required, load, stroke.
+
+STEP 2 — TECHNOLOGY SELECTION (ONE ACTUATOR PER AXIS)
+Apply strict selection rules:
+• Vertical + precision ≤ 0.1 mm → ONLY ball-screw electric axis + servo brake motor. FORBIDDEN: pneumatic, belt-driven.
+• Vertical + no precision req → pneumatic cylinder with rod lock OR electric with brake.
+• Horizontal + high speed (>0.8 m/s) → belt-driven or linear motor.
+• Horizontal + high precision (≤0.1 mm) → ball screw.
+• Simple short-stroke secondary movement (<100 mm) → smaller pneumatic cylinder (do NOT over-engineer).
+• ONE actuator per axis. NEVER mix actuator types within one axis role.
+
+STEP 3 — SAFETY VALIDATION
+• Vertical axis: brake motor or rod lock is NON-NEGOTIABLE — prevents load drop on power loss.
+• Multi-axis: central controller required for synchronization.
+• Eccentric load: linear guide or integrated guide rail required.
+
+STEP 4 — MECHANISM HONESTY CHECK
+• If "why" field mentions ball screw → SKU MUST be a ball screw product. If belt → belt SKU. NO mismatches.
+• If catalog has no valid product → output CUSTOM-SOLUTION with exact specification (brand series, mechanism type).
+
+STEP 5 — COMPLETENESS CHECK
+Per axis: actuator ✓, motor ✓, drive ✓
+System: controller ✓ (if multi-axis), sensors ✓, safety ✓ (if vertical/hazardous)
+
+STEP 6 — DETECT AND FIX ERRORS
+Before finalizing:
+□ Is any pneumatic/belt product selected for vertical + precision ≤ 0.1 mm? → REPLACE with ball screw.
+□ Is vertical axis missing brake? → ADD brake note to cons.
+□ Is there more than one actuator per axis? → REMOVE duplicates.
+□ Does text say one mechanism but SKU is another? → FIX SKU or FIX text.
+
+STEP 7 — FINAL OUTPUT
+Return a VERIFIED solution. Confident tone. No vague language. No "it may" or "could be". State facts.
+Example: "This system uses a ball-screw servo axis (EGSK) on Z for ±0.02 mm precision, with integrated brake motor for safe vertical load holding."
+
+═══════════════════════════════════════════════════════════════
+
+BRAND SPECIFICITY: Name the exact series when relevant (SMC HY, Parker P1S, Bosch Rexroth EMC-HD-XC, SMC 25-series, etc.)
+COMPATIBILITY: If control protocol specified (EtherCAT, PROFINET, ctrlX), state drive compatibility explicitly.
+NUMERICAL VALIDATION: Hard math — if product spec < requirement, it FAILS. Do not mark failing products "Best Choice".
 
 Return ONLY JSON (no markdown):
-{ "summary": "1–2 sentence technical summary in ${lang} — be specific about WHY these products were chosen (material restrictions met, protocol verified, stroke sufficient, etc.)",
-  "options": [ { "sku": "CATALOG_SKU", "name": "product name", "badge": ${badges}, "bore_mm": null|number, "stroke_mm": null|number, "force_n": null|number, "why": "precise engineering justification in ${lang}: which specs match, which restrictions are satisfied, which protocol/material/IP rating was verified", "pros": ["..."], "cons": ["..."] } ] }`;
+{ "summary": "1–2 sentences — confident, specific, state mechanism + safety approach",
+  "options": [ { "sku": "CATALOG_SKU_OR_CUSTOM-SOLUTION", "name": "product name", "badge": ${badges}, "bore_mm": null|number, "stroke_mm": null|number, "force_n": null|number, "why": "engineering justification: mechanism chosen, precision achievable, safety feature, protocol/material verified — in ${lang}", "pros": ["..."], "cons": ["..."] } ] }`;
 
   const userMsg = `Application: ${description}\nAnswers: ${Object.entries(answers).map(([k,v])=>`${k}=${v}`).join(", ")}\n\nCatalog (${catalogProducts.length} products, sorted by stroke relevance${maxRequiredStroke > 0 ? ` for ${maxRequiredStroke} mm` : ""}${isWashdown ? ", IP67/IP69K+stainless only" : ""}):\n${productList}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
 
@@ -863,6 +978,19 @@ Return ONLY JSON (no markdown):
     if (isWashdown && !isWashdownProduct(cat)) {
       opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
       opt.why = `${opt.why ?? ""} ⚠️ Standardprodukt — verifiera korrosionsskydd för washdown-miljö.`;
+    }
+    // PRECISION×VERTICAL hard post-validation — catches any product that slipped through pre-filter
+    if (isHighPrecisionVertical && !isAllowedForPrecisionVertical(cat)) {
+      const failType = isPneumaticActuatorProduct(cat) ? "pneumatisk cylinder" : "kuggremsdrift";
+      const criticalFail = isSv
+        ? `⛔ KRITISKT FEL: ${failType} kan INTE uppnå ±${precisionMm} mm repeterbarhet på vertikal axel. ` +
+          `Pneumatik: ±0.1–0.5 mm. Kuggrem: backlash 0.05–0.3 mm. KRÄVS: kulskruvsaxel + bromsmotor.`
+        : `⛔ CRITICAL FAILURE: ${failType} CANNOT achieve ±${precisionMm} mm repeatability on vertical axis. ` +
+          `Pneumatic: ±0.1–0.5 mm. Belt: backlash 0.05–0.3 mm. REQUIRED: ball-screw axis + brake motor.`;
+      opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
+      opt.why = criticalFail + (opt.why ? " " + opt.why : "");
+      opt.cons = [...((opt.cons as string[]) ?? []), criticalFail];
+      console.warn(`[options] precision-vertical violation: ${sku} is ${failType} — precision=${precisionMm}mm`);
     }
     // Ball-screw × high-speed incompatibility check
     if (isHighSpeed && isBallScrewProduct(cat)) {
@@ -1036,17 +1164,37 @@ async function handleBom(
     `SKU RULES: Only use SKUs that appear verbatim in the catalog list below. Use SPECIFY only if a truly needed component (not the primary actuator) is absent from catalog. One row per SKU.`,
   ].filter(Boolean).join(" | ");
 
-  const system = `You are a hyper-critical Senior Automation Engineer. Build a complete, technically exact Bill of Materials. All text in ${lang}.
+  const isBomHighPrecisionVertical = needsVerticalLoad(combinedText) &&
+    extractPrecisionMm(combinedText, answers) > 0 &&
+    extractPrecisionMm(combinedText, answers) <= 0.1;
 
-STRICT RULES:
-1. Every BOM row must satisfy the constraints in the rules below — if a standard SKU violates a constraint (material, IP rating, temperature, ATEX), replace it with SPECIFY and state the exact requirement.
-2. If you mention a mechanism type in the "role" or "reason" field, the SKU must match that mechanism — no mechanism mismatch allowed.
-3. Material restrictions are absolute: a product cannot appear in the BOM if its material violates an active restriction (Cu/Zn/Ni ban, oil-free, etc.) unless you add an explicit material verification note.
-4. Accessory completeness: for high-speed axes add cushioning/shock absorbers, for vertical loads add lock valves, for ATEX add NAMUR-certified sensors.
+  const axisStructureRule = isMultiAxis
+    ? `MULTI-AXIS BOM STRUCTURE — MANDATORY:\n` +
+      `The BOM MUST be structured per axis. Use clear role labels:\n` +
+      `  • "Aktuator — Z-axel (vertikal)" / "Actuator — Z-axis (vertical)"\n` +
+      `  • "Aktuator — X-axel (horisontell)" / "Actuator — X-axis (horizontal)"\n` +
+      `  • "Servomodul — Z-axel" / "Servo drive — Z-axis"\n` +
+      `  • "Servomodul — X-axel" / "Servo drive — X-axis"\n` +
+      `  • "Bromsmotor — Z-axel (vertikal säkerhet)" / "Brake motor — Z-axis (vertical safety)"\n` +
+      `  • "Centralenhet / PLC" / "Central controller / PLC" — ONE shared unit\n` +
+      `FORBIDDEN: listing components without a clear axis assignment. FORBIDDEN: mixing two actuators under one axis role.`
+    : "";
 
-${rules}
+  const system = `You are a hyper-critical Senior Automation Engineer. Build a complete, physically correct Bill of Materials. All text in ${lang}.
 
-JSON: { "title": "short technical title in ${lang}", "explanation": "2-3 sentences explaining the engineering rationale and any critical constraints", "bom": [ { "sku": "SKU or SPECIFY", "quantity": 1, "role": "component function in ${lang}", "reason": "precise technical reason: which spec was verified (stroke, IP, material, protocol, temp), in ${lang}" } ] }`;
+ENGINEERING RULES — NON-NEGOTIABLE:
+1. ONE actuator per axis. A linear guide is NOT an actuator. If a secondary axis exists → add a second actuator.
+2. Mechanism match: if role says "kulskruvsaxel" or "ball-screw" → SKU must be a ball-screw product. No mismatches.
+3. Vertical axis → servo motor with integrated brake MANDATORY (prevents load drop on power loss). Label clearly.
+4. Multi-axis → central controller / PLC MANDATORY for synchronization.
+5. High precision (≤ 0.1 mm) → ONLY ball-screw actuators. NO belt drives in BOM for precision axes.
+6. Material restrictions are absolute (Cu/Zn/Ni ban, IP rating, ATEX, pharma) — any violation → SPECIFY row.
+7. BOM must be COMPLETE: actuator + motor + drive + controller + sensors + safety per axis.
+8. Confident language: "This system uses..." not "This could use...". State facts.
+
+${axisStructureRule ? axisStructureRule + "\n" : ""}${rules}
+
+JSON: { "title": "short technical title in ${lang}", "explanation": "2-3 sentences — confident, specific architecture description with safety rationale", "bom": [ { "sku": "SKU or SPECIFY", "quantity": 1, "role": "axis-specific function in ${lang}", "reason": "engineering justification: mechanism verified, spec checked, safety addressed — in ${lang}" } ] }`;
 
   const reqLines = Object.entries(answers)
     .map(([k, v]) => {
