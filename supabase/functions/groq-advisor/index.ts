@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v37 — extractMinStroke: exclude "NNN mm/s" (speed) from stroke extraction — prevents 400mm/s overriding 200mm stroke
+// v36 — BOM completeness: inject end-position sensors when detection requested but absent from BOM; rule 9 in system prompt
 // v35 — Fix duplicate questions: add server-side dedup by id+label, add explicit "no duplicate" rule to prompt
 // v34 — Fix all remaining engineering issues:
 //   1. Horizontal precision filter (≤0.1mm removes belt+pneumatic for ALL axes, not just vertical)
@@ -288,7 +290,8 @@ function extractMinStroke(answers: Record<string, string>, description: string):
   }
   const allText = Object.values(answers).join(" ") + " " + description;
   let maxFound = 0;
-  for (const m of allText.matchAll(/(\d{2,5})\s*mm/gi)) {
+  // Match "NNN mm" but NOT "NNN mm/s" (speed), "NNN mm²" (area), "NNN mm³" (volume)
+  for (const m of allText.matchAll(/(\d{2,5})\s*mm(?![\s]*(\/|per|²|³|s\b))/gi)) {
     const v = parseInt(m[1]);
     if (v >= 50 && v <= 10000 && v > maxFound) maxFound = v;
   }
@@ -526,6 +529,11 @@ function isElectricActuator(p: CatalogProduct): boolean {
  */
 function needsWashdown(text: string): boolean {
   return /washdown|wash[-\s]down|livsmedel|food[-\s]grade|food[-\s]safe|mejeri|dairy|slakteri|slakter|livsmedelsgodkänd|livsmedelsgodkand|ip[-\s]?69|högtrycksspolning|högtryck.*spol|spol.*kemik|kemisk.*reng|cip\b|sip\b|hygienic|hygienisk|clean[-\s]design|cleandesign|rostfri|stainless|korrosionsskyddad|vätsk.*milj|blot.*milj/i.test(text);
+}
+
+/** Returns true if the user requested end-position / stroke-end detection (sensors). */
+function needsEndPositionDetection(text: string): boolean {
+  return /detekt|givare|sensor|ändläge|end.pos|end.stop|stroke.end|reed|proximity|närhets|position.*detect|detect.*position|elektron.*detekt|signalera|signal.*läge|läges.*signal|kontrollera.*läge|läge.*kontroll|home.*detect|detect.*home|smcm|smc.*sensor|piston.*sens/i.test(text);
 }
 
 /** Returns true if a product is suitable for washdown environments. */
@@ -1190,6 +1198,7 @@ async function handleBom(
   const isVacuum = needsVacuumGrip(combinedText);
   const valveTerminal = needsValveTerminal(combinedText);
   const isWashdown = needsWashdown(combinedText);
+  const isEndPosDetect = needsEndPositionDetection(combinedText);
   const minStroke = extractMinStroke(answers, description);
 
   const bomCategories = [
@@ -1324,6 +1333,7 @@ ENGINEERING RULES — NON-NEGOTIABLE:
 6. Material restrictions are absolute (Cu/Zn/Ni ban, IP rating, ATEX, pharma) — any violation → SPECIFY row.
 7. BOM must be COMPLETE: actuator + motor + drive + controller + sensors + safety per axis.
 8. Confident language: "This system uses..." not "This could use...". State facts.
+9. BOM TABLE COMPLETENESS — CRITICAL: Every component mentioned in the explanation text MUST appear as its own physical row in the BOM table with a unique SKU or SPECIFY entry. NEVER describe sensors, brackets, cushions or accessories in prose and omit them from the table. If end-position detection is requested → add exactly 2 position sensors (Qty 2, one per end) as separate BOM rows. If a mounting bracket is mentioned → add at least 1 bracket row matching the cylinder bore.
 
 ${axisStructureRule ? axisStructureRule + "\n" : ""}${rules}
 
@@ -1417,6 +1427,24 @@ JSON: { "title": "short technical title in ${lang}", "explanation": "2-3 sentenc
         reason: isSv
           ? "OBLIGATORISK vid slaghastighet >1 m/s — förhindrar skador på cylinderände och maskinkonstruktion"
           : "MANDATORY at stroke speed >1 m/s — prevents end-stop damage to cylinder and machine frame",
+      });
+    }
+  }
+
+  // v36: End-position detection — inject 2 sensors if requested but missing from BOM
+  if (isEndPosDetect && !isElectric) {
+    const hasSensor = parsed.bom.some(l =>
+      /sensor|givare|reed|proximity|närhets|ändläge|end.pos|smcm|sme|smc.*d|d.*smc|b|position.*sw|detect/i.test(l.role + " " + l.reason + " " + l.sku)
+    );
+    if (!hasSensor) {
+      console.warn("[bom] end-pos detect: injecting 2 position sensors");
+      parsed.bom.push({
+        sku: "SPECIFY",
+        quantity: 2,
+        role: isSv ? "Ändlägesgivare (hemläge + utsträckt läge)" : "End-position sensor (home + extended)",
+        reason: isSv
+          ? "OBLIGATORISK — 2 st magnetgivare för T-spår (en per ändläge) krävs för PLC-feedback. Välj givare kompatibel med cylinderns profilspår (T-spår eller C-spår) och aktuell styrsystemsspänning (24 V DC NPN/PNP)."
+          : "MANDATORY — 2 T-slot magnetic sensors (one per end position) required for PLC feedback. Select sensor matching cylinder profile groove (T-slot or C-slot) and control voltage (24 V DC NPN/PNP).",
       });
     }
   }
