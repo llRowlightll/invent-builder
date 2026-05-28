@@ -37,8 +37,9 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-// Groq — llama-3.3-70b-versatile: fast, reliable, generous free quota
-const LLM_MODEL = "llama-3.3-70b-versatile";
+// Groq models — separate TPD pools per model
+const LLM_MODEL = "llama-3.3-70b-versatile";   // options + BOM (needs full intelligence)
+const LLM_MODEL_FAST = "llama-3.1-8b-instant";  // questions only (500K TPD, separate pool)
 const LLM_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 const CORS = {
@@ -51,10 +52,11 @@ async function callGroq(
   messages: Array<{ role: string; content: string }>,
   maxTokens = 2000,
   jsonMode = true,
-  temperature = 0.2
+  temperature = 0.2,
+  model = LLM_MODEL
 ): Promise<string | null> {
   const body: Record<string, unknown> = {
-    model: LLM_MODEL, messages, max_tokens: maxTokens, temperature,
+    model, messages, max_tokens: maxTokens, temperature,
   };
   if (jsonMode) body.response_format = { type: "json_object" };
   const res = await fetch(LLM_URL, {
@@ -715,7 +717,7 @@ async function handleQuestions(description: string, locale: string): Promise<Res
     const raw = await callGroq([
       { role: "system", content: system },
       { role: "user", content: `Application: ${description}` },
-    ], 1200, true);
+    ], 1200, true, 0.2, LLM_MODEL_FAST);
     if (!raw) return Response.json({ summary: "", questions: [] }, { headers: CORS });
     try { return Response.json(JSON.parse(raw), { headers: CORS }); }
     catch { return Response.json({ summary: "", questions: [] }, { headers: CORS }); }
