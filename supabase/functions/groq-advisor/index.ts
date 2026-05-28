@@ -1,5 +1,14 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v34 — Fix all remaining engineering issues:
+//   1. Horizontal precision filter (≤0.1mm removes belt+pneumatic for ALL axes, not just vertical)
+//   2. High-speed hard pre-filter: ball screws removed from catalog when speed>0.8m/s AND precision=0
+//   3. BOM electric servo + vertical → inject SPECIFY brake motor row (not pneumatic check valve)
+//   4. Terminology fix: forbid "rack-and-pinion/kuggstång" for precision; define "ball screw = kulskruv"
+//   5. Multi-axis prompt: X-axis high speed → belt; Z-axis precision → ball screw (differentiated)
+//   6. Post-process: belt drive at ≤0.1mm → CRITICAL FAILURE badge (backlash violation)
+//   7. requirementLines: merged vertical+precision rule to cover all axes
+//   8. BOM: SPECIFY rows now have explicit material/spec justification; check-valve vs brake-motor logic
 // v33 — Hard engineering-logic layer: precision×vertical pre-filter (removes pneumatic+belt when
 //        ≤0.1 mm + vertical), extractPrecisionMm detector, isBeltDrivenProduct, isPneumaticActuator,
 //        isAllowedForPrecisionVertical; 7-step self-validation system prompt; per-axis BOM rules;
@@ -433,18 +442,41 @@ function isPneumaticActuatorProduct(p: CatalogProduct): boolean {
 }
 
 /**
- * PRECISION×VERTICAL RULE: if vertical movement + precision ≤ 0.1 mm,
- * ONLY ball-screw / spindle driven electric actuators are physically valid.
- * Pneumatic cylinders can't achieve <0.1mm repeatability.
- * Belt drives introduce backlash (~0.05–0.3mm) that violates the precision budget.
- * Returns true if the product is ALLOWED in this scenario.
+ * PRECISION RULE (ALL AXES, v34): if precision ≤ 0.1 mm, belt drives and pneumatics
+ * are physically excluded regardless of axis orientation.
+ * • Pneumatic repeatability: ±0.1–0.5 mm → cannot achieve ≤0.1 mm
+ * • Belt backlash: 0.05–0.3 mm → violates ≤0.1 mm precision budget
+ * • Ball screw / spindle: 0.003–0.05 mm → physically capable
+ * Returns true if product is ALLOWED for high-precision application.
  */
-function isAllowedForPrecisionVertical(p: CatalogProduct): boolean {
+function isAllowedForHighPrecision(p: CatalogProduct): boolean {
   const hasStroke = parseStrokeFromSpecs(p.key_specs ?? {}) > 0;
   if (!hasStroke) return true; // accessories always included
-  if (!isElectricActuator(p)) return false; // no pneumatics
+  if (!isElectricActuator(p)) return false; // no pneumatics (repeatability too poor)
   if (isBeltDrivenProduct(p)) return false; // no belt (backlash too high)
-  return true; // electric ball screw / spindle / linear motor
+  return true; // electric ball screw / spindle / linear motor only
+}
+
+/**
+ * Alias kept for backward compat — same logic, used for vertical+precision specifically.
+ */
+function isAllowedForPrecisionVertical(p: CatalogProduct): boolean {
+  return isAllowedForHighPrecision(p);
+}
+
+/**
+ * HIGH-SPEED RULE (v34): if speed > 0.8 m/s AND no precision constraint,
+ * ball-screw drives are excluded (vibration, wear, resonance above ~800 mm/s).
+ * Only applies when precision is NOT the limiting factor (if precision ≤ 0.1mm,
+ * ball screw may still be needed despite high speed).
+ * Returns true if product is ALLOWED for high-speed, low-precision application.
+ */
+function isAllowedForHighSpeed(p: CatalogProduct): boolean {
+  const hasStroke = parseStrokeFromSpecs(p.key_specs ?? {}) > 0;
+  if (!hasStroke) return true;
+  if (!isElectricActuator(p)) return true; // pneumatic at high speed = fine (add cushions)
+  if (isBallScrewProduct(p)) return false; // ball screw resonates / wears above 800 mm/s
+  return true; // belt drive, linear motor = ideal for high speed
 }
 
 /** Returns true if a product is an electric actuator/motor/drive — forbidden in ATEX zones. */
@@ -738,16 +770,30 @@ async function handleOptions(
     ? atexFiltered.filter(p => isWashdownProduct(p))
     : atexFiltered;
 
-  // PRECISION×VERTICAL HARD FILTER (v33):
-  // If vertical AND precision ≤ 0.1 mm → physically impossible with pneumatics or belt drives.
-  // Pneumatic repeatability: ~±0.1–0.5 mm. Belt backlash: ~0.05–0.3 mm.
-  // Only ball-screw / spindle electric actuators can achieve ≤0.1 mm repeatability.
-  const precisionVerticalFiltered = isHighPrecisionVertical
-    ? washdownFiltered.filter(p => isAllowedForPrecisionVertical(p))
+  // PRECISION HARD FILTER (v34 — extended from vertical-only to ALL axes):
+  // precision ≤ 0.1 mm → remove pneumatic + belt regardless of orientation.
+  // Pneumatic repeatability ~±0.1–0.5 mm. Belt backlash ~0.05–0.3 mm. Both violate ≤0.1 mm budget.
+  // Exception: for multi-axis systems, only filter when primary axis has the precision requirement.
+  const isHighPrecision = precisionMm > 0 && precisionMm <= 0.1;
+  const applyPrecisionFilter = isHighPrecision && (!isMultiAxis || isHighPrecisionVertical);
+  const precisionFiltered = applyPrecisionFilter
+    ? washdownFiltered.filter(p => isAllowedForHighPrecision(p))
     : washdownFiltered;
-  const precisionFilteredCount = washdownFiltered.length - precisionVerticalFiltered.length;
-  if (isHighPrecisionVertical && precisionFilteredCount > 0) {
-    console.log(`[options] precision-vertical pre-filter: removed ${precisionFilteredCount} pneumatic/belt products (vertical + precision=${precisionMm}mm ≤ 0.1mm)`);
+  const precisionFilteredCount = washdownFiltered.length - precisionFiltered.length;
+  if (applyPrecisionFilter && precisionFilteredCount > 0) {
+    console.log(`[options] precision pre-filter: removed ${precisionFilteredCount} pneumatic/belt products (precision=${precisionMm}mm ≤ 0.1mm)`);
+  }
+
+  // HIGH-SPEED HARD FILTER (v34): speed > 0.8 m/s AND no precision requirement
+  // → remove ball-screw products (resonance, wear, unsuitable for fast cycling).
+  // NOT applied when precision ≤ 0.1 mm (precision requirement overrides — ball screw still needed).
+  const applySpeedFilter = speedMs > 0.8 && !isHighPrecision && !isAtex;
+  const precisionVerticalFiltered = applySpeedFilter
+    ? precisionFiltered.filter(p => isAllowedForHighSpeed(p))
+    : precisionFiltered;
+  const speedFilteredCount = precisionFiltered.length - precisionVerticalFiltered.length;
+  if (applySpeedFilter && speedFilteredCount > 0) {
+    console.log(`[options] high-speed pre-filter: removed ${speedFilteredCount} ball-screw products (speed=${(speedMs*1000).toFixed(0)}mm/s > 800mm/s, no precision req)`);
   }
 
   const qualified: CatalogProduct[] = [];
@@ -817,11 +863,14 @@ async function handleOptions(
 
   const multiAxisRule = isMultiAxis
     ? perAxisStrokes.length > 0
-      ? `MULTI-AXIS SYSTEM — axis requirements: ${perAxisStrokes.map(a => `${a.axis}-axis ${a.stroke}mm`).join(", ")}. ` +
-        `Show 2-3 options for the PRIMARY actuator (horizontal / largest axis = ${maxRequiredStroke}mm). ` +
-        `Each option card = ONE primary actuator product from catalog. ` +
-        `The BOM step will add Z-axis actuator, vacuum, valve terminal and other components. ` +
-        `Do NOT try to show a complete system in the options — just the primary actuator.`
+      ? `MULTI-AXIS SYSTEM — axis requirements: ${perAxisStrokes.map(a => `${a.axis}-axis ${a.stroke}mm`).join(", ")}.
+Show 2-3 options for the PRIMARY actuator only (largest axis = ${maxRequiredStroke}mm).
+AXIS TECHNOLOGY SELECTION RULES:
+• X-axis (horizontal, high speed >800 mm/s): belt-driven actuator (EGSC, ELGC-TB, OSP-E-B) — NOT ball screw
+• Z-axis (vertical, precision ≤0.1mm): ball-screw electric axis (EGSK, EGC-BS) + brake motor — NOT belt, NOT pneumatic
+• Z-axis (vertical, no precision): pneumatic cylinder with rod lock OR electric with brake motor
+• NEVER show the same actuator type for both X and Z — they have different optimal technologies
+The BOM step handles secondary axes. Show ONLY the primary actuator here.`
       : `MULTI-AXIS: Show 2-3 options for the primary (longest-stroke) actuator. BOM handles secondary axes.`
     : "";
 
@@ -856,16 +905,28 @@ async function handleOptions(
       ? `• Required stroke/travel: ${maxRequiredStroke} mm — DISQUALIFY any product with max_stroke < ${maxRequiredStroke} mm`
       : "",
     precisionMm > 0
-      ? `• Required precision/repeatability: ±${precisionMm} mm — DISQUALIFY any product that cannot physically achieve this.`
+      ? `• Required precision/repeatability: ±${precisionMm} mm`
+      : "",
+    isHighPrecision
+      ? `• ⛔ HIGH PRECISION ±${precisionMm} mm — PHYSICS RULES (applies to ALL axes):\n` +
+        `  ▸ FORBIDDEN: pneumatic cylinders — repeatability ±0.1–0.5 mm, CANNOT achieve ±${precisionMm} mm\n` +
+        `  ▸ FORBIDDEN: belt-driven axes — belt backlash 0.05–0.3 mm, EXCEEDS ±${precisionMm} mm budget\n` +
+        `  ▸ FORBIDDEN: rack-and-pinion (kuggstång) — backlash 0.05–0.5 mm, NOT suitable for precision\n` +
+        `  ▸ ALLOWED: ball screw (kulskruvsaxel) — repeatability 0.003–0.05 mm ✓\n` +
+        `  ▸ ALLOWED: linear motor — repeatability <0.001 mm ✓\n` +
+        `  ▸ TERMINOLOGY: "kulskruvsaxel" = ball screw = correct. "kuggstång" = rack-and-pinion = WRONG for precision.`
       : "",
     isHighPrecisionVertical
-      ? `• ⛔ VERTICAL + HIGH PRECISION (±${precisionMm} mm): ABSOLUTE RULE — ONLY ball-screw / spindle electric actuators allowed.\n` +
-        `  ▸ FORBIDDEN: pneumatic cylinders (repeatability ±0.1–0.5 mm — cannot achieve ±${precisionMm} mm)\n` +
-        `  ▸ FORBIDDEN: belt-driven axes (backlash 0.05–0.3 mm — exceeds ±${precisionMm} mm budget)\n` +
-        `  ▸ REQUIRED: ball screw electric axis (EGSK, EGC, ELGC-BS, or equivalent) + servo motor with integrated brake\n` +
-        `  ▸ REQUIRED: brake motor on vertical axis — MANDATORY to hold load on power loss`
+      ? `• ⛔ VERTICAL + PRECISION: ball-screw axis MANDATORY + servo motor with INTEGRATED BRAKE (not check valve — electric axis needs electric brake)`
       : (isVerticalLoad
-        ? `• ⚠️ VERTICAL AXIS — fail-safe holding brake MANDATORY. Servo motor with integrated brake OR pneumatic rod lock required.`
+        ? `• ⚠️ VERTICAL AXIS:\n  ▸ Electric servo system → servo motor with integrated holding brake (elektrisk bromsmotor)\n  ▸ Pneumatic system → pilot-operated check valve (backslagsventil) + rod lock`
+        : ""),
+    speedMs > 0.8 && !isHighPrecision
+      ? `• ⛔ HIGH SPEED ${(speedMs*1000).toFixed(0)} mm/s + NO precision req:\n` +
+        `  ▸ FORBIDDEN: ball-screw drives — resonance and rapid wear above 800 mm/s\n` +
+        `  ▸ REQUIRED: belt-driven axis (EGSC, ELGC-TB, OSP-E-B) or linear motor`
+      : (speedMs > 0.8 && isHighPrecision
+        ? `• ⚠️ HIGH SPEED ${(speedMs*1000).toFixed(0)} mm/s + PRECISION ±${precisionMm} mm: requires high-lead ball screw or linear motor`
         : ""),
     isAtex    ? `• ⛔ ATEX Zone 1/2 (gas) — NO electric actuators, NO servo, NO standard sensors. Pneumatic/NAMUR-certified ONLY.` : "",
     isAtexDust ? `• ⛔ ATEX Zone 20/21/22 (DUST explosion) — Equipment Group III, Category 2D/3D required. Different from gas zones — verify dust ignition temperature and MIE.` : "",
@@ -979,18 +1040,20 @@ Return ONLY JSON (no markdown):
       opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
       opt.why = `${opt.why ?? ""} ⚠️ Standardprodukt — verifiera korrosionsskydd för washdown-miljö.`;
     }
-    // PRECISION×VERTICAL hard post-validation — catches any product that slipped through pre-filter
-    if (isHighPrecisionVertical && !isAllowedForPrecisionVertical(cat)) {
-      const failType = isPneumaticActuatorProduct(cat) ? "pneumatisk cylinder" : "kuggremsdrift";
+    // PRECISION hard post-validation (v34 — ALL axes, not just vertical)
+    if (isHighPrecision && !isAllowedForHighPrecision(cat)) {
+      const failType = isPneumaticActuatorProduct(cat)
+        ? (isSv ? "pneumatisk cylinder (repeterbarhet ±0.1–0.5 mm)" : "pneumatic cylinder (repeatability ±0.1–0.5 mm)")
+        : (isBeltDrivenProduct(cat)
+          ? (isSv ? "kuggremsdrift (backlash 0.05–0.3 mm)" : "belt drive (backlash 0.05–0.3 mm)")
+          : "incompatible mechanism");
       const criticalFail = isSv
-        ? `⛔ KRITISKT FEL: ${failType} kan INTE uppnå ±${precisionMm} mm repeterbarhet på vertikal axel. ` +
-          `Pneumatik: ±0.1–0.5 mm. Kuggrem: backlash 0.05–0.3 mm. KRÄVS: kulskruvsaxel + bromsmotor.`
-        : `⛔ CRITICAL FAILURE: ${failType} CANNOT achieve ±${precisionMm} mm repeatability on vertical axis. ` +
-          `Pneumatic: ±0.1–0.5 mm. Belt: backlash 0.05–0.3 mm. REQUIRED: ball-screw axis + brake motor.`;
+        ? `⛔ KRITISKT FEL: ${failType} kan INTE uppnå ±${precisionMm} mm repeterbarhet. Krävs: kulskruvsaxel (ball screw) eller linjärmotor.`
+        : `⛔ CRITICAL FAILURE: ${failType} CANNOT achieve ±${precisionMm} mm repeatability. Required: ball-screw axis or linear motor.`;
       opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
       opt.why = criticalFail + (opt.why ? " " + opt.why : "");
       opt.cons = [...((opt.cons as string[]) ?? []), criticalFail];
-      console.warn(`[options] precision-vertical violation: ${sku} is ${failType} — precision=${precisionMm}mm`);
+      console.warn(`[options] precision violation: ${sku} is ${failType} — precision=${precisionMm}mm`);
     }
     // Ball-screw × high-speed incompatibility check
     if (isHighSpeed && isBallScrewProduct(cat)) {
@@ -1059,6 +1122,8 @@ async function handleBom(
   const isPharmaGmp = needsPharmaGmp(combinedText);
   const isBatteryDryroom = needsBatteryDryroom(combinedText);
   const speedMs = extractSpeedMs(combinedText, answers);
+  const precisionMm = extractPrecisionMm(combinedText, answers);
+  const isHighPrecision = precisionMm > 0 && precisionMm <= 0.1;
   // In ATEX zones, electric actuators are forbidden — detectCategories already strips them,
   // but force isElectric=false to prevent electric accessories (cables, drives) being fetched.
   const isElectric = !isAtex && !isAtexDust && categories.some(c => c === "electric-actuator" || c === "linear-module");
@@ -1111,8 +1176,11 @@ async function handleBom(
     isHydraulic || isVeryHighForce
       ? `⛔ HYDRAULIC / VERY HIGH FORCE: Pneumatic cylinders (max ~16 bar) cannot deliver hydraulic forces (100–350 bar). For this application ALL actuator rows MUST be SPECIFY with reason "Hydraulisk komponent — utanför pneumatisk katalog. Kontakta Maskinval för hydraulisk offert." Include a note in explanation that hydraulic engineering is required.`
       : "",
-    isVerticalLoad
-      ? `⚠️ VERTICAL LOAD — MANDATORY SAFETY ITEM: Add a pilot-operated check valve (backslagsventil) for EACH lifting/vertical cylinder. Reason: prevents load from falling if air pressure is lost. If not in catalog: SPECIFY with reason "Pilotmanövrerad backslagsventil — obligatorisk för vertikal last, IEC 60947-5-1". Also consider mechanical load-locking cylinder variant.`
+    isVerticalLoad && !isElectric
+      ? `⚠️ VERTICAL LOAD (PNEUMATIC SYSTEM): Add a pilot-operated check valve (backslagsventil) for EACH lifting/vertical cylinder. If not in catalog: SPECIFY "Pilotmanövrerad backslagsventil — obligatorisk för vertikal last". Do NOT add a check valve for electric servo axes — that is a pneumatic component and would be wrong.`
+      : "",
+    isVerticalLoad && isElectric
+      ? `⚠️ VERTICAL LOAD (ELECTRIC SERVO SYSTEM): MANDATORY — add a servo motor WITH INTEGRATED HOLDING BRAKE for the vertical axis. The brake engages automatically on power loss, preventing load drop. SPECIFY row: "Bromsmotor (servo med integrerad hållbroms) — vertikal axel, obligatorisk för lastsäkerhet". Do NOT add a pneumatic check valve — this is an electric system.`
       : "",
     isHighTemp
       ? `⚠️ HIGH TEMPERATURE: Standard NBR seals fail above 80°C. Mark any standard cylinder as SPECIFY with reason "Kräver PTFE/FKM-tätning för >80°C — beställ HT-variant". Recommend Festo HT- or Parker H-series if available in catalog.`
@@ -1137,6 +1205,13 @@ async function handleBom(
       : "",
     isHighSpeed
       ? `⚠️ HIGH SPEED (>1 m/s): End-stop cushioning MANDATORY — add adjustable cushions or external shock absorbers (stötdämpare) to BOM. SPECIFY with reason "Justerbar hydraulisk stötdämpare krävs vid höga slaghastigheter (>1 m/s)" if not in catalog.`
+      : "",
+    isHighPrecision
+      ? `⛔ HIGH PRECISION ±${precisionMm} mm — BOM RULES:\n` +
+        `1. Primary actuator MUST be ball-screw (kulskruvsaxel). If it is not, replace with SPECIFY "Kulskruvsaxel ±${precisionMm}mm — belt/pneumatic forbidden".\n` +
+        `2. Do NOT add belt-drive components to a precision axis.\n` +
+        `3. TERMINOLOGY: if you write "ball screw" or "kulskruv" — the SKU must match a ball-screw product. Do NOT use rack-and-pinion (kuggstång) SKUs.\n` +
+        `4. Linear encoder or encoder feedback SPECIFY row recommended for verification of ±${precisionMm} mm.`
       : "",
     isBatteryDryroom
       ? `⛔ BATTERY PRODUCTION / DRYROOM — MATERIAL CRITICAL:\n` +
@@ -1228,21 +1303,40 @@ JSON: { "title": "short technical title in ${lang}", "explanation": "2-3 sentenc
     parsed.bom = Array.from(merged.values());
   }
 
-  // v26: Vertical load — guarantee lock valve in BOM (post-process safety net)
+  // v34: Vertical load safety — differentiate electric (brake motor) vs pneumatic (check valve)
   if (isVerticalLoad) {
-    const hasLockValve = parsed.bom.some(l =>
-      /backslagsventil|lock.*valve|check.*valve|sperrventil|läsventil|pilot.*check|hållventil/i.test(l.role + " " + l.reason + " " + l.sku)
-    );
-    if (!hasLockValve) {
-      console.warn("[bom] vertical load: injecting mandatory lock valve");
-      parsed.bom.push({
-        sku: "SPECIFY",
-        quantity: 1,
-        role: isSv ? "Pilotmanövrerad backslagsventil" : "Pilot-operated check valve",
-        reason: isSv
-          ? "OBLIGATORISK vid vertikal last — förhindrar att lasten faller vid lufttrycksförlust (krav: IEC 60947-5-1)"
-          : "MANDATORY for vertical load — prevents load drop on air pressure loss (IEC 60947-5-1 requirement)",
-      });
+    if (isElectric) {
+      // Electric servo system: needs brake motor — NOT a pneumatic check valve
+      const hasBrakeMotor = parsed.bom.some(l =>
+        /broms.*motor|brake.*motor|holding.*brake|hållbroms|motor.*broms|servo.*broms|broms.*servo|integrated.*brake/i.test(l.role + " " + l.reason + " " + l.sku)
+      );
+      if (!hasBrakeMotor) {
+        console.warn("[bom] electric vertical: injecting mandatory brake motor");
+        parsed.bom.splice(1, 0, {  // insert after primary actuator
+          sku: "SPECIFY",
+          quantity: 1,
+          role: isSv ? "Bromsmotor — Z-axel (vertikal säkerhet)" : "Brake motor — Z-axis (vertical safety)",
+          reason: isSv
+            ? "OBLIGATORISK för vertikal elektrisk servoaxel — integrerad hållbroms säkerställer att lasten hålls kvar vid strömavbrott eller nödstopp. Standard servomotor utan broms är EJ tillräcklig."
+            : "MANDATORY for vertical electric servo axis — integrated holding brake ensures load is held on power loss or emergency stop. Standard servo motor without brake is NOT sufficient.",
+        });
+      }
+    } else {
+      // Pneumatic system: needs pilot-operated check valve
+      const hasLockValve = parsed.bom.some(l =>
+        /backslagsventil|lock.*valve|check.*valve|sperrventil|läsventil|pilot.*check|hållventil|rod.*lock|stånglås/i.test(l.role + " " + l.reason + " " + l.sku)
+      );
+      if (!hasLockValve) {
+        console.warn("[bom] pneumatic vertical: injecting mandatory check valve");
+        parsed.bom.push({
+          sku: "SPECIFY",
+          quantity: 1,
+          role: isSv ? "Pilotmanövrerad backslagsventil" : "Pilot-operated check valve",
+          reason: isSv
+            ? "OBLIGATORISK vid pneumatisk vertikal last — förhindrar att lasten faller vid lufttrycksförlust (IEC 60947-5-1)"
+            : "MANDATORY for pneumatic vertical load — prevents load drop on air pressure loss (IEC 60947-5-1)",
+        });
+      }
     }
   }
 
