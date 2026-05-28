@@ -48,6 +48,7 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// callGroq: tries primary model first, falls back to fast model on 429
 async function callGroq(
   messages: Array<{ role: string; content: string }>,
   maxTokens = 2000,
@@ -55,23 +56,43 @@ async function callGroq(
   temperature = 0.2,
   model = LLM_MODEL
 ): Promise<string | null> {
-  const body: Record<string, unknown> = {
-    model, messages, max_tokens: maxTokens, temperature,
+  const tryModel = async (m: string): Promise<{ ok: boolean; text: string; rateLimited: boolean }> => {
+    const body: Record<string, unknown> = { model: m, messages, max_tokens: maxTokens, temperature };
+    if (jsonMode) body.response_format = { type: "json_object" };
+    const res = await fetch(LLM_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      console.error("LLM error:", res.status, m, text.slice(0, 200));
+      return { ok: false, text, rateLimited: res.status === 429 };
+    }
+    return { ok: true, text, rateLimited: false };
   };
-  if (jsonMode) body.response_format = { type: "json_object" };
-  const res = await fetch(LLM_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error("LLM error:", res.status, errText);
-    if (res.status === 429) throw new Error("RATE_LIMITED");
+
+  // 1. Try primary model
+  const primary = await tryModel(model);
+  if (primary.ok) {
+    const data = JSON.parse(primary.text);
+    return data.choices?.[0]?.message?.content ?? null;
+  }
+
+  // 2. If rate-limited AND primary wasn't already the fast model, retry with fast model
+  if (primary.rateLimited && model !== LLM_MODEL_FAST) {
+    console.log("Primary model rate-limited, falling back to", LLM_MODEL_FAST);
+    const fallback = await tryModel(LLM_MODEL_FAST);
+    if (fallback.ok) {
+      const data = JSON.parse(fallback.text);
+      return data.choices?.[0]?.message?.content ?? null;
+    }
+    if (fallback.rateLimited) throw new Error("RATE_LIMITED");
     return null;
   }
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content ?? null;
+
+  if (primary.rateLimited) throw new Error("RATE_LIMITED");
+  return null;
 }
 
 async function searchKnowledge(query: string, limit = 6): Promise<string> {
