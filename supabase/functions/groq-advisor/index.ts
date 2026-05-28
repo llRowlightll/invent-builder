@@ -37,8 +37,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-// Use 8b for everything — 500K TPD, avoids daily quota issues with 70b
-const LLM_MODEL = "llama-3.1-8b-instant";
+// Primary: 70b for full engineering quality. Fast: 8b fallback (500K TPD separate pool)
+const LLM_MODEL = "llama-3.3-70b-versatile";
 const LLM_MODEL_FAST = "llama-3.1-8b-instant";
 const LLM_URL = "https://api.groq.com/openai/v1/chat/completions";
 
