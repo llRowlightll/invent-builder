@@ -661,7 +661,9 @@ function sanitizeSingleAxisBom(
 // ── ACTION: questions ─────────────────────────────────────────────────────────
 async function handleQuestions(description: string, locale: string): Promise<Response> {
   const isSv = locale === "sv";
-  const pdfCtx = await searchKnowledge(description, 4);
+  // Skip PDF context for questions step — questions are short and context bloats tokens.
+  // PDF context is more valuable in the options step where catalog matching matters.
+  const pdfCtx = "";
   const lang = isSv ? "svenska" : "English";
   const isMulti = needsMultiAxis(description);
   const isVac = needsVacuumGrip(description);
@@ -713,7 +715,7 @@ async function handleQuestions(description: string, locale: string): Promise<Res
     const raw = await callGroq([
       { role: "system", content: system },
       { role: "user", content: `Application: ${description}` },
-    ], 4000, true);
+    ], 1200, true);
     if (!raw) return Response.json({ summary: "", questions: [] }, { headers: CORS });
     try { return Response.json(JSON.parse(raw), { headers: CORS }); }
     catch { return Response.json({ summary: "", questions: [] }, { headers: CORS }); }
@@ -1027,7 +1029,7 @@ Return ONLY JSON (no markdown):
 
   // v24: temperature 0.35 (was 0.2) — more context-sensitive, less "always pick same top 3"
   let rawOptions: string | null;
-  try { rawOptions = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 2000, true, 0.35); }
+  try { rawOptions = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 1500, true, 0.35); }
   catch (e) {
     if ((e as Error).message === "RATE_LIMITED") return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
     rawOptions = null;
@@ -1299,7 +1301,7 @@ JSON: { "title": "short technical title in ${lang}", "explanation": "2-3 sentenc
   const userMsg = `Application: ${description}\nRequirements: ${reqLines}\nPrimary actuator: ${primarySku}\n\nCatalog:\n${productList}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
 
   let raw: string | null;
-  try { raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 2000, true); }
+  try { raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 1500, true); }
   catch (e) {
     if ((e as Error).message === "RATE_LIMITED") return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
     raw = null;
