@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v38 — normalizeKeySpecs(): unify 5 stroke keys→stroke_mm, bore variants→bore_mm, compute force_n from bore; isFamilyProduct() detects FESTO-*/SMC-* families; SKU validation replaces hallucinated BOM SKUs with SPECIFY; richer product list sent to LLM
 // v37 — extractMinStroke: exclude "NNN mm/s" (speed) from stroke extraction — prevents 400mm/s overriding 200mm stroke
 // v36 — BOM completeness: inject end-position sensors when detection requested but absent from BOM; rule 9 in system prompt
 // v35 — Fix duplicate questions: add server-side dedup by id+label, add explicit "no duplicate" rule to prompt
@@ -119,6 +120,83 @@ interface CatalogProduct {
   key_specs: Record<string, unknown>; purchase_price?: number;
 }
 
+/**
+ * v38: Normalize raw key_specs from the RPC into consistent keys:
+ *   stroke_mm (numeric string), bore_mm (numeric string), force_n (numeric string).
+ * Also computes force_n from bore_mm × 6 bar if missing.
+ * Sets is_family=true when product covers a range (stroke_range) rather than a fixed value.
+ */
+function normalizeKeySpecs(raw: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...raw };
+
+  // ── Stroke ─────────────────────────────────────────────────────────────────
+  // Canonical output key: stroke_mm (max value as "NNN mm")
+  if (!out.stroke_mm) {
+    for (const k of ["stroke_max", "max_stroke_mm", "max_stroke"]) {
+      if (raw[k] != null) { out.stroke_mm = raw[k]; delete out[k]; break; }
+    }
+  }
+  if (!out.stroke_mm && raw.stroke_range) {
+    const m = String(raw.stroke_range).match(/(\d+(?:[.,]\d+)?)[–—\-](\d+(?:[.,]\d+)?)/);
+    if (m) {
+      out.stroke_mm = m[2] + " mm"; // use max of range
+      out.is_family = true;         // family product — not a single orderable SKU
+    } else {
+      const single = parseFloat(String(raw.stroke_range));
+      if (!isNaN(single)) out.stroke_mm = single + " mm";
+    }
+  }
+  // Strip " mm" suffix so parseFloat works cleanly downstream
+  if (typeof out.stroke_mm === "string") {
+    const n = parseFloat(out.stroke_mm);
+    if (!isNaN(n)) out.stroke_mm = n + " mm";
+  }
+
+  // ── Bore ──────────────────────────────────────────────────────────────────
+  // Canonical output key: bore_mm (first/lowest numeric value)
+  if (!out.bore_mm) {
+    for (const k of ["bore_diameter_mm", "bore_diameter"]) {
+      if (raw[k] != null) { out.bore_mm = raw[k]; delete out[k]; break; }
+    }
+  }
+  if (!out.bore_mm && raw.bore_range) {
+    // e.g. "32,40,50,63,80,100" or "32–100" — take first value
+    const first = parseFloat(String(raw.bore_range).replace(/[^0-9.]/g, "0").split("0")[0]);
+    if (!isNaN(first) && first > 0) { out.bore_mm = first + " mm"; out.is_family = true; }
+  }
+  if (typeof out.bore_mm === "string" && out.bore_mm.includes(",")) {
+    // e.g. "8,12,16,20,25,32,40,50,63" → take first
+    const first = parseFloat(out.bore_mm);
+    if (!isNaN(first)) { out.bore_mm = first + " mm"; out.is_family = true; }
+  }
+
+  // ── Force ─────────────────────────────────────────────────────────────────
+  // Canonical output key: force_n
+  if (!out.force_n) {
+    for (const k of ["piston_force_6bar_N", "thrust_force", "clamping_force", "gripping_force_N"]) {
+      if (raw[k] != null) { out.force_n = raw[k]; delete out[k]; break; }
+    }
+  }
+  // Calculate from bore if still missing
+  if (!out.force_n && out.bore_mm) {
+    const bore = parseFloat(String(out.bore_mm));
+    if (!isNaN(bore) && bore > 0) {
+      const force = Math.round(Math.PI / 4 * bore * bore * 6 * 0.1); // 6 bar in N/mm²=0.6 MPa, area mm²
+      out.force_n = force + " N";
+    }
+  }
+
+  return out;
+}
+
+/** Returns true for "family" products — product families covering a range, not a specific orderable SKU. */
+function isFamilyProduct(p: CatalogProduct): boolean {
+  if (p.key_specs?.is_family) return true;
+  // SKU pattern: FESTO-*, SMC-*, PARKER-*, NORGREN-* (family placeholders)
+  if (/^(FESTO|SMC|PARKER|NORGREN|CAMOZZI|METAL[-_]WORK|BOSCH)-/i.test(p.sku)) return true;
+  return false;
+}
+
 async function fetchProducts(categorySlugs: string[], limit = 30): Promise<CatalogProduct[]> {
   const results = await Promise.all(
     categorySlugs.map(async (slug) => {
@@ -132,7 +210,9 @@ async function fetchProducts(categorySlugs: string[], limit = 30): Promise<Catal
         return [];
       }
       const data = await res.json();
-      return Array.isArray(data) ? data : [];
+      if (!Array.isArray(data)) return [];
+      // v38: normalize specs on every product
+      return data.map((p: CatalogProduct) => ({ ...p, key_specs: normalizeKeySpecs(p.key_specs ?? {}) }));
     })
   );
   return results.flat() as CatalogProduct[];
@@ -1220,8 +1300,21 @@ async function handleBom(
     ? products.filter(p => !isElectricActuator(p))
     : products;
 
+  // v38: Build product set for SKU validation + richer product list for LLM
+  const validBomSkus = new Set(atexSafeProducts.map(p => p.sku));
+  validBomSkus.add("SPECIFY"); // always allowed
+  validBomSkus.add(primarySku); // primary is always valid
+
   const productList = balancedSlice(atexSafeProducts, 60)
-    .map(p => `${p.sku}: ${p.name} [${p.brand}/${p.category}] ip=${p.key_specs?.ip_rating ?? "std"}`).join("\n");
+    .map(p => {
+      const ks = p.key_specs ?? {};
+      const stroke = ks.stroke_mm ? ` stroke=${String(ks.stroke_mm).replace(/\s*mm/i,"")}mm` : "";
+      const bore   = ks.bore_mm   ? ` bore=${String(ks.bore_mm).replace(/\s*mm/i,"")}mm`     : "";
+      const force  = ks.force_n   ? ` force=${String(ks.force_n).replace(/\s*N/i,"")}N`      : "";
+      const ip     = ks.ip_rating ? ` ip=${ks.ip_rating}` : "";
+      const family = isFamilyProduct(p) ? " [FAMILY—needs config code]" : "";
+      return `${p.sku}: ${p.name} [${p.brand}/${p.category}]${stroke}${bore}${force}${ip}${family}`;
+    }).join("\n");
 
   const lang = isSv ? "svenska" : "English";
 
@@ -1375,6 +1468,27 @@ JSON: { "title": "short technical title in ${lang}", "explanation": "2-3 sentenc
     }
     parsed.bom = Array.from(merged.values());
   }
+
+  // v38: SKU validation — replace hallucinated SKUs with SPECIFY
+  // Family products used as primary get a config-code note
+  const primaryIsFamilyProd = isFamilyProduct({ sku: primarySku, name: "", category: "", brand: "", key_specs: {} });
+  parsed.bom = (parsed.bom ?? []).map(line => {
+    if (line.sku === primarySku) {
+      // If primary is a family product, add a config-code note to reason
+      if (primaryIsFamilyProd) {
+        line.reason = (line.reason ?? "") + (isSv
+          ? " ⚠️ Produktfamilj — ange komplett beställningskod (bore + stroke + varianter) vid order."
+          : " ⚠️ Product family — specify full ordering code (bore + stroke + variants) when ordering.");
+      }
+      return line;
+    }
+    if (line.sku === "SPECIFY") return line;
+    if (!validBomSkus.has(line.sku)) {
+      console.warn(`[bom] SKU validation: replacing hallucinated SKU "${line.sku}" with SPECIFY`);
+      return { ...line, sku: "SPECIFY", reason: `${line.reason ?? ""} [Artikel ej verifierad — ange korrekt SKU vid beställning]` };
+    }
+    return line;
+  });
 
   // v34: Vertical load safety — differentiate electric (brake motor) vs pneumatic (check valve)
   if (isVerticalLoad) {
