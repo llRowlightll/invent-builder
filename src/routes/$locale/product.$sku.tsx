@@ -23,13 +23,20 @@ export const Route = createFileRoute("/$locale/product/$sku")({
     const t = makeT(params.locale as Locale);
     const { locale, sku } = params;
     const canonical = `${SITE}/${locale}/product/${sku}`;
+    const isSv = locale === "sv";
+    const titleSuffix = isSv ? "köp & spec | Maskinval" : "specs & order | Maskinval";
+    const desc = isSv
+      ? `${sku} — Köp industriell automationskomponent. Jämför specifikationer, leveranstid och beställ direkt via Maskinval.`
+      : `${sku} — Industrial automation component. Compare specs, lead time and order via Maskinval.`;
     return {
       meta: [
-        { title: `${sku} — ${t("common.appName")}` },
-        { name: "description", content: `${sku} — industrial automation component. Compare specs, lead time and order via Maskinval.` },
-        { property: "og:title", content: `${sku} — ${t("common.appName")}` },
+        { title: `${sku} — ${titleSuffix}` },
+        { name: "description", content: desc },
+        { property: "og:title", content: `${sku} | Maskinval` },
         { property: "og:type", content: "product" },
         { property: "og:url", content: canonical },
+        { property: "og:description", content: desc },
+        { property: "og:image", content: `${SITE}/og-image.svg` },
       ],
       links: [
         { rel: "canonical", href: canonical },
@@ -79,24 +86,32 @@ function ProductDetail() {
   const product = catalog?.find((x) => x.sku === sku);
   if (!product) throw notFound();
 
+  const productImageUrl = getProductImage(product);
+  const canonicalUrl = `${SITE}/${locale}/product/${sku}`;
+  const price = (product as any).purchase_price ?? (product as any).price ?? null;
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: product.name,
     sku: product.sku,
-    description: product.description ?? undefined,
+    description: product.description ?? `${product.name} — ${product.brand.name} ${product.category.name}`,
     brand: { "@type": "Brand", name: product.brand.name },
     category: product.category.name,
+    url: canonicalUrl,
+    image: productImageUrl?.startsWith("http") ? productImageUrl : `${SITE}${productImageUrl}`,
     offers: {
       "@type": "Offer",
       availability: "https://schema.org/InStock",
       priceCurrency: "SEK",
-      seller: { "@type": "Organization", name: "Maskinval" },
+      url: canonicalUrl,
+      seller: { "@type": "Organization", name: "Maskinval", url: SITE },
+      ...(price && price > 0 ? { price: String(price) } : {}),
     },
     ...(Object.keys(product.specs).length > 0 && {
       additionalProperty: Object.entries(product.specs).map(([k, v]) => ({
         "@type": "PropertyValue",
-        name: k.replace(/_/g, " "),
+        name: formatSpecKey(k),
         value: `${v.value}${v.unit ? " " + v.unit : ""}`,
       })),
     }),
