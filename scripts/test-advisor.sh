@@ -53,6 +53,13 @@ check() {
   local name="$1" json="$2" pattern="$3" expect_absent="${4:-}"
   local ok=true
 
+  # Rate-limited response → skip, not fail (prevents CI flapping on Groq quota spikes)
+  if echo "$json" | python3 -c "import sys,json; d=json.load(sys.stdin); sys.exit(0 if d.get('error')=='rate_limited' else 1)" 2>/dev/null; then
+    echo "  ⚠️  $name [SKIP — rate limited]"
+    ((SKIP++))
+    return
+  fi
+
   if ! echo "$json" | python3 -c "import sys,json,re; d=json.load(sys.stdin); s=json.dumps(d,ensure_ascii=False); ok=bool(re.search(r'$pattern',s)); sys.exit(0 if ok else 1)" 2>/dev/null; then
     ok=false
   fi
