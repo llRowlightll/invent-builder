@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v49 — FULLY DETERMINISTIC BOM: LLM extras removed entirely. LLM writes title+explanation only. Mandatory BOM now includes fitting, cable, mounting rows. All SKU selection is server-side.
 // v48 — needsMounting detector + mounting category in bomCategories; LLM multi-axis prompt no longer asks for axis actuators; L3/L4 merged: all actuator SKUs banned from extras unconditionally.
 // v47 — 5-layer extras validation: unique SKU, no actuator-SKU in sensor/mounting role, no extra actuators on single-axis.
 // v46 — Add isWashdown to BomCtx; mandatory IP69K warning row in BOM.
@@ -879,7 +880,7 @@ function scoreProduct(p: CatalogProduct, ctx: ScoringCtx): number {
  * Returns null if no catalog match exists — caller should use SPECIFY.
  */
 function findCatalogProductByType(
-  type: "valve" | "frl" | "check-valve" | "shock-absorber" | "sensor" | "valve-terminal",
+  type: "valve" | "frl" | "check-valve" | "shock-absorber" | "sensor" | "valve-terminal" | "fitting" | "cable" | "mounting",
   products: CatalogProduct[]
 ): CatalogProduct | null {
   // FRL: prefer Festo MS4/MS6 first — avoids Camozzi MC- sorting to front alphabetically
@@ -908,6 +909,15 @@ function findCatalogProductByType(
       case "valve-terminal":
         if (p.category === "valve-terminal" || /\bCPV\b|\bVTSA\b|\bMPA\b|\bventilramp\b|\bventilterminal\b/i.test(p.name + " " + p.sku)) return p;
         break;
+      case "fitting":
+        if (p.category === "fitting" || /\bQS\b|\bQST\b|\bKQ\b|\bHB-\b|\bsnabbkoppling\b|\bpush.in/i.test(p.name + " " + p.sku)) return p;
+        break;
+      case "cable":
+        if (p.category === "cable" || /\bkabel\b|\bcable\b|\bNEBU\b|\bSBOO\b|\bmotor.*kabel\b/i.test(p.name + " " + p.sku)) return p;
+        break;
+      case "mounting":
+        if (p.category === "mounting" || /fotfäste|foot.mount|flansfäste|flange.mount|monteringsfäste|bracket|trunnion/i.test(nameSkuLower)) return p;
+        break;
     }
   }
   return null;
@@ -926,6 +936,8 @@ interface BomCtx {
   isVacuum: boolean;
   isSv: boolean;
   products: CatalogProduct[];
+  // Accessory flags — drive deterministic accessory rows
+  isMounting: boolean;
   // Safety & environment flags — drive mandatory warning rows
   isHighTemp: boolean;
   isWashdown: boolean;
@@ -945,7 +957,7 @@ interface BomCtx {
 function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: number; role: string; reason: string }> {
   const { primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
           isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isSv, products,
-          isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
+          isMounting, isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
           isMultiAxis, perAxisStrokes } = ctx;
   const isPneumatic = !isElectric && !isAtex && !isAtexDust;
   const rows: Array<{ sku: string; quantity: number; role: string; reason: string }> = [];
@@ -1041,7 +1053,47 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     });
   }
 
-  // ── 8. Multi-axis secondary actuators ────────────────────────────
+  // ── 8. Push-in fitting (all pneumatic) ───────────────────────────
+  if (isPneumatic) {
+    const fittingMatch = findCatalogProductByType("fitting", products);
+    if (fittingMatch) {
+      rows.push({
+        sku: fittingMatch.sku, quantity: 4,
+        role: isSv ? "Snabbkoppling (push-in fitting)" : "Push-in fitting",
+        reason: isSv
+          ? "Ansluter cylinder och ventil till luftslang — välj diameter (6/8/10 mm) för rätt slanganslutning till cylinderns G-port."
+          : "Connects cylinder and valve to air tubing — select diameter (6/8/10 mm) matching cylinder G-port.",
+      });
+    }
+  }
+
+  // ── 9. Motor cable (electric) ─────────────────────────────────────
+  if (isElectric) {
+    const cableMatch = findCatalogProductByType("cable", products);
+    if (cableMatch) {
+      rows.push({
+        sku: cableMatch.sku, quantity: 1,
+        role: isSv ? "Motorkabel (servo/stepper)" : "Motor cable (servo/stepper)",
+        reason: isSv
+          ? "Anslutningskabel till servodrivaren — välj längd och kontakttyp kompatibel med vald motor och drivenhet."
+          : "Connection cable to servo drive — select length and connector type compatible with chosen motor and drive unit.",
+      });
+    }
+  }
+
+  // ── 10. Mounting bracket (when explicitly requested) ──────────────
+  if (isMounting) {
+    const mountMatch = findCatalogProductByType("mounting", products);
+    rows.push({
+      sku: mountMatch?.sku ?? "SPECIFY", quantity: 1,
+      role: isSv ? "Monteringsfäste (fotfäste/flänsfäste)" : "Mounting bracket (foot/flange mount)",
+      reason: isSv
+        ? "Fäster cylindern till maskinstommen — välj fotfäste eller flänsfäste kompatibelt med cylinderns serie och borrning (bore). Kontrollera hålavstånd mot ritning."
+        : "Mounts cylinder to machine frame — select foot mount or flange mount compatible with cylinder series and bore. Verify hole pattern against drawing.",
+    });
+  }
+
+  // ── 11. Multi-axis secondary actuators ───────────────────────────
   if (isMultiAxis && perAxisStrokes.length >= 2) {
     // First axis = primary (already row 1). Add one row per remaining axis.
     const secondaryAxes = perAxisStrokes.slice(1);
@@ -1484,11 +1536,11 @@ async function handleBom(
     primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
     isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isVacuum, isSv,
     products: atexSafeProducts,
-    isHighTemp, isWashdown, isSilSafety: needsSilSafety(combinedText), isHydraulic, isVeryHighForce,
+    isMounting, isHighTemp, isWashdown, isSilSafety: needsSilSafety(combinedText), isHydraulic, isVeryHighForce,
     isMultiAxis, perAxisStrokes,
   };
   const mandatoryBom = buildMandatoryBomRows(bomCtx);
-  console.log(`[bom v44] primary=${primarySku} electric=${isElectric} vertical=${isVerticalLoad} highSpeed=${isHighSpeed} multiAxis=${isMultiAxis} highTemp=${isHighTemp} sil=${bomCtx.isSilSafety} hydraulic=${isHydraulic} mandatoryRows=${mandatoryBom.length}`);
+  console.log(`[bom v49] primary=${primarySku} electric=${isElectric} vertical=${isVerticalLoad} highSpeed=${isHighSpeed} multiAxis=${isMultiAxis} mounting=${isMounting} mandatoryRows=${mandatoryBom.length}`);
 
   // ── LLM enrichment: title + explanation + optional extras ─────────────────
   const lang = isSv ? "svenska" : "English";
@@ -1529,26 +1581,18 @@ async function handleBom(
     isSilSafety ? (isSv ? "⚠️ SIL/PL säkerhetsfunktion — certifierad ventil krävs." : "⚠️ SIL/PL safety function — certified valve required.") : "",
   ].filter(Boolean).join(" ");
 
-  const multiAxisInstructions = isMultiAxis
-    ? `\nMULTI-AXIS: Axis actuator rows are ALREADY included above (Y-axel, Z-axel etc). Do NOT add more actuators. Add ONLY accessories: cables, fittings, brackets, sensors. ${axisStrokeNote}`
-    : `\nSINGLE AXIS: Add 0-2 accessories (fittings, cables, brackets, sensors) if explicitly requested. Do NOT add actuators, cylinders, or modules.`;
+  // LLM only writes title + explanation — no extras, no SKU selection
+  const bomSystem = `You are a senior automation engineer writing a BOM summary. All text in ${lang}.
 
-  const bomSystem = `You are a senior automation engineer writing a BOM description. All text in ${lang}.
-
-MANDATORY BOM skeleton — DO NOT MODIFY THESE ROWS (built by engineering rules):
+BOM rows (already complete — do NOT modify):
 ${skeletonStr}
 
 Your tasks:
-1. Write a concise technical title (5-8 words)
-2. Write explanation (2-3 sentences): system type, safety approach, key spec
-3. Add extra rows as instructed below${multiAxisInstructions}
-4. Do NOT remove, replace or re-order mandatory rows
-${specialConstraints ? `\nConstraints: ${specialConstraints}` : ""}
+1. Write a concise technical title (5-8 words) describing the system
+2. Write explanation (2-3 sentences): system type, key specs, safety approach
+${specialConstraints ? `\nConstraints to mention: ${specialConstraints}` : ""}
 
-Available catalog items for extras:
-${accessoryCatalog || "(none — use SPECIFY if needed)"}
-
-JSON: { "title": "...", "explanation": "...", "extras": [ { "sku": "SKU_OR_SPECIFY", "quantity": 1, "role": "...", "reason": "..." } ] }`;
+JSON: { "title": "...", "explanation": "..." }`;
 
   const bomUser = `Application: ${description}\nRequirements: ${reqLines || "standard"}\nPrimary: ${primarySku}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
 
@@ -1558,18 +1602,16 @@ JSON: { "title": "...", "explanation": "...", "extras": [ { "sku": "SKU_OR_SPECI
   try { raw = await callGroq([{ role: "system", content: bomSystem }, { role: "user", content: bomUser }], 1000, true); }
   catch (e) { if ((e as Error).message === "RATE_LIMITED") wasRateLimited = true; }
 
-  // Parse LLM enrichment
+  // Parse LLM enrichment — title + explanation ONLY, no extras.
+  // All SKU selection is now fully deterministic via buildMandatoryBomRows.
   let title = "";
   let explanation = "";
-  let extras: Array<{ sku: string; quantity: number; role: string; reason: string }> = [];
   if (raw) {
     try {
       const llm = JSON.parse(raw);
       title = typeof llm.title === "string" ? llm.title : "";
       explanation = typeof llm.explanation === "string" ? llm.explanation : "";
-      if (Array.isArray(llm.extras)) {
-        extras = llm.extras.filter((e: { sku: string }) => e?.sku && (e.sku === "SPECIFY" || validBomSkus.has(e.sku))).slice(0, isMultiAxis ? 6 : 2);
-      }
+      // extras intentionally ignored — no LLM SKU selection
     } catch { /* ignore */ }
   }
 
@@ -1587,49 +1629,13 @@ JSON: { "title": "...", "explanation": "...", "extras": [ { "sku": "SKU_OR_SPECI
 
   // ── Extra validation pipeline (4 layers) ────────────────────────────────────
 
-  // L1: SKU must exist in catalog or be SPECIFY
-  const validExtras = extras.map(e =>
-    validBomSkus.has(e.sku) || e.sku === "SPECIFY"
-      ? e
-      : { ...e, sku: "SPECIFY", reason: e.reason + " [SKU ej verifierad]" }
-  );
-
-  // L2: No duplicate SKUs within extras (LLM sometimes stamps same SKU on 3 rows)
-  const usedExtraSkus = new Set<string>();
-  const uniqueSkuExtras = validExtras.filter(e => {
-    if (e.sku === "SPECIFY") return true;
-    if (usedExtraSkus.has(e.sku)) { console.warn(`[bom extras] dup SKU stripped: ${e.sku}`); return false; }
-    usedExtraSkus.add(e.sku);
-    return true;
-  });
-
-  // L3+L4: Actuator SKUs are NEVER allowed in LLM extras.
-  // Axis rows (Y-axel, Z-axel) are handled deterministically by buildMandatoryBomRows — LLM must not add them.
-  const actuatorCatSkus = new Set(
-    atexSafeProducts
-      .filter(p => ["cylinder", "electric-actuator", "linear-module"].includes(p.category))
-      .map(p => p.sku)
-  );
-  const axisExtras = uniqueSkuExtras.filter(e => {
-    if (e.sku === "SPECIFY") return true;
-    if (actuatorCatSkus.has(e.sku)) {
-      console.warn(`[bom extras] actuator SKU ${e.sku} blocked — axis/actuator rows handled by mandatory BOM`);
-      return false;
-    }
-    return true;
-  });
-
-  // L5: No extras that duplicate a mandatory-row SKU
-  const mandatorySkuSet = new Set(mandatoryBom.map(r => r.sku).filter(s => s !== "SPECIFY"));
-  const deduplicatedExtras = axisExtras.filter(e => e.sku === "SPECIFY" || !mandatorySkuSet.has(e.sku));
-
-  // Final BOM = mandatory rows + deduplicated extras
-  // For ATEX: strip any electric SKU that might have slipped in via extras
+  // Final BOM = mandatory rows only (LLM no longer contributes SKUs)
+  // ATEX: strip any electric SKU that might have slipped in
   const electricSKUs = new Set(products.filter(p => isElectricActuator(p)).map(p => p.sku));
-  const finalBom = [...mandatoryBom, ...deduplicatedExtras].filter(row => {
+  const finalBom = mandatoryBom.filter(row => {
     if (!isAtex && !isAtexDust) return true;
     if (row.sku === primarySku || row.sku === "SPECIFY") return true;
-    if (electricSKUs.has(row.sku)) { console.warn(`[bom v40] ATEX stripped: ${row.sku}`); return false; }
+    if (electricSKUs.has(row.sku)) { console.warn(`[bom v49] ATEX stripped: ${row.sku}`); return false; }
     return true;
   });
 
