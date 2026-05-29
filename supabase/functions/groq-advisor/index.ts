@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v44 — Telemetry: fire-and-forget logAdvisorEvent() logs every bom/options/questions call to integration_logs (duration_ms, rate_limited, bom_rows, specify_rows).
 // v43 — Wire check-valve + shock-absorber to findCatalogProductByType (were hardcoded SPECIFY); now returns real SKUs from catalog.
 // v42 — Catalog: 9 shock absorbers (Festo YSR, SMC RBQ, Norgren SA) + 5 check valves (Festo HGL, SMC AKH, MW NRV) added to DB. Code: fetch shock-absorber/check-valve categories when needed; FRL prefers Festo MS4 over Camozzi; non-return pattern in check-valve matcher.
 // v41 — Fix T08: test ensure_ascii=False (Swedish chars now matchable); Fix T15: MC- prefix added to known SKUs; Dedup: LLM extras cannot re-add mandatory-row SKUs.
@@ -46,6 +47,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? SUPABASE_ANON_KEY;
 // Primary: 70b for full engineering quality. Fast: 8b fallback (500K TPD separate pool)
 const LLM_MODEL = "llama-3.3-70b-versatile";
 const LLM_MODEL_FAST = "llama-3.1-8b-instant";
@@ -56,6 +58,31 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+/** Fire-and-forget telemetry — never throws, never delays the response. */
+function logAdvisorEvent(
+  event: string,
+  payload: Record<string, unknown>,
+  success: boolean,
+  error?: string
+): void {
+  void fetch(`${SUPABASE_URL}/rest/v1/integration_logs`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": SUPABASE_SERVICE_KEY,
+      "Authorization": `Bearer ${SUPABASE_SERVICE_KEY}`,
+      "Prefer": "return=minimal",
+    },
+    body: JSON.stringify({
+      source: "groq-advisor",
+      event,
+      payload,
+      success,
+      error: error ?? null,
+    }),
+  }).catch(() => {/* telemetry must never affect main flow */});
+}
 
 // callGroq: tries primary model first, falls back to fast model on 429
 async function callGroq(
@@ -999,6 +1026,7 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
 
 // ── ACTION: questions ─────────────────────────────────────────────────────────
 async function handleQuestions(description: string, locale: string): Promise<Response> {
+  const t0 = Date.now();
   const isSv = locale === "sv";
   // Skip PDF context for questions step — questions are short and context bloats tokens.
   // PDF context is more valuable in the options step where catalog matching matters.
@@ -1069,6 +1097,7 @@ async function handleQuestions(description: string, locale: string): Promise<Res
         seenLabels.add(labelKey);
         return true;
       }).slice(0, 6); // T19: hard cap at 6 questions
+      logAdvisorEvent("questions", { locale, question_count: parsed.questions.length, duration_ms: Date.now() - t0 }, true);
       return Response.json(parsed, { headers: CORS });
     }
     catch { return Response.json({ summary: "", questions: [] }, { headers: CORS }); }
@@ -1086,6 +1115,7 @@ async function handleQuestions(description: string, locale: string): Promise<Res
 async function handleOptions(
   description: string, answers: Record<string, string>, locale: string
 ): Promise<Response> {
+  const t0 = Date.now();
   const isSv = locale === "sv";
   const combinedText = description + " " + Object.values(answers).join(" ");
   const categories = detectCategories(combinedText);
@@ -1298,7 +1328,11 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     ? `${topProducts.length} alternativ valda baserat på krav${maxRequiredStroke > 0 ? ` (slag ${maxRequiredStroke} mm)` : ""}.`
     : `${topProducts.length} options selected for ${maxRequiredStroke > 0 ? `${maxRequiredStroke} mm stroke` : "this application"}.`);
 
-  if (optRateLimited) return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
+  if (optRateLimited) {
+    logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: true, top_sku: topProducts[0]?.sku ?? null }, false, "rate_limited");
+    return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
+  }
+  logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: finalOptions[0]?.sku ?? null, option_count: finalOptions.length }, true);
   return Response.json({ summary, options: finalOptions }, { headers: CORS });
 }
 
@@ -1308,6 +1342,7 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
 async function handleBom(
   description: string, answers: Record<string, string>, primarySku: string, locale: string
 ): Promise<Response> {
+  const t0 = Date.now();
   const isSv = locale === "sv";
   const combinedText = (description ?? "") + " " + Object.values(answers).join(" ");
   const categories = detectCategories(combinedText);
@@ -1482,6 +1517,12 @@ JSON: { "title": "...", "explanation": "...", "extras": [ { "sku": "SKU_OR_SPECI
     if (electricSKUs.has(row.sku)) { console.warn(`[bom v40] ATEX stripped: ${row.sku}`); return false; }
     return true;
   });
+
+  logAdvisorEvent("bom", {
+    locale, primary_sku: primarySku, bom_rows: finalBom.length,
+    rate_limited: wasRateLimited, duration_ms: Date.now() - t0,
+    specify_rows: finalBom.filter(r => r.sku === "SPECIFY").length,
+  }, true, wasRateLimited ? "rate_limited" : undefined);
 
   return Response.json({ title, explanation, bom: finalBom }, { headers: CORS });
 }
