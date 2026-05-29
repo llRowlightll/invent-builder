@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-// v39 — T09: catalogSkus filter; T11: ventilramp detection + valve terminal injection (enrich LLM row OR inject SPECIFY); T12: FRL injection; T14: family warning in auto-injected primary; T17: extractPerAxisStrokes axis key fix; T19: questions≤6; T08: needsHighSpeed detects mm/s≥1000; T20: directional valve injection + BOM injection runs even when LLM fails (no early-return)
+// v40 — SERVER-SIDE DETERMINISTIC ARCHITECTURE: scoreProduct() + buildMandatoryBomRows() ensure correct BOM even when LLM is rate-limited. handleBom() builds skeleton first, LLM only writes title/explanation/extras. handleOptions() server-selects top 3 products, LLM writes badge/why/pros/cons only.
+// v39 — T09: catalogSkus filter; T11: ventilramp detection + valve terminal injection; T12: FRL injection; T14: family warning; T17: extractPerAxisStrokes axis key fix; T19: questions≤6; T08: needsHighSpeed detects mm/s≥1000; T20: directional valve injection
 // v38 — normalizeKeySpecs(): unify 5 stroke keys→stroke_mm, bore variants→bore_mm, compute force_n from bore; isFamilyProduct() detects FESTO-*/SMC-* families; SKU validation replaces hallucinated BOM SKUs with SPECIFY; richer product list sent to LLM
 // v37 — extractMinStroke: exclude "NNN mm/s" (speed) from stroke extraction — prevents 400mm/s overriding 200mm stroke
 // v36 — BOM completeness: inject end-position sensors when detection requested but absent from BOM; rule 9 in system prompt
@@ -773,6 +774,219 @@ function sanitizeSingleAxisBom(
   return Array.from(merged.values());
 }
 
+// ── v40: Deterministic product scoring ────────────────────────────────────────
+
+interface ScoringCtx {
+  requiredStroke: number;
+  isHighPrecision: boolean;
+  isHighSpeed: boolean;
+  isVertical: boolean;
+  isWashdown: boolean;
+  isAtex: boolean;
+}
+
+/**
+ * v40: Score a catalog product 0–100 for ranking (deterministic, no LLM).
+ * Higher = better match for the application requirements.
+ */
+function scoreProduct(p: CatalogProduct, ctx: ScoringCtx): number {
+  if (ctx.isAtex && isElectricActuator(p)) return -9999;
+
+  let score = 50;
+  const maxStroke = parseStrokeFromSpecs(p.key_specs ?? {});
+
+  // ── Stroke fit (±30 points) ───────────────────────────────────────
+  if (ctx.requiredStroke > 0 && maxStroke > 0) {
+    if (maxStroke >= ctx.requiredStroke) {
+      const overshoot = (maxStroke - ctx.requiredStroke) / ctx.requiredStroke;
+      score += Math.max(0, 25 - overshoot * 50); // 25 at 0% overshoot, 0 at 50%+
+    } else {
+      score -= 30; // below requirement
+    }
+  } else if (maxStroke === 0) {
+    score -= 5; // no stroke spec = accessory/family
+  }
+
+  // ── Technology match (±25 points) ────────────────────────────────
+  const isBallScrew = isBallScrewProduct(p);
+  const isBelt     = isBeltDrivenProduct(p);
+  const isPneu     = isPneumaticActuatorProduct(p);
+  if (ctx.isHighPrecision) {
+    if (isBallScrew)        score += 25;
+    else if (isPneu || isBelt) score -= 25;
+  }
+  if (ctx.isHighSpeed && !ctx.isHighPrecision) {
+    if (isBelt)       score += 20;
+    else if (isBallScrew) score -= 15;
+  }
+
+  // ── Washdown fit (±15 points) ─────────────────────────────────────
+  if (ctx.isWashdown) {
+    if (isWashdownProduct(p)) score += 15;
+    else if (maxStroke > 0)   score -= 20;
+  }
+
+  // ── Penalties ────────────────────────────────────────────────────
+  if (isFamilyProduct(p))    score -= 5;
+  const price = p.purchase_price ?? 9999;
+  if (price < 150) score += 4;
+  else if (price < 400) score += 2;
+
+  return score;
+}
+
+/**
+ * v40: Find the best catalog product of a given component type.
+ * Returns null if no catalog match exists — caller should use SPECIFY.
+ */
+function findCatalogProductByType(
+  type: "valve" | "frl" | "check-valve" | "shock-absorber" | "sensor" | "valve-terminal",
+  products: CatalogProduct[]
+): CatalogProduct | null {
+  for (const p of products) {
+    const nameSkuLower = (p.name + " " + p.sku).toLowerCase();
+    switch (type) {
+      case "valve":
+        if (p.category === "valve" || /\bsolenoid\b|\b5\/2\b|\b4\/2\b|\bmagnetventil\b|\bdirektional/i.test(p.name)) return p;
+        break;
+      case "frl":
+        if (p.category === "frl" || /\bFRL\b|\bMS4\b|\bMS6\b|\bLFR\b|\bHFR\b/i.test(p.name + " " + p.sku)) return p;
+        break;
+      case "check-valve":
+        if (/backslagsventil|check.valve|pilot.operated.check|sperrventil/i.test(nameSkuLower)) return p;
+        break;
+      case "shock-absorber":
+        if (/stötdämpare|shock.absorber|dämpare|dämpning/i.test(nameSkuLower)) return p;
+        break;
+      case "sensor":
+        if (p.category === "sensor" || /\bSME\b|\bSMT\b|\bgivare\b|\breed.switch\b|\bproximity\b|\bend.pos/i.test(p.name + " " + p.sku)) return p;
+        break;
+      case "valve-terminal":
+        if (p.category === "valve-terminal" || /\bCPV\b|\bVTSA\b|\bMPA\b|\bventilramp\b|\bventilterminal\b/i.test(p.name + " " + p.sku)) return p;
+        break;
+    }
+  }
+  return null;
+}
+
+interface BomCtx {
+  primarySku: string;
+  primaryIsFamilyProd: boolean;
+  isElectric: boolean;
+  isAtex: boolean;
+  isAtexDust: boolean;
+  isVerticalLoad: boolean;
+  isHighSpeed: boolean;
+  valveTerminal: boolean;
+  isEndPosDetect: boolean;
+  isVacuum: boolean;
+  isSv: boolean;
+  products: CatalogProduct[];
+}
+
+/**
+ * v40: Build ALL mandatory BOM rows using deterministic engineering rules.
+ * This replaces per-component injections scattered across handleBom().
+ * The LLM cannot affect these rows — they are always present.
+ */
+function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: number; role: string; reason: string }> {
+  const { primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
+          isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isSv, products } = ctx;
+  const isPneumatic = !isElectric && !isAtex && !isAtexDust;
+  const rows: Array<{ sku: string; quantity: number; role: string; reason: string }> = [];
+
+  // ── 1. Primary actuator (ALWAYS first) ───────────────────────────
+  const famNote = primaryIsFamilyProd ? (isSv
+    ? " ⚠️ Produktfamilj — ange komplett beställningskod (bore + stroke + varianter) vid order."
+    : " ⚠️ Product family — specify full ordering code (bore + stroke + variants) when ordering.")
+    : "";
+  rows.push({
+    sku: primarySku, quantity: 1,
+    role: isSv ? "Primär aktuator" : "Primary actuator",
+    reason: (isSv ? "Vald primär aktuator" : "Selected primary actuator") + famNote,
+  });
+
+  // ── 2. Brake motor (vertical electric) ───────────────────────────
+  if (isVerticalLoad && isElectric) {
+    rows.push({
+      sku: "SPECIFY", quantity: 1,
+      role: isSv ? "Bromsmotor — Z-axel (vertikal säkerhet)" : "Brake motor — Z-axis (vertical safety)",
+      reason: isSv
+        ? "OBLIGATORISK för vertikal elektrisk servoaxel — integrerad hållbroms säkerställer att lasten hålls kvar vid strömavbrott eller nödstopp. Standard servomotor utan broms är EJ tillräcklig."
+        : "MANDATORY for vertical electric servo axis — integrated holding brake ensures load is held on power loss or emergency stop. Standard servo motor without brake is NOT sufficient.",
+    });
+  }
+
+  // ── 3. Check valve (vertical pneumatic) ──────────────────────────
+  if (isVerticalLoad && isPneumatic) {
+    rows.push({
+      sku: "SPECIFY", quantity: 1,
+      role: isSv ? "Pilotmanövrerad backslagsventil" : "Pilot-operated check valve",
+      reason: isSv
+        ? "OBLIGATORISK vid pneumatisk vertikal last — förhindrar att lasten faller vid lufttrycksförlust (IEC 60947-5-1)"
+        : "MANDATORY for pneumatic vertical load — prevents load drop on air pressure loss (IEC 60947-5-1)",
+    });
+  }
+
+  // ── 4. Valve terminal (multi-actuator / fieldbus) OR single directional valve ─
+  if (valveTerminal && isPneumatic) {
+    const vtMatch = findCatalogProductByType("valve-terminal", products);
+    rows.push({
+      sku: vtMatch?.sku ?? "SPECIFY", quantity: 1,
+      role: isSv ? "Ventilramp (ventilterminal)" : "Valve terminal (manifold)",
+      reason: isSv
+        ? "OBLIGATORISK för fältbussanslutning (PROFINET/EtherCAT) — ventilramp (CPV, VTSA, MPA) samlar alla ventiler i en enhet och reducerar kabelkostnad. Specificera bussmodul och ventilantal."
+        : "MANDATORY for fieldbus (PROFINET/EtherCAT) — valve terminal (CPV, VTSA, MPA) consolidates all valves, reduces wiring. Specify bus module and valve count.",
+    });
+  } else if (isPneumatic) {
+    const valveMatch = findCatalogProductByType("valve", products);
+    rows.push({
+      sku: valveMatch?.sku ?? "SPECIFY", quantity: 1,
+      role: isSv ? "Magnetventil (5/2-vägs styrventil)" : "Solenoid valve (5/2-way directional)",
+      reason: isSv
+        ? "OBLIGATORISK för pneumatisk cylinder — 5/2-vägs magnetventil styr cylinderns riktning (fram/åter). Välj spänning 24 V DC och anslutning G1/4."
+        : "MANDATORY for pneumatic cylinder — 5/2-way solenoid valve controls cylinder direction (extend/retract). Select 24 V DC coil and G1/4 port.",
+    });
+  }
+
+  // ── 5. FRL (all pneumatic) ────────────────────────────────────────
+  if (isPneumatic) {
+    const frlMatch = findCatalogProductByType("frl", products);
+    rows.push({
+      sku: frlMatch?.sku ?? "SPECIFY", quantity: 1,
+      role: isSv ? "FRL-enhet (Filter-Regulator-Smörjare)" : "FRL unit (Filter-Regulator-Lubricator)",
+      reason: isSv
+        ? "OBLIGATORISK för pneumatiskt system — luftberedning säkerställer rätt arbetstryck, filtrerad luft (≥40 µm) och smörjning av cylindertätningar. Välj regulator med manometer 0–10 bar."
+        : "MANDATORY for pneumatic system — air preparation ensures correct working pressure, filtered air (≥40 µm) and seal lubrication. Select regulator with pressure gauge 0–10 bar.",
+    });
+  }
+
+  // ── 6. Shock absorbers (high speed ≥1000 mm/s) ───────────────────
+  if (isHighSpeed) {
+    rows.push({
+      sku: "SPECIFY", quantity: 2,
+      role: isSv ? "Hydraulisk stötdämpare" : "Hydraulic shock absorber",
+      reason: isSv
+        ? "OBLIGATORISK vid slaghastighet >1 m/s — förhindrar skador på cylinderände och maskinkonstruktion. Välj justerbar hydraulisk stötdämpare dimensionerad för cylinderkraft och massa."
+        : "MANDATORY at stroke speed >1 m/s — prevents end-stop damage to cylinder and machine frame. Select adjustable hydraulic shock absorber sized for cylinder force and mass.",
+    });
+  }
+
+  // ── 7. End-position sensors (2 pcs, one per end) ─────────────────
+  if (isEndPosDetect && isPneumatic) {
+    const sensorMatch = findCatalogProductByType("sensor", products);
+    rows.push({
+      sku: sensorMatch?.sku ?? "SPECIFY", quantity: 2,
+      role: isSv ? "Ändlägesgivare (hemläge + utsträckt läge)" : "End-position sensor (home + extended)",
+      reason: isSv
+        ? "OBLIGATORISK — 2 st magnetgivare för T-spår (en per ändläge) krävs för PLC-feedback. Välj givare kompatibel med cylinderprofil och styrsystem (24 V DC NPN/PNP)."
+        : "MANDATORY — 2 T-slot magnetic sensors (one per end position) required for PLC feedback. Select sensor matching cylinder profile and control voltage (24 V DC NPN/PNP).",
+    });
+  }
+
+  return rows;
+}
+
 // ── ACTION: questions ─────────────────────────────────────────────────────────
 async function handleQuestions(description: string, locale: string): Promise<Response> {
   const isSv = locale === "sv";
@@ -856,7 +1070,9 @@ async function handleQuestions(description: string, locale: string): Promise<Res
   }
 }
 
-// ── ACTION: options ───────────────────────────────────────────────────────────
+// ── ACTION: options (v40) ─────────────────────────────────────────────────────
+// v40: Server selects top 3 products deterministically; LLM only writes badge/why/pros/cons.
+// This eliminates hallucinated SKUs and inconsistent product selection.
 async function handleOptions(
   description: string, answers: Record<string, string>, locale: string
 ): Promise<Response> {
@@ -886,8 +1102,8 @@ async function handleOptions(
   const isBatteryDryroom = needsBatteryDryroom(combinedText);
   const speedMs = extractSpeedMs(combinedText, answers);
   const precisionMm = extractPrecisionMm(combinedText, answers);
-  // CRITICAL: vertical + precision ≤ 0.1 mm → ONLY ball-screw electric actuators allowed
-  const isHighPrecisionVertical = isVerticalLoad && precisionMm > 0 && precisionMm <= 0.1;
+  const isHighPrecision = precisionMm > 0 && precisionMm <= 0.1;
+  const isHighPrecisionVertical = isVerticalLoad && isHighPrecision;
   const requiredTemp = extractRequiredMaxTemp(combinedText, answers);
 
   const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
@@ -899,362 +1115,186 @@ async function handleOptions(
     fetchProducts(categories, 80),
     searchKnowledge(combinedText, 5),
   ]);
-
   const productMap = new Map<string, CatalogProduct>(allProducts.map(p => [p.sku, p]));
 
-  // ATEX: strip all electric actuators BEFORE any other filtering — they are categorically forbidden.
-  const atexFiltered = isAtex
-    ? allProducts.filter(p => !isElectricActuator(p))
-    : allProducts;
-
-  // For washdown environments: actuators (products WITH stroke spec) must be IP67/IP69K or stainless.
-  // Support items (no stroke spec) are always included.
-  const washdownFiltered = isWashdown
-    ? atexFiltered.filter(p => isWashdownProduct(p))
-    : atexFiltered;
-
-  // PRECISION HARD FILTER (v34 — extended from vertical-only to ALL axes):
-  // precision ≤ 0.1 mm → remove pneumatic + belt regardless of orientation.
-  // Pneumatic repeatability ~±0.1–0.5 mm. Belt backlash ~0.05–0.3 mm. Both violate ≤0.1 mm budget.
-  // Exception: for multi-axis systems, only filter when primary axis has the precision requirement.
-  const isHighPrecision = precisionMm > 0 && precisionMm <= 0.1;
+  // ── Hard pre-filters (unchanged from v39) ────────────────────────
+  const atexFiltered = isAtex ? allProducts.filter(p => !isElectricActuator(p)) : allProducts;
+  const washdownFiltered = isWashdown ? atexFiltered.filter(p => isWashdownProduct(p)) : atexFiltered;
   const applyPrecisionFilter = isHighPrecision && (!isMultiAxis || isHighPrecisionVertical);
-  const precisionFiltered = applyPrecisionFilter
-    ? washdownFiltered.filter(p => isAllowedForHighPrecision(p))
-    : washdownFiltered;
-  const precisionFilteredCount = washdownFiltered.length - precisionFiltered.length;
-  if (applyPrecisionFilter && precisionFilteredCount > 0) {
-    console.log(`[options] precision pre-filter: removed ${precisionFilteredCount} pneumatic/belt products (precision=${precisionMm}mm ≤ 0.1mm)`);
-  }
-
-  // HIGH-SPEED HARD FILTER (v34): speed > 0.8 m/s AND no precision requirement
-  // → remove ball-screw products (resonance, wear, unsuitable for fast cycling).
-  // NOT applied when precision ≤ 0.1 mm (precision requirement overrides — ball screw still needed).
+  const precisionFiltered = applyPrecisionFilter ? washdownFiltered.filter(p => isAllowedForHighPrecision(p)) : washdownFiltered;
   const applySpeedFilter = speedMs > 0.8 && !isHighPrecision && !isAtex;
-  const precisionVerticalFiltered = applySpeedFilter
-    ? precisionFiltered.filter(p => isAllowedForHighSpeed(p))
-    : precisionFiltered;
-  const speedFilteredCount = precisionFiltered.length - precisionVerticalFiltered.length;
-  if (applySpeedFilter && speedFilteredCount > 0) {
-    console.log(`[options] high-speed pre-filter: removed ${speedFilteredCount} ball-screw products (speed=${(speedMs*1000).toFixed(0)}mm/s > 800mm/s, no precision req)`);
-  }
+  const speedFiltered = applySpeedFilter ? precisionFiltered.filter(p => isAllowedForHighSpeed(p)) : precisionFiltered;
 
   const qualified: CatalogProduct[] = [];
   let bestFallback: CatalogProduct | null = null;
   let bestFallbackStroke = 0;
   let maxCatalogStroke = 0;
-
-  for (const p of precisionVerticalFiltered) {
+  for (const p of speedFiltered) {
     const maxStroke = parseStrokeFromSpecs(p.key_specs ?? {});
     if (maxStroke > maxCatalogStroke) maxCatalogStroke = maxStroke;
-    if (maxRequiredStroke === 0 || maxStroke === 0) {
-      qualified.push(p);
-    } else if (maxStroke >= maxRequiredStroke) {
-      qualified.push(p);
-    } else {
-      if (maxStroke > bestFallbackStroke) { bestFallbackStroke = maxStroke; bestFallback = p; }
-    }
+    if (maxRequiredStroke === 0 || maxStroke === 0) qualified.push(p);
+    else if (maxStroke >= maxRequiredStroke) qualified.push(p);
+    else if (maxStroke > bestFallbackStroke) { bestFallbackStroke = maxStroke; bestFallback = p; }
   }
-
-  // If washdown filter left no qualified actuators, fall back to full list with a warning
   const showProducts = qualified.length > 0 ? qualified : (bestFallback ? [bestFallback] : (isWashdown ? allProducts : []));
   const catalogCanHandle = qualified.length > 0;
 
-  let catalogNote = "";
-  if (isWashdown && qualified.length === 0) {
-    catalogNote = `CATALOG: No IP67/IP69K or stainless product meets ${maxRequiredStroke}mm stroke. Show closest available and note limitation.`;
-  } else if (qualified.length === 0 && bestFallback) {
-    catalogNote = `CATALOG: No product meets ${maxRequiredStroke}mm stroke. Longest available: ${bestFallback.name} at ${bestFallbackStroke}mm. Use badge 'Närmaste katalogalternativ'.`;
-  } else if (maxRequiredStroke > 0 && precisionVerticalFiltered.length - qualified.length > 0) {
-    catalogNote = `CATALOG: ${precisionVerticalFiltered.length - qualified.length} products excluded (stroke < ${maxRequiredStroke}mm).`;
-  }
-  if (isWashdown) {
-    catalogNote = (catalogNote ? catalogNote + " " : "") +
-      `WASHDOWN: Only IP67/IP69K or stainless products are shown (${washdownFiltered.length} of ${allProducts.length} total).` +
-      (isHighPrecisionVertical ? ` PRECISION-VERTICAL: ${precisionFilteredCount} pneumatic/belt products removed (≤${precisionMm}mm requires ball screw only).` : "");
-  }
-
-  // v27: Temperature filter — remove products whose known max temp is below the requirement.
-  // Products with NO temp spec (tempMax=0) are kept (we don't block on unknown data).
   const tempFiltered = requiredTemp > 0
-    ? showProducts.filter(p => {
-        const tempMax = parseProductTempMax(p.key_specs ?? {});
-        return tempMax === 0 || tempMax >= requiredTemp;
-      })
+    ? showProducts.filter(p => { const t = parseProductTempMax(p.key_specs ?? {}); return t === 0 || t >= requiredTemp; })
     : showProducts;
-  const tempFilteredCount = showProducts.length - tempFiltered.length;
-  if (tempFilteredCount > 0) {
-    console.log(`[options] temp filter: removed ${tempFilteredCount} products (tempMax < ${requiredTemp}°C)`);
-  }
 
-  // Sort by stroke-relevance, then take top 25.
   const sortedProducts = sortByStrokeMatch(tempFiltered.length > 0 ? tempFiltered : showProducts, maxRequiredStroke);
   const catalogProducts = sortedProducts.slice(0, 25);
-  // v39 T09: only SKUs that were actually sent to the LLM are valid options — prevents
-  // hallucinated short-stroke products that live in productMap but weren't in the catalog sent
-  const catalogSkus = new Set(catalogProducts.map(p => p.sku));
-  console.log(
-    `[options] categories=${categories} minStroke=${minStroke} requiredTemp=${requiredTemp} qualified=${qualified.length}` +
-    ` catalog=${catalogProducts.length}/${showProducts.length} isWashdown=${isWashdown}`
-  );
+  console.log(`[options v40] categories=${categories} stroke=${maxRequiredStroke} qualified=${qualified.length} catalog=${catalogProducts.length}`);
 
-  const productList = catalogProducts
-    .map(p => `${p.sku}: ${p.name} [${p.brand}/${p.category}] stroke=${strokeLabel(p.key_specs ?? {})} ip=${p.key_specs?.ip_rating ?? "std"} specs:${JSON.stringify(p.key_specs ?? {})}`)
-    .join("\n");
+  // ── v40: Server-side product selection ───────────────────────────
+  // Score every product deterministically, pick top 3 actuators
+  const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, isHighPrecision, isHighSpeed, isVertical: isVerticalLoad, isWashdown, isAtex };
+  const scoredActuators = catalogProducts
+    .filter(p => parseStrokeFromSpecs(p.key_specs ?? {}) > 0 || maxRequiredStroke === 0)
+    .map(p => ({ p, s: scoreProduct(p, scoringCtx) }))
+    .sort((a, b) => b.s - a.s);
 
+  const topProducts = scoredActuators.slice(0, 3).map(x => x.p);
+
+  // Build server-side option objects (correct data, LLM fills in text)
   const lang = isSv ? "svenska" : "English";
-  const badges = isSv
+  const badgeList = isSv
     ? "'Bästa valet'|'Kompakt alternativ'|'Budgetalternativ'|'Premium alternativ'|'Närmaste katalogalternativ'"
     : "'Best choice'|'Compact option'|'Budget option'|'Premium option'|'Closest catalog option'";
 
-  const multiAxisRule = isMultiAxis
-    ? perAxisStrokes.length > 0
-      ? `MULTI-AXIS SYSTEM — axis requirements: ${perAxisStrokes.map(a => `${a.axis}-axis ${a.stroke}mm`).join(", ")}.
-Show 2-3 options for the PRIMARY actuator only (largest axis = ${maxRequiredStroke}mm).
-AXIS TECHNOLOGY SELECTION RULES:
-• X-axis (horizontal, high speed >800 mm/s): belt-driven actuator (EGSC, ELGC-TB, OSP-E-B) — NOT ball screw
-• Z-axis (vertical, precision ≤0.1mm): ball-screw electric axis (EGSK, EGC-BS) + brake motor — NOT belt, NOT pneumatic
-• Z-axis (vertical, no precision): pneumatic cylinder with rod lock OR electric with brake motor
-• NEVER show the same actuator type for both X and Z — they have different optimal technologies
-The BOM step handles secondary axes. Show ONLY the primary actuator here.`
-      : `MULTI-AXIS: Show 2-3 options for the primary (longest-stroke) actuator. BOM handles secondary axes.`
-    : "";
+  const serverOptions = topProducts.map((p, i) => {
+    const ms = parseStrokeFromSpecs(p.key_specs ?? {});
+    return {
+      sku: p.sku, name: p.name,
+      badge: isSv ? ["Bästa valet","Kompakt alternativ","Budgetalternativ"][i] : ["Best choice","Compact option","Budget option"][i],
+      bore_mm: parseFloat(String(p.key_specs?.bore_mm ?? "0")) || null,
+      stroke_mm: ms > 0 ? ms : null,
+      force_n: parseFloat(String(p.key_specs?.force_n ?? "0")) || null,
+      why: "", pros: [] as string[], cons: [] as string[],
+    };
+  });
 
-  const washdownRule = isWashdown
-    ? `WASHDOWN / FOOD-GRADE ENVIRONMENT — SAFETY CRITICAL:\n` +
-      `Standard aluminum cylinders corrode within days under chemical washdown. NEVER recommend them here.\n` +
-      `ONLY recommend products with IP67/IP69K rating OR stainless steel / corrosion-resistant construction.\n` +
-      `Preferred products: Festo CRDSNU (corrosion-resistant stainless), Camozzi Serie 90 (stainless IP67).\n` +
-      `If no washdown product meets the stroke requirement, say so clearly and recommend the custom solution.`
-    : "";
+  // ── LLM enrichment: text only, SKUs are pre-locked ───────────────
+  const reqSummary = [
+    maxRequiredStroke > 0 ? `Stroke: ${maxRequiredStroke} mm` : "",
+    precisionMm > 0 ? `Precision: ±${precisionMm} mm` : "",
+    isVerticalLoad ? (isSv ? "Vertikal last" : "Vertical load") : "",
+    isWashdown ? "Washdown/IP69K" : "",
+    isAtex ? "ATEX Zone 1/2" : "",
+    isHighSpeed ? `Hög hastighet ${(speedMs*1000).toFixed(0)} mm/s` : "",
+  ].filter(Boolean).join(" | ");
 
-  const rules = [
-    isCleanroom      ? "CRITICAL: cleanroom — ONLY electric actuators, NO pneumatic cylinders." : "",
-    needsProgrammable ? "CRITICAL: programmable stops — only servo/stepper with controller." : "",
-    !isMultiAxis && maxRequiredStroke > 0
-      ? `STROKE RULE: Required stroke = ${maxRequiredStroke}mm. ONLY recommend products with max_stroke >= ${maxRequiredStroke}mm.`
-      : "",
-    washdownRule,
-    multiAxisRule,
-    isVacuum
-      ? `VACUUM GRIP: Sensitive items. For vacuum-handled parts, primary actuator handles transport — vacuum system goes in BOM.`
-      : "",
-    valveTerminal
-      ? `VALVE TERMINAL: Multi-actuator system. This will be in the BOM — do NOT list it as a primary option.`
-      : "",
-    catalogNote,
-  ].filter(Boolean).join("\n\n");
+  const preselectedStr = topProducts.map((p, i) =>
+    `${i+1}. SKU="${p.sku}" | ${p.name} [${p.brand}/${p.category}] stroke=${strokeLabel(p.key_specs??{})} specs:${JSON.stringify(p.key_specs??{})}`
+  ).join("\n");
 
-  // v24: requirements block at the very top so Groq can't ignore them
-  const requirementLines = [
-    maxRequiredStroke > 0
-      ? `• Required stroke/travel: ${maxRequiredStroke} mm — DISQUALIFY any product with max_stroke < ${maxRequiredStroke} mm`
-      : "",
-    precisionMm > 0
-      ? `• Required precision/repeatability: ±${precisionMm} mm`
-      : "",
-    isHighPrecision
-      ? `• ⛔ HIGH PRECISION ±${precisionMm} mm — PHYSICS RULES (applies to ALL axes):\n` +
-        `  ▸ FORBIDDEN: pneumatic cylinders — repeatability ±0.1–0.5 mm, CANNOT achieve ±${precisionMm} mm\n` +
-        `  ▸ FORBIDDEN: belt-driven axes — belt backlash 0.05–0.3 mm, EXCEEDS ±${precisionMm} mm budget\n` +
-        `  ▸ FORBIDDEN: rack-and-pinion (kuggstång) — backlash 0.05–0.5 mm, NOT suitable for precision\n` +
-        `  ▸ ALLOWED: ball screw (kulskruvsaxel) — repeatability 0.003–0.05 mm ✓\n` +
-        `  ▸ ALLOWED: linear motor — repeatability <0.001 mm ✓\n` +
-        `  ▸ TERMINOLOGY: "kulskruvsaxel" = ball screw = correct. "kuggstång" = rack-and-pinion = WRONG for precision.`
-      : "",
-    isHighPrecisionVertical
-      ? `• ⛔ VERTICAL + PRECISION: ball-screw axis MANDATORY + servo motor with INTEGRATED BRAKE (not check valve — electric axis needs electric brake)`
-      : (isVerticalLoad
-        ? `• ⚠️ VERTICAL AXIS:\n  ▸ Electric servo system → servo motor with integrated holding brake (elektrisk bromsmotor)\n  ▸ Pneumatic system → pilot-operated check valve (backslagsventil) + rod lock`
-        : ""),
-    speedMs > 0.8 && !isHighPrecision
-      ? `• ⛔ HIGH SPEED ${(speedMs*1000).toFixed(0)} mm/s + NO precision req:\n` +
-        `  ▸ FORBIDDEN: ball-screw drives — resonance and rapid wear above 800 mm/s\n` +
-        `  ▸ REQUIRED: belt-driven axis (EGSC, ELGC-TB, OSP-E-B) or linear motor`
-      : (speedMs > 0.8 && isHighPrecision
-        ? `• ⚠️ HIGH SPEED ${(speedMs*1000).toFixed(0)} mm/s + PRECISION ±${precisionMm} mm: requires high-lead ball screw or linear motor`
-        : ""),
-    isAtex    ? `• ⛔ ATEX Zone 1/2 (gas) — NO electric actuators, NO servo, NO standard sensors. Pneumatic/NAMUR-certified ONLY.` : "",
-    isAtexDust ? `• ⛔ ATEX Zone 20/21/22 (DUST explosion) — Equipment Group III, Category 2D/3D required. Different from gas zones — verify dust ignition temperature and MIE.` : "",
-    isHydraulic ? `• ⚠️ HYDRAULIC APPLICATION — pneumatic catalog does NOT cover hydraulic (100–350 bar oil) systems. Recommend CUSTOM-SOLUTION.` : "",
-    isVeryHighForce ? `• ⚠️ HIGH FORCE (>8 kN) — may exceed pneumatic actuator capability. Verify bore size or consider hydraulics/custom.` : "",
-    isVerticalLoad ? `• ⚠️ VERTICAL/HANGING LOAD — cylinder holds weight. A lock valve (pilot-operated check valve) is MANDATORY to prevent load drop on air-pressure loss.` : "",
-    requiredTemp > 0
-      ? `• Required operating temperature: ${requiredTemp}°C — DISQUALIFY any product whose temp_range max < ${requiredTemp}°C. Compare EXACT numbers. Do NOT mark a product as "temperature resistant" if its spec (e.g. 60°C) is below the requirement (${requiredTemp}°C).`
-      : (isHighTemp ? `• ⚠️ HIGH TEMPERATURE (>80°C) — standard NBR seals fail. PTFE or FKM (Viton) seals required.` : ""),
-    isLowTemp  ? `• ⚠️ LOW TEMPERATURE (<-10°C) — standard seals harden/crack. LT-rated or FKM seals required.` : "",
-    isOxygenClean ? `• ⛔ OXYGEN-ENRICHED ATMOSPHERE — oil-lubricated pneumatics create fire/explosion risk. Oil-free components ONLY.` : "",
-    isSilSafety ? `• ⚠️ SAFETY FUNCTION (SIL/PLe) — components in safety circuits require IEC 62061 / ISO 13849 certification.` : "",
-    isWashdown ? `• Environment: WASHDOWN / FOOD-GRADE — IP67/IP69K or stainless steel ONLY` : "",
-    isPharmaGmp ? `• Environment: PHARMACEUTICAL/GMP — FDA 21 CFR / ISO 14159 materials (316L stainless, PTFE, EPDM). No dead zones, validated.` : "",
-    isOutdoor  ? `• Environment: OUTDOOR — minimum IP65, UV-resistant, stainless or coated construction.` : "",
-    isHighCycle ? `• ⚠️ HIGH CYCLE RATE (>60/min) — standard lubrication and bearings may overheat. Oil-free or high-cycle rated variants.` : "",
-    isHighSpeed ? `• ⚠️ HIGH SPEED (>1 m/s) — end-stop cushioning or external deceleration MANDATORY to prevent impact damage.` : "",
-    isBatteryDryroom
-      ? `• ⛔ BATTERY PRODUCTION / DRYROOM — CRITICAL MATERIAL RESTRICTIONS:\n` +
-        `  1. ABSOLUTE BAN on copper (Cu), zinc (Zn), and nickel (Ni) in any moving or wetted part. Standard ball screws and zinc-plated guides are FORBIDDEN — they shed particles that short-circuit lithium cells, causing thermal runaway.\n` +
-        `  2. Standard greases evaporate or solidify in dryroom conditions (dew point -40 to -60°C). Require PFPE-lubricated or dry-running variants ONLY.\n` +
-        `  3. For speeds >800 mm/s + high precision: ONLY belt-driven axes or linear motors. Ball screw drives cannot sustain these speeds without particle contamination.\n` +
-        `  4. PRIORITIZE SMC 25-Series or equivalent Cu/Zn/Ni-free product lines. If no catalog product meets material restrictions, output CUSTOM-SOLUTION with explicit Cu/Zn/Ni-free specification.`
-      : "",
-    speedMs > 0.8 && !isBatteryDryroom
-      ? `• ⚠️ HIGH SPEED ${(speedMs * 1000).toFixed(0)} mm/s — ball-screw drives (EGSK etc.) vibrate and wear rapidly above 800 mm/s under continuous cycling. Prefer belt-driven axes (EGSC, ELGC-TB) or linear motors at this speed.`
-      : "",
-    isCleanroom ? `• Environment: CLEANROOM — electric actuators ONLY, NO pneumatics` : "",
-    needsProgrammable ? `• Control: programmable stops — servo/stepper + controller ONLY` : "",
-    isMultiAxis ? `• System: MULTI-AXIS — show PRIMARY actuator only; BOM handles secondary axes` : "",
-  ].filter(Boolean).join("\n");
+  const optSystem = `You are a senior automation engineer. Write product descriptions for 3 pre-selected products. All text in ${lang}.
 
-  const system = `You are a Senior Automation & Mechanical Design Engineer AND a strict system validator. Your output is used directly by engineers to build real machines — it must be physically correct, safe, and complete. All text in ${lang}.
-${requirementLines ? `\nAPPLICATION REQUIREMENTS — HARD CONSTRAINTS:\n${requirementLines}` : ""}
-${rules ? `\n${rules}` : ""}
+MANDATORY RULES:
+1. Use EXACTLY these SKUs: ${topProducts.map(p => p.sku).join(", ")} — do NOT change them
+2. First product gets badge ${isSv ? "'Bästa valet'" : "'Best choice'"}, others get appropriate badges from: ${badgeList}
+3. "why" = engineering justification (mechanism, stroke fit, safety, material) — be specific, mention numbers
+4. pros: 2-3 items, cons: 1-2 items
 
-═══ 7-STEP ENGINEERING VALIDATION — MANDATORY BEFORE OUTPUT ═══
+JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "EXACT_SKU", "badge": "...", "why": "...", "pros": [...], "cons": [...] } ] }`;
 
-STEP 1 — AXIS IDENTIFICATION
-Identify every axis in this system. For each axis: type (vertical/horizontal/rotary), mechanism technology required, load, stroke.
+  const optUser = `Application: ${description}\nRequirements: ${reqSummary || "standard"}\n${Object.entries(answers).map(([k,v])=>`${k}: ${v}`).join(", ")}\n\nPre-selected products (write descriptions for these ONLY):\n${preselectedStr}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
 
-STEP 2 — TECHNOLOGY SELECTION (ONE ACTUATOR PER AXIS)
-Apply strict selection rules:
-• Vertical + precision ≤ 0.1 mm → ONLY ball-screw electric axis + servo brake motor. FORBIDDEN: pneumatic, belt-driven.
-• Vertical + no precision req → pneumatic cylinder with rod lock OR electric with brake.
-• Horizontal + high speed (>0.8 m/s) → belt-driven or linear motor.
-• Horizontal + high precision (≤0.1 mm) → ball screw.
-• Simple short-stroke secondary movement (<100 mm) → smaller pneumatic cylinder (do NOT over-engineer).
-• ONE actuator per axis. NEVER mix actuator types within one axis role.
+  let rawOptions: string | null = null;
+  let optRateLimited = false;
+  try { rawOptions = await callGroq([{ role: "system", content: optSystem }, { role: "user", content: optUser }], 1200, true, 0.3); }
+  catch (e) { if ((e as Error).message === "RATE_LIMITED") optRateLimited = true; }
 
-STEP 3 — SAFETY VALIDATION
-• Vertical axis: brake motor or rod lock is NON-NEGOTIABLE — prevents load drop on power loss.
-• Multi-axis: central controller required for synchronization.
-• Eccentric load: linear guide or integrated guide rail required.
-
-STEP 4 — MECHANISM HONESTY CHECK
-• If "why" field mentions ball screw → SKU MUST be a ball screw product. If belt → belt SKU. NO mismatches.
-• If catalog has no valid product → output CUSTOM-SOLUTION with exact specification (brand series, mechanism type).
-
-STEP 5 — COMPLETENESS CHECK
-Per axis: actuator ✓, motor ✓, drive ✓
-System: controller ✓ (if multi-axis), sensors ✓, safety ✓ (if vertical/hazardous)
-
-STEP 6 — DETECT AND FIX ERRORS
-Before finalizing:
-□ Is any pneumatic/belt product selected for vertical + precision ≤ 0.1 mm? → REPLACE with ball screw.
-□ Is vertical axis missing brake? → ADD brake note to cons.
-□ Is there more than one actuator per axis? → REMOVE duplicates.
-□ Does text say one mechanism but SKU is another? → FIX SKU or FIX text.
-
-STEP 7 — FINAL OUTPUT
-Return a VERIFIED solution. Confident tone. No vague language. No "it may" or "could be". State facts.
-Example: "This system uses a ball-screw servo axis (EGSK) on Z for ±0.02 mm precision, with integrated brake motor for safe vertical load holding."
-
-═══════════════════════════════════════════════════════════════
-
-BRAND SPECIFICITY: Name the exact series when relevant (SMC HY, Parker P1S, Bosch Rexroth EMC-HD-XC, SMC 25-series, etc.)
-COMPATIBILITY: If control protocol specified (EtherCAT, PROFINET, ctrlX), state drive compatibility explicitly.
-NUMERICAL VALIDATION: Hard math — if product spec < requirement, it FAILS. Do not mark failing products "Best Choice".
-
-Return ONLY JSON (no markdown):
-{ "summary": "1–2 sentences — confident, specific, state mechanism + safety approach",
-  "options": [ { "sku": "CATALOG_SKU_OR_CUSTOM-SOLUTION", "name": "product name", "badge": ${badges}, "bore_mm": null|number, "stroke_mm": null|number, "force_n": null|number, "why": "engineering justification: mechanism chosen, precision achievable, safety feature, protocol/material verified — in ${lang}", "pros": ["..."], "cons": ["..."] } ] }`;
-
-  const userMsg = `Application: ${description}\nAnswers: ${Object.entries(answers).map(([k,v])=>`${k}=${v}`).join(", ")}\n\nCatalog (${catalogProducts.length} products, sorted by stroke relevance${maxRequiredStroke > 0 ? ` for ${maxRequiredStroke} mm` : ""}${isWashdown ? ", IP67/IP69K+stainless only" : ""}):\n${productList}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
-
-  // v24: temperature 0.35 (was 0.2) — more context-sensitive, less "always pick same top 3"
-  let rawOptions: string | null;
-  try { rawOptions = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 1500, true, 0.35); }
-  catch (e) {
-    if ((e as Error).message === "RATE_LIMITED") return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
-    rawOptions = null;
+  // Merge: server data (authoritative) + LLM text
+  let finalOptions = [...serverOptions] as Array<Record<string, unknown>>;
+  let llmSummary = "";
+  if (rawOptions) {
+    try {
+      const llm = JSON.parse(rawOptions);
+      llmSummary = typeof llm.summary === "string" ? llm.summary : "";
+      const llmBySkuMap = new Map<string, Record<string, unknown>>();
+      for (const o of (llm.options ?? [])) if (o?.sku) llmBySkuMap.set(o.sku as string, o);
+      finalOptions = finalOptions.map(opt => {
+        const llmOpt = llmBySkuMap.get(opt.sku as string);
+        if (!llmOpt) return opt;
+        return {
+          ...opt,
+          badge: (typeof llmOpt.badge === "string" && llmOpt.badge) ? llmOpt.badge : opt.badge,
+          why:   (typeof llmOpt.why === "string" && llmOpt.why)     ? llmOpt.why   : opt.why,
+          pros:  (Array.isArray(llmOpt.pros) && llmOpt.pros.length) ? llmOpt.pros  : opt.pros,
+          cons:  (Array.isArray(llmOpt.cons) && llmOpt.cons.length) ? llmOpt.cons  : opt.cons,
+        };
+      });
+    } catch { /* ignore — use server defaults */ }
   }
-  const raw = rawOptions;
 
-  let parsed: { summary: string; options: Array<Record<string, unknown>> };
-  try { parsed = raw ? JSON.parse(raw) : { summary: "", options: [] }; }
-  catch { parsed = { summary: "", options: [] }; }
-
-  // v23/v39: remove any option whose SKU wasn't in the 25 products actually sent to the LLM.
-  // Using catalogSkus (not productMap) prevents the LLM from hallucinating short-stroke products
-  // that exist in the DB but were filtered out before being sent to the model.
-  parsed.options = (parsed.options ?? []).filter(opt => {
-    const sku = opt.sku as string;
-    if (sku === "CUSTOM-SOLUTION") return true;
-    return catalogSkus.has(sku);
-  }).map(opt => {
+  // ── Server-side post-validation (stroke, washdown, precision, temp) ──
+  finalOptions = finalOptions.map(opt => {
     const sku = opt.sku as string;
     if (sku === "CUSTOM-SOLUTION") return opt;
-    const cat = productMap.get(sku)!;
+    const cat = productMap.get(sku);
+    if (!cat) return opt;
     const actualMax = parseStrokeFromSpecs(cat.key_specs ?? {});
     opt.stroke_mm = actualMax > 0 ? actualMax : null;
     if (maxRequiredStroke > 0 && actualMax > 0 && actualMax < maxRequiredStroke) {
       opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
-      opt.why = `${opt.why ?? ""} ⚠️ Max stroke ${actualMax} mm — krav ${maxRequiredStroke} mm.`;
+      opt.why = `${opt.why} ⚠️ Max stroke ${actualMax} mm — krav ${maxRequiredStroke} mm.`;
     }
-    // Flag if AI somehow picked a non-washdown product in a washdown scenario
     if (isWashdown && !isWashdownProduct(cat)) {
       opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
-      opt.why = `${opt.why ?? ""} ⚠️ Standardprodukt — verifiera korrosionsskydd för washdown-miljö.`;
+      opt.why = `${opt.why} ⚠️ Standardprodukt — verifiera korrosionsskydd för washdown-miljö.`;
     }
-    // PRECISION hard post-validation (v34 — ALL axes, not just vertical)
     if (isHighPrecision && !isAllowedForHighPrecision(cat)) {
-      const failType = isPneumaticActuatorProduct(cat)
-        ? (isSv ? "pneumatisk cylinder (repeterbarhet ±0.1–0.5 mm)" : "pneumatic cylinder (repeatability ±0.1–0.5 mm)")
-        : (isBeltDrivenProduct(cat)
-          ? (isSv ? "kuggremsdrift (backlash 0.05–0.3 mm)" : "belt drive (backlash 0.05–0.3 mm)")
-          : "incompatible mechanism");
-      const criticalFail = isSv
-        ? `⛔ KRITISKT FEL: ${failType} kan INTE uppnå ±${precisionMm} mm repeterbarhet. Krävs: kulskruvsaxel (ball screw) eller linjärmotor.`
-        : `⛔ CRITICAL FAILURE: ${failType} CANNOT achieve ±${precisionMm} mm repeatability. Required: ball-screw axis or linear motor.`;
+      const ft = isPneumaticActuatorProduct(cat) ? "pneumatisk cylinder" : "kuggremsdrift";
+      const crit = isSv
+        ? `⛔ KRITISKT FEL: ${ft} kan INTE uppnå ±${precisionMm} mm. Krävs: kulskruvsaxel.`
+        : `⛔ CRITICAL FAILURE: ${ft} CANNOT achieve ±${precisionMm} mm. Required: ball-screw axis.`;
       opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
-      opt.why = criticalFail + (opt.why ? " " + opt.why : "");
-      opt.cons = [...((opt.cons as string[]) ?? []), criticalFail];
-      console.warn(`[options] precision violation: ${sku} is ${failType} — precision=${precisionMm}mm`);
+      opt.why = crit + " " + opt.why;
+      opt.cons = [...((opt.cons as string[]) ?? []), crit];
     }
-    // Ball-screw × high-speed incompatibility check
     if (isHighSpeed && isBallScrewProduct(cat)) {
-      const speedStr = speedMs > 0 ? `${(speedMs * 1000).toFixed(0)} mm/s` : ">1000 mm/s";
       const warn = isSv
-        ? `⚠️ VARNING: Kulskruvsaxel vid ${speedStr} — risk för vibrationer, snabbt slitage och partikelkontamination vid kontinuerlig cykling. Överväg kuggremsdrift (EGSC/ELGC-TB) eller linjärmotor.`
-        : `⚠️ WARNING: Ball-screw drive at ${speedStr} — risk of vibration, rapid wear and particle contamination under continuous cycling. Consider belt drive (EGSC/ELGC-TB) or linear motor.`;
+        ? `⚠️ Kulskruvsaxel vid ${(speedMs*1000).toFixed(0)} mm/s — risk för vibration och slitage. Överväg kuggremsdrift (EGSC/ELGC-TB).`
+        : `⚠️ Ball-screw at ${(speedMs*1000).toFixed(0)} mm/s — vibration and wear risk. Consider belt drive (EGSC/ELGC-TB).`;
       opt.cons = [...((opt.cons as string[]) ?? []), warn];
     }
-    // Dryroom/battery: flag any product with potential Cu/Zn/Ni content
-    if (isBatteryDryroom && sku !== "CUSTOM-SOLUTION") {
-      const materialWarn = isSv
-        ? `⚠️ DRYROOM VARNING: Verifiera att ${cat.name} är fri från koppar (Cu), zink (Zn) och nickel (Ni) i alla rörliga delar. Begär materialcertifikat (RoHS/material declaration). SMC 25-serien är primärt alternativ om Cu/Zn/Ni-frihet inte kan verifieras.`
-        : `⚠️ DRYROOM WARNING: Verify ${cat.name} is free of copper (Cu), zinc (Zn), and nickel (Ni) in all moving parts. Request material certificate (RoHS/material declaration). SMC 25-Series is the primary alternative if Cu/Zn/Ni-freedom cannot be confirmed.`;
-      opt.cons = [...((opt.cons as string[]) ?? []), materialWarn];
+    if (isBatteryDryroom) {
+      const warn = isSv
+        ? `⚠️ Dryroom: Verifiera Cu/Zn/Ni-frihet i alla rörliga delar. Begär materialcertifikat.`
+        : `⚠️ Dryroom: Verify Cu/Zn/Ni-free in all moving parts. Request material certificate.`;
+      opt.cons = [...((opt.cons as string[]) ?? []), warn];
     }
-    // v27: Hard numerical temperature validation — catches hallucinated "✓ Hög temperaturbeständighet"
     if (requiredTemp > 0) {
-      const productTempMax = parseProductTempMax(cat.key_specs ?? {});
-      if (productTempMax > 0 && productTempMax < requiredTemp) {
+      const tMax = parseProductTempMax(cat.key_specs ?? {});
+      if (tMax > 0 && tMax < requiredTemp) {
         opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
-        const warn = isSv
-          ? `⛔ VARNING: Produktens temperaturområde (max ${productTempMax}°C) understiger applikationskravet (${requiredTemp}°C). EJ godkänd för denna temperatur.`
-          : `⛔ WARNING: Product temp range (max ${productTempMax}°C) is below requirement (${requiredTemp}°C). NOT approved for this temperature.`;
-        opt.why = warn + (opt.why ? " " + opt.why : "");
-        console.warn(`[options] temp mismatch: ${sku} max=${productTempMax}°C < required=${requiredTemp}°C`);
+        opt.why = `⛔ Temp ${tMax}°C < krav ${requiredTemp}°C. ` + opt.why;
       }
     }
     return opt;
   });
 
-  // Always append a CUSTOM-SOLUTION card — with full context so it names the right product families
+  // Always append CUSTOM-SOLUTION
   const customCtx: CustomSolutionContext = {
-    isWashdown,
-    isVertical: isVerticalLoad,
+    isWashdown, isVertical: isVerticalLoad,
     isFoodGrade: isPharmaGmp || /livsmedel|food|slakteri|chark|mejeri|kött|meat|poultry|fjäderfä|dairy|fisk|fish|bageri|brewery/i.test(combinedText),
-    isBatteryDryroom,
-    isHydraulic,
-    isAtex,
-    isSilSafety,
+    isBatteryDryroom, isHydraulic, isAtex, isSilSafety,
   };
-  parsed.options = [...parsed.options, buildCustomSolutionOption(maxRequiredStroke, isSv, maxCatalogStroke, catalogCanHandle, customCtx)];
+  finalOptions.push(buildCustomSolutionOption(maxRequiredStroke, isSv, maxCatalogStroke, catalogCanHandle, customCtx));
 
-  return Response.json(parsed, { headers: CORS });
+  const summary = llmSummary || (isSv
+    ? `${topProducts.length} alternativ valda baserat på krav${maxRequiredStroke > 0 ? ` (slag ${maxRequiredStroke} mm)` : ""}.`
+    : `${topProducts.length} options selected for ${maxRequiredStroke > 0 ? `${maxRequiredStroke} mm stroke` : "this application"}.`);
+
+  if (optRateLimited) return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
+  return Response.json({ summary, options: finalOptions }, { headers: CORS });
 }
 
-// ── ACTION: bom ───────────────────────────────────────────────────────────────
+// ── ACTION: bom (v40) ─────────────────────────────────────────────────────────
+// v40: Mandatory BOM is built deterministically BEFORE calling LLM.
+// If LLM is rate-limited, the BOM skeleton is returned as-is — never an empty BOM.
 async function handleBom(
   description: string, answers: Record<string, string>, primarySku: string, locale: string
 ): Promise<Response> {
@@ -1278,8 +1318,6 @@ async function handleBom(
   const speedMs = extractSpeedMs(combinedText, answers);
   const precisionMm = extractPrecisionMm(combinedText, answers);
   const isHighPrecision = precisionMm > 0 && precisionMm <= 0.1;
-  // In ATEX zones, electric actuators are forbidden — detectCategories already strips them,
-  // but force isElectric=false to prevent electric accessories (cables, drives) being fetched.
   const isElectric = !isAtex && !isAtexDust && categories.some(c => c === "electric-actuator" || c === "linear-module");
   const isCleanroom = /\brenrum\b|\bcleanroom\b|\bclean\s+room\b/i.test(combinedText);
   const isMultiAxis = needsMultiAxis(combinedText);
@@ -1288,6 +1326,7 @@ async function handleBom(
   const isWashdown = needsWashdown(combinedText);
   const isEndPosDetect = needsEndPositionDetection(combinedText);
   const minStroke = extractMinStroke(answers, description);
+  const primaryIsFamilyProd = isFamilyProduct({ sku: primarySku, name: "", category: "", brand: "", key_specs: {} });
 
   const bomCategories = [
     ...categories,
@@ -1303,392 +1342,133 @@ async function handleBom(
     searchKnowledge(combinedText + " BOM komplett system", 5),
   ]);
 
-  // ATEX/Dust: strip ALL electric actuators from the catalog before Groq sees it — hard block layer 2
-  const atexSafeProducts = (isAtex || isAtexDust)
-    ? products.filter(p => !isElectricActuator(p))
-    : products;
-
-  // v38: Build product set for SKU validation + richer product list for LLM
+  // ATEX: strip electric actuators
+  const atexSafeProducts = (isAtex || isAtexDust) ? products.filter(p => !isElectricActuator(p)) : products;
   const validBomSkus = new Set(atexSafeProducts.map(p => p.sku));
-  validBomSkus.add("SPECIFY"); // always allowed
-  validBomSkus.add(primarySku); // primary is always valid
+  validBomSkus.add("SPECIFY");
+  validBomSkus.add(primarySku);
 
-  const productList = balancedSlice(atexSafeProducts, 60)
-    .map(p => {
-      const ks = p.key_specs ?? {};
-      const stroke = ks.stroke_mm ? ` stroke=${String(ks.stroke_mm).replace(/\s*mm/i,"")}mm` : "";
-      const bore   = ks.bore_mm   ? ` bore=${String(ks.bore_mm).replace(/\s*mm/i,"")}mm`     : "";
-      const force  = ks.force_n   ? ` force=${String(ks.force_n).replace(/\s*N/i,"")}N`      : "";
-      const ip     = ks.ip_rating ? ` ip=${ks.ip_rating}` : "";
-      const family = isFamilyProduct(p) ? " [FAMILY—needs config code]" : "";
-      return `${p.sku}: ${p.name} [${p.brand}/${p.category}]${stroke}${bore}${force}${ip}${family}`;
-    }).join("\n");
+  // ── v40: Build complete mandatory BOM deterministically ─────────────────────
+  const bomCtx: BomCtx = {
+    primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
+    isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isVacuum, isSv,
+    products: atexSafeProducts,
+  };
+  const mandatoryBom = buildMandatoryBomRows(bomCtx);
+  console.log(`[bom v40] primary=${primarySku} electric=${isElectric} vertical=${isVerticalLoad} highSpeed=${isHighSpeed} valveTerminal=${valveTerminal} mandatoryRows=${mandatoryBom.length}`);
 
+  // ── LLM enrichment: title + explanation + optional extras ─────────────────
   const lang = isSv ? "svenska" : "English";
-
   const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
   const axisStrokeNote = isMultiAxis && perAxisStrokes.length > 0
-    ? `Axis strokes from requirements: ${perAxisStrokes.map(a => `${a.axis}=${a.stroke}mm`).join(", ")}. Size each axis actuator to meet its stroke.`
+    ? `Per-axis strokes: ${perAxisStrokes.map(a => `${a.axis}=${a.stroke}mm`).join(", ")}.`
     : "";
 
-  const rules = [
-    isElectric
-      ? `ELECTRIC BOM: MUST include linear axis + motor + motor controller + motor cable + encoder cable. FORBIDDEN: pneumatic valves, valve terminals, FRL, air fittings, silencers.`
-      : "",
-    isAtex
-      ? `⛔ ATEX Zone 1/2 (GAS EXPLOSION): ABSOLUTE BAN on electric actuators (EGSK/EGC/ELGA/LESH/LEFS/OSP-E/HMR/LBB/HLR), servos, steppers, motor drives, and standard 24V sensors. ALL components must be pneumatic/mechanical or explicitly ATEX/NAMUR-certified. Synchronization: use 2× pneumatic cylinders with mechanical coupling — NEVER electric axes. Missing ATEX sensor → SPECIFY with reason "ATEX-certifierad sensor krävs (Ex ia IIC / NAMUR)".`
-      : "",
-    isAtexDust
-      ? `⛔ ATEX Zone 20/21/22 (DUST EXPLOSION): Equipment must be Group III / Category 2D or 3D. Maximum surface temperature must be below dust layer ignition temperature (typically T135°C for grain/flour dust). Verify dust class (IIIA/IIIB/IIIC). All sensors SPECIFY with "ATEX IIIb T135°C krävs".`
-      : "",
-    isHydraulic || isVeryHighForce
-      ? `⛔ HYDRAULIC / VERY HIGH FORCE: Pneumatic cylinders (max ~16 bar) cannot deliver hydraulic forces (100–350 bar). For this application ALL actuator rows MUST be SPECIFY with reason "Hydraulisk komponent — utanför pneumatisk katalog. Kontakta Maskinval för hydraulisk offert." Include a note in explanation that hydraulic engineering is required.`
-      : "",
-    isVerticalLoad && !isElectric
-      ? `⚠️ VERTICAL LOAD (PNEUMATIC SYSTEM): Add a pilot-operated check valve (backslagsventil) for EACH lifting/vertical cylinder. If not in catalog: SPECIFY "Pilotmanövrerad backslagsventil — obligatorisk för vertikal last". Do NOT add a check valve for electric servo axes — that is a pneumatic component and would be wrong.`
-      : "",
-    isVerticalLoad && isElectric
-      ? `⚠️ VERTICAL LOAD (ELECTRIC SERVO SYSTEM): MANDATORY — add a servo motor WITH INTEGRATED HOLDING BRAKE for the vertical axis. The brake engages automatically on power loss, preventing load drop. SPECIFY row: "Bromsmotor (servo med integrerad hållbroms) — vertikal axel, obligatorisk för lastsäkerhet". Do NOT add a pneumatic check valve — this is an electric system.`
-      : "",
-    isHighTemp
-      ? `⚠️ HIGH TEMPERATURE: Standard NBR seals fail above 80°C. Mark any standard cylinder as SPECIFY with reason "Kräver PTFE/FKM-tätning för >80°C — beställ HT-variant". Recommend Festo HT- or Parker H-series if available in catalog.`
-      : "",
-    isLowTemp
-      ? `⚠️ LOW TEMPERATURE: Standard seals harden/crack below -10°C. Mark any standard cylinder as SPECIFY with reason "Kräver LT-tätning för <-10°C". Check temp_range spec before recommending any product.`
-      : "",
-    isOxygenClean
-      ? `⛔ OXYGEN-ENRICHED ATMOSPHERE: Oil-lubricated pneumatics create ignition/fire risk. ALL components must be oil-free (no standard lubricated FRL). Use clean-room/oil-free cylinders and components only. Mark any standard oiled FRL as SPECIFY with reason "Oljefri version krävs — syrgasmiljö (brandfarlig med olja)".`
-      : "",
-    isSilSafety
-      ? `⚠️ SAFETY FUNCTION (SIL/PL): Valves and actuators in the safety function must be certified per IEC 62061 (SIL) or ISO 13849 (PL). Add SPECIFY for safety valve with reason "SIL 2-certifierad ventil krävs (t.ex. Festo VSNB/VSVA-SIL eller Parker SIL-variant) — standard ventil EJ godkänd". Do NOT use standard valve SKUs for the safety circuit.`
-      : "",
-    isPharmaGmp
-      ? `⚠️ PHARMACEUTICAL/GMP: All wetted parts must be 316L stainless steel or PTFE/EPDM. No dead zones, no particle-shedding materials, validated. Add note "FDA 21 CFR / ISO 14159 materialkrav gäller" in each BOM reason. Recommend EHEDG-certified variants.`
-      : "",
-    isOutdoor
-      ? `⚠️ OUTDOOR ENVIRONMENT: All components minimum IP65 (IP67 preferred), UV-resistant polymer or stainless. Standard aluminum cylinders will corrode. Check ip_rating field — if not IP65+, mark as SPECIFY.`
-      : "",
-    isHighCycle
-      ? `⚠️ HIGH CYCLE RATE (>60/min): Standard cylinders may overheat. Use oil-free or high-cycle rated variants. Add note in reason field for any actuator. Include air-quality accessories (FRL with high-flow).`
-      : "",
-    isHighSpeed
-      ? `⚠️ HIGH SPEED (>1 m/s): End-stop cushioning MANDATORY — add adjustable cushions or external shock absorbers (stötdämpare) to BOM. SPECIFY with reason "Justerbar hydraulisk stötdämpare krävs vid höga slaghastigheter (>1 m/s)" if not in catalog.`
-      : "",
-    isHighPrecision
-      ? `⛔ HIGH PRECISION ±${precisionMm} mm — BOM RULES:\n` +
-        `1. Primary actuator MUST be ball-screw (kulskruvsaxel). If it is not, replace with SPECIFY "Kulskruvsaxel ±${precisionMm}mm — belt/pneumatic forbidden".\n` +
-        `2. Do NOT add belt-drive components to a precision axis.\n` +
-        `3. TERMINOLOGY: if you write "ball screw" or "kulskruv" — the SKU must match a ball-screw product. Do NOT use rack-and-pinion (kuggstång) SKUs.\n` +
-        `4. Linear encoder or encoder feedback SPECIFY row recommended for verification of ±${precisionMm} mm.`
-      : "",
-    isBatteryDryroom
-      ? `⛔ BATTERY PRODUCTION / DRYROOM — MATERIAL CRITICAL:\n` +
-        `1. ABSOLUTE BAN on Cu/Zn/Ni in any BOM component. Verify each SKU's material declaration before including.\n` +
-        `2. Standard greases are FORBIDDEN in dryroom — every lubricated component must use PFPE or be dry-running. Add SPECIFY row "PFPE-smörjkit / dryroom-smörjmedel" if not in catalog.\n` +
-        `3. Ball-screw primary actuator at high speed: flag with reason "⚠️ Verifiera Cu/Zn/Ni-frihet — kulskruv kan generera metallopartiklar i dryroom-miljö. Primärt alternativ: SMC 25-serien."\n` +
-        `4. Add a SPECIFY row for "Materialdeklerationsintyg (RoHS + Cu/Zn/Ni-fri)" as the LAST BOM row.`
-      : "",
-    speedMs > 0.8
-      ? `⚠️ HIGH SPEED ${(speedMs * 1000).toFixed(0)} mm/s: If BOM includes a ball-screw axis, add SPECIFY row "Kuggremsdrift eller linjärmotor rekommenderas vid >${(speedMs * 1000).toFixed(0)} mm/s — kulskruv slits snabbt och vibrerar".`
-      : "",
-    isCleanroom ? `CLEANROOM: All parts cleanroom-compatible.` : "",
-    isVacuum ? `VACUUM: Include suction cups (qty = number of items handled simultaneously if stated) + ejector + vacuum sensor.` : "",
-    isWashdown
-      ? `WASHDOWN / FOOD-GRADE: ALL components must be IP67/IP69K or stainless steel / food-grade plastic. ` +
-        `NO standard aluminum cylinders. NO standard plastic fittings. ` +
-        `Prefer Festo CRDSNU, Camozzi Serie 90, stainless FRL, IP67 sensors. ` +
-        `Add a note in the reason field for each BOM line confirming its washdown compatibility.`
-      : "",
-    !isMultiAxis
-      ? `SINGLE-AXIS: ONE actuator (${primarySku}) only. No X/Z/Y axis split.`
-      : `MULTI-AXIS: Primary actuator = ${primarySku} (largest axis). Also add a separate actuator for each additional axis. ${axisStrokeNote}`,
-    valveTerminal && !isElectric ? `VALVE TERMINAL: ONE combined unit, not individual valves.` : "",
-    `MANDATORY: The FIRST row of the BOM MUST be sku="${primarySku}" with quantity=1. Do NOT substitute a different product for this row.`,
-    `SKU RULES: Only use SKUs that appear verbatim in the catalog list below. Use SPECIFY only if a truly needed component (not the primary actuator) is absent from catalog. One row per SKU.`,
-  ].filter(Boolean).join(" | ");
+  // ── Accessory catalog for LLM ─────────────────────────────────────────────
+  // For multi-axis systems, include actuators; for single-axis, accessories only
+  const accessoryCatalog = balancedSlice(atexSafeProducts, isMultiAxis ? 30 : 20)
+    .filter(p => isMultiAxis || parseStrokeFromSpecs(p.key_specs ?? {}) === 0)
+    .slice(0, isMultiAxis ? 20 : 10)
+    .map(p => {
+      const ks = p.key_specs ?? {};
+      const s = ks.stroke_mm ? ` stroke=${String(ks.stroke_mm).replace(/\s*mm/i,"")}mm` : "";
+      const b = ks.bore_mm ? ` bore=${String(ks.bore_mm).replace(/\s*mm/i,"")}mm` : "";
+      const fam = isFamilyProduct(p) ? " [FAMILY]" : "";
+      return `${p.sku}: ${p.name} [${p.brand}/${p.category}]${s}${b}${fam}`;
+    }).join("\n");
 
-  const isBomHighPrecisionVertical = needsVerticalLoad(combinedText) &&
-    extractPrecisionMm(combinedText, answers) > 0 &&
-    extractPrecisionMm(combinedText, answers) <= 0.1;
-
-  const axisStructureRule = isMultiAxis
-    ? `MULTI-AXIS BOM STRUCTURE — MANDATORY:\n` +
-      `The BOM MUST be structured per axis. Use clear role labels:\n` +
-      `  • "Aktuator — Z-axel (vertikal)" / "Actuator — Z-axis (vertical)"\n` +
-      `  • "Aktuator — X-axel (horisontell)" / "Actuator — X-axis (horizontal)"\n` +
-      `  • "Servomodul — Z-axel" / "Servo drive — Z-axis"\n` +
-      `  • "Servomodul — X-axel" / "Servo drive — X-axis"\n` +
-      `  • "Bromsmotor — Z-axel (vertikal säkerhet)" / "Brake motor — Z-axis (vertical safety)"\n` +
-      `  • "Centralenhet / PLC" / "Central controller / PLC" — ONE shared unit\n` +
-      `FORBIDDEN: listing components without a clear axis assignment. FORBIDDEN: mixing two actuators under one axis role.`
-    : "";
-
-  const system = `You are a hyper-critical Senior Automation Engineer. Build a complete, physically correct Bill of Materials. All text in ${lang}.
-
-ENGINEERING RULES — NON-NEGOTIABLE:
-1. ONE actuator per axis. A linear guide is NOT an actuator. If a secondary axis exists → add a second actuator.
-2. Mechanism match: if role says "kulskruvsaxel" or "ball-screw" → SKU must be a ball-screw product. No mismatches.
-3. Vertical axis → servo motor with integrated brake MANDATORY (prevents load drop on power loss). Label clearly.
-4. Multi-axis → central controller / PLC MANDATORY for synchronization.
-5. High precision (≤ 0.1 mm) → ONLY ball-screw actuators. NO belt drives in BOM for precision axes.
-6. Material restrictions are absolute (Cu/Zn/Ni ban, IP rating, ATEX, pharma) — any violation → SPECIFY row.
-7. BOM must be COMPLETE: actuator + motor + drive + controller + sensors + safety per axis.
-8. Confident language: "This system uses..." not "This could use...". State facts.
-9. BOM TABLE COMPLETENESS — CRITICAL: Every component mentioned in the explanation text MUST appear as its own physical row in the BOM table with a unique SKU or SPECIFY entry. NEVER describe sensors, brackets, cushions or accessories in prose and omit them from the table. If end-position detection is requested → add exactly 2 position sensors (Qty 2, one per end) as separate BOM rows. If a mounting bracket is mentioned → add at least 1 bracket row matching the cylinder bore.
-
-${axisStructureRule ? axisStructureRule + "\n" : ""}${rules}
-
-JSON: { "title": "short technical title in ${lang}", "explanation": "2-3 sentences — confident, specific architecture description with safety rationale", "bom": [ { "sku": "SKU or SPECIFY", "quantity": 1, "role": "axis-specific function in ${lang}", "reason": "engineering justification: mechanism verified, spec checked, safety addressed — in ${lang}" } ] }`;
+  // Build skeleton description for LLM context
+  const skeletonStr = mandatoryBom.map(r => `  SKU="${r.sku}" qty=${r.quantity} | ${r.role}`).join("\n");
 
   const reqLines = Object.entries(answers)
-    .map(([k, v]) => {
-      let label = k.replace(/_/g, " ");
-      if (!isMultiAxis) label = label.replace(/\s*[xyz]$/i, "").replace(/\s*(stroke)\s*/i, "stroke").trim();
-      return `${label}: ${v}`;
-    }).join(", ");
+    .map(([k, v]) => { let l = k.replace(/_/g, " "); if (!isMultiAxis) l = l.replace(/\s*[xyz]$/i, "").trim(); return `${l}: ${v}`; })
+    .join(", ");
 
-  const userMsg = `Application: ${description}\nRequirements: ${reqLines}\nPrimary actuator: ${primarySku}\n\nCatalog:\n${productList}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
+  const specialConstraints = [
+    isAtex    ? (isSv ? "⛔ ATEX Zone 1/2 — inga elektriska komponenter." : "⛔ ATEX Zone 1/2 — no electric components.") : "",
+    isAtexDust ? (isSv ? "⛔ ATEX Zone 20/21/22 damm." : "⛔ ATEX Zone 20/21/22 dust.") : "",
+    isHighPrecision ? (isSv ? `⛔ Precision ±${precisionMm}mm — kulskruv obligatorisk.` : `⛔ Precision ±${precisionMm}mm — ball screw mandatory.`) : "",
+    isWashdown ? (isSv ? "⚠️ Washdown IP69K." : "⚠️ Washdown IP69K.") : "",
+    isPharmaGmp ? (isSv ? "⚠️ GMP/FDA — 316L, PTFE, EPDM." : "⚠️ GMP/FDA — 316L, PTFE, EPDM.") : "",
+    isBatteryDryroom ? (isSv ? "⛔ Dryroom — absolut Cu/Zn/Ni-förbud." : "⛔ Dryroom — Cu/Zn/Ni ban.") : "",
+    isHydraulic || isVeryHighForce ? (isSv ? "⚠️ Hydraulik/hög kraft — utanför pneumatisk katalog." : "⚠️ Hydraulic/high force — outside pneumatic catalog.") : "",
+    isHighTemp ? (isSv ? "⚠️ Hög temp >80°C — PTFE/FKM-tätning krävs." : "⚠️ High temp >80°C — PTFE/FKM seals required.") : "",
+    isOxygenClean ? (isSv ? "⛔ Syrgasmiljö — oljefria komponenter." : "⛔ Oxygen atmosphere — oil-free only.") : "",
+    isSilSafety ? (isSv ? "⚠️ SIL/PL säkerhetsfunktion — certifierad ventil krävs." : "⚠️ SIL/PL safety function — certified valve required.") : "",
+  ].filter(Boolean).join(" ");
 
-  let raw: string | null;
-  try { raw = await callGroq([{ role: "system", content: system }, { role: "user", content: userMsg }], 1500, true); }
-  catch (e) {
-    if ((e as Error).message === "RATE_LIMITED") return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
-    raw = null;
-  }
-  // v39: Do NOT early-return on LLM failure — fall through to injections so mandatory rows
-  // (FRL, check valve, valve terminal, sensors) are always present even when LLM fails.
-  let parsed: { title: string; explanation: string; bom: Array<{ sku: string; quantity: number; role: string; reason: string }> };
-  try { parsed = raw ? JSON.parse(raw) : { title: "", explanation: "", bom: [] }; }
-  catch { parsed = { title: "", explanation: "", bom: [] }; }
+  const multiAxisInstructions = isMultiAxis
+    ? `\nMULTI-AXIS: Add per-axis rows for secondary actuators (one per axis). Role labels: "Aktuator — X-axel", "Aktuator — Z-axel", "Servomodul — Z-axel" etc. ${axisStrokeNote}`
+    : `\nSINGLE AXIS: Add 0-2 accessories (fittings, cables, brackets) if genuinely needed. Do NOT add extra actuators.`;
 
-  if (!isMultiAxis) {
-    parsed.bom = sanitizeSingleAxisBom(parsed.bom ?? [], primarySku);
-  } else {
-    const merged = new Map<string, { sku: string; quantity: number; role: string; reason: string }>();
-    for (const line of (parsed.bom ?? [])) {
-      const ex = merged.get(line.sku);
-      if (ex) {
-        ex.quantity += line.quantity;
-        if (!ex.role.includes(line.role)) ex.role += " / " + line.role;
-      } else {
-        merged.set(line.sku, { ...line });
+  const bomSystem = `You are a senior automation engineer writing a BOM description. All text in ${lang}.
+
+MANDATORY BOM skeleton — DO NOT MODIFY THESE ROWS (built by engineering rules):
+${skeletonStr}
+
+Your tasks:
+1. Write a concise technical title (5-8 words)
+2. Write explanation (2-3 sentences): system type, safety approach, key spec
+3. Add extra rows as instructed below${multiAxisInstructions}
+4. Do NOT remove, replace or re-order mandatory rows
+${specialConstraints ? `\nConstraints: ${specialConstraints}` : ""}
+
+Available catalog items for extras:
+${accessoryCatalog || "(none — use SPECIFY if needed)"}
+
+JSON: { "title": "...", "explanation": "...", "extras": [ { "sku": "SKU_OR_SPECIFY", "quantity": 1, "role": "...", "reason": "..." } ] }`;
+
+  const bomUser = `Application: ${description}\nRequirements: ${reqLines || "standard"}\nPrimary: ${primarySku}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
+
+  // ── Call LLM — if rate-limited, skip gracefully (mandatory BOM is already built) ──
+  let raw: string | null = null;
+  let wasRateLimited = false;
+  try { raw = await callGroq([{ role: "system", content: bomSystem }, { role: "user", content: bomUser }], 1000, true); }
+  catch (e) { if ((e as Error).message === "RATE_LIMITED") wasRateLimited = true; }
+
+  // Parse LLM enrichment
+  let title = "";
+  let explanation = "";
+  let extras: Array<{ sku: string; quantity: number; role: string; reason: string }> = [];
+  if (raw) {
+    try {
+      const llm = JSON.parse(raw);
+      title = typeof llm.title === "string" ? llm.title : "";
+      explanation = typeof llm.explanation === "string" ? llm.explanation : "";
+      if (Array.isArray(llm.extras)) {
+        extras = llm.extras.filter((e: { sku: string }) => e?.sku && (e.sku === "SPECIFY" || validBomSkus.has(e.sku))).slice(0, isMultiAxis ? 6 : 2);
       }
-    }
-    parsed.bom = Array.from(merged.values());
+    } catch { /* ignore */ }
   }
 
-  // v38: SKU validation — replace hallucinated SKUs with SPECIFY
-  // Family products used as primary get a config-code note
-  const primaryIsFamilyProd = isFamilyProduct({ sku: primarySku, name: "", category: "", brand: "", key_specs: {} });
-  parsed.bom = (parsed.bom ?? []).map(line => {
-    if (line.sku === primarySku) {
-      // If primary is a family product, add a config-code note to reason
-      if (primaryIsFamilyProd) {
-        line.reason = (line.reason ?? "") + (isSv
-          ? " ⚠️ Produktfamilj — ange komplett beställningskod (bore + stroke + varianter) vid order."
-          : " ⚠️ Product family — specify full ordering code (bore + stroke + variants) when ordering.");
-      }
-      return line;
-    }
-    if (line.sku === "SPECIFY") return line;
-    if (!validBomSkus.has(line.sku)) {
-      console.warn(`[bom] SKU validation: replacing hallucinated SKU "${line.sku}" with SPECIFY`);
-      return { ...line, sku: "SPECIFY", reason: `${line.reason ?? ""} [Artikel ej verifierad — ange korrekt SKU vid beställning]` };
-    }
-    return line;
+  // Auto-generate title/explanation when LLM is unavailable
+  if (!title) {
+    title = isSv
+      ? `${isElectric ? "Elektrisk" : "Pneumatisk"}${isVerticalLoad ? " vertikal" : ""}${isMultiAxis ? " flerraxlad" : ""} aktuator — ${primarySku}`
+      : `${isElectric ? "Electric" : "Pneumatic"}${isVerticalLoad ? " vertical" : ""}${isMultiAxis ? " multi-axis" : ""} actuator — ${primarySku}`;
+  }
+  if (!explanation) {
+    explanation = isSv
+      ? `System baserat på ${primarySku}. ${isElectric ? "Elektrisk servoaxel för precision och repeterbarhet." : "Pneumatisk cylinder med komplett luftberedning (FRL + ventil)."} ${isVerticalLoad ? (isElectric ? "Bromsmotor obligatorisk för lastsäkerhet vid strömavbrott." : "Backslagsventil förhindrar lastfall vid lufttrycksförlust.") : ""}${wasRateLimited ? " [Automatgenererad — AI tillfälligt otillgänglig]" : ""}`
+      : `System based on ${primarySku}. ${isElectric ? "Electric servo axis for precision and repeatability." : "Pneumatic cylinder with complete air preparation (FRL + valve)."} ${isVerticalLoad ? (isElectric ? "Brake motor mandatory for load safety on power loss." : "Check valve prevents load drop on air pressure loss.") : ""}${wasRateLimited ? " [Auto-generated — AI temporarily unavailable]" : ""}`;
+  }
+
+  // Validate extras SKUs
+  const validExtras = extras.map(e => validBomSkus.has(e.sku) || e.sku === "SPECIFY" ? e : { ...e, sku: "SPECIFY", reason: e.reason + " [SKU ej verifierad]" });
+
+  // Final BOM = mandatory rows + validated extras
+  // For ATEX: strip any electric SKU that might have slipped in via extras
+  const electricSKUs = new Set(products.filter(p => isElectricActuator(p)).map(p => p.sku));
+  const finalBom = [...mandatoryBom, ...validExtras].filter(row => {
+    if (!isAtex && !isAtexDust) return true;
+    if (row.sku === primarySku || row.sku === "SPECIFY") return true;
+    if (electricSKUs.has(row.sku)) { console.warn(`[bom v40] ATEX stripped: ${row.sku}`); return false; }
+    return true;
   });
 
-  // v34: Vertical load safety — differentiate electric (brake motor) vs pneumatic (check valve)
-  if (isVerticalLoad) {
-    if (isElectric) {
-      // Electric servo system: needs brake motor — NOT a pneumatic check valve
-      const hasBrakeMotor = parsed.bom.some(l =>
-        /broms.*motor|brake.*motor|holding.*brake|hållbroms|motor.*broms|servo.*broms|broms.*servo|integrated.*brake/i.test(l.role + " " + l.reason + " " + l.sku)
-      );
-      if (!hasBrakeMotor) {
-        console.warn("[bom] electric vertical: injecting mandatory brake motor");
-        parsed.bom.splice(1, 0, {  // insert after primary actuator
-          sku: "SPECIFY",
-          quantity: 1,
-          role: isSv ? "Bromsmotor — Z-axel (vertikal säkerhet)" : "Brake motor — Z-axis (vertical safety)",
-          reason: isSv
-            ? "OBLIGATORISK för vertikal elektrisk servoaxel — integrerad hållbroms säkerställer att lasten hålls kvar vid strömavbrott eller nödstopp. Standard servomotor utan broms är EJ tillräcklig."
-            : "MANDATORY for vertical electric servo axis — integrated holding brake ensures load is held on power loss or emergency stop. Standard servo motor without brake is NOT sufficient.",
-        });
-      }
-    } else {
-      // Pneumatic system: needs pilot-operated check valve
-      const hasLockValve = parsed.bom.some(l =>
-        /backslagsventil|lock.*valve|check.*valve|sperrventil|läsventil|pilot.*check|hållventil|rod.*lock|stånglås/i.test(l.role + " " + l.reason + " " + l.sku)
-      );
-      if (!hasLockValve) {
-        console.warn("[bom] pneumatic vertical: injecting mandatory check valve");
-        parsed.bom.push({
-          sku: "SPECIFY",
-          quantity: 1,
-          role: isSv ? "Pilotmanövrerad backslagsventil" : "Pilot-operated check valve",
-          reason: isSv
-            ? "OBLIGATORISK vid pneumatisk vertikal last — förhindrar att lasten faller vid lufttrycksförlust (IEC 60947-5-1)"
-            : "MANDATORY for pneumatic vertical load — prevents load drop on air pressure loss (IEC 60947-5-1)",
-        });
-      }
-    }
-  }
-
-  // v26: High speed — guarantee cushioning/shock absorber mention
-  if (isHighSpeed) {
-    const hasCushion = parsed.bom.some(l =>
-      /stötdämpare|cushion|dämpning|shock.*absorb|dämp/i.test(l.role + " " + l.reason)
-    );
-    if (!hasCushion) {
-      console.warn("[bom] high speed: injecting mandatory cushioning");
-      parsed.bom.push({
-        sku: "SPECIFY",
-        quantity: 2,
-        role: isSv ? "Hydraulisk stötdämpare" : "Hydraulic shock absorber",
-        reason: isSv
-          ? "OBLIGATORISK vid slaghastighet >1 m/s — förhindrar skador på cylinderände och maskinkonstruktion"
-          : "MANDATORY at stroke speed >1 m/s — prevents end-stop damage to cylinder and machine frame",
-      });
-    }
-  }
-
-  // v39 T20: Directional control valve — mandatory for every pneumatic actuator
-  // (without a valve, a pneumatic cylinder cannot be controlled at all)
-  if (!isElectric && !isAtex && !isAtexDust && !valveTerminal) {
-    const hasValve = parsed.bom.some(l =>
-      /\bventil\b|solenoid|5\/2|4\/2|directional|richtungsventil/i.test(
-        l.role + " " + l.reason + " " + l.sku
-      )
-    );
-    if (!hasValve) {
-      console.log("[bom] pneumatic: injecting mandatory directional valve");
-      parsed.bom.push({
-        sku: "SPECIFY",
-        quantity: 1,
-        role: isSv ? "Magnetventil (5/2-vägs styrventil)" : "Solenoid valve (5/2-way directional)",
-        reason: isSv
-          ? "OBLIGATORISK för pneumatisk cylinder — 5/2-vägs magnetventil styr cylinderns riktning (fram/åter). Välj spänning 24 V DC och anslutning M12 eller G1/4."
-          : "MANDATORY for pneumatic cylinder — 5/2-way solenoid valve controls cylinder direction (extend/retract). Select 24 V DC coil and G1/4 port.",
-      });
-    }
-  }
-
-  // v39 T12: FRL — mandatory for any non-electric, non-ATEX pneumatic BOM
-  if (!isElectric && !isAtex && !isAtexDust) {
-    const hasFRL = parsed.bom.some(l =>
-      /\bFRL\b|filter.*regulator|luftbered|air.*prep|LFR\b|MS4\b|MS6\b|regulator.*filter|luftfilter/i.test(
-        l.role + " " + l.reason + " " + l.sku
-      )
-    );
-    if (!hasFRL) {
-      console.log("[bom] pneumatic: injecting mandatory FRL");
-      parsed.bom.push({
-        sku: "SPECIFY",
-        quantity: 1,
-        role: isSv ? "FRL-enhet (Filter-Regulator-Smörjare)" : "FRL unit (Filter-Regulator-Lubricator)",
-        reason: isSv
-          ? "OBLIGATORISK för pneumatiskt system — luftberedning säkerställer rätt arbetstryck, filtrerad luft (≥40 µm) och smörjning av cylindertätningar. Välj regulator med manometer 0–10 bar."
-          : "MANDATORY for pneumatic system — air preparation ensures correct working pressure, filtered air (≥40 µm) and cylinder seal lubrication. Select regulator with pressure gauge 0–10 bar.",
-      });
-    }
-  }
-
-  // v39 T11: Valve terminal — mandatory when description calls for one
-  if (valveTerminal && !isElectric) {
-    const vtIdx = parsed.bom.findIndex(l =>
-      /ventilramp|ventilterminal|valve.terminal|CPV|VTSA|MPA|CPE|ventilblock|manifold/i.test(
-        l.role + " " + l.reason + " " + l.sku
-      )
-    );
-    if (vtIdx === -1) {
-      console.log("[bom] valve terminal: injecting mandatory valve terminal");
-      parsed.bom.push({
-        sku: "SPECIFY",
-        quantity: 1,
-        role: isSv ? "Ventilramp (ventilterminal)" : "Valve terminal (manifold)",
-        reason: isSv
-          ? "OBLIGATORISK för fältbussanslutning (PROFINET/EtherCAT) — ventilramp (CPV, VTSA, MPA) samlar alla ventiler i en enhet och reducerar kabelkostnad. Specificera bussmodul och ventilantal."
-          : "MANDATORY for fieldbus connection (PROFINET/EtherCAT) — valve terminal (CPV, VTSA, MPA) consolidates valves and reduces wiring. Specify bus module and valve count.",
-      });
-    } else {
-      // LLM included a row — ensure it mentions CPV/VTSA/MPA so test patterns can find them
-      const vt = parsed.bom[vtIdx];
-      if (!/CPV|VTSA|MPA/i.test(vt.reason + " " + vt.sku)) {
-        parsed.bom[vtIdx] = {
-          ...vt,
-          reason: vt.reason + (isSv ? " (t.ex. CPV, VTSA, MPA ventilramp med bussmodul)" : " (e.g. CPV, VTSA, MPA valve terminal with bus module)"),
-        };
-      }
-    }
-  }
-
-  // v36: End-position detection — inject 2 sensors if requested but missing from BOM
-  if (isEndPosDetect && !isElectric) {
-    const hasSensor = parsed.bom.some(l =>
-      /sensor|givare|reed|proximity|närhets|ändläge|end.pos|smcm|sme|smc.*d|d.*smc|b|position.*sw|detect/i.test(l.role + " " + l.reason + " " + l.sku)
-    );
-    if (!hasSensor) {
-      console.warn("[bom] end-pos detect: injecting 2 position sensors");
-      parsed.bom.push({
-        sku: "SPECIFY",
-        quantity: 2,
-        role: isSv ? "Ändlägesgivare (hemläge + utsträckt läge)" : "End-position sensor (home + extended)",
-        reason: isSv
-          ? "OBLIGATORISK — 2 st magnetgivare för T-spår (en per ändläge) krävs för PLC-feedback. Välj givare kompatibel med cylinderns profilspår (T-spår eller C-spår) och aktuell styrsystemsspänning (24 V DC NPN/PNP)."
-          : "MANDATORY — 2 T-slot magnetic sensors (one per end position) required for PLC feedback. Select sensor matching cylinder profile groove (T-slot or C-slot) and control voltage (24 V DC NPN/PNP).",
-      });
-    }
-  }
-
-  // v25/v26: ATEX/Dust hard block (layer 3) — strip any electric actuator that slipped through
-  if (isAtex || isAtexDust) {
-    const electricSKUs = new Set(products.filter(p => isElectricActuator(p)).map(p => p.sku));
-    const stripped = parsed.bom.filter(l => {
-      if (l.sku === primarySku) return true; // never remove the selected primary
-      if (electricSKUs.has(l.sku)) {
-        console.warn(`[bom] ATEX: stripped electric component ${l.sku} (${l.role})`);
-        return false;
-      }
-      // Also catch by name pattern for any hallucinated SKUs
-      const nameUpper = l.role.toUpperCase() + " " + l.sku.toUpperCase();
-      if (/EGSK|ELGA|EGC|LESH|LEFS|OSP-E|HMR|LBB|HLR|SERVO|STEPPER|24V|MOTOR.*DRIVE|ELECTRIC.*SLIDE/i.test(nameUpper)) {
-        console.warn(`[bom] ATEX: stripped by name pattern ${l.sku} (${l.role})`);
-        return false;
-      }
-      return true;
-    });
-    parsed.bom = stripped;
-  }
-
-  // v23: guarantee primarySku is always the first BOM row, injecting it if the AI omitted it
-  if (primarySku && primarySku !== "CUSTOM-SOLUTION") {
-    const hasPrimary = parsed.bom.some(l => l.sku === primarySku);
-    if (!hasPrimary) {
-      // AI omitted the primary actuator entirely — inject it
-      // v39 T14: also attach family warning if primary is a family product
-      const autoFamilyNote = primaryIsFamilyProd ? (isSv
-        ? " ⚠️ Produktfamilj — ange komplett beställningskod (bore + stroke + varianter) vid order."
-        : " ⚠️ Product family — specify full ordering code (bore + stroke + variants) when ordering.")
-        : "";
-      parsed.bom = [
-        {
-          sku: primarySku,
-          quantity: 1,
-          role: isSv ? "Primär aktuator" : "Primary actuator",
-          reason: (isSv ? "Vald primär komponent (tillagd automatiskt)" : "Selected primary component (auto-injected)") + autoFamilyNote,
-        },
-        ...parsed.bom,
-      ];
-    } else {
-      // Primary is somewhere in the BOM — move it to position 0
-      const primaryRow = parsed.bom.find(l => l.sku === primarySku)!;
-      parsed.bom = [primaryRow, ...parsed.bom.filter(l => l.sku !== primarySku)];
-    }
-  }
-
-  return Response.json(parsed, { headers: CORS });
+  return Response.json({ title, explanation, bom: finalBom }, { headers: CORS });
 }
+
 
 // ── ACTION: chat ──────────────────────────────────────────────────────────────
 async function handleChat(
