@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v47 — 5-layer extras validation: unique SKU, no actuator-SKU in sensor/mounting role, no extra actuators on single-axis.
 // v46 — Add isWashdown to BomCtx; mandatory IP69K warning row in BOM.
 // v45 — Mandatory BOM rows for: multi-axis secondary actuators (Y/Z-axel), high-temp PTFE/FKM warning, SIL/PLd safety valve warning, hydraulic out-of-scope warning. All deterministic — independent of LLM.
 // v44 — Telemetry: fire-and-forget logAdvisorEvent() logs every bom/options/questions call to integration_logs (duration_ms, rate_limited, bom_rows, specify_rows).
@@ -1576,12 +1577,48 @@ JSON: { "title": "...", "explanation": "...", "extras": [ { "sku": "SKU_OR_SPECI
       : `System based on ${primarySku}. ${isElectric ? "Electric servo axis for precision and repeatability." : "Pneumatic cylinder with complete air preparation (FRL + valve)."} ${isVerticalLoad ? (isElectric ? "Brake motor mandatory for load safety on power loss." : "Check valve prevents load drop on air pressure loss.") : ""}${wasRateLimited ? " [Auto-generated — AI temporarily unavailable]" : ""}`;
   }
 
-  // Validate extras SKUs
-  const validExtras = extras.map(e => validBomSkus.has(e.sku) || e.sku === "SPECIFY" ? e : { ...e, sku: "SPECIFY", reason: e.reason + " [SKU ej verifierad]" });
+  // ── Extra validation pipeline (4 layers) ────────────────────────────────────
 
-  // Deduplicate: strip LLM extras that duplicate a mandatory row SKU (unless SPECIFY)
+  // L1: SKU must exist in catalog or be SPECIFY
+  const validExtras = extras.map(e =>
+    validBomSkus.has(e.sku) || e.sku === "SPECIFY"
+      ? e
+      : { ...e, sku: "SPECIFY", reason: e.reason + " [SKU ej verifierad]" }
+  );
+
+  // L2: No duplicate SKUs within extras (LLM sometimes stamps same SKU on 3 rows)
+  const usedExtraSkus = new Set<string>();
+  const uniqueSkuExtras = validExtras.filter(e => {
+    if (e.sku === "SPECIFY") return true;
+    if (usedExtraSkus.has(e.sku)) { console.warn(`[bom extras] dup SKU stripped: ${e.sku}`); return false; }
+    usedExtraSkus.add(e.sku);
+    return true;
+  });
+
+  // L3: Actuator SKUs must not appear in sensor/fitting/mounting/cable roles
+  const actuatorCatSkus = new Set(
+    atexSafeProducts
+      .filter(p => ["cylinder", "electric-actuator", "linear-module"].includes(p.category))
+      .map(p => p.sku)
+  );
+  const roleTypeExtras = uniqueSkuExtras.filter(e => {
+    if (e.sku === "SPECIFY" || !actuatorCatSkus.has(e.sku)) return true;
+    const roleOk = /aktuator|actuator|axel|axis|cylinder|modul/i.test(e.role);
+    if (!roleOk) console.warn(`[bom extras] actuator SKU ${e.sku} in wrong role "${e.role}" — stripped`);
+    return roleOk;
+  });
+
+  // L4: Single-axis → no extra actuator rows; multi-axis → ok (mandatory already added Y/Z)
+  const axisExtras = roleTypeExtras.filter(e => {
+    if (isMultiAxis) return true;
+    const isExtraActuator = actuatorCatSkus.has(e.sku) || /aktuator.*axel|[XYZ]-axel/i.test(e.role);
+    if (isExtraActuator) { console.warn(`[bom extras] single-axis: extra actuator stripped "${e.role}"`); return false; }
+    return true;
+  });
+
+  // L5: No extras that duplicate a mandatory-row SKU
   const mandatorySkuSet = new Set(mandatoryBom.map(r => r.sku).filter(s => s !== "SPECIFY"));
-  const deduplicatedExtras = validExtras.filter(e => e.sku === "SPECIFY" || !mandatorySkuSet.has(e.sku));
+  const deduplicatedExtras = axisExtras.filter(e => e.sku === "SPECIFY" || !mandatorySkuSet.has(e.sku));
 
   // Final BOM = mandatory rows + deduplicated extras
   // For ATEX: strip any electric SKU that might have slipped in via extras
