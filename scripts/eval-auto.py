@@ -110,6 +110,8 @@ def call_api(payload: dict, retries: int = 1) -> Optional[dict]:
                     print("  ⏳ rate limit — 20s…", flush=True)
                     time.sleep(20)
                     continue
+                # All retries exhausted — return sentinel so caller can skip
+                return {"__rate_limited__": True}
             return data
         except subprocess.TimeoutExpired:
             if attempt < retries:
@@ -275,6 +277,10 @@ def run_eval(n_runs: int, seed: Optional[int], auto_fix: bool, verbose: bool):
         response = call_api(payload, retries=1)
         if response is None:
             print("       ⚠️  Inget svar — skippar")
+            skipped += 1
+            continue
+        if isinstance(response, dict) and response.get("__rate_limited__"):
+            print("       ⏭️  Rate-limit på båda försök — skippar (räknas ej som fel)")
             skipped += 1
             continue
 
