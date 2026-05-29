@@ -40,6 +40,42 @@ export const Route = createFileRoute("/$locale/products")({
   component: ProductsPage,
 });
 
+// SEO: category descriptions shown when a category filter is active
+const CATEGORY_SEO: Record<string, { sv: string; en: string }> = {
+  cylinder: {
+    sv: "Pneumatiska cylindrar för industriell automation — ISO 15552 profilcylindrar, ISO 6432 rundcylindrar, kolvstångslösa cylindrar och guidade cylindrar. Välj efter slaglängd (50–1000 mm), borr (16–320 mm) och miljöklass. Märken: Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work, Camozzi.",
+    en: "Pneumatic cylinders for industrial automation — ISO 15552 profile cylinders, ISO 6432 round cylinders, rodless and guided cylinders. Select by stroke (50–1000 mm), bore (16–320 mm) and environment rating. Brands: Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work, Camozzi.",
+  },
+  "electric-actuator": {
+    sv: "Elektriska aktuatorer och servo-axlar för precision och positionskontroll. Kulskruvsaxlar (noggrannhet ±0,01 mm), kuggremsdrivna axlar (hastighet upp till 3 m/s), elektrocylindrar som ersätter pneumatik. Märken: Festo EGSK/ELGA, SMC LEY/LESH, Parker ETH, Camozzi 6E.",
+    en: "Electric actuators and servo axes for precision positioning. Ball-screw axes (±0.01 mm accuracy), belt-driven axes (up to 3 m/s), electromechanical cylinders replacing pneumatics. Brands: Festo EGSK/ELGA, SMC LEY/LESH, Parker ETH, Camozzi 6E.",
+  },
+  valve: {
+    sv: "Magnetventiler och riktningsventiler för pneumatiska cylindrar. 5/2-vägs, 3/2-vägs, NAMUR-montage och inlinjemontage. Spänning 24 V DC, anslutning G1/8–G3/4. Märken: Festo, SMC, Metal Work, Camozzi.",
+    en: "Solenoid valves and directional control valves for pneumatic cylinders. 5/2-way, 3/2-way, NAMUR and inline mounting. 24 V DC, G1/8–G3/4 ports. Brands: Festo, SMC, Metal Work, Camozzi.",
+  },
+  "valve-terminal": {
+    sv: "Ventilramplar och ventilterminaler för PROFINET, EtherCAT och DeviceNet. Centralisera ventilstyrning och minska kabelkostnad. Festo VTSA/CPV/MPA, SMC VFS/EX, Metal Work EB80.",
+    en: "Valve terminals and manifolds for PROFINET, EtherCAT, DeviceNet. Centralize valve control and reduce wiring cost. Festo VTSA/CPV/MPA, SMC VFS/EX, Metal Work EB80.",
+  },
+  "linear-module": {
+    sv: "Linjärmoduler och elektriska axlar för pick-and-place, XYZ-portaler och kartesiska robotar. Guidade profil-axlar med servomotor eller stegmotor. Festo EGC/ELGC, Parker OSPE.",
+    en: "Linear modules and electric axes for pick-and-place, XYZ gantry and Cartesian robot systems. Profile rail axes with servo or stepper motor. Festo EGC/ELGC, Parker OSPE.",
+  },
+  gripper: {
+    sv: "Pneumatiska grippers och gripdon för detalj- och ämneshållning. Parallellgrippers, vinkelgrippers och 3-fingersgrippers. Festo DHPS/HGPL, SMC MHZ2, Metal Work.",
+    en: "Pneumatic grippers for part handling and workholding. Parallel, angular, and 3-finger grippers. Festo DHPS/HGPL, SMC MHZ2, Metal Work.",
+  },
+  frl: {
+    sv: "FRL-enheter (Filter-Regulator-Smörjare) och luftberedning för pneumatiska system. Säkerställer rätt arbetstryck, filtrerad luft och tätningssmörjning. Festo MS4/MS6, SMC AC/AW, Metal Work.",
+    en: "FRL units (Filter-Regulator-Lubricator) and air preparation for pneumatic systems. Ensures correct working pressure, filtered air and seal lubrication. Festo MS4/MS6, SMC AC/AW, Metal Work.",
+  },
+  vacuum: {
+    sv: "Vakuumsystem, sugkoppar och ejektorer för vakuumgrepp av plana och krökta ytor. Festo VADM/VN, SMC ZP/ZR, Metal Work.",
+    en: "Vacuum systems, suction cups and ejectors for vacuum gripping of flat and curved surfaces. Festo VADM/VN, SMC ZP/ZR, Metal Work.",
+  },
+};
+
 type Grade = "HIGH" | "MEDIUM" | "LOW";
 function gradeOf(p: ProductRow): Grade {
   const lt = p.lead_time_days ?? 99;
@@ -204,8 +240,17 @@ function ProductsPage() {
 
   const activeFilterCount = brands.size + cats.size + grades.size;
 
+  const activeCatSlug = cats.size === 1 ? [...cats][0] : search.category ?? null;
+  const catSeo = activeCatSlug ? CATEGORY_SEO[activeCatSlug] : null;
+  const catSeoText = catSeo ? (locale === "sv" ? catSeo.sv : catSeo.en) : null;
+
   return (
     <div className="container-page py-6 md:py-8">
+      {/* SEO: category description — visible text for Google */}
+      {catSeoText && (
+        <p className="text-xs text-muted-foreground mb-4 leading-relaxed max-w-2xl">{catSeoText}</p>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
         <div>

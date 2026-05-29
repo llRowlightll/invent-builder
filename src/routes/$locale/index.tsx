@@ -405,7 +405,91 @@ function Landing() {
           />
         </div>
       </section>
+
+      {/* ── FAQ — SEO-rich text + JSON-LD FAQPage schema ── */}
+      <FaqSection locale={locale} />
+
     </div>
+  );
+}
+
+const FAQ_SV = [
+  {
+    q: "Vad är en pneumatisk cylinder?",
+    a: "En pneumatisk cylinder är ett linjärt aktuatorelement som omvandlar komprimerad luft till mekanisk rörelse. Den används i industriell automation för att lyfta, skjuta, klämma eller positionera detaljer. Vanliga standarder är ISO 15552 (profilcylinder) och ISO 6432 (rundcylinder).",
+  },
+  {
+    q: "Hur väljer man rätt pneumatisk cylinder?",
+    a: "Välj cylinder baserat på fyra parametrar: (1) Kraft — beräkna F = P × A (tryck × kolvarea). Vid 6 bar och 50 mm borr ger det 1 178 N. (2) Slaglängd — avståndet rörelsen ska täcka. (3) Montering — ISO 15552 för standardmontage, ISO 6432 för trång plats. (4) Miljö — IP65 för dammiga miljöer, ATEX för explosionsfarliga zoner. Maskinvals AI-rådgivare hjälper dig välja automatiskt.",
+  },
+  {
+    q: "Vad är skillnaden mellan pneumatisk och elektrisk aktuator?",
+    a: "Pneumatiska cylindrar är enkla, robusta och billiga — men saknar positionskontroll (bara två lägen: in/ut). Elektriska aktuatorer (servo/stepper) kan stanna exakt var som helst på slaglängden med ±0,01 mm noggrannhet. Elektriska passar vid precision ≤0,1 mm, variabla positioner eller när tryckluftsinstallation saknas.",
+  },
+  {
+    q: "Vilka märken erbjuder Maskinval?",
+    a: "Maskinval erbjuder komponenter från Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work och Camozzi — mer än 700 aktiva produkter. Alla märken i en gemensam katalog med jämförbara specs och leveranstider.",
+  },
+  {
+    q: "Vad är ISO 15552?",
+    a: "ISO 15552 (tidigare ISO 6431) är den internationella standarden för profilcylindrar. Standarden definierar montagemått, gängdimensioner och kolvdiametrar (32–320 mm) så att cylindrar från olika tillverkare är utbytbara. Parker P1D, Festo DSBC, Bosch Rexroth PRA och Camozzi KPZ är alla ISO 15552-kompatibla.",
+  },
+  {
+    q: "Hur snabbt levereras komponenter?",
+    a: "Lagerförda standard-cylindrar från Bosch Rexroth, Parker och Camozzi levereras normalt inom 1–5 arbetsdagar. Specialmått och kundanpassade varianter tar 3–6 veckor. Leveranstid visas per produkt i katalogen.",
+  },
+];
+
+const FAQ_EN = [
+  {
+    q: "What is a pneumatic cylinder?",
+    a: "A pneumatic cylinder is a linear actuator that converts compressed air into mechanical motion. Used in industrial automation to lift, push, clamp, or position parts. Common standards are ISO 15552 (profile cylinder) and ISO 6432 (round cylinder).",
+  },
+  {
+    q: "How do I select the right pneumatic cylinder?",
+    a: "Choose based on four parameters: (1) Force — F = P × A (pressure × piston area). At 6 bar and 50 mm bore this gives 1,178 N. (2) Stroke — the travel distance required. (3) Mounting — ISO 15552 for standard mounts, ISO 6432 for tight spaces. (4) Environment — IP65 for dusty environments, ATEX for explosive atmospheres. The Maskinval AI advisor selects automatically.",
+  },
+  {
+    q: "What is the difference between pneumatic and electric actuators?",
+    a: "Pneumatic cylinders are simple, robust, and low-cost — but offer only two positions (extend/retract). Electric actuators (servo/stepper) can stop at any point with ±0.01 mm accuracy. Choose electric when precision ≤0.1 mm, variable positioning, or when compressed air infrastructure is unavailable.",
+  },
+  {
+    q: "Which brands does Maskinval offer?",
+    a: "Maskinval offers components from Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work, and Camozzi — more than 700 active products in one unified catalog with comparable specs and lead times.",
+  },
+];
+
+function FaqSection({ locale }: { locale: string }) {
+  const isSv = locale === "sv";
+  const faqs = isSv ? FAQ_SV : FAQ_EN;
+  const heading = isSv ? "Vanliga frågor om pneumatik & automation" : "FAQ — Pneumatics & automation";
+
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((f) => ({
+      "@type": "Question",
+      name: f.q,
+      acceptedAnswer: { "@type": "Answer", text: f.a },
+    })),
+  };
+
+  return (
+    <section className="container-page py-16 max-w-3xl">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
+      <h2 className="text-2xl font-semibold text-foreground mb-8">{heading}</h2>
+      <dl className="space-y-6">
+        {faqs.map((f) => (
+          <div key={f.q} className="border-b border-border pb-6">
+            <dt className="font-medium text-foreground mb-2">{f.q}</dt>
+            <dd className="text-sm text-muted-foreground leading-relaxed">{f.a}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 

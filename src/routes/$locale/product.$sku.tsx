@@ -88,6 +88,16 @@ function ProductDetail() {
 
   const productImageUrl = getProductImage(product);
   const canonicalUrl = `${SITE}/${locale}/product/${sku}`;
+
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Maskinval", item: `${SITE}/${locale}` },
+      { "@type": "ListItem", position: 2, name: product.category.name, item: `${SITE}/${locale}/products?category=${product.category.slug}` },
+      { "@type": "ListItem", position: 3, name: product.name, item: canonicalUrl },
+    ],
+  };
   const price = (product as any).purchase_price ?? (product as any).price ?? null;
 
   const jsonLd = {
@@ -119,10 +129,8 @@ function ProductDetail() {
 
   return (
     <div className="container-page py-8 max-w-5xl">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       <Link to="/$locale/products" params={{ locale }} className="text-xs text-muted-foreground hover:text-info">
         ← {t("nav.products")}
       </Link>
