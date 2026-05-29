@@ -1,0 +1,85 @@
+name: Nightly Self-Eval & Catalog Auto-Fix
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # 02:00 UTC varje natt (04:00 svensk tid)
+  workflow_dispatch:        # Kan också triggas manuellt
+
+jobs:
+  eval-and-fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run 30 random scenarios + auto-fix catalog gaps
+        id: eval
+        run: |
+          python3 scripts/eval-auto.py --runs 30 --seed $(date +%Y%m%d) --fix \
+            2>&1 | tee eval-output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        continue-on-error: true   # Fånga output även vid fel
+
+      - name: Parse results
+        id: results
+        run: |
+          PASSES=$(grep -o '[0-9]* ✅' eval-output.txt | grep -o '[0-9]*' | tail -1 || echo 0)
+          FAILS=$(grep -o '[0-9]* ❌' eval-output.txt | grep -o '[0-9]*' | tail -1 || echo 0)
+          SKIPS=$(grep -o '[0-9]* ⚠️' eval-output.txt | grep -o '[0-9]*' | tail -1 || echo 0)
+          FIXED=$(grep -o 'Lade till: [^$]*' eval-output.txt | head -5 || echo "")
+          echo "passes=$PASSES" >> $GITHUB_OUTPUT
+          echo "fails=$FAILS"   >> $GITHUB_OUTPUT
+          echo "skips=$SKIPS"   >> $GITHUB_OUTPUT
+          echo "fixed=$FIXED"   >> $GITHUB_OUTPUT
+
+      - name: Write job summary
+        run: |
+          echo "## 🤖 Nightly Eval — $(date '+%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Resultat | Antal |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| ✅ Gröna | ${{ steps.results.outputs.passes }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ❌ Fel   | ${{ steps.results.outputs.fails }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⚠️ Skip  | ${{ steps.results.outputs.skips }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ -n "${{ steps.results.outputs.fixed }}" ]]; then
+            echo "**Auto-fixade katalogluckor:** ${{ steps.results.outputs.fixed }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details><summary>Fullständig output</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat eval-output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+
+      - name: Open GitHub Issue on repeated failures
+        if: steps.results.outputs.fails != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fails = '${{ steps.results.outputs.fails }}';
+            const date  = new Date().toISOString().split('T')[0];
+            const fs    = require('fs');
+            const output = fs.readFileSync('eval-output.txt', 'utf8');
+
+            // Check if there's already an open eval issue today
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              labels: 'eval-failure',
+              state:  'open',
+            });
+
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                title: `🚨 Nightly eval: ${fails} fel hittade (${date})`,
+                body:  `## Eval misslyckades\n\n${fails} scenarios returnerade fysikaliskt felaktiga produktval.\n\n\`\`\`\n${output.slice(0, 3000)}\n\`\`\`\n\nKör lokalt för att reproducera:\n\`\`\`bash\npython3 scripts/eval-auto.py --seed $(date +%Y%m%d) --runs 30 --verbose\n\`\`\``,
+                labels: ['eval-failure', 'bug'],
+              });
+            }
