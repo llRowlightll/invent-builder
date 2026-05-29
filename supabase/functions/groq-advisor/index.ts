@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v48 — needsMounting detector + mounting category in bomCategories; LLM multi-axis prompt no longer asks for axis actuators; L3/L4 merged: all actuator SKUs banned from extras unconditionally.
 // v47 — 5-layer extras validation: unique SKU, no actuator-SKU in sensor/mounting role, no extra actuators on single-axis.
 // v46 — Add isWashdown to BomCtx; mandatory IP69K warning row in BOM.
 // v45 — Mandatory BOM rows for: multi-axis secondary actuators (Y/Z-axel), high-temp PTFE/FKM warning, SIL/PLd safety valve warning, hydraulic out-of-scope warning. All deterministic — independent of LLM.
@@ -651,6 +652,11 @@ function needsWashdown(text: string): boolean {
 /** Returns true if the user requested end-position / stroke-end detection (sensors). */
 function needsEndPositionDetection(text: string): boolean {
   return /detekt|givare|sensor|ändläge|end.pos|end.stop|stroke.end|reed|proximity|närhets|position.*detect|detect.*position|elektron.*detekt|signalera|signal.*läge|läges.*signal|kontrollera.*läge|läge.*kontroll|home.*detect|detect.*home|smcm|smc.*sensor|piston.*sens/i.test(text);
+}
+
+/** Returns true if user wants mounting brackets / foot mounts / flanges. */
+function needsMounting(text: string): boolean {
+  return /fotfäste|foot.*mount|fot.*fäste|flansfäste|flange.*mount|monteringsfäste|bracket|montering|montage|fäste|befästning|konsol|mounting|swivel.*flange|trunnion/i.test(text);
 }
 
 /** Returns true if a product is suitable for washdown environments. */
@@ -1444,6 +1450,7 @@ async function handleBom(
   const valveTerminal = needsValveTerminal(combinedText);
   const isWashdown = needsWashdown(combinedText);
   const isEndPosDetect = needsEndPositionDetection(combinedText);
+  const isMounting = needsMounting(combinedText);
   const minStroke = extractMinStroke(answers, description);
   const primaryIsFamilyProd = isFamilyProduct({ sku: primarySku, name: "", category: "", brand: "", key_specs: {} });
 
@@ -1457,6 +1464,7 @@ async function handleBom(
     isPneumaticBom                    ? "frl"            : null,
     isPneumaticBom && isHighSpeed     ? "shock-absorber" : null,
     isPneumaticBom && isVerticalLoad  ? "check-valve"    : null,
+    isMounting                        ? "mounting"       : null,
   ].filter(Boolean) as string[];
 
   const [products, pdfCtx] = await Promise.all([
@@ -1522,8 +1530,8 @@ async function handleBom(
   ].filter(Boolean).join(" ");
 
   const multiAxisInstructions = isMultiAxis
-    ? `\nMULTI-AXIS: Add per-axis rows for secondary actuators (one per axis). Role labels: "Aktuator — X-axel", "Aktuator — Z-axel", "Servomodul — Z-axel" etc. ${axisStrokeNote}`
-    : `\nSINGLE AXIS: Add 0-2 accessories (fittings, cables, brackets) if genuinely needed. Do NOT add extra actuators.`;
+    ? `\nMULTI-AXIS: Axis actuator rows are ALREADY included above (Y-axel, Z-axel etc). Do NOT add more actuators. Add ONLY accessories: cables, fittings, brackets, sensors. ${axisStrokeNote}`
+    : `\nSINGLE AXIS: Add 0-2 accessories (fittings, cables, brackets, sensors) if explicitly requested. Do NOT add actuators, cylinders, or modules.`;
 
   const bomSystem = `You are a senior automation engineer writing a BOM description. All text in ${lang}.
 
@@ -1595,24 +1603,19 @@ JSON: { "title": "...", "explanation": "...", "extras": [ { "sku": "SKU_OR_SPECI
     return true;
   });
 
-  // L3: Actuator SKUs must not appear in sensor/fitting/mounting/cable roles
+  // L3+L4: Actuator SKUs are NEVER allowed in LLM extras.
+  // Axis rows (Y-axel, Z-axel) are handled deterministically by buildMandatoryBomRows — LLM must not add them.
   const actuatorCatSkus = new Set(
     atexSafeProducts
       .filter(p => ["cylinder", "electric-actuator", "linear-module"].includes(p.category))
       .map(p => p.sku)
   );
-  const roleTypeExtras = uniqueSkuExtras.filter(e => {
-    if (e.sku === "SPECIFY" || !actuatorCatSkus.has(e.sku)) return true;
-    const roleOk = /aktuator|actuator|axel|axis|cylinder|modul/i.test(e.role);
-    if (!roleOk) console.warn(`[bom extras] actuator SKU ${e.sku} in wrong role "${e.role}" — stripped`);
-    return roleOk;
-  });
-
-  // L4: Single-axis → no extra actuator rows; multi-axis → ok (mandatory already added Y/Z)
-  const axisExtras = roleTypeExtras.filter(e => {
-    if (isMultiAxis) return true;
-    const isExtraActuator = actuatorCatSkus.has(e.sku) || /aktuator.*axel|[XYZ]-axel/i.test(e.role);
-    if (isExtraActuator) { console.warn(`[bom extras] single-axis: extra actuator stripped "${e.role}"`); return false; }
+  const axisExtras = uniqueSkuExtras.filter(e => {
+    if (e.sku === "SPECIFY") return true;
+    if (actuatorCatSkus.has(e.sku)) {
+      console.warn(`[bom extras] actuator SKU ${e.sku} blocked — axis/actuator rows handled by mandatory BOM`);
+      return false;
+    }
     return true;
   });
 
