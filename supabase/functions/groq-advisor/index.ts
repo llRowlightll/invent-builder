@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v46 — Add isWashdown to BomCtx; mandatory IP69K warning row in BOM.
+// v45 — Mandatory BOM rows for: multi-axis secondary actuators (Y/Z-axel), high-temp PTFE/FKM warning, SIL/PLd safety valve warning, hydraulic out-of-scope warning. All deterministic — independent of LLM.
 // v44 — Telemetry: fire-and-forget logAdvisorEvent() logs every bom/options/questions call to integration_logs (duration_ms, rate_limited, bom_rows, specify_rows).
 // v43 — Wire check-valve + shock-absorber to findCatalogProductByType (were hardcoded SPECIFY); now returns real SKUs from catalog.
 // v42 — Catalog: 9 shock absorbers (Festo YSR, SMC RBQ, Norgren SA) + 5 check valves (Festo HGL, SMC AKH, MW NRV) added to DB. Code: fetch shock-absorber/check-valve categories when needed; FRL prefers Festo MS4 over Camozzi; non-return pattern in check-valve matcher.
@@ -917,6 +919,15 @@ interface BomCtx {
   isVacuum: boolean;
   isSv: boolean;
   products: CatalogProduct[];
+  // Safety & environment flags — drive mandatory warning rows
+  isHighTemp: boolean;
+  isWashdown: boolean;
+  isSilSafety: boolean;
+  isHydraulic: boolean;
+  isVeryHighForce: boolean;
+  // Multi-axis
+  isMultiAxis: boolean;
+  perAxisStrokes: Array<{ axis: string; stroke: number }>;
 }
 
 /**
@@ -926,7 +937,9 @@ interface BomCtx {
  */
 function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: number; role: string; reason: string }> {
   const { primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
-          isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isSv, products } = ctx;
+          isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isSv, products,
+          isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
+          isMultiAxis, perAxisStrokes } = ctx;
   const isPneumatic = !isElectric && !isAtex && !isAtexDust;
   const rows: Array<{ sku: string; quantity: number; role: string; reason: string }> = [];
 
@@ -1018,6 +1031,66 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
       reason: isSv
         ? "OBLIGATORISK — 2 st magnetgivare för T-spår (en per ändläge) krävs för PLC-feedback. Välj givare kompatibel med cylinderprofil och styrsystem (24 V DC NPN/PNP)."
         : "MANDATORY — 2 T-slot magnetic sensors (one per end position) required for PLC feedback. Select sensor matching cylinder profile and control voltage (24 V DC NPN/PNP).",
+    });
+  }
+
+  // ── 8. Multi-axis secondary actuators ────────────────────────────
+  if (isMultiAxis && perAxisStrokes.length >= 2) {
+    // First axis = primary (already row 1). Add one row per remaining axis.
+    const secondaryAxes = perAxisStrokes.slice(1);
+    for (const ax of secondaryAxes) {
+      const axLabel = ax.axis.toUpperCase();
+      rows.push({
+        sku: "SPECIFY", quantity: 1,
+        role: isSv ? `Aktuator — ${axLabel}-axel` : `Actuator — ${axLabel}-axis`,
+        reason: isSv
+          ? `${ax.stroke > 0 ? ax.stroke + "mm slag — v" : "V"}älj aktuator av samma typ och spänning som primäraxeln. Konfigurera stroke och fäste för ${axLabel}-axelns krav.`
+          : `${ax.stroke > 0 ? ax.stroke + "mm stroke — s" : "S"}elect same actuator type and voltage as primary axis. Configure stroke and mounting for ${axLabel}-axis requirements.`,
+      });
+    }
+  }
+
+  // ── 9. Washdown / food-grade IP69K warning ───────────────────────
+  if (isWashdown) {
+    rows.push({
+      sku: "SPECIFY", quantity: 1,
+      role: isSv ? "⚠️ Washdown IP69K — korrosionsbeständigt material" : "⚠️ Washdown IP69K — corrosion-resistant materials",
+      reason: isSv
+        ? "KRAV IP69K: Cylinder, ventil och givare måste ha IP69K-klassning och korrosionsbeständigt material (316L rostfritt stål eller ytbehandlad aluminium). Specificera variant -H1 (food-grade smörjning) vid livsmedelsproduktion."
+        : "REQUIRED IP69K: Cylinder, valve and sensor must be IP69K-rated with corrosion-resistant materials (316L stainless or coated aluminium). Specify -H1 variant (food-grade lubrication) for food production.",
+    });
+  }
+
+  // ── 10. High-temperature warning (>80°C) ─────────────────────────
+  if (isHighTemp) {
+    rows.push({
+      sku: "SPECIFY", quantity: 1,
+      role: isSv ? "⚠️ Tätningsmaterial — hög temperatur >80°C" : "⚠️ Sealing material — high temperature >80°C",
+      reason: isSv
+        ? "KRAV: PTFE- eller FKM-tätningar obligatoriska vid >80°C — standard-NBR-tätningar degraderar och läcker. Beställ cylinder med high-temp tätningssats eller PTFE-variant."
+        : "MANDATORY: PTFE or FKM seals required above 80°C — standard NBR seals degrade and leak. Order cylinder with high-temp seal kit or PTFE variant.",
+    });
+  }
+
+  // ── 10. SIL/functional-safety certified valve ─────────────────────
+  if (isSilSafety) {
+    rows.push({
+      sku: "SPECIFY", quantity: 1,
+      role: isSv ? "⚠️ Säkerhetscertifierad magnetventil SIL/PLd" : "⚠️ Safety-certified solenoid valve SIL/PLd",
+      reason: isSv
+        ? "KRAV SIL 2 / PLd (ISO 13849): säkerhetscertifierad magnetventil med redundant styrsignal och diagnosfunktion krävs (t.ex. Festo VOFD-DT, SMC VFS). Standard-ventil är EJ tillräcklig."
+        : "REQUIRED SIL 2 / PLd (ISO 13849): safety-certified solenoid valve with redundant control and diagnostic function (e.g. Festo VOFD-DT, SMC VFS). Standard valve is NOT sufficient.",
+    });
+  }
+
+  // ── 11. Hydraulic / very-high-force out-of-scope warning ──────────
+  if (isHydraulic || isVeryHighForce) {
+    rows.push({
+      sku: "SPECIFY", quantity: 1,
+      role: isSv ? "⚠️ Varning: utanför pneumatisk katalog" : "⚠️ Warning: outside pneumatic catalog",
+      reason: isSv
+        ? "UTANFÖR KATALOG: Hydrauliska cylindrar och kraft >5 kN hanteras ej av pneumatisk katalog. Kontakta hydraulikspecialist (Parker, Bosch Rexroth, Enerpac). Pneumatisk katalog täcker max ~2 kN vid 6 bar."
+        : "OUT OF SCOPE: Hydraulic cylinders and force >5 kN are outside the pneumatic catalog. Contact hydraulic specialist (Parker, Bosch Rexroth, Enerpac). Pneumatic catalog covers max ~2 kN at 6 bar.",
     });
   }
 
@@ -1397,17 +1470,19 @@ async function handleBom(
   validBomSkus.add(primarySku);
 
   // ── v40: Build complete mandatory BOM deterministically ─────────────────────
+  const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
   const bomCtx: BomCtx = {
     primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
     isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isVacuum, isSv,
     products: atexSafeProducts,
+    isHighTemp, isWashdown, isSilSafety: needsSilSafety(combinedText), isHydraulic, isVeryHighForce,
+    isMultiAxis, perAxisStrokes,
   };
   const mandatoryBom = buildMandatoryBomRows(bomCtx);
-  console.log(`[bom v40] primary=${primarySku} electric=${isElectric} vertical=${isVerticalLoad} highSpeed=${isHighSpeed} valveTerminal=${valveTerminal} mandatoryRows=${mandatoryBom.length}`);
+  console.log(`[bom v44] primary=${primarySku} electric=${isElectric} vertical=${isVerticalLoad} highSpeed=${isHighSpeed} multiAxis=${isMultiAxis} highTemp=${isHighTemp} sil=${bomCtx.isSilSafety} hydraulic=${isHydraulic} mandatoryRows=${mandatoryBom.length}`);
 
   // ── LLM enrichment: title + explanation + optional extras ─────────────────
   const lang = isSv ? "svenska" : "English";
-  const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
   const axisStrokeNote = isMultiAxis && perAxisStrokes.length > 0
     ? `Per-axis strokes: ${perAxisStrokes.map(a => `${a.axis}=${a.stroke}mm`).join(", ")}.`
     : "";

@@ -356,6 +356,114 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
+sleep 4
+echo ""
+echo "── BLOCK 9: Specialmiljöer & Katalogkvalitet ───────────"
+
+# Test 21: Washdown IP69K → IP69K-produkt eller washdown-varning
+echo "  [21] Washdown IP69K → IP69K eller hygien-varning..."
+R=$(call_bom \
+  "Pneumatisk cylinder för tvättzon i livsmedelsproduktion, IP69K krävs, 150mm stroke" \
+  '{"miljö":"IP69K washdown"}' \
+  "0822121007")
+check "T21 washdown IP69K" "$R" "IP69K|ip69|washdown|hygien|hygenic|food.grade|livs" ""
+
+# Test 22: Hög temperatur >80°C → PTFE/FKM-tätning nämns
+echo "  [22] >80°C → PTFE/FKM-varning..."
+R=$(call_bom \
+  "Pneumatisk cylinder inuti industriugn, driftstemperatur 120°C, 100mm stroke" \
+  '{"temperatur":"120°C"}' \
+  "0822121007")
+check "T22 high-temp PTFE/FKM" "$R" "PTFE|FKM|hög.*temp|high.*temp|temperatur|120" ""
+
+# Test 23: SIL-säkerhetsfunktion → säkerhetsventil eller SIL nämns
+echo "  [23] SIL 2 säkerhetsfunktion → certifierad ventil..."
+R=$(call_bom \
+  "Säkerhetsfunktion SIL 2, nödstopp klipper pneumatisk cylinder vid maskinskydd" \
+  '{"säkerhetsnivå":"SIL 2"}' \
+  "0822121007")
+check "T23 SIL safety valve" "$R" "SIL|säkerhet|safety|certif|nödstopp|PLd|ISO.13849|PNOZ" ""
+
+# Test 24: Hög hastighet → verklig stötdämpare-SKU (inte bara SPECIFY)
+echo "  [24] >1m/s → katalog-SKU för stötdämpare (inte SPECIFY)..."
+R=$(call_bom \
+  "Cylinder 200mm stroke, slaghastighet 1500mm/s, hög hastighet" \
+  '{"hastighet":"1500 mm/s"}' \
+  "0822121007")
+SA_SKU=$(echo "$R" | python3 -c "
+import sys,json,re
+d=json.load(sys.stdin)
+bom=d.get('bom',[])
+hits=[r['sku'] for r in bom if re.search(r'FE-YSR|SMC-RBQ|NOR-SA',r.get('sku',''))]
+print(','.join(hits) if hits else 'NONE')
+" 2>/dev/null || echo "ERROR")
+if [[ "$SA_SKU" != "NONE" && "$SA_SKU" != "ERROR" ]]; then
+  echo "  ✅ T24 stötdämpare katalog-SKU: $SA_SKU"; ((PASS++))
+else
+  echo "  ❌ T24 stötdämpare saknar katalog-SKU (fick: $SA_SKU)"; ((FAIL++)); FAILURES+=("T24 shock absorber SKU=$SA_SKU")
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+sleep 4
+
+# Test 25: Vertikal lyft → verklig backslagsventil-SKU (inte bara SPECIFY)
+echo "  [25] Vertikal lyft → katalog-SKU för backslagsventil..."
+R=$(call_bom \
+  "Pneumatisk cylinder vertikal lyft 30kg, 200mm stroke, last får ej falla vid luftbortfall" \
+  '{"riktning":"vertikal","last":"30 kg"}' \
+  "0822121007")
+CV_SKU=$(echo "$R" | python3 -c "
+import sys,json,re
+d=json.load(sys.stdin)
+bom=d.get('bom',[])
+hits=[r['sku'] for r in bom if re.search(r'FE-HGL|SMC-AKH|MW-NRV',r.get('sku',''))]
+print(','.join(hits) if hits else 'NONE')
+" 2>/dev/null || echo "ERROR")
+if [[ "$CV_SKU" != "NONE" && "$CV_SKU" != "ERROR" ]]; then
+  echo "  ✅ T25 backslagsventil katalog-SKU: $CV_SKU"; ((PASS++))
+else
+  echo "  ❌ T25 backslagsventil saknar katalog-SKU (fick: $CV_SKU)"; ((FAIL++)); FAILURES+=("T25 check valve SKU=$CV_SKU")
+fi
+
+# Test 26: FRL → Festo MS4 (inte Camozzi MC-FR)
+echo "  [26] FRL → Festo MS4 föredras över Camozzi..."
+R=$(call_bom \
+  "Standard pneumatisk cylinder 100mm stroke, 6 bar" \
+  '{}' \
+  "0822121007")
+check "T26 FRL är Festo MS4" "$R" "MS4|FE-MS4|FE-MS6" "MC-FR"
+
+# Test 27: 3-axlig XYZ → minst 3 aktuatorrader i BOM
+echo "  [27] XYZ 3-axlad → ≥3 aktuatorrader..."
+R=$(call_bom \
+  "XYZ pick-and-place robot, X-axel 400mm slag, Y-axel 300mm slag, Z-axel 200mm slag, elektrisk servo" \
+  '{"x_stroke":"400 mm","y_stroke":"300 mm","z_stroke":"200 mm"}' \
+  "FESTO-DNCE")
+AXIS_COUNT=$(echo "$R" | python3 -c "
+import sys,json,re
+d=json.load(sys.stdin)
+bom=d.get('bom',[])
+axes=[r for r in bom if re.search(r'X-axel|Y-axel|Z-axel|x.axis|y.axis|z.axis|[XYZ]-ax',r.get('role',''),re.I)]
+print(len(axes))
+" 2>/dev/null || echo "0")
+if [[ "$AXIS_COUNT" -ge 3 ]]; then
+  echo "  ✅ T27 $AXIS_COUNT axelrader (OK)"; ((PASS++))
+else
+  echo "  ❌ T27 $AXIS_COUNT axelrader (behöver ≥3)"; ((FAIL++)); FAILURES+=("T27 axis rows=$AXIS_COUNT")
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+sleep 4
+
+# Test 28: Hydraulik/extremt hög kraft → varning om att det är utanför katalog
+echo "  [28] Hydraulik 50kN → utanför-katalog-varning..."
+R=$(call_bom \
+  "Hydraulisk cylinder, 200 bar, 50kN kraft, 150mm stroke, pressmaskin" \
+  '{"kraft":"50 kN","tryck":"200 bar"}' \
+  "0822121007")
+check "T28 hydraulic out-of-scope warning" "$R" "hydraul|utanför|outside.*catalog|kN|hög.*kraft|high.*force|200.*bar" ""
+
+# ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════"
 echo "  RESULTAT: $PASS ✅  $FAIL ❌  $SKIP ⚠️  (av $((PASS+FAIL+SKIP)) tester)"
