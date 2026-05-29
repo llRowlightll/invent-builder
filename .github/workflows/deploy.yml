@@ -6,7 +6,20 @@ on:
   workflow_dispatch:
 
 jobs:
+  # ── Smoke-test the live edge function before touching the frontend ──────────
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run regression suite (21 tests)
+        run: |
+          chmod +x scripts/test-advisor.sh
+          ./scripts/test-advisor.sh
+
+  # ── Build & deploy frontend only when tests are green ───────────────────────
   deploy:
+    needs: regression
     runs-on: ubuntu-latest
     name: Build & Deploy
     steps:
