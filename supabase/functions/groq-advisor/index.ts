@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v41 — Fix T08: test ensure_ascii=False (Swedish chars now matchable); Fix T15: MC- prefix added to known SKUs; Dedup: LLM extras cannot re-add mandatory-row SKUs.
 // v40 — SERVER-SIDE DETERMINISTIC ARCHITECTURE: scoreProduct() + buildMandatoryBomRows() ensure correct BOM even when LLM is rate-limited. handleBom() builds skeleton first, LLM only writes title/explanation/extras. handleOptions() server-selects top 3 products, LLM writes badge/why/pros/cons only.
 // v39 — T09: catalogSkus filter; T11: ventilramp detection + valve terminal injection; T12: FRL injection; T14: family warning; T17: extractPerAxisStrokes axis key fix; T19: questions≤6; T08: needsHighSpeed detects mm/s≥1000; T20: directional valve injection
 // v38 — normalizeKeySpecs(): unify 5 stroke keys→stroke_mm, bore variants→bore_mm, compute force_n from bore; isFamilyProduct() detects FESTO-*/SMC-* families; SKU validation replaces hallucinated BOM SKUs with SPECIFY; richer product list sent to LLM
@@ -1456,10 +1457,14 @@ JSON: { "title": "...", "explanation": "...", "extras": [ { "sku": "SKU_OR_SPECI
   // Validate extras SKUs
   const validExtras = extras.map(e => validBomSkus.has(e.sku) || e.sku === "SPECIFY" ? e : { ...e, sku: "SPECIFY", reason: e.reason + " [SKU ej verifierad]" });
 
-  // Final BOM = mandatory rows + validated extras
+  // Deduplicate: strip LLM extras that duplicate a mandatory row SKU (unless SPECIFY)
+  const mandatorySkuSet = new Set(mandatoryBom.map(r => r.sku).filter(s => s !== "SPECIFY"));
+  const deduplicatedExtras = validExtras.filter(e => e.sku === "SPECIFY" || !mandatorySkuSet.has(e.sku));
+
+  // Final BOM = mandatory rows + deduplicated extras
   // For ATEX: strip any electric SKU that might have slipped in via extras
   const electricSKUs = new Set(products.filter(p => isElectricActuator(p)).map(p => p.sku));
-  const finalBom = [...mandatoryBom, ...validExtras].filter(row => {
+  const finalBom = [...mandatoryBom, ...deduplicatedExtras].filter(row => {
     if (!isAtex && !isAtexDust) return true;
     if (row.sku === primarySku || row.sku === "SPECIFY") return true;
     if (electricSKUs.has(row.sku)) { console.warn(`[bom v40] ATEX stripped: ${row.sku}`); return false; }

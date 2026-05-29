@@ -53,11 +53,11 @@ check() {
   local name="$1" json="$2" pattern="$3" expect_absent="${4:-}"
   local ok=true
 
-  if ! echo "$json" | python3 -c "import sys,json,re; d=json.load(sys.stdin); s=json.dumps(d); ok=bool(re.search(r'$pattern',s)); sys.exit(0 if ok else 1)" 2>/dev/null; then
+  if ! echo "$json" | python3 -c "import sys,json,re; d=json.load(sys.stdin); s=json.dumps(d,ensure_ascii=False); ok=bool(re.search(r'$pattern',s)); sys.exit(0 if ok else 1)" 2>/dev/null; then
     ok=false
   fi
   if [[ -n "$expect_absent" ]]; then
-    if echo "$json" | python3 -c "import sys,json,re; d=json.load(sys.stdin); s=json.dumps(d); ok=bool(re.search(r'$expect_absent',s)); sys.exit(0 if ok else 1)" 2>/dev/null; then
+    if echo "$json" | python3 -c "import sys,json,re; d=json.load(sys.stdin); s=json.dumps(d,ensure_ascii=False); ok=bool(re.search(r'$expect_absent',s)); sys.exit(0 if ok else 1)" 2>/dev/null; then
       ok=false  # pattern that should be absent IS present → fail
     fi
   fi
@@ -275,7 +275,7 @@ import sys,json,re
 d=json.load(sys.stdin)
 bom=d.get('bom',[])
 # Flag SKUs that look hallucinated: not SPECIFY, not matching known patterns
-known=re.compile(r'^(SPECIFY|KPZ|0822|P1D|FE-|FESTO-|SMC-|CAM|NOR|MW|D-|VTSA|CPV|MS4|\d{4}-|\d{4}[A-Z])')
+known=re.compile(r'^(SPECIFY|KPZ|0822|P1D|FE-|FESTO-|SMC-|CAM|NOR|MW|D-|VTSA|CPV|MS4|MC-|\d{4}-|\d{4}[A-Z])')
 bad=[b['sku'] for b in bom if not known.match(b['sku'])]
 print(','.join(bad) if bad else 'OK')
 " 2>/dev/null || echo "ERROR")
