@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v39 — T09: catalogSkus filter (only SKUs from top-25 sent to LLM are allowed in options); T11: ventilramp→valveTerminal + server-side injection; T12: FRL server-side injection for pneumatic; T14: family warning in auto-injected primary; T17: extractPerAxisStrokes axis key fix (x_stroke→X); T19: slice questions to ≤6
 // v38 — normalizeKeySpecs(): unify 5 stroke keys→stroke_mm, bore variants→bore_mm, compute force_n from bore; isFamilyProduct() detects FESTO-*/SMC-* families; SKU validation replaces hallucinated BOM SKUs with SPECIFY; richer product list sent to LLM
 // v37 — extractMinStroke: exclude "NNN mm/s" (speed) from stroke extraction — prevents 400mm/s overriding 200mm stroke
 // v36 — BOM completeness: inject end-position sensors when detection requested but absent from BOM; rule 9 in system prompt
@@ -275,7 +276,7 @@ function detectCategories(text: string): string[] {
     slugs.add("vacuum");
   if (/gripper|klämma|jaw|parallel.grip/i.test(t)) slugs.add("gripper");
   if (/ventil(?!terminal)|valve(?!.terminal)|solenoid/i.test(t)) slugs.add("valve");
-  if (/ventilterminal|valve.terminal|vtug|vtsa|mpa\b|cpv\b|ventilblock|manifold|fördelare/i.test(t))
+  if (/ventilterminal|valve.terminal|vtug|vtsa|mpa\b|cpv\b|ventilblock|manifold|fördelare|ventilramp/i.test(t))
     slugs.add("valve-terminal");
   if (/sensor|detek|proximity|reed/i.test(t)) slugs.add("sensor");
   // Cleanroom (actual ISO-class rooms): switch to electric-only
@@ -392,8 +393,9 @@ function extractPerAxisStrokes(answers: Record<string, string>): { axis: string;
       const digits = v.replace(/[^0-9.]/g, "");
       const n = parseFloat(digits);
       if (!isNaN(n) && n >= 5 && n <= 15000) {
-        const axisMatch = k.match(/[xyz]$/i);
-        result.push({ axis: axisMatch ? axisMatch[0].toUpperCase() : "?", stroke: n });
+        // Match x/y/z anywhere in the key name (e.g. "x_stroke", "stroke_z", "x")
+        const axisMatch = k.match(/([xyz])/i);
+        result.push({ axis: axisMatch ? axisMatch[1].toUpperCase() : "?", stroke: n });
       }
     }
   }
@@ -411,7 +413,7 @@ function needsVacuumGrip(text: string): boolean {
 function needsValveTerminal(text: string): boolean {
   return (
     needsMultiAxis(text) ||
-    /ventilterminal|valve.terminal|vtug|vtsa|mpa\b|cpv\b|ventilblock|manifold/i.test(text) ||
+    /ventilterminal|valve.terminal|vtug|vtsa|mpa\b|cpv\b|ventilblock|manifold|ventilramp/i.test(text) ||
     /tre.*cylindr|fyra.*cylindr|3\s*cylindr|4\s*cylindr|3\s*cyl|4\s*cyl|several.*actuat|multiple.*actuat|multiple.*cyl|två.*cylindr|två cyl/i.test(text)
   );
 }
@@ -841,7 +843,7 @@ async function handleQuestions(description: string, locale: string): Promise<Res
         seenIds.add(q.id);
         seenLabels.add(labelKey);
         return true;
-      });
+      }).slice(0, 6); // T19: hard cap at 6 questions
       return Response.json(parsed, { headers: CORS });
     }
     catch { return Response.json({ summary: "", questions: [] }, { headers: CORS }); }
@@ -987,6 +989,9 @@ async function handleOptions(
   // Sort by stroke-relevance, then take top 25.
   const sortedProducts = sortByStrokeMatch(tempFiltered.length > 0 ? tempFiltered : showProducts, maxRequiredStroke);
   const catalogProducts = sortedProducts.slice(0, 25);
+  // v39 T09: only SKUs that were actually sent to the LLM are valid options — prevents
+  // hallucinated short-stroke products that live in productMap but weren't in the catalog sent
+  const catalogSkus = new Set(catalogProducts.map(p => p.sku));
   console.log(
     `[options] categories=${categories} minStroke=${minStroke} requiredTemp=${requiredTemp} qualified=${qualified.length}` +
     ` catalog=${catalogProducts.length}/${showProducts.length} isWashdown=${isWashdown}`
@@ -1166,11 +1171,13 @@ Return ONLY JSON (no markdown):
   try { parsed = raw ? JSON.parse(raw) : { summary: "", options: [] }; }
   catch { parsed = { summary: "", options: [] }; }
 
-  // v23: remove any option where SKU was hallucinated (not in catalog)
+  // v23/v39: remove any option whose SKU wasn't in the 25 products actually sent to the LLM.
+  // Using catalogSkus (not productMap) prevents the LLM from hallucinating short-stroke products
+  // that exist in the DB but were filtered out before being sent to the model.
   parsed.options = (parsed.options ?? []).filter(opt => {
     const sku = opt.sku as string;
     if (sku === "CUSTOM-SOLUTION") return true;
-    return productMap.has(sku);
+    return catalogSkus.has(sku);
   }).map(opt => {
     const sku = opt.sku as string;
     if (sku === "CUSTOM-SOLUTION") return opt;
@@ -1545,6 +1552,46 @@ JSON: { "title": "short technical title in ${lang}", "explanation": "2-3 sentenc
     }
   }
 
+  // v39 T12: FRL — mandatory for any non-electric, non-ATEX pneumatic BOM
+  if (!isElectric && !isAtex && !isAtexDust) {
+    const hasFRL = parsed.bom.some(l =>
+      /\bFRL\b|filter.*regulator|luftbered|air.*prep|LFR\b|MS4\b|MS6\b|regulator.*filter|luftfilter/i.test(
+        l.role + " " + l.reason + " " + l.sku
+      )
+    );
+    if (!hasFRL) {
+      console.log("[bom] pneumatic: injecting mandatory FRL");
+      parsed.bom.push({
+        sku: "SPECIFY",
+        quantity: 1,
+        role: isSv ? "FRL-enhet (Filter-Regulator-Smörjare)" : "FRL unit (Filter-Regulator-Lubricator)",
+        reason: isSv
+          ? "OBLIGATORISK för pneumatiskt system — luftberedning säkerställer rätt arbetstryck, filtrerad luft (≥40 µm) och smörjning av cylindertätningar. Välj regulator med manometer 0–10 bar."
+          : "MANDATORY for pneumatic system — air preparation ensures correct working pressure, filtered air (≥40 µm) and cylinder seal lubrication. Select regulator with pressure gauge 0–10 bar.",
+      });
+    }
+  }
+
+  // v39 T11: Valve terminal — mandatory when description calls for one
+  if (valveTerminal && !isElectric) {
+    const hasVT = parsed.bom.some(l =>
+      /ventilramp|ventilterminal|valve.terminal|CPV|VTSA|MPA|CPE|ventilblock|manifold/i.test(
+        l.role + " " + l.reason + " " + l.sku
+      )
+    );
+    if (!hasVT) {
+      console.log("[bom] valve terminal: injecting mandatory valve terminal");
+      parsed.bom.push({
+        sku: "SPECIFY",
+        quantity: 1,
+        role: isSv ? "Ventilramp (ventilterminal)" : "Valve terminal (manifold)",
+        reason: isSv
+          ? "OBLIGATORISK för fältbussanslutning (PROFINET/EtherCAT) — ventilramp (CPV, VTSA, MPA) samlar alla ventiler i en enhet och reducerar kabelkostnad. Specificera bussmodul och ventilantal."
+          : "MANDATORY for fieldbus connection (PROFINET/EtherCAT) — valve terminal (CPV, VTSA, MPA) consolidates valves and reduces wiring. Specify bus module and valve count.",
+      });
+    }
+  }
+
   // v36: End-position detection — inject 2 sensors if requested but missing from BOM
   if (isEndPosDetect && !isElectric) {
     const hasSensor = parsed.bom.some(l =>
@@ -1588,12 +1635,17 @@ JSON: { "title": "short technical title in ${lang}", "explanation": "2-3 sentenc
     const hasPrimary = parsed.bom.some(l => l.sku === primarySku);
     if (!hasPrimary) {
       // AI omitted the primary actuator entirely — inject it
+      // v39 T14: also attach family warning if primary is a family product
+      const autoFamilyNote = primaryIsFamilyProd ? (isSv
+        ? " ⚠️ Produktfamilj — ange komplett beställningskod (bore + stroke + varianter) vid order."
+        : " ⚠️ Product family — specify full ordering code (bore + stroke + variants) when ordering.")
+        : "";
       parsed.bom = [
         {
           sku: primarySku,
           quantity: 1,
           role: isSv ? "Primär aktuator" : "Primary actuator",
-          reason: isSv ? "Vald primär komponent (tillagd automatiskt)" : "Selected primary component (auto-injected)",
+          reason: (isSv ? "Vald primär komponent (tillagd automatiskt)" : "Selected primary component (auto-injected)") + autoFamilyNote,
         },
         ...parsed.bom,
       ];
