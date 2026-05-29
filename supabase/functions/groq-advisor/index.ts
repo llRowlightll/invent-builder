@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v43 — Wire check-valve + shock-absorber to findCatalogProductByType (were hardcoded SPECIFY); now returns real SKUs from catalog.
+// v42 — Catalog: 9 shock absorbers (Festo YSR, SMC RBQ, Norgren SA) + 5 check valves (Festo HGL, SMC AKH, MW NRV) added to DB. Code: fetch shock-absorber/check-valve categories when needed; FRL prefers Festo MS4 over Camozzi; non-return pattern in check-valve matcher.
 // v41 — Fix T08: test ensure_ascii=False (Swedish chars now matchable); Fix T15: MC- prefix added to known SKUs; Dedup: LLM extras cannot re-add mandatory-row SKUs.
 // v40 — SERVER-SIDE DETERMINISTIC ARCHITECTURE: scoreProduct() + buildMandatoryBomRows() ensure correct BOM even when LLM is rate-limited. handleBom() builds skeleton first, LLM only writes title/explanation/extras. handleOptions() server-selects top 3 products, LLM writes badge/why/pros/cons only.
 // v39 — T09: catalogSkus filter; T11: ventilramp detection + valve terminal injection; T12: FRL injection; T14: family warning; T17: extractPerAxisStrokes axis key fix; T19: questions≤6; T08: needsHighSpeed detects mm/s≥1000; T20: directional valve injection
@@ -844,20 +846,25 @@ function findCatalogProductByType(
   type: "valve" | "frl" | "check-valve" | "shock-absorber" | "sensor" | "valve-terminal",
   products: CatalogProduct[]
 ): CatalogProduct | null {
+  // FRL: prefer Festo MS4/MS6 first — avoids Camozzi MC- sorting to front alphabetically
+  if (type === "frl") {
+    return (
+      products.find(p => /\bMS4\b|\bMS6\b/i.test(p.name + " " + p.sku)) ??
+      products.find(p => p.category === "frl" || /\bFRL\b|\bLFR\b|\bHFR\b/i.test(p.name + " " + p.sku)) ??
+      null
+    );
+  }
   for (const p of products) {
     const nameSkuLower = (p.name + " " + p.sku).toLowerCase();
     switch (type) {
       case "valve":
         if (p.category === "valve" || /\bsolenoid\b|\b5\/2\b|\b4\/2\b|\bmagnetventil\b|\bdirektional/i.test(p.name)) return p;
         break;
-      case "frl":
-        if (p.category === "frl" || /\bFRL\b|\bMS4\b|\bMS6\b|\bLFR\b|\bHFR\b/i.test(p.name + " " + p.sku)) return p;
-        break;
       case "check-valve":
-        if (/backslagsventil|check.valve|pilot.operated.check|sperrventil/i.test(nameSkuLower)) return p;
+        if (p.category === "check-valve" || /backslagsventil|check.valve|pilot.operated.check|sperrventil|non.return/i.test(nameSkuLower)) return p;
         break;
       case "shock-absorber":
-        if (/stötdämpare|shock.absorber|dämpare|dämpning/i.test(nameSkuLower)) return p;
+        if (p.category === "shock-absorber" || /st.tdämpare|shock.absorber|dämpare|dämpning/i.test(nameSkuLower)) return p;
         break;
       case "sensor":
         if (p.category === "sensor" || /\bSME\b|\bSMT\b|\bgivare\b|\breed.switch\b|\bproximity\b|\bend.pos/i.test(p.name + " " + p.sku)) return p;
@@ -920,8 +927,9 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
 
   // ── 3. Check valve (vertical pneumatic) ──────────────────────────
   if (isVerticalLoad && isPneumatic) {
+    const cvMatch = findCatalogProductByType("check-valve", products);
     rows.push({
-      sku: "SPECIFY", quantity: 1,
+      sku: cvMatch?.sku ?? "SPECIFY", quantity: 1,
       role: isSv ? "Pilotmanövrerad backslagsventil" : "Pilot-operated check valve",
       reason: isSv
         ? "OBLIGATORISK vid pneumatisk vertikal last — förhindrar att lasten faller vid lufttrycksförlust (IEC 60947-5-1)"
@@ -964,8 +972,9 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
 
   // ── 6. Shock absorbers (high speed ≥1000 mm/s) ───────────────────
   if (isHighSpeed) {
+    const saMatch = findCatalogProductByType("shock-absorber", products);
     rows.push({
-      sku: "SPECIFY", quantity: 2,
+      sku: saMatch?.sku ?? "SPECIFY", quantity: 2,
       role: isSv ? "Hydraulisk stötdämpare" : "Hydraulic shock absorber",
       reason: isSv
         ? "OBLIGATORISK vid slaghastighet >1 m/s — förhindrar skador på cylinderände och maskinkonstruktion. Välj justerbar hydraulisk stötdämpare dimensionerad för cylinderkraft och massa."
@@ -1329,13 +1338,16 @@ async function handleBom(
   const minStroke = extractMinStroke(answers, description);
   const primaryIsFamilyProd = isFamilyProduct({ sku: primarySku, name: "", category: "", brand: "", key_specs: {} });
 
+  const isPneumaticBom = !isElectric && !isAtex && !isAtexDust;
   const bomCategories = [
     ...categories,
-    isVacuum      ? "vacuum" : null,
-    valveTerminal ? "valve-terminal" : null,
+    isVacuum                          ? "vacuum"         : null,
+    valveTerminal                     ? "valve-terminal" : null,
     "sensor",
-    isElectric    ? "cable" : "fitting",
-    !isElectric   ? "frl" : null,
+    isElectric                        ? "cable"          : "fitting",
+    isPneumaticBom                    ? "frl"            : null,
+    isPneumaticBom && isHighSpeed     ? "shock-absorber" : null,
+    isPneumaticBom && isVerticalLoad  ? "check-valve"    : null,
   ].filter(Boolean) as string[];
 
   const [products, pdfCtx] = await Promise.all([
