@@ -6,20 +6,30 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ── Smoke-test the live edge function before touching the frontend ──────────
+  # ── 1. BOM regression suite (29 tests) ─────────────────────────────────────
   regression:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
-      - name: Run regression suite (21 tests)
+      - name: Run BOM regression suite (29 tests)
         run: |
           chmod +x scripts/test-advisor.sh
           ./scripts/test-advisor.sh
 
-  # ── Build & deploy frontend only when tests are green ───────────────────────
+  # ── 2. Options accuracy eval (10 random physical scenarios) ─────────────────
+  eval-accuracy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run options accuracy eval (10 scenarios)
+        run: python3 scripts/eval-auto.py --runs 10 --seed ${{ github.run_number }}
+        # seed = CI run number → different scenarios every run, but reproducible per run
+
+  # ── 3. Build & deploy frontend only when both test jobs are green ────────────
   deploy:
-    needs: regression
+    needs: [regression, eval-accuracy]
     runs-on: ubuntu-latest
     name: Build & Deploy
     steps:
