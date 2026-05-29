@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// v50 — Bore/force gating: calcMinBoreMm(loadKg), extractLoadKg(), minBoreMm in ScoringCtx (±40pts), hard bore pre-filter before scoring. Catalog: 12 new ISO cylinders at 250/300mm stroke Ø40-Ø80 (BR/Parker/Camozzi). Eval: test-options-accuracy.sh.
 // v49 — FULLY DETERMINISTIC BOM: LLM extras removed entirely. LLM writes title+explanation only. Mandatory BOM now includes fitting, cable, mounting rows. All SKU selection is server-side.
 // v48 — needsMounting detector + mounting category in bomCategories; LLM multi-axis prompt no longer asks for axis actuators; L3/L4 merged: all actuator SKUs banned from extras unconditionally.
 // v47 — 5-layer extras validation: unique SKU, no actuator-SKU in sensor/mounting role, no extra actuators on single-axis.
@@ -818,11 +819,33 @@ function sanitizeSingleAxisBom(
 
 interface ScoringCtx {
   requiredStroke: number;
+  minBoreMm: number;       // minimum bore from load calculation (0 = unknown)
   isHighPrecision: boolean;
   isHighSpeed: boolean;
   isVertical: boolean;
   isWashdown: boolean;
   isAtex: boolean;
+}
+
+/**
+ * Calculate minimum required bore (mm) from load (kg) at given pressure (bar).
+ * Uses F = P × A formula with safety factor 2.
+ */
+function calcMinBoreMm(loadKg: number, pressureBar = 6): number {
+  if (loadKg <= 0) return 0;
+  const forceN = loadKg * 9.81 * 2; // safety factor 2
+  const areaMm2 = (forceN / (pressureBar * 0.1)); // bar→N/mm²
+  return Math.ceil(2 * Math.sqrt(areaMm2 / Math.PI));
+}
+
+/** Extract mass/load in kg from free text + answers. */
+function extractLoadKg(text: string, answers: Record<string, string>): number {
+  const allText = text + " " + Object.values(answers).join(" ");
+  const kgMatch = allText.match(/(\d+(?:[.,]\d+)?)\s*kg/i);
+  if (kgMatch) return parseFloat(kgMatch[1].replace(",", "."));
+  const nMatch = allText.match(/(\d+(?:[.,]\d+)?)\s*N\b/);
+  if (nMatch) return parseFloat(nMatch[1].replace(",", ".")) / 9.81;
+  return 0;
 }
 
 /**
@@ -864,6 +887,20 @@ function scoreProduct(p: CatalogProduct, ctx: ScoringCtx): number {
   if (ctx.isWashdown) {
     if (isWashdownProduct(p)) score += 15;
     else if (maxStroke > 0)   score -= 20;
+  }
+
+  // ── Bore adequacy (±40 points) — HARD physical requirement ──────
+  if (ctx.minBoreMm > 0) {
+    const boreMm = parseFloat(String(p.key_specs?.bore_mm ?? "0"));
+    if (boreMm > 0) {
+      if (boreMm >= ctx.minBoreMm) {
+        // Prefer closest adequate bore (avoid wildly oversized)
+        const oversize = (boreMm - ctx.minBoreMm) / ctx.minBoreMm;
+        score += Math.max(0, 20 - oversize * 30); // 20pts at exact, 0 at 67%+
+      } else {
+        score -= 40; // bore too small for load — hard penalty
+      }
+    }
   }
 
   // ── Penalties ────────────────────────────────────────────────────
@@ -1283,25 +1320,37 @@ async function handleOptions(
     ? Math.max(...perAxisStrokes.map(a => a.stroke))
     : minStroke;
 
+  // ── Load → minimum bore calculation ──────────────────────────────
+  const loadKg = extractLoadKg(combinedText, answers);
+  const minBoreMm = calcMinBoreMm(loadKg);
+  if (minBoreMm > 0) console.log(`[options] load=${loadKg}kg → minBore=${minBoreMm}mm`);
+
   const [allProducts, pdfCtx] = await Promise.all([
     fetchProducts(categories, 80),
     searchKnowledge(combinedText, 5),
   ]);
   const productMap = new Map<string, CatalogProduct>(allProducts.map(p => [p.sku, p]));
 
-  // ── Hard pre-filters (unchanged from v39) ────────────────────────
+  // ── Hard pre-filters ──────────────────────────────────────────────
   const atexFiltered = isAtex ? allProducts.filter(p => !isElectricActuator(p)) : allProducts;
   const washdownFiltered = isWashdown ? atexFiltered.filter(p => isWashdownProduct(p)) : atexFiltered;
   const applyPrecisionFilter = isHighPrecision && (!isMultiAxis || isHighPrecisionVertical);
   const precisionFiltered = applyPrecisionFilter ? washdownFiltered.filter(p => isAllowedForHighPrecision(p)) : washdownFiltered;
   const applySpeedFilter = speedMs > 0.8 && !isHighPrecision && !isAtex;
   const speedFiltered = applySpeedFilter ? precisionFiltered.filter(p => isAllowedForHighSpeed(p)) : precisionFiltered;
+  // Hard bore filter: remove products whose bore is provably too small for load
+  const boreFiltered = minBoreMm > 0
+    ? speedFiltered.filter(p => {
+        const b = parseFloat(String(p.key_specs?.bore_mm ?? "0"));
+        return b === 0 || b >= minBoreMm; // keep unknowns, reject confirmed undersized
+      })
+    : speedFiltered;
 
   const qualified: CatalogProduct[] = [];
   let bestFallback: CatalogProduct | null = null;
   let bestFallbackStroke = 0;
   let maxCatalogStroke = 0;
-  for (const p of speedFiltered) {
+  for (const p of boreFiltered) {
     const maxStroke = parseStrokeFromSpecs(p.key_specs ?? {});
     if (maxStroke > maxCatalogStroke) maxCatalogStroke = maxStroke;
     if (maxRequiredStroke === 0 || maxStroke === 0) qualified.push(p);
@@ -1321,7 +1370,7 @@ async function handleOptions(
 
   // ── v40: Server-side product selection ───────────────────────────
   // Score every product deterministically, pick top 3 actuators
-  const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, isHighPrecision, isHighSpeed, isVertical: isVerticalLoad, isWashdown, isAtex };
+  const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, isHighPrecision, isHighSpeed, isVertical: isVerticalLoad, isWashdown, isAtex };
   const scoredActuators = catalogProducts
     .filter(p => parseStrokeFromSpecs(p.key_specs ?? {}) > 0 || maxRequiredStroke === 0)
     .map(p => ({ p, s: scoreProduct(p, scoringCtx) }))
