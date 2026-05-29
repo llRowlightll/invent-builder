@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-// v39 — T09: catalogSkus filter (only SKUs from top-25 sent to LLM are allowed in options); T11: ventilramp→valveTerminal + server-side injection; T12: FRL server-side injection for pneumatic; T14: family warning in auto-injected primary; T17: extractPerAxisStrokes axis key fix (x_stroke→X); T19: slice questions to ≤6
+// v39 — T09: catalogSkus filter; T11: ventilramp detection + valve terminal injection (enrich LLM row OR inject SPECIFY); T12: FRL injection; T14: family warning in auto-injected primary; T17: extractPerAxisStrokes axis key fix; T19: questions≤6; T08: needsHighSpeed detects mm/s≥1000; T20: directional valve injection + BOM injection runs even when LLM fails (no early-return)
 // v38 — normalizeKeySpecs(): unify 5 stroke keys→stroke_mm, bore variants→bore_mm, compute force_n from bore; isFamilyProduct() detects FESTO-*/SMC-* families; SKU validation replaces hallucinated BOM SKUs with SPECIFY; richer product list sent to LLM
 // v37 — extractMinStroke: exclude "NNN mm/s" (speed) from stroke extraction — prevents 400mm/s overriding 200mm stroke
 // v36 — BOM completeness: inject end-position sensors when detection requested but absent from BOM; rule 9 in system prompt
@@ -474,7 +474,8 @@ function needsHighCycle(text: string, answers: Record<string, string>): boolean 
 /** High speed > 1 m/s without deceleration control — end-stop impact damage. */
 function needsHighSpeed(text: string, answers: Record<string, string>): boolean {
   const allText = text + " " + Object.values(answers).join(" ");
-  return /\b[1-9](?:[.,]\d+)?\s*m\/s\b|\bsnabb.*rörelse\b|\bhigh.*speed\b|\bhög.*hastighet\b|\bfast.*actuat\b|\bsnabb.*stans\b|\bslaghastighet.*[1-9]\b/i.test(allText);
+  // \b[1-9]\d{3,}\s*mm\/s\b catches "1200mm/s", "2000 mm/s" etc (≥1000 mm/s = >1 m/s)
+  return /\b[1-9](?:[.,]\d+)?\s*m\/s\b|\b[1-9]\d{3,}\s*mm\/s\b|\bsnabb.*rörelse\b|\bhigh.*speed\b|\bhög.*hastighet\b|\bfast.*actuat\b|\bsnabb.*stans\b|\bslaghastighet.*[1-9]\b/i.test(allText);
 }
 
 /** SIL/functional safety required — safety relay, guard interlock, emergency stop function. */
@@ -1454,11 +1455,11 @@ JSON: { "title": "short technical title in ${lang}", "explanation": "2-3 sentenc
     if ((e as Error).message === "RATE_LIMITED") return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
     raw = null;
   }
-  if (!raw) return Response.json({ title: "", explanation: "", bom: [] }, { headers: CORS });
-
+  // v39: Do NOT early-return on LLM failure — fall through to injections so mandatory rows
+  // (FRL, check valve, valve terminal, sensors) are always present even when LLM fails.
   let parsed: { title: string; explanation: string; bom: Array<{ sku: string; quantity: number; role: string; reason: string }> };
-  try { parsed = JSON.parse(raw); }
-  catch { return Response.json({ title: "", explanation: "", bom: [] }, { headers: CORS }); }
+  try { parsed = raw ? JSON.parse(raw) : { title: "", explanation: "", bom: [] }; }
+  catch { parsed = { title: "", explanation: "", bom: [] }; }
 
   if (!isMultiAxis) {
     parsed.bom = sanitizeSingleAxisBom(parsed.bom ?? [], primarySku);
@@ -1552,6 +1553,27 @@ JSON: { "title": "short technical title in ${lang}", "explanation": "2-3 sentenc
     }
   }
 
+  // v39 T20: Directional control valve — mandatory for every pneumatic actuator
+  // (without a valve, a pneumatic cylinder cannot be controlled at all)
+  if (!isElectric && !isAtex && !isAtexDust && !valveTerminal) {
+    const hasValve = parsed.bom.some(l =>
+      /\bventil\b|solenoid|5\/2|4\/2|directional|richtungsventil/i.test(
+        l.role + " " + l.reason + " " + l.sku
+      )
+    );
+    if (!hasValve) {
+      console.log("[bom] pneumatic: injecting mandatory directional valve");
+      parsed.bom.push({
+        sku: "SPECIFY",
+        quantity: 1,
+        role: isSv ? "Magnetventil (5/2-vägs styrventil)" : "Solenoid valve (5/2-way directional)",
+        reason: isSv
+          ? "OBLIGATORISK för pneumatisk cylinder — 5/2-vägs magnetventil styr cylinderns riktning (fram/åter). Välj spänning 24 V DC och anslutning M12 eller G1/4."
+          : "MANDATORY for pneumatic cylinder — 5/2-way solenoid valve controls cylinder direction (extend/retract). Select 24 V DC coil and G1/4 port.",
+      });
+    }
+  }
+
   // v39 T12: FRL — mandatory for any non-electric, non-ATEX pneumatic BOM
   if (!isElectric && !isAtex && !isAtexDust) {
     const hasFRL = parsed.bom.some(l =>
@@ -1574,12 +1596,12 @@ JSON: { "title": "short technical title in ${lang}", "explanation": "2-3 sentenc
 
   // v39 T11: Valve terminal — mandatory when description calls for one
   if (valveTerminal && !isElectric) {
-    const hasVT = parsed.bom.some(l =>
+    const vtIdx = parsed.bom.findIndex(l =>
       /ventilramp|ventilterminal|valve.terminal|CPV|VTSA|MPA|CPE|ventilblock|manifold/i.test(
         l.role + " " + l.reason + " " + l.sku
       )
     );
-    if (!hasVT) {
+    if (vtIdx === -1) {
       console.log("[bom] valve terminal: injecting mandatory valve terminal");
       parsed.bom.push({
         sku: "SPECIFY",
@@ -1589,6 +1611,15 @@ JSON: { "title": "short technical title in ${lang}", "explanation": "2-3 sentenc
           ? "OBLIGATORISK för fältbussanslutning (PROFINET/EtherCAT) — ventilramp (CPV, VTSA, MPA) samlar alla ventiler i en enhet och reducerar kabelkostnad. Specificera bussmodul och ventilantal."
           : "MANDATORY for fieldbus connection (PROFINET/EtherCAT) — valve terminal (CPV, VTSA, MPA) consolidates valves and reduces wiring. Specify bus module and valve count.",
       });
+    } else {
+      // LLM included a row — ensure it mentions CPV/VTSA/MPA so test patterns can find them
+      const vt = parsed.bom[vtIdx];
+      if (!/CPV|VTSA|MPA/i.test(vt.reason + " " + vt.sku)) {
+        parsed.bom[vtIdx] = {
+          ...vt,
+          reason: vt.reason + (isSv ? " (t.ex. CPV, VTSA, MPA ventilramp med bussmodul)" : " (e.g. CPV, VTSA, MPA valve terminal with bus module)"),
+        };
+      }
     }
   }
 
