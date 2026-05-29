@@ -49,6 +49,15 @@ call_questions() {
   advisor_call "{\"action\":\"questions\",\"locale\":\"sv\",\"description\":\"$desc\"}"
 }
 
+# Returns exit 0 if response is rate-limited (caller should skip)
+is_rate_limited() {
+  echo "$1" | python3 -c "import sys,json
+try:
+  d=json.load(sys.stdin)
+  sys.exit(0 if d.get('error')=='rate_limited' else 1)
+except: sys.exit(1)" 2>/dev/null
+}
+
 check() {
   local name="$1" json="$2" pattern="$3" expect_absent="${4:-}"
   local ok=true
@@ -286,7 +295,9 @@ known=re.compile(r'^(SPECIFY|KPZ|0822|P1D|FE-|FESTO-|SMC-|CAM|NOR|MW|D-|VTSA|CPV
 bad=[b['sku'] for b in bom if not known.match(b['sku'])]
 print(','.join(bad) if bad else 'OK')
 " 2>/dev/null || echo "ERROR")
-if [[ "$UNKNOWN" == "OK" ]]; then
+if is_rate_limited "$R"; then
+  echo "  ⚠️  T15 [SKIP — rate limited]"; ((SKIP++))
+elif [[ "$UNKNOWN" == "OK" ]]; then
   echo "  ✅ T15 alle SKU:er kända format"; ((PASS++))
 elif [[ "$UNKNOWN" == "ERROR" ]]; then
   echo "  ⚠️  T15 kunde inte parsa svar"; ((SKIP++))
@@ -331,7 +342,9 @@ labels=[q.get('label','')[:40].lower() for q in qs]
 dups=[l for l in labels if labels.count(l)>1]
 print('DUP:'+','.join(set(dups)) if dups else 'OK')
 " 2>/dev/null || echo "ERROR")
-if [[ "$DUP" == "OK" ]]; then
+if is_rate_limited "$R"; then
+  echo "  ⚠️  T18 [SKIP — rate limited]"; ((SKIP++))
+elif [[ "$DUP" == "OK" ]]; then
   echo "  ✅ T18 inga dubbletter"; ((PASS++))
 elif [[ "$DUP" == "ERROR" ]]; then
   echo "  ⚠️  T18 parse-fel"; ((SKIP++))
@@ -342,11 +355,15 @@ fi
 # Test 19: 4–6 frågor genereras
 echo "  [19] 4–6 frågor genereras..."
 R=$(call_questions "Elektrisk aktuator för montagelinje, precision viktig")
-QCOUNT=$(echo "$R" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('questions',[])))" 2>/dev/null || echo "0")
-if [[ "$QCOUNT" -ge 4 && "$QCOUNT" -le 6 ]]; then
-  echo "  ✅ T19 $QCOUNT frågor (OK)"; ((PASS++))
+if is_rate_limited "$R"; then
+  echo "  ⚠️  T19 [SKIP — rate limited]"; ((SKIP++))
 else
-  echo "  ❌ T19 $QCOUNT frågor (behöver 4–6)"; ((FAIL++)); FAILURES+=("T19 question count=$QCOUNT")
+  QCOUNT=$(echo "$R" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('questions',[])))" 2>/dev/null || echo "0")
+  if [[ "$QCOUNT" -ge 4 && "$QCOUNT" -le 6 ]]; then
+    echo "  ✅ T19 $QCOUNT frågor (OK)"; ((PASS++))
+  else
+    echo "  ❌ T19 $QCOUNT frågor (behöver 4–6)"; ((FAIL++)); FAILURES+=("T19 question count=$QCOUNT")
+  fi
 fi
 
 # Test 20: Stycklistan har minst 3 rader för ett komplett pneumatiskt system
@@ -355,11 +372,15 @@ R=$(call_bom \
   "Standard pneumatisk cylinder 200mm stroke, 6 bar fabriksluft" \
   '{}' \
   "0822121007")
-BCOUNT=$(echo "$R" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('bom',[])))" 2>/dev/null || echo "0")
-if [[ "$BCOUNT" -ge 3 ]]; then
-  echo "  ✅ T20 $BCOUNT BOM-rader (OK)"; ((PASS++))
+if is_rate_limited "$R"; then
+  echo "  ⚠️  T20 [SKIP — rate limited]"; ((SKIP++))
 else
-  echo "  ❌ T20 $BCOUNT BOM-rader (behöver ≥3)"; ((FAIL++)); FAILURES+=("T20 BOM rows=$BCOUNT")
+  BCOUNT=$(echo "$R" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('bom',[])))" 2>/dev/null || echo "0")
+  if [[ "$BCOUNT" -ge 3 ]]; then
+    echo "  ✅ T20 $BCOUNT BOM-rader (OK)"; ((PASS++))
+  else
+    echo "  ❌ T20 $BCOUNT BOM-rader (behöver ≥3)"; ((FAIL++)); FAILURES+=("T20 BOM rows=$BCOUNT")
+  fi
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -404,7 +425,9 @@ bom=d.get('bom',[])
 hits=[r['sku'] for r in bom if re.search(r'FE-YSR|SMC-RBQ|NOR-SA',r.get('sku',''))]
 print(','.join(hits) if hits else 'NONE')
 " 2>/dev/null || echo "ERROR")
-if [[ "$SA_SKU" != "NONE" && "$SA_SKU" != "ERROR" ]]; then
+if is_rate_limited "$R"; then
+  echo "  ⚠️  T24 [SKIP — rate limited]"; ((SKIP++))
+elif [[ "$SA_SKU" != "NONE" && "$SA_SKU" != "ERROR" ]]; then
   echo "  ✅ T24 stötdämpare katalog-SKU: $SA_SKU"; ((PASS++))
 else
   echo "  ❌ T24 stötdämpare saknar katalog-SKU (fick: $SA_SKU)"; ((FAIL++)); FAILURES+=("T24 shock absorber SKU=$SA_SKU")
@@ -426,7 +449,9 @@ bom=d.get('bom',[])
 hits=[r['sku'] for r in bom if re.search(r'FE-HGL|SMC-AKH|MW-NRV',r.get('sku',''))]
 print(','.join(hits) if hits else 'NONE')
 " 2>/dev/null || echo "ERROR")
-if [[ "$CV_SKU" != "NONE" && "$CV_SKU" != "ERROR" ]]; then
+if is_rate_limited "$R"; then
+  echo "  ⚠️  T25 [SKIP — rate limited]"; ((SKIP++))
+elif [[ "$CV_SKU" != "NONE" && "$CV_SKU" != "ERROR" ]]; then
   echo "  ✅ T25 backslagsventil katalog-SKU: $CV_SKU"; ((PASS++))
 else
   echo "  ❌ T25 backslagsventil saknar katalog-SKU (fick: $CV_SKU)"; ((FAIL++)); FAILURES+=("T25 check valve SKU=$CV_SKU")
@@ -453,7 +478,9 @@ bom=d.get('bom',[])
 axes=[r for r in bom if re.search(r'X-axel|Y-axel|Z-axel|x.axis|y.axis|z.axis|[XYZ]-ax',r.get('role',''),re.I)]
 print(len(axes))
 " 2>/dev/null || echo "0")
-if [[ "$AXIS_COUNT" -ge 3 ]]; then
+if is_rate_limited "$R"; then
+  echo "  ⚠️  T27 [SKIP — rate limited]"; ((SKIP++))
+elif [[ "$AXIS_COUNT" -ge 3 ]]; then
   echo "  ✅ T27 $AXIS_COUNT axelrader (OK)"; ((PASS++))
 else
   echo "  ❌ T27 $AXIS_COUNT axelrader (behöver ≥3)"; ((FAIL++)); FAILURES+=("T27 axis rows=$AXIS_COUNT")
