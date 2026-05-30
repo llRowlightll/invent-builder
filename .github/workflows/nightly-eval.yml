@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Run 30 random scenarios + auto-fix catalog gaps
         id: eval
@@ -58,7 +58,7 @@ jobs:
 
       - name: Open GitHub Issue on repeated failures
         if: steps.results.outputs.fails != '0'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fails = '${{ steps.results.outputs.fails }}';
