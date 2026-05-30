@@ -3,9 +3,11 @@
   "name": "tanstack-start-app",
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "src/server.ts",
-  "routes": [
-    { "pattern": "maskinval.se", "custom_domain": true },
-    { "pattern": "www.maskinval.se", "custom_domain": true }
-  ]
+  "main": "src/server.ts"
+  // NOTE: Custom domains maskinval.se + www.maskinval.se are bound via the
+  // Cloudflare dashboard (Workers > Settings > Domains), NOT here. Declaring
+  // them as routes makes `wrangler deploy` try to re-bind them every run,
+  // which fails because CLOUDFLARE_API_TOKEN lacks Workers Routes edit perms
+  // (Authentication error 10000) and turns every CI deploy red. The dashboard
+  // binding is durable, so wrangler does not need to manage routes at all.
 }
