@@ -93,8 +93,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
+      // Favicons — Google Search picks the 48px-multiple PNG; browsers prefer SVG.
+      { rel: "icon", href: "/favicon.ico", sizes: "48x48 32x32" },
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
-      { rel: "shortcut icon", href: "/favicon.svg" },
+      { rel: "icon", type: "image/png", sizes: "96x96", href: "/favicon-96.png" },
+      { rel: "icon", type: "image/png", sizes: "48x48", href: "/favicon-48.png" },
+      { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32.png" },
+      { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" },
+      { rel: "manifest", href: "/site.webmanifest" },
     ],
   }),
   shellComponent: RootShell,
