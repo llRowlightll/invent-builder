@@ -98,8 +98,6 @@ function ProductDetail() {
       { "@type": "ListItem", position: 3, name: product.name, item: canonicalUrl },
     ],
   };
-  const price = (product as any).purchase_price ?? (product as any).price ?? null;
-
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -116,7 +114,9 @@ function ProductDetail() {
       priceCurrency: "SEK",
       url: canonicalUrl,
       seller: { "@type": "Organization", name: "Maskinval", url: SITE },
-      ...(price && price > 0 ? { price: String(price) } : {}),
+      // NOTE: no price published — purchase_price is internal cost, never a
+      // public selling price. Publishing it would leak margin + show wrong
+      // prices in Google. Add a real selling price here only when one exists.
     },
     ...(Object.keys(product.specs).length > 0 && {
       additionalProperty: Object.entries(product.specs).map(([k, v]) => ({

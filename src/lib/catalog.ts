@@ -11,8 +11,12 @@ export async function loadCatalog(): Promise<ProductRow[]> {
     const [{ data: products, error }, { data: specs }] = await Promise.all([
       supabase
         .from("products")
+        // SECURITY: purchase_price + margin are internal commercial data and are
+        // deliberately NOT selected here — this query runs with the anon key in
+        // the browser. Admin pricing reads them separately as an authenticated
+        // admin. The DB also REVOKEs these columns from the anon role.
         .select(
-          "id,sku,name,description,family,lead_time_days,availability,ip_rating,fieldbus,voltage,image_url,purchase_price,margin,weight_kg,length_mm,width_mm,height_mm,brand:brands(slug,name),category:categories(slug,name)",
+          "id,sku,name,description,family,lead_time_days,availability,ip_rating,fieldbus,voltage,image_url,weight_kg,length_mm,width_mm,height_mm,brand:brands(slug,name),category:categories(slug,name)",
         )
         .eq("status", "active")
         .limit(1000),

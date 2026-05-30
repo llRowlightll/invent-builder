@@ -11,8 +11,10 @@ export interface ProductRow {
   category: { slug: string; name: string };
   lead_time_days: number | null;
   availability: string | null;
-  purchase_price: number | null;
-  margin: number | null;
+  // Internal commercial data — only present when loaded by an admin context,
+  // never in the public catalog (see catalog.ts). Optional to reflect that.
+  purchase_price?: number | null;
+  margin?: number | null;
   weight_kg: number | null;
   ip_rating: string | null;
   fieldbus: string | null;
