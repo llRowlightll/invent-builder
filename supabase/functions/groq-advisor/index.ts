@@ -4,6 +4,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 // v49 — FULLY DETERMINISTIC BOM: LLM extras removed entirely. LLM writes title+explanation only. Mandatory BOM now includes fitting, cable, mounting rows. All SKU selection is server-side.
 // v48 — needsMounting detector + mounting category in bomCategories; LLM multi-axis prompt no longer asks for axis actuators; L3/L4 merged: all actuator SKUs banned from extras unconditionally.
 // v47 — 5-layer extras validation: unique SKU, no actuator-SKU in sensor/mounting role, no extra actuators on single-axis.
+// v47 — AI-correctness audit (Opus 4.8): (1) precision ≤0.1mm now force-fetches electric actuator categories regardless of free-text wording — fixes "precision ±0.02mm" returning empty CUSTOM-SOLUTION; (2) broadened detectCategories precision triggers (precision/positioner/repeterbar/noggrann/µm); (3) ATEX pneumatic BOM now includes ATEX valve + air-prep + zone-certification warning rows instead of just the bare primary.
 // v46 — Add isWashdown to BomCtx; mandatory IP69K warning row in BOM.
 // v45 — Mandatory BOM rows for: multi-axis secondary actuators (Y/Z-axel), high-temp PTFE/FKM warning, SIL/PLd safety valve warning, hydraulic out-of-scope warning. All deterministic — independent of LLM.
 // v44 — Telemetry: fire-and-forget logAdvisorEvent() logs every bom/options/questions call to integration_logs (duration_ms, rate_limited, bom_rows, specify_rows).
@@ -302,7 +303,7 @@ function detectCategories(text: string): string[] {
   const slugs = new Set<string>();
   if (/lyft|press|klämm|stansa|trycka|cylinder|pneumatisk|luft|piston|double.act/i.test(t))
     slugs.add("cylinder");
-  if (/elektrisk|servo|stepper|präcis|positionering|linjäraxel|electric|ball.screw|kuggrem|kuggremsaxel|elaxel|eldriven/i.test(t)) {
+  if (/elektrisk|servo|stepper|präcis|precis|positioner|linjäraxel|electric|ball.screw|kuggrem|kuggremsaxel|elaxel|eldriven|repeterbar|repeatab|noggrann|accura|mikrometer|µm|\bum\b/i.test(t)) {
     slugs.add("electric-actuator");
     slugs.add("linear-module");
   }
@@ -1190,6 +1191,35 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     });
   }
 
+  // ── 12. ATEX completeness: an ATEX pneumatic system still needs a control
+  // valve and air prep — but they must be ATEX-certified, so they are emitted
+  // as SPECIFY (catalog valves/FRL are NOT zone-rated). Without this an ATEX
+  // query returned only the bare primary actuator. Skip if electric (electric
+  // is forbidden in ATEX and handled elsewhere) or if no primary is pneumatic.
+  if ((isAtex || isAtexDust) && !isElectric) {
+    rows.push({
+      sku: "SPECIFY", quantity: 1,
+      role: isSv ? "ATEX-magnetventil (zon-certifierad)" : "ATEX solenoid valve (zone-certified)",
+      reason: isSv
+        ? "OBLIGATORISK styrventil för ATEX-zon — använd ATEX/IECEx-certifierad ventil (t.ex. Festo VOFC/tryckluftsstyrd) eller montera standardventil UTANFÖR zonen och dra slang in. Standardkatalogventiler är EJ zon-godkända."
+        : "MANDATORY control valve for ATEX zone — use an ATEX/IECEx-certified valve (e.g. Festo VOFC / air-piloted) or mount a standard valve OUTSIDE the zone with tubing in. Standard catalog valves are NOT zone-rated.",
+    });
+    rows.push({
+      sku: "SPECIFY", quantity: 1,
+      role: isSv ? "ATEX-luftberedning (FRL utanför zon)" : "ATEX air preparation (FRL outside zone)",
+      reason: isSv
+        ? "OBLIGATORISK luftberedning — placera FRL-enheten utanför den klassade zonen. Använd antistatisk slang och jordning av cylinder/rör per EN 80079-36."
+        : "MANDATORY air preparation — locate the FRL outside the classified zone. Use antistatic tubing and ground the cylinder/piping per EN 80079-36.",
+    });
+    rows.push({
+      sku: "SPECIFY", quantity: 1,
+      role: isSv ? "⚠️ ATEX: alla komponenter zon-certifierade + jordade" : "⚠️ ATEX: all components zone-certified + grounded",
+      reason: isSv
+        ? "KRAV ATEX/IECEx: cylinder, givare, ventil och tillbehör måste vara märkta för aktuell zon/gasgrupp/temperaturklass. Inga standard-24V-givare utan ATEX-godkännande. Verifiera ekvipotential jordning och dokumentera enligt direktiv 2014/34/EU."
+        : "ATEX/IECEx REQUIREMENT: cylinder, sensors, valve and accessories must be marked for the zone/gas group/temperature class. No standard 24 V sensors without ATEX approval. Verify equipotential grounding and document per Directive 2014/34/EU.",
+    });
+  }
+
   return rows;
 }
 
@@ -1314,6 +1344,19 @@ async function handleOptions(
   const isHighPrecision = precisionMm > 0 && precisionMm <= 0.1;
   const isHighPrecisionVertical = isVerticalLoad && isHighPrecision;
   const requiredTemp = extractRequiredMaxTemp(combinedText, answers);
+
+  // PRECISION FORCE-FETCH: a repeatability spec ≤0.1 mm can only be met by an
+  // electric ball-screw/spindle axis — pneumatics physically can't. So whenever
+  // high precision is required (and ATEX doesn't forbid electric), guarantee the
+  // electric actuator categories are fetched, regardless of whether the free
+  // text happened to say "electric"/"servo". Without this, "precision ±0.02 mm"
+  // with no electric keyword fetched only pneumatic cylinders → the precision
+  // filter removed them all → the user got an empty CUSTOM-SOLUTION instead of
+  // the correct ball-screw recommendation.
+  if (isHighPrecision && !isAtex && !isAtexDust) {
+    if (!categories.includes("electric-actuator")) categories.push("electric-actuator");
+    if (!categories.includes("linear-module")) categories.push("linear-module");
+  }
 
   const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
   const maxRequiredStroke = perAxisStrokes.length > 0

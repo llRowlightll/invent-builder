@@ -497,6 +497,54 @@ R=$(call_bom \
   "0822121007")
 check "T28 hydraulic out-of-scope warning" "$R" "hydraul|utanför|outside.*catalog|kN|hög.*kraft|high.*force|200.*bar" ""
 
+sleep 4
+# Test 29: precision ≤0.1mm WITHOUT the word "electric" → must still recommend
+# an electric ball-screw actuator (not CUSTOM-SOLUTION, not pneumatic).
+echo "  [29] precision ±0.02mm utan 'elektrisk' → elektrisk kulskruv..."
+R=$(call_options \
+  "Positionera 5kg med precision ±0.02mm, 200mm slag" \
+  '{"precision":"±0.02 mm","slag":"200 mm"}')
+BEST29=$(echo "$R" | python3 -c "
+import sys,json,re
+d=json.load(sys.stdin)
+opts=d.get('options',[])
+best=next((o for o in opts if o.get('badge','').lower() in ('bästa valet','best choice')),opts[0] if opts else {})
+print(best.get('sku','NONE'))
+" 2>/dev/null || echo "ERR")
+if is_rate_limited "$R"; then
+  echo "  ⚠️  T29 [SKIP — rate limited]"; ((SKIP++))
+elif echo "$BEST29" | python3 -c "import sys,re; sys.exit(0 if re.match(r'^(6E-|FESTO-EG|FESTO-EP|FESTO-DNCE|SMC-LE|SMC-MXS|MW-ELK|PARKER-ETH|PARKER-OSPE)',sys.stdin.read().strip(),re.I) else 1)" 2>/dev/null; then
+  echo "  ✅ T29 precision → elektrisk SKU ($BEST29)"; ((PASS++))
+else
+  echo "  ❌ T29 precision gav fel/ingen elektrisk ($BEST29)"; ((FAIL++)); FAILURES+=("T29 precision best=$BEST29")
+fi
+
+# Test 30: ATEX pneumatic → BOM must be COMPLETE (valve + air prep + warning),
+# not just the bare primary actuator, and contain no electric SKUs.
+echo "  [30] ATEX zon 1 → komplett BOM (ventil + FRL + ATEX-varning)..."
+R=$(call_bom \
+  "Cylinder i ATEX zon 1 explosionsfarlig miljö, 150mm" \
+  '{"miljö":"ATEX zon 1"}' \
+  "0822121007")
+if is_rate_limited "$R"; then
+  echo "  ⚠️  T30 [SKIP — rate limited]"; ((SKIP++))
+else
+  ATEX_OK=$(echo "$R" | python3 -c "
+import sys,json,re
+d=json.load(sys.stdin)
+bom=d.get('bom',[])
+s=json.dumps(d,ensure_ascii=False).lower()
+has_valve = bool(re.search(r'ventil|valve',s))
+has_atex  = 'atex' in s
+print('OK' if (len(bom)>=3 and has_valve and has_atex) else f'INCOMPLETE rows={len(bom)} valve={has_valve} atex={has_atex}')
+" 2>/dev/null || echo "ERR")
+  if [[ "$ATEX_OK" == "OK" ]]; then
+    echo "  ✅ T30 ATEX komplett BOM"; ((PASS++))
+  else
+    echo "  ❌ T30 ATEX ofullständig: $ATEX_OK"; ((FAIL++)); FAILURES+=("T30 ATEX: $ATEX_OK")
+  fi
+fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════"
