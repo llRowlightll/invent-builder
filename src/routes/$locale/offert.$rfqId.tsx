@@ -55,18 +55,22 @@ export default function PublicOffertPage() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from("rfqs").select("id,contact_name,contact_email,company,org_number,po_number,quote_amount,quote_currency,status,created_at").eq("id", rfqId).single(),
-      supabase.from("rfq_items").select("id,qty,unit_price,note,products(sku,name)").eq("rfq_id", rfqId),
+      // SECURITY: fetch quote + items by id via SECURITY DEFINER RPCs. Anon can
+      // no longer SELECT rfqs/rfq_items directly (no enumeration of every quote).
+      supabase.rpc("get_quote_by_id", { p_id: rfqId }),
+      supabase.rpc("get_quote_items", { p_rfq_id: rfqId }),
       fetchCompanySettings(),
     ]).then(([{ data: r }, { data: i }, co]) => {
       setCompany(co);
-      if (r) setRfq(r as Rfq);
-      setItems((i ?? []).map((d: Record<string, unknown>) => ({
+      const rfqRow = Array.isArray(r) ? r[0] : null;
+      if (rfqRow) setRfq(rfqRow as unknown as Rfq);
+      setItems(((i as Record<string, unknown>[]) ?? []).map((d) => ({
         id: d.id as string,
         qty: d.qty as number | null,
         unit_price: d.unit_price as number | null,
         note: d.note as string | null,
-        product: d.products as { sku: string; name: string } | null,
+        // RPC returns flat sku/name (joined to products) instead of nested object
+        product: d.sku ? { sku: d.sku as string, name: d.name as string } : null,
       })));
       setLoading(false);
     });
@@ -85,10 +89,14 @@ export default function PublicOffertPage() {
 
   async function respond(decision: "accepted" | "rejected") {
     setAccepting(true);
-    await supabase.from("rfqs").update({
-      status: decision,
-      po_number: poInput.trim() || rfq?.po_number || null,
-    }).eq("id", rfqId);
+    // SECURITY: respond via SECURITY DEFINER RPC. It only flips a quote that is
+    // currently 'quoted' → accepted/rejected and validates the decision value,
+    // so anon can no longer mass-update arbitrary quotes.
+    await supabase.rpc("respond_to_quote", {
+      p_id: rfqId,
+      p_decision: decision,
+      p_po: poInput.trim() || null,
+    });
     // Fire notification email
     await fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email", {
       method: "POST",

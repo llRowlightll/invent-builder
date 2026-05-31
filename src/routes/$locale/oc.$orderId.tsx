@@ -55,12 +55,16 @@ export default function PublicOCPage() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from("orders").select("*").eq("id", orderId).single(),
+      // SECURITY: fetch one order by id via SECURITY DEFINER RPC. Anon can no
+      // longer SELECT the orders table directly (no enumeration) — the UUID in
+      // the emailed link is the bearer token.
+      supabase.rpc("get_order_by_id", { p_id: orderId }),
       fetchCompanySettings(),
     ]).then(([{ data, error }, co]) => {
       setCompany(co);
-      if (error || !data) { setNotFound(true); }
-      else setOrder(data as unknown as Order);
+      const row = Array.isArray(data) ? data[0] : null;
+      if (error || !row) { setNotFound(true); }
+      else setOrder(row as unknown as Order);
       setLoading(false);
     });
   }, [orderId]);

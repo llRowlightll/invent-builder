@@ -2179,7 +2179,109 @@ export type Database = {
         Args: { p_category_slug?: string; p_limit?: number }
         Returns: Json
       }
+      get_order_by_id: {
+        Args: { p_id: string }
+        Returns: {
+          carrier: string | null
+          created_at: string
+          currency: string
+          customer_company: string | null
+          customer_email: string
+          customer_name: string
+          customer_org_nr: string | null
+          delivered_at: string | null
+          estimated_delivery: string | null
+          fortnox_invoice_id: string | null
+          id: string
+          internal_notes: string | null
+          invoice_date: string | null
+          invoice_due_date: string | null
+          invoice_number: string | null
+          invoice_url: string | null
+          items: Json
+          paid_at: string | null
+          payment_status: string
+          peppol_id: string | null
+          po_number: string | null
+          project_id: string | null
+          rfq_id: string | null
+          shipped_at: string | null
+          status: string
+          total_ex_vat: number | null
+          total_inc_vat: number | null
+          tracking_number: string | null
+          updated_at: string
+          user_id: string | null
+          vat_rate: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "orders"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      get_quote_by_id: {
+        Args: { p_id: string }
+        Returns: {
+          address_city: string | null
+          address_country: string | null
+          address_postal: string | null
+          address_street: string | null
+          bom_id: string | null
+          carrier: string | null
+          company: string | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string | null
+          estimated_delivery: string | null
+          fortnox_order_id: string | null
+          hubspot_contact_id: string | null
+          hubspot_deal_id: string | null
+          id: string
+          integration_error: string | null
+          integration_synced_at: string | null
+          internal_notes: string | null
+          label_url: string | null
+          message: string | null
+          org_number: string | null
+          po_number: string | null
+          quote_amount: number | null
+          quote_currency: string | null
+          shipment_status: string | null
+          shipped_at: string | null
+          status: string | null
+          title: string | null
+          tracking_code: string | null
+          tracking_number: string | null
+          updated_at: string | null
+          user_id: string | null
+          vat_number: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "rfqs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      get_quote_items: {
+        Args: { p_rfq_id: string }
+        Returns: {
+          id: string
+          name: string
+          note: string
+          qty: number
+          sku: string
+          unit_price: number
+        }[]
+      }
       has_role: { Args: { check_role: string; uid: string }; Returns: boolean }
+      respond_to_quote: {
+        Args: { p_decision: string; p_id: string; p_po?: string }
+        Returns: boolean
+      }
       rfq_status_counts: {
         Args: never
         Returns: {
@@ -2382,4 +2484,3 @@ export const Constants = {
     },
   },
 } as const
-
