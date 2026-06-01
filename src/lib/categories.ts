@@ -16,6 +16,18 @@ const CATEGORY_NAMES: Record<string, Record<string, string>> = {
     de: "Elektrischer Aktuator",
     es: "Actuador eléctrico",
   },
+  "rotary-actuator": {
+    sv: "Roterande aktuator",
+    en: "Rotary Actuator",
+    de: "Schwenkantrieb",
+    es: "Actuador rotativo",
+  },
+  "rod-lock": {
+    sv: "Stångbroms/Låsenhet",
+    en: "Rod Lock",
+    de: "Kolbenstangenklemmung",
+    es: "Bloqueo de vástago",
+  },
   "valve": {
     sv: "Ventil",
     en: "Valve",
