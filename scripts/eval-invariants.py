@@ -191,12 +191,15 @@ def check_options(scenario, resp, cat):
     bore_ok = (bb == 0) or (bb >= min_bore)
     out.append(("INV-options-bore>=minBore", bore_ok, f"load={scenario['load']}kg minBore=Ø{min_bore} best=Ø{bb:.0f} ({bsku})"))
 
-    # INV-4 PRECISION ⇒ electric ball-screw (unless ATEX, or no electric fits the stroke)
+    # INV-4 PRECISION ⇒ best option is an electric ball-screw OR an honest
+    # CUSTOM-SOLUTION escalation — but NEVER a concrete pneumatic product
+    # (pneumatics physically cannot hold ≤0.1 mm). CUSTOM is the correct answer
+    # when another hard constraint (e.g. washdown IP69K, for which the catalog
+    # has no electric ball-screw) eliminates every stock electric option.
+    # ATEX forbids electric entirely, so this invariant does not apply there.
     if "precision" in f and "atex" not in f:
-        electric_can_fit = cat is None or cat["max_electric_stroke"] >= scenario["stroke"]
-        if electric_can_fit:
-            ok = bool(ELECTRIC_SKU.match(bsku))
-            out.append(("INV-precision=>electric", ok, f"best={bsku} (förväntar elektrisk kulskruv)"))
+        ok = (bsku == "CUSTOM-SOLUTION") or bool(ELECTRIC_SKU.match(bsku))
+        out.append(("INV-precision=>electric-or-custom", ok, f"best={bsku} (förväntar elektrisk kulskruv eller CUSTOM)"))
 
     # INV-5 ATEX ⇒ no electric actuator SKU anywhere in options
     if "atex" in f:
