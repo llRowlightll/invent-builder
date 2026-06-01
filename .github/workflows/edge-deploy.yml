@@ -8,6 +8,12 @@ on:
       - 'scripts/test-advisor.sh'
   workflow_dispatch:
 
+# Shared group with deploy.yml so the two LLM-heavy advisor workflows run one at a
+# time on a push, instead of both hammering Groq and tripping rate limits.
+concurrency:
+  group: advisor-llm-ci
+  cancel-in-progress: false
+
 jobs:
   deploy-and-test:
     runs-on: ubuntu-latest

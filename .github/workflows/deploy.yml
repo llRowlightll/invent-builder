@@ -5,6 +5,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Serialize the LLM-heavy advisor CI (this workflow + edge-deploy.yml) so they
+# don't hammer Groq concurrently on the same push — caused rate-limit flakes.
+concurrency:
+  group: advisor-llm-ci
+  cancel-in-progress: false
+
 jobs:
   # ── 1. BOM regression suite (29 tests) ─────────────────────────────────────
   regression:
@@ -19,6 +25,7 @@ jobs:
 
   # ── 2. Options accuracy eval (10 random physical scenarios) ─────────────────
   eval-accuracy:
+    needs: regression   # serialize the two LLM-heavy jobs (avoid concurrent Groq load)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
