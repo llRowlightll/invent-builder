@@ -1,9 +1,27 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import {
+  type CatalogProduct,
+  type ScoringCtx,
+  normalizeKeySpecs,
+  isFamilyProduct,
+  parseStrokeFromSpecs,
+  isBallScrewProduct,
+  isBeltDrivenProduct,
+  isPneumaticActuatorProduct,
+  isAllowedForHighPrecision,
+  isAllowedForPrecisionVertical,
+  isAllowedForHighSpeed,
+  isElectricActuator,
+  isWashdownProduct,
+  rankActuators,
+} from "./scoring.ts";
 
 // v50 — Bore/force gating: calcMinBoreMm(loadKg), extractLoadKg(), minBoreMm in ScoringCtx (±40pts), hard bore pre-filter before scoring. Catalog: 12 new ISO cylinders at 250/300mm stroke Ø40-Ø80 (BR/Parker/Camozzi). Eval: test-options-accuracy.sh.
 // v49 — FULLY DETERMINISTIC BOM: LLM extras removed entirely. LLM writes title+explanation only. Mandatory BOM now includes fitting, cable, mounting rows. All SKU selection is server-side.
 // v48 — needsMounting detector + mounting category in bomCategories; LLM multi-axis prompt no longer asks for axis actuators; L3/L4 merged: all actuator SKUs banned from extras unconditionally.
 // v47 — 5-layer extras validation: unique SKU, no actuator-SKU in sensor/mounting role, no extra actuators on single-axis.
+// v49 — Invariant-eval finding #2: pneumatic slides (MW-S, SMC) miscategorized as "linear-module" passed the high-precision filter (category said electric). Added isPneumaticByDrive() — detects air-driven products by operating_pressure spec (not category) and excludes them from precision selection regardless of miscategorization.
+// v48 — Invariant-eval finding: vertical ATEX had no anti-drop device (brake motor forbidden in zone, check-valve row gated on isPneumatic which excludes ATEX). Added ATEX-rated anti-drop row (pilot check valve / rod lock) for vertical ATEX loads.
 // v47 — AI-correctness audit (Opus 4.8): (1) precision ≤0.1mm now force-fetches electric actuator categories regardless of free-text wording — fixes "precision ±0.02mm" returning empty CUSTOM-SOLUTION; (2) broadened detectCategories precision triggers (precision/positioner/repeterbar/noggrann/µm); (3) ATEX pneumatic BOM now includes ATEX valve + air-prep + zone-certification warning rows instead of just the bare primary.
 // v46 — Add isWashdown to BomCtx; mandatory IP69K warning row in BOM.
 // v45 — Mandatory BOM rows for: multi-axis secondary actuators (Y/Z-axel), high-temp PTFE/FKM warning, SIL/PLd safety valve warning, hydraulic out-of-scope warning. All deterministic — independent of LLM.
@@ -154,88 +172,6 @@ async function searchKnowledge(query: string, limit = 6): Promise<string> {
   } catch { return ""; }
 }
 
-interface CatalogProduct {
-  sku: string; name: string; category: string; brand: string;
-  key_specs: Record<string, unknown>; purchase_price?: number;
-}
-
-/**
- * v38: Normalize raw key_specs from the RPC into consistent keys:
- *   stroke_mm (numeric string), bore_mm (numeric string), force_n (numeric string).
- * Also computes force_n from bore_mm × 6 bar if missing.
- * Sets is_family=true when product covers a range (stroke_range) rather than a fixed value.
- */
-function normalizeKeySpecs(raw: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = { ...raw };
-
-  // ── Stroke ─────────────────────────────────────────────────────────────────
-  // Canonical output key: stroke_mm (max value as "NNN mm")
-  if (!out.stroke_mm) {
-    for (const k of ["stroke_max", "max_stroke_mm", "max_stroke"]) {
-      if (raw[k] != null) { out.stroke_mm = raw[k]; delete out[k]; break; }
-    }
-  }
-  if (!out.stroke_mm && raw.stroke_range) {
-    const m = String(raw.stroke_range).match(/(\d+(?:[.,]\d+)?)[–—\-](\d+(?:[.,]\d+)?)/);
-    if (m) {
-      out.stroke_mm = m[2] + " mm"; // use max of range
-      out.is_family = true;         // family product — not a single orderable SKU
-    } else {
-      const single = parseFloat(String(raw.stroke_range));
-      if (!isNaN(single)) out.stroke_mm = single + " mm";
-    }
-  }
-  // Strip " mm" suffix so parseFloat works cleanly downstream
-  if (typeof out.stroke_mm === "string") {
-    const n = parseFloat(out.stroke_mm);
-    if (!isNaN(n)) out.stroke_mm = n + " mm";
-  }
-
-  // ── Bore ──────────────────────────────────────────────────────────────────
-  // Canonical output key: bore_mm (first/lowest numeric value)
-  if (!out.bore_mm) {
-    for (const k of ["bore_diameter_mm", "bore_diameter"]) {
-      if (raw[k] != null) { out.bore_mm = raw[k]; delete out[k]; break; }
-    }
-  }
-  if (!out.bore_mm && raw.bore_range) {
-    // e.g. "32,40,50,63,80,100" or "32–100" — take first value
-    const first = parseFloat(String(raw.bore_range).replace(/[^0-9.]/g, "0").split("0")[0]);
-    if (!isNaN(first) && first > 0) { out.bore_mm = first + " mm"; out.is_family = true; }
-  }
-  if (typeof out.bore_mm === "string" && out.bore_mm.includes(",")) {
-    // e.g. "8,12,16,20,25,32,40,50,63" → take first
-    const first = parseFloat(out.bore_mm);
-    if (!isNaN(first)) { out.bore_mm = first + " mm"; out.is_family = true; }
-  }
-
-  // ── Force ─────────────────────────────────────────────────────────────────
-  // Canonical output key: force_n
-  if (!out.force_n) {
-    for (const k of ["piston_force_6bar_N", "thrust_force", "clamping_force", "gripping_force_N"]) {
-      if (raw[k] != null) { out.force_n = raw[k]; delete out[k]; break; }
-    }
-  }
-  // Calculate from bore if still missing
-  if (!out.force_n && out.bore_mm) {
-    const bore = parseFloat(String(out.bore_mm));
-    if (!isNaN(bore) && bore > 0) {
-      const force = Math.round(Math.PI / 4 * bore * bore * 6 * 0.1); // 6 bar in N/mm²=0.6 MPa, area mm²
-      out.force_n = force + " N";
-    }
-  }
-
-  return out;
-}
-
-/** Returns true for "family" products — product families covering a range, not a specific orderable SKU. */
-function isFamilyProduct(p: CatalogProduct): boolean {
-  if (p.key_specs?.is_family) return true;
-  // SKU pattern: FESTO-*, SMC-*, PARKER-*, NORGREN-* (family placeholders)
-  if (/^(FESTO|SMC|PARKER|NORGREN|CAMOZZI|METAL[-_]WORK|BOSCH)-/i.test(p.sku)) return true;
-  return false;
-}
-
 async function fetchProducts(categorySlugs: string[], limit = 30): Promise<CatalogProduct[]> {
   const results = await Promise.all(
     categorySlugs.map(async (slug) => {
@@ -374,21 +310,6 @@ function extractRequiredMaxTemp(text: string, answers: Record<string, string>): 
   if (grad) matches.push(parseInt(grad[1]));
   const relevant = matches.filter(t => t > 80 && t < 1200);
   return relevant.length > 0 ? Math.max(...relevant) : 0;
-}
-
-function parseStrokeFromSpecs(specs: Record<string, unknown>): number {
-  for (const key of ["stroke_mm", "stroke_max", "max_stroke_mm", "max_stroke"]) {
-    const v = specs[key];
-    if (v != null) { const n = parseFloat(String(v)); if (!isNaN(n) && n > 0) return n; }
-  }
-  const rangeStr = specs["stroke_range"];
-  if (rangeStr) {
-    const m = String(rangeStr).match(/(\d+)[–—\-](\d+)/);
-    if (m) return parseInt(m[2]);
-    const single = parseFloat(String(rangeStr));
-    if (!isNaN(single) && single > 0) return single;
-  }
-  return 0;
 }
 
 function strokeLabel(specs: Record<string, unknown>): string {
@@ -546,12 +467,6 @@ function needsBatteryDryroom(text: string): boolean {
   return /\bdryroom\b|\bdry\s*room\b|\btorrkammare\b|\blitiumjon\b|\blithium[-\s]?ion\b|\bli[-\s]?ion\b|\bbatterifabrik\b|\bbattery\s*(?:manufactur|produc|cell|fabrik)\b|\bbatteriproduk\b|\bbattericell\b|\bkatod(?:material)?\b|\banod(?:material)?\b|\belektrod(?:material)?\b|\belectrode\b|\bpouch\s*cell\b|\blitiumbatteri\b|\bcell\s*monter\b|\bcu\/zn\/ni\b|\bkoppar.*zink.*nickel\b/i.test(text);
 }
 
-/** Returns true if a product is ball-screw driven (not belt or direct linear motor). */
-function isBallScrewProduct(p: CatalogProduct): boolean {
-  const s = (p.name + " " + p.sku + " " + JSON.stringify(p.key_specs ?? {})).toLowerCase();
-  return /\begsk\b|\bkulskruv\b|\bball\s*screw\b|\bspindel\b|\bspindle\b|\blead\s*screw\b|\bleadscrew\b/i.test(s);
-}
-
 /** Extract numeric speed in m/s from free text + answers (for mechanism compatibility check). */
 function extractSpeedMs(text: string, answers: Record<string, string>): number {
   const all = text + " " + Object.values(answers).join(" ");
@@ -581,66 +496,19 @@ function extractPrecisionMm(text: string, answers: Record<string, string>): numb
   return 0;
 }
 
-/** Returns true if a product is belt-driven (not ball screw, not pneumatic). */
-function isBeltDrivenProduct(p: CatalogProduct): boolean {
-  const s = (p.name + " " + p.sku + " " + JSON.stringify(p.key_specs ?? {})).toLowerCase();
-  return /\bkuggrem\b|\btiming[\s-]?belt\b|\bsynchronous[\s-]?belt\b|\belgc[-.]?tb\b|\begsc\b|\belt[-\s]driv/i.test(s);
-}
-
-/** Returns true if a product is a pneumatic cylinder (actuator) — NOT an electric axis. */
-function isPneumaticActuatorProduct(p: CatalogProduct): boolean {
-  // Items without stroke spec are accessories — they are neither pneumatic nor electric actuators
-  if (parseStrokeFromSpecs(p.key_specs ?? {}) === 0) return false;
-  return !isElectricActuator(p);
-}
-
 /**
- * PRECISION RULE (ALL AXES, v34): if precision ≤ 0.1 mm, belt drives and pneumatics
- * are physically excluded regardless of axis orientation.
- * • Pneumatic repeatability: ±0.1–0.5 mm → cannot achieve ≤0.1 mm
- * • Belt backlash: 0.05–0.3 mm → violates ≤0.1 mm precision budget
- * • Ball screw / spindle: 0.003–0.05 mm → physically capable
- * Returns true if product is ALLOWED for high-precision application.
+ * Drive-based pneumatic detector — does NOT trust the category. Some pneumatic
+ * slides (Metal Work MW-S, SMC) are miscategorized as "linear-module" (an
+ * electric category) yet run on compressed air (operating_pressure in bar) and
+ * cannot achieve servo precision. We detect the real drive: a product with an
+ * operating_pressure spec and no electric signal (voltage / repeatability_mm)
+ * is pneumatic regardless of how it is categorized.
  */
-function isAllowedForHighPrecision(p: CatalogProduct): boolean {
-  const hasStroke = parseStrokeFromSpecs(p.key_specs ?? {}) > 0;
-  if (!hasStroke) return true; // accessories always included
-  if (!isElectricActuator(p)) return false; // no pneumatics (repeatability too poor)
-  if (isBeltDrivenProduct(p)) return false; // no belt (backlash too high)
-  return true; // electric ball screw / spindle / linear motor only
-}
-
-/**
- * Alias kept for backward compat — same logic, used for vertical+precision specifically.
- */
-function isAllowedForPrecisionVertical(p: CatalogProduct): boolean {
-  return isAllowedForHighPrecision(p);
-}
-
-/**
- * HIGH-SPEED RULE (v34): if speed > 0.8 m/s AND no precision constraint,
- * ball-screw drives are excluded (vibration, wear, resonance above ~800 mm/s).
- * Only applies when precision is NOT the limiting factor (if precision ≤ 0.1mm,
- * ball screw may still be needed despite high speed).
- * Returns true if product is ALLOWED for high-speed, low-precision application.
- */
-function isAllowedForHighSpeed(p: CatalogProduct): boolean {
-  const hasStroke = parseStrokeFromSpecs(p.key_specs ?? {}) > 0;
-  if (!hasStroke) return true;
-  if (!isElectricActuator(p)) return true; // pneumatic at high speed = fine (add cushions)
-  if (isBallScrewProduct(p)) return false; // ball screw resonates / wears above 800 mm/s
-  return true; // belt drive, linear motor = ideal for high speed
-}
-
-/** Returns true if a product is an electric actuator/motor/drive — forbidden in ATEX zones. */
-function isElectricActuator(p: CatalogProduct): boolean {
-  const name = (p.name + " " + p.brand).toLowerCase();
-  return (
-    p.category === "electric-actuator" ||
-    p.category === "linear-module" ||
-    /\begsk\b|\belgc\b|\belga\b|\blesh\b|\blefs\b|\bosp[-.]?e\b|\bhmr\b|\blbb\b|\bhlr\b/i.test(name) ||
-    /servo|stepper|ball.screw|kuggrem|electric.*axis|linjärmodul.*el|eldriven/i.test(name)
-  );
+function isPneumaticByDrive(p: CatalogProduct): boolean {
+  const ks = p.key_specs ?? {};
+  const hasAirPressure = ks["operating_pressure"] != null;
+  const hasElectricSignal = ks["voltage"] != null || ks["repeatability_mm"] != null;
+  return hasAirPressure && !hasElectricSignal;
 }
 
 /**
@@ -660,22 +528,6 @@ function needsEndPositionDetection(text: string): boolean {
 /** Returns true if user wants mounting brackets / foot mounts / flanges. */
 function needsMounting(text: string): boolean {
   return /fotfäste|foot.*mount|fot.*fäste|flansfäste|flange.*mount|monteringsfäste|bracket|montering|montage|fäste|befästning|konsol|mounting|swivel.*flange|trunnion/i.test(text);
-}
-
-/** Returns true if a product is suitable for washdown environments. */
-function isWashdownProduct(p: CatalogProduct): boolean {
-  const ip = String(p.key_specs?.ip_rating ?? "").toLowerCase();
-  const name = (p.name + " " + p.brand).toLowerCase();
-  // Products without stroke spec are support items (sensors, fittings) — include regardless
-  if (parseStrokeFromSpecs(p.key_specs ?? {}) === 0) return true;
-  return (
-    ip.includes("ip67") || ip.includes("ip69") ||
-    name.includes("stainless") || name.includes("rostfri") ||
-    name.includes("corrosion") || name.includes("crdsnu") ||
-    name.includes("clean design") || name.includes("cleandesign") ||
-    name.includes("serie 90") || name.includes("washdown") ||
-    name.includes("food grade") || name.includes("hygienic")
-  );
 }
 
 interface CustomSolutionContext {
@@ -818,16 +670,6 @@ function sanitizeSingleAxisBom(
 
 // ── v40: Deterministic product scoring ────────────────────────────────────────
 
-interface ScoringCtx {
-  requiredStroke: number;
-  minBoreMm: number;       // minimum bore from load calculation (0 = unknown)
-  isHighPrecision: boolean;
-  isHighSpeed: boolean;
-  isVertical: boolean;
-  isWashdown: boolean;
-  isAtex: boolean;
-}
-
 /**
  * Calculate minimum required bore (mm) from load (kg) at given pressure (bar).
  * Uses F = P × A formula with safety factor 2.
@@ -847,70 +689,6 @@ function extractLoadKg(text: string, answers: Record<string, string>): number {
   const nMatch = allText.match(/(\d+(?:[.,]\d+)?)\s*N\b/);
   if (nMatch) return parseFloat(nMatch[1].replace(",", ".")) / 9.81;
   return 0;
-}
-
-/**
- * v40: Score a catalog product 0–100 for ranking (deterministic, no LLM).
- * Higher = better match for the application requirements.
- */
-function scoreProduct(p: CatalogProduct, ctx: ScoringCtx): number {
-  if (ctx.isAtex && isElectricActuator(p)) return -9999;
-
-  let score = 50;
-  const maxStroke = parseStrokeFromSpecs(p.key_specs ?? {});
-
-  // ── Stroke fit (±30 points) ───────────────────────────────────────
-  if (ctx.requiredStroke > 0 && maxStroke > 0) {
-    if (maxStroke >= ctx.requiredStroke) {
-      const overshoot = (maxStroke - ctx.requiredStroke) / ctx.requiredStroke;
-      score += Math.max(0, 25 - overshoot * 50); // 25 at 0% overshoot, 0 at 50%+
-    } else {
-      score -= 30; // below requirement
-    }
-  } else if (maxStroke === 0) {
-    score -= 5; // no stroke spec = accessory/family
-  }
-
-  // ── Technology match (±25 points) ────────────────────────────────
-  const isBallScrew = isBallScrewProduct(p);
-  const isBelt     = isBeltDrivenProduct(p);
-  const isPneu     = isPneumaticActuatorProduct(p);
-  if (ctx.isHighPrecision) {
-    if (isBallScrew)        score += 25;
-    else if (isPneu || isBelt) score -= 25;
-  }
-  if (ctx.isHighSpeed && !ctx.isHighPrecision) {
-    if (isBelt)       score += 20;
-    else if (isBallScrew) score -= 15;
-  }
-
-  // ── Washdown fit (±15 points) ─────────────────────────────────────
-  if (ctx.isWashdown) {
-    if (isWashdownProduct(p)) score += 15;
-    else if (maxStroke > 0)   score -= 20;
-  }
-
-  // ── Bore adequacy (±40 points) — HARD physical requirement ──────
-  if (ctx.minBoreMm > 0) {
-    const boreMm = parseFloat(String(p.key_specs?.bore_mm ?? "0"));
-    if (boreMm > 0) {
-      if (boreMm >= ctx.minBoreMm) {
-        // Prefer closest adequate bore (avoid wildly oversized)
-        const oversize = (boreMm - ctx.minBoreMm) / ctx.minBoreMm;
-        score += Math.max(0, 20 - oversize * 30); // 20pts at exact, 0 at 67%+
-      } else {
-        score -= 40; // bore too small for load — hard penalty
-      }
-    }
-  }
-
-  // ── Penalties ────────────────────────────────────────────────────
-  if (isFamilyProduct(p))    score -= 5;
-  const price = p.purchase_price ?? 9999;
-  if (price < 150) score += 4;
-  else if (price < 400) score += 2;
-
-  return score;
 }
 
 /**
@@ -1211,6 +989,18 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
         ? "OBLIGATORISK luftberedning — placera FRL-enheten utanför den klassade zonen. Använd antistatisk slang och jordning av cylinder/rör per EN 80079-36."
         : "MANDATORY air preparation — locate the FRL outside the classified zone. Use antistatic tubing and ground the cylinder/piping per EN 80079-36.",
     });
+    // Vertical ATEX still needs an anti-drop device. It can't be electric (forbidden
+    // in the zone) and the standard check-valve row is gated on isPneumatic (which
+    // excludes ATEX), so add an explicit ATEX-rated load-holding row here.
+    if (isVerticalLoad) {
+      rows.push({
+        sku: "SPECIFY", quantity: 1,
+        role: isSv ? "ATEX-fallspärr (pilotbackventil / mekanisk stångbroms)" : "ATEX anti-drop (pilot check valve / mechanical rod lock)",
+        reason: isSv
+          ? "OBLIGATORISK vid vertikal last i ATEX-zon — förhindrar lastfall vid lufttrycksförlust. Använd ATEX/IECEx-klassad pilotmanövrerad backslagsventil eller mekanisk stångbroms. Elektrisk bromsmotor är EJ tillåten i zonen."
+          : "MANDATORY for vertical load in an ATEX zone — prevents load drop on air loss. Use an ATEX/IECEx-rated pilot-operated check valve or mechanical rod lock. An electric brake motor is NOT permitted in the zone.",
+      });
+    }
     rows.push({
       sku: "SPECIFY", quantity: 1,
       role: isSv ? "⚠️ ATEX: alla komponenter zon-certifierade + jordade" : "⚠️ ATEX: all components zone-certified + grounded",
@@ -1389,18 +1179,24 @@ async function handleOptions(
       })
     : speedFiltered;
 
-  const qualified: CatalogProduct[] = [];
+  const qualified: CatalogProduct[] = [];        // concrete stroke ≥ requirement
+  const configurable: CatalogProduct[] = [];     // strokeless families — shown (labelled), never a silent stroke match
   let bestFallback: CatalogProduct | null = null;
   let bestFallbackStroke = 0;
   let maxCatalogStroke = 0;
   for (const p of boreFiltered) {
     const maxStroke = parseStrokeFromSpecs(p.key_specs ?? {});
     if (maxStroke > maxCatalogStroke) maxCatalogStroke = maxStroke;
-    if (maxRequiredStroke === 0 || maxStroke === 0) qualified.push(p);
-    else if (maxStroke >= maxRequiredStroke) qualified.push(p);
+    if (maxStroke === 0) { configurable.push(p); continue; } // no concrete stroke → configurable, not a confirmed match
+    if (maxRequiredStroke === 0 || maxStroke >= maxRequiredStroke) qualified.push(p);
     else if (maxStroke > bestFallbackStroke) { bestFallbackStroke = maxStroke; bestFallback = p; }
   }
-  const showProducts = qualified.length > 0 ? qualified : (bestFallback ? [bestFallback] : (isWashdown ? allProducts : []));
+  // Configurable families are eligible for display (ranked BELOW concrete + labelled),
+  // but they do NOT count as the catalog being able to meet the stroke requirement.
+  const concreteOrFallback = qualified.length > 0 ? qualified : (bestFallback ? [bestFallback] : []);
+  const showProducts = (concreteOrFallback.length > 0 || configurable.length > 0)
+    ? [...concreteOrFallback, ...configurable]
+    : (isWashdown ? allProducts : []);
   const catalogCanHandle = qualified.length > 0;
 
   const tempFiltered = requiredTemp > 0
@@ -1411,15 +1207,11 @@ async function handleOptions(
   const catalogProducts = sortedProducts.slice(0, 25);
   console.log(`[options v40] categories=${categories} stroke=${maxRequiredStroke} qualified=${qualified.length} catalog=${catalogProducts.length}`);
 
-  // ── v40: Server-side product selection ───────────────────────────
-  // Score every product deterministically, pick top 3 actuators
+  // ── v40/v51: Server-side product selection ───────────────────────
+  // rankActuators() tiers candidates so a configurable family NEVER outranks a
+  // concrete-stroke product that meets the requirement (regression-tested).
   const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, isHighPrecision, isHighSpeed, isVertical: isVerticalLoad, isWashdown, isAtex };
-  const scoredActuators = catalogProducts
-    .filter(p => parseStrokeFromSpecs(p.key_specs ?? {}) > 0 || maxRequiredStroke === 0)
-    .map(p => ({ p, s: scoreProduct(p, scoringCtx) }))
-    .sort((a, b) => b.s - a.s);
-
-  const topProducts = scoredActuators.slice(0, 3).map(x => x.p);
+  const topProducts = rankActuators(catalogProducts, scoringCtx).slice(0, 3);
 
   // Build server-side option objects (correct data, LLM fills in text)
   const lang = isSv ? "svenska" : "English";
@@ -1501,6 +1293,18 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     if (!cat) return opt;
     const actualMax = parseStrokeFromSpecs(cat.key_specs ?? {});
     opt.stroke_mm = actualMax > 0 ? actualMax : null;
+    // Family / configurable product: never present it as a silent exact match.
+    // Tiering already keeps it below concrete matches; here we label it clearly so
+    // the user knows the exact stroke is chosen at order (not a fixed stock SKU).
+    const isConfigurable = isFamilyProduct(cat) || actualMax === 0;
+    const tooShort = maxRequiredStroke > 0 && actualMax > 0 && actualMax < maxRequiredStroke;
+    if (isConfigurable && !tooShort) {
+      opt.badge = isSv ? "Konfigurera slag vid order" : "Configure stroke at order";
+      const note = isSv
+        ? `🔧 Produktfamilj/serie — exakt slaglängd${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} väljs vid beställning${actualMax > 0 ? `; serien täcker upp till ${actualMax} mm` : ""}.`
+        : `🔧 Product family/series — exact stroke${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} is selected at order${actualMax > 0 ? `; the series covers up to ${actualMax} mm` : ""}.`;
+      opt.why = `${note} ${opt.why ?? ""}`.trim();
+    }
     if (maxRequiredStroke > 0 && actualMax > 0 && actualMax < maxRequiredStroke) {
       opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
       opt.why = `${opt.why} ⚠️ Max stroke ${actualMax} mm — krav ${maxRequiredStroke} mm.`;
