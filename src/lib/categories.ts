@@ -22,6 +22,12 @@ const CATEGORY_NAMES: Record<string, Record<string, string>> = {
     de: "Schwenkantrieb",
     es: "Actuador rotativo",
   },
+  "rod-lock": {
+    sv: "Stångbroms/Låsenhet",
+    en: "Rod Lock",
+    de: "Kolbenstangenklemmung",
+    es: "Bloqueo de vástago",
+  },
   "valve": {
     sv: "Ventil",
     en: "Valve",
