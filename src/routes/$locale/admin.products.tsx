@@ -47,7 +47,9 @@ export default function AdminProductsPage() {
   async function load() {
     setLoading(true);
     const [{ data: prods }, { data: bs }, { data: cs }] = await Promise.all([
-      supabase.from("products").select("*, brand:brands(id,name,slug), category:categories(id,name,slug)").order("name"),
+      // Explicit non-cost columns only — purchase_price/margin are admin-only and
+      // not selectable by the authenticated role (managed via admin.pricing).
+      supabase.from("products").select("id,sku,name,description,family,brand_id,category_id,lead_time_days,availability,ip_rating,fieldbus,voltage,status,image_url,created_at,updated_at,weight_kg,length_mm,width_mm,height_mm, brand:brands(id,name,slug), category:categories(id,name,slug)").order("name"),
       supabase.from("brands").select("*").order("name"),
       supabase.from("categories").select("*").order("name"),
     ]);

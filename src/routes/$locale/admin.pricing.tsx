@@ -14,6 +14,13 @@ type Row   = {
   purchase_price: number | null; margin: number | null;
   brand: Brand; category: Cat; brand_id: string; category_id: string;
 };
+// Shape returned by the admin_list_product_pricing() RPC (flat brand/category names).
+type PricingRpcRow = {
+  id: string; sku: string; name: string;
+  purchase_price: number | null; margin: number | null;
+  brand_id: string; category_id: string;
+  brand_name: string | null; category_name: string | null;
+};
 type Proposal = {
   sku: string; name: string; brand: string;
   purchase_price: number;
@@ -109,13 +116,20 @@ export default function AdminPricingPage() {
   async function load() {
     setLoading(true);
     const [{ data: ps }, { data: bs }, { data: cs }] = await Promise.all([
-      supabase.from("products")
-        .select("id,sku,name,purchase_price,margin,brand_id,category_id,brand:brands(id,name),category:categories(id,name)")
-        .order("name"),
+      // purchase_price/margin are admin-only cost data. The authenticated role no
+      // longer has column SELECT on them, so they are read via a SECURITY DEFINER
+      // RPC (admin-gated) rather than a direct table query.
+      (supabase as any).rpc("admin_list_product_pricing"),
       supabase.from("brands").select("id,name").order("name"),
       supabase.from("categories").select("id,name").order("name"),
     ]);
-    setRows((ps ?? []) as Row[]);
+    setRows(((ps ?? []) as PricingRpcRow[]).map((d) => ({
+      id: d.id, sku: d.sku, name: d.name,
+      purchase_price: d.purchase_price, margin: d.margin,
+      brand_id: d.brand_id, category_id: d.category_id,
+      brand: { id: d.brand_id, name: d.brand_name ?? "—" },
+      category: { id: d.category_id, name: d.category_name ?? "—" },
+    })) as Row[]);
     setBrands((bs ?? []) as Brand[]);
     setCats((cs ?? []) as Cat[]);
     setLoading(false);
