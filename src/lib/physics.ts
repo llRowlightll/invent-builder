@@ -119,7 +119,8 @@ export function computePhysics(dims: PhysicsDimensions): PhysicsResult {
   // ─── 3. PRECISION → TECHNOLOGY ─────────────────────────────────────────────
   if (dims.precision === "high" || dims.precision === "very_high") {
     result.technology = "electric";
-    result.categories = ["electric-actuator", "servo-actuator", "linear-module"];
+    // (servo-actuator had no DB row — servo/stepper axes ARE electric-actuators)
+    result.categories = ["electric-actuator", "linear-module"];
     result.reasoning.push(
       "Hög precision / repeterbarhet kräver ELEKTRISK axel (servomotor eller stegmotor). " +
       "Pneumatik är komprimerbar och kan inte hålla exakt positionen mitt i slagets rörelse."
@@ -163,7 +164,8 @@ export function computePhysics(dims: PhysicsDimensions): PhysicsResult {
       break;
 
     case "rodless":
-      result.categories = ["rodless-cylinder", "cylinder"];
+      // (rodless-cylinder had no DB row — rodless cylinders live in 'cylinder')
+      result.categories = ["cylinder"];
       result.reasoning.push("Kolvstångslös cylinder rekommenderas för långa slag");
       break;
 
