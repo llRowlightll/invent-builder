@@ -110,12 +110,21 @@ ENVS = {
 
 
 def gen_scenario(rng):
-    app, orient = rng.choice(APPS)
+    # ~30% of scenarios omit the stroke entirely. This exercises the no-stroke path
+    # (requiredStroke == 0), where strokeless / family products used to be able to
+    # rank as "Bästa valet" — the exact bug fixed in the stroke-qualification work.
+    give_stroke = rng.random() > 0.3
+    apps = APPS if give_stroke else [a for a in APPS if "{stroke}" not in a[0]]
+    app, orient = rng.choice(apps)
     load = rng.choice(LOADS)
-    stroke = rng.choice(STROKES)
+    stroke = rng.choice(STROKES) if give_stroke else 0
     desc = app.format(load=load, stroke=stroke)
-    answers = {"last": f"{load} kg", "slag": f"{stroke} mm"}
+    answers = {"last": f"{load} kg"}
     flags = set()
+    if give_stroke:
+        answers["slag"] = f"{stroke} mm"
+    else:
+        flags.add("no_stroke")
     if orient == "vert":
         answers["riktning"] = "vertikal"
         flags.add("vertical")
@@ -208,6 +217,16 @@ def check_options(scenario, resp, cat):
 
     # INV-6 always at least one real option OR a CUSTOM-SOLUTION fallback
     out.append(("INV-options-nonempty", len(opts) > 0, "inga options alls"))
+
+    # INV-7 the 'Bästa valet' must be a concrete stroke-bearing actuator (or an
+    # honest CUSTOM-SOLUTION). A strokeless product as the top pick — a rotary
+    # mis-filed as a cylinder, or a family with no parseable stroke — is exactly
+    # the bug the stroke-qualification work fixed: it must never be silently the
+    # best match. (All scenarios here are cylinder/linear requests, so stroke is
+    # the relevant spec; this also holds for the no-stroke scenarios.)
+    out.append(("INV-best-concrete-stroke",
+                bsku == "CUSTOM-SOLUTION" or num(best.get("stroke_mm")) > 0,
+                f"best={bsku} stroke_mm={best.get('stroke_mm')}"))
     return out
 
 
