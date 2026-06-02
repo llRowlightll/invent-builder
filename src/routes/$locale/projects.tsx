@@ -156,7 +156,6 @@ function ProjectsPage() {
         <div className="space-y-3">
           {projects.map((project) => {
             const lines = Array.isArray(project.bom_lines) ? project.bom_lines : [];
-            const totalPrice = lines.reduce((sum, l) => sum + (l.unit_price ?? 0) * (l.qty ?? 1), 0);
             const isExpanded = expandedId === project.id;
 
             return (
@@ -168,9 +167,6 @@ function ProjectsPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-foreground truncate">{project.name}</span>
                         <span className="text-xs text-muted-foreground">{lines.length} {t("projects.bomLines")}</span>
-                        {totalPrice > 0 && (
-                          <span className="text-xs font-medium text-primary">~{totalPrice.toLocaleString("sv-SE")} kr</span>
-                        )}
                       </div>
                       {project.description && (
                         <p className="text-sm text-muted-foreground mt-1 truncate">{project.description}</p>

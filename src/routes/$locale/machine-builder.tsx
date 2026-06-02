@@ -167,7 +167,6 @@ function MachineBuilderPage() {
     const name = bomTitle || `Maskinbyggare — ${new Date().toLocaleDateString("sv-SE")}`;
     const bomSnapshot = bom.map(l => ({
       sku: l.sku, role: l.role, qty: l.quantity,
-      unit_price: l.product?.purchase_price ?? undefined,
       name: l.product?.name ?? l.sku,
     }));
     supabase.from("projects").insert({
@@ -1066,7 +1065,6 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
     setProjectSaving(true);
     const bomSnapshot = activeBom.map(l => ({
       sku: l.sku, role: l.role, qty: l.quantity,
-      unit_price: l.product?.purchase_price ?? undefined,
       name: l.product?.name ?? l.sku,
     }));
     await supabase.from("projects").insert({
@@ -1143,7 +1141,6 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
           sku: l.sku,
           name: product?.name ?? l.role,
           qty: l.quantity,
-          unit_price: product?.purchase_price ?? undefined,
           role: l.role,
         };
       });
