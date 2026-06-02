@@ -16,7 +16,7 @@ export const Route = createFileRoute("/$locale/compare")({
     return {
       meta: [
         { title: `${t("nav.compare")} — ${t("common.appName")}` },
-        { name: "description", content: "Jämför pneumatiska cylindrar och aktuatorer sida vid sida. Se skillnader i specs, IP-klass, slag, kraft och pris mellan Festo, SMC, Parker, Bosch Rexroth och fler." },
+        { name: "description", content: "Jämför pneumatiska cylindrar och aktuatorer sida vid sida. Se skillnader i specs, IP-klass, slag och kraft mellan Festo, SMC, Parker, Bosch Rexroth och fler." },
         { property: "og:title", content: `${t("nav.compare")} — ${t("common.appName")}` },
         { property: "og:url", content: `${SITE}/${locale}/compare` },
       ],
