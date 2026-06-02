@@ -20,7 +20,7 @@ type RfqItem = {
   qty: number | null;
   unit_price: number | null;
   note: string | null;
-  product?: { sku: string; name: string } | null;
+  product?: { sku: string; name: string; brand?: { slug: string; name: string } | null } | null;
 };
 
 type Rfq = {
@@ -63,6 +63,7 @@ export default function AdminOffertPage() {
   const [sent, setSent] = useState(false);
   const [quoteReading, setQuoteReading] = useState(false);
   const [quoteReadMsg, setQuoteReadMsg] = useState<string | null>(null);
+  const [copiedBrand, setCopiedBrand] = useState<string | null>(null);
   const quoteFileRef = useRef<HTMLInputElement>(null);
 
   // Document-level editable fields
@@ -89,7 +90,7 @@ export default function AdminOffertPage() {
       supabase.from("rfqs").select("*").eq("id", rfqId).single(),
       supabase
         .from("rfq_items")
-        .select("id, product_id, qty, unit_price, note, products(sku, name)")
+        .select("id, product_id, qty, unit_price, note, products(sku, name, brand:brands(slug, name))")
         .eq("rfq_id", rfqId),
       fetchCompanySettings(),
     ]);
@@ -104,7 +105,7 @@ export default function AdminOffertPage() {
       qty: d.qty as number | null,
       unit_price: d.unit_price as number | null,
       note: d.note as string | null,
-      product: d.products as { sku: string; name: string } | null,
+      product: d.products as { sku: string; name: string; brand?: { slug: string; name: string } | null } | null,
     }));
     setItems(mapped);
     // Seed line edits from saved values
@@ -231,6 +232,52 @@ export default function AdminOffertPage() {
   const today = new Date().toLocaleDateString("sv-SE");
   const validUntil = new Date(Date.now() + Number(validDays) * 86400000).toLocaleDateString("sv-SE");
 
+  // ── Supplier RFQ routing: group lines by manufacturer so each supplier can be
+  // quoted separately, with a ready-to-send offert template per brand. ─────────
+  const supplierGroups = (() => {
+    const m = new Map<string, RfqItem[]>();
+    for (const it of items) {
+      const brand = it.product?.brand?.name ?? "Övrigt / okänt märke";
+      const arr = m.get(brand) ?? [];
+      arr.push(it);
+      m.set(brand, arr);
+    }
+    return [...m.entries()].sort((a, b) => b[1].length - a[1].length);
+  })();
+
+  function supplierTemplate(brand: string, list: RfqItem[]) {
+    const ref = docRef(rfqId);
+    const lines = list
+      .map((it) => {
+        const qty = lineEdits[it.id]?.qty ?? it.qty ?? 1;
+        return `- ${it.product?.sku ?? "?"}  ${it.product?.name ?? ""}  ×${qty}`;
+      })
+      .join("\n");
+    return `Offertförfrågan – ${brand}
+Vår referens: ${ref}
+Slutkund/projekt: ${rfq?.company || rfq?.contact_name || "—"}
+
+Hej,
+vi vill begära offert på följande ${brand}-artiklar:
+
+${lines}
+
+Vänligen ange nettopris (ex. moms) per styck samt leveranstid.
+Tack på förhand!
+
+${co.name}`;
+  }
+
+  async function copyTemplate(brand: string, list: RfqItem[]) {
+    try {
+      await navigator.clipboard.writeText(supplierTemplate(brand, list));
+      setCopiedBrand(brand);
+      setTimeout(() => setCopiedBrand(null), 1800);
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+
   return (
     <div className="min-h-screen bg-muted/30">
       {/* ── Admin toolbar (hidden on print) ──────────────────────────────── */}
@@ -281,6 +328,59 @@ export default function AdminOffertPage() {
           )}
         </div>
       </div>
+
+      {/* ── Supplier RFQ routing (hidden on print) ───────────────────────── */}
+      {items.length > 0 && (
+        <div className="print:hidden mx-auto mt-6 max-w-3xl px-6">
+          <div className="bg-card border border-border rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-sm font-semibold text-foreground">Leverantörsförfrågningar</span>
+              <span className="text-xs text-muted-foreground">
+                — grupperat per varumärke ({supplierGroups.length} leverantör{supplierGroups.length !== 1 ? "er" : ""})
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mb-3">
+              Varje varumärke får en färdig offertförfrågan att skicka till respektive leverantörs offertadress.
+              Läs sedan in svaret med "📎 Läs in leverantörsoffert" ovan.
+            </p>
+            <div className="space-y-2">
+              {supplierGroups.map(([brand, list]) => (
+                <details key={brand} className="rounded-lg border border-border/70">
+                  <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer select-none text-sm">
+                    <span className="font-medium text-foreground">{brand}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {list.length} rad{list.length !== 1 ? "er" : ""}
+                    </span>
+                    <span className="ml-auto flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          copyTemplate(brand, list);
+                        }}
+                        className="px-2 py-1 text-xs rounded-md border border-border hover:border-info hover:text-info transition"
+                      >
+                        {copiedBrand === brand ? "✓ Kopierad" : "📋 Kopiera mall"}
+                      </button>
+                      <a
+                        href={`mailto:?subject=${encodeURIComponent(
+                          `Offertförfrågan ${brand} – ${docRef(rfqId)}`,
+                        )}&body=${encodeURIComponent(supplierTemplate(brand, list))}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="px-2 py-1 text-xs rounded-md border border-border hover:border-info hover:text-info transition"
+                      >
+                        📧 Mejla
+                      </a>
+                    </span>
+                  </summary>
+                  <pre className="px-3 py-2 text-xs text-muted-foreground whitespace-pre-wrap border-t border-border/70 bg-muted/30 rounded-b-lg">
+                    {supplierTemplate(brand, list)}
+                  </pre>
+                </details>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Document ─────────────────────────────────────────────────────── */}
       <div className="mx-auto my-8 print:my-0 max-w-3xl bg-white shadow-lg print:shadow-none">
