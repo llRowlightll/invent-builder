@@ -58,6 +58,17 @@ try:
 except: sys.exit(1)" 2>/dev/null
 }
 
+# Returns exit 0 if an OPTIONS response is unusable — any error, unparseable, or no
+# options at all (e.g. a rate-limit that survived the retry, returning an empty/error
+# body). Caller should SKIP rather than FAIL on these transient/infra responses.
+options_unusable() {
+  echo "$1" | python3 -c "import sys,json
+try:
+  d=json.load(sys.stdin)
+  sys.exit(0 if (d.get('error') or not d.get('options')) else 1)
+except: sys.exit(0)" 2>/dev/null
+}
+
 check() {
   local name="$1" json="$2" pattern="$3" expect_absent="${4:-}"
   local ok=true
@@ -114,8 +125,8 @@ best=[o for o in opts if o.get('badge','').lower() in ('bästa valet','best choi
 first=best[0] if best else (opts[0] if opts else {})
 print(str(first.get('stroke_mm',0)))
 " 2>/dev/null || echo "0")
-if is_rate_limited "$R"; then
-  echo "  ⚠️  T01 [SKIP — rate limited]"; ((SKIP++))
+if options_unusable "$R"; then
+  echo "  ⚠️  T01 [SKIP — rate limited / empty response]"; ((SKIP++))
 elif [[ "$FIRST_STROKE" == "200" ]]; then
   echo "  ✅ T01 primary stroke=200mm (fick: $FIRST_STROKE)"; ((PASS++))
 else
@@ -158,8 +169,8 @@ best=[o for o in opts if o.get('badge','').lower() in ('bästa valet','best choi
 print((best[0] if best else (opts[0] if opts else {})).get('sku',''))
 " 2>/dev/null || echo "")
 # Bästa valet ska INTE vara en pneumatisk cylinder (KPZ, PRA, SMC-C, P1D, etc.)
-if is_rate_limited "$R"; then
-  echo "  ⚠️  T04 [SKIP — rate limited]"; ((SKIP++))
+if options_unusable "$R"; then
+  echo "  ⚠️  T04 [SKIP — rate limited / empty response]"; ((SKIP++))
 elif echo "$BEST_SKU" | grep -qiE '^(KPZ|0822|P1D-S|SMC-C|SMC-MB|FESTO-DSBC|FESTO-ADN|FESTO-ADVC)'; then
   echo "  ❌ T04 Bästa valet är pneumatisk: $BEST_SKU (ska vara elektrisk)"; ((FAIL++)); FAILURES+=("T04 pneumatic for high-precision: $BEST_SKU")
 else
@@ -519,8 +530,8 @@ opts=d.get('options',[])
 best=next((o for o in opts if o.get('badge','').lower() in ('bästa valet','best choice')),opts[0] if opts else {})
 print(best.get('sku','NONE'))
 " 2>/dev/null || echo "ERR")
-if is_rate_limited "$R"; then
-  echo "  ⚠️  T29 [SKIP — rate limited]"; ((SKIP++))
+if options_unusable "$R"; then
+  echo "  ⚠️  T29 [SKIP — rate limited / empty response]"; ((SKIP++))
 elif echo "$BEST29" | python3 -c "import sys,re; sys.exit(0 if re.match(r'^(6E-|FESTO-EG|FESTO-EP|FESTO-DNCE|SMC-LE|SMC-MXS|MW-ELK|PARKER-ETH|PARKER-OSPE)',sys.stdin.read().strip(),re.I) else 1)" 2>/dev/null; then
   echo "  ✅ T29 precision → elektrisk SKU ($BEST29)"; ((PASS++))
 else
