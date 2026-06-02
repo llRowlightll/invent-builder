@@ -1040,16 +1040,6 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
     [bom, catalog, answers]
   );
 
-  // Active savings (chosen alts — used in RFQ email note)
-  const activeSavings = useMemo(() => {
-    return bom.reduce((sum, line, i) => {
-      const alt = chosenAlt[i];
-      if (!alt || line.product?.purchase_price == null) return sum;
-      const saving = line.product.purchase_price - (alt.purchase_price ?? 0);
-      return saving > 0 ? sum + saving * line.quantity : sum;
-    }, 0);
-  }, [bom, chosenAlt]);
-
   // Active BOM: merge chosen alts
   const activeBom: BomLine[] = useMemo(() =>
     bom.map((line, i) => {
@@ -1092,8 +1082,7 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
         .slice(0, 8)
         .map(l => `${l.sku} × ${l.quantity} (${l.role})`)
         .join(", ");
-      const ecoNote = activeSavings > 0 ? `\n\nEkonomisk BOM vald — besparing: ${activeSavings.toFixed(0)} kr` : "";
-      const message = `${description}\n\nStycklista: ${bomSummary}${ecoNote}`;
+      const message = `${description}\n\nStycklista: ${bomSummary}`;
 
       // Insert RFQ — user_id är null för anonyma användare (nullable efter migration)
       const authUser = (await supabase.auth.getUser()).data.user;
