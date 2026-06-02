@@ -2,14 +2,16 @@
  * rfq-notify — körs när en kund skickar en RFQ från maskinbyggaren.
  *
  * Skickar TWO mejl via Resend:
- *   1. Admin-notis  → alexandrooden@gmail.com (intern)
+ *   1. Admin-notis  → ADMIN_NOTIFY_EMAIL (intern; default alexandrooden@gmail.com)
  *   2. Orderbekräftelse → kunden (professionell HTML)
  */
 
 const RESEND_API = "https://api.resend.com/emails";
 const RESEND_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const FROM        = "Maskinval <noreply@maskinval.se>";
-const ADMIN_EMAIL = "alexandrooden@gmail.com";
+// Company notification inbox — configurable so the upcoming firmwide address can
+// be set without a code change (Supabase → Edge Functions → Secrets).
+const ADMIN_EMAIL = Deno.env.get("ADMIN_NOTIFY_EMAIL") ?? "alexandrooden@gmail.com";
 const SITE        = "https://maskinval.se";
 
 const cors = {
