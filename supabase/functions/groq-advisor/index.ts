@@ -1198,13 +1198,14 @@ async function handleOptions(
   // Configurable families are eligible for display (ranked BELOW concrete + labelled),
   // but they do NOT count as the catalog being able to meet the stroke requirement.
   const concreteOrFallback = qualified.length > 0 ? qualified : (bestFallback ? [bestFallback] : []);
-  // Washdown fallback shows the closest catalog products when nothing qualifies on
-  // stroke — but NOT for high-precision washdown: no stock electric ball-screw is
-  // IP69K, so the honest answer is a CUSTOM-SOLUTION escalation, never a pneumatic
-  // (which physically cannot hold the precision). Empty here → only CUSTOM is shown.
+  // If nothing passed the HARD physical/material filters (bore, washdown, precision,
+  // speed, ATEX), the honest answer is a CUSTOM-SOLUTION escalation — never a product
+  // that violates a hard constraint (undersized bore, non-washdown material, a
+  // pneumatic for a precision job). bestFallback above already surfaces the closest
+  // VALID product when one exists, so an empty result here yields only CUSTOM.
   const showProducts = (concreteOrFallback.length > 0 || configurable.length > 0)
     ? [...concreteOrFallback, ...configurable]
-    : (isWashdown && !isHighPrecision ? allProducts : []);
+    : [];
   const catalogCanHandle = qualified.length > 0;
 
   const tempFiltered = requiredTemp > 0
