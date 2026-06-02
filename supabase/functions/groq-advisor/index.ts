@@ -362,7 +362,11 @@ function extractPerAxisStrokes(answers: Record<string, string>): { axis: string;
 }
 
 function needsMultiAxis(text: string): boolean {
-  return /x.*z|z.*x|x.*y|y.*x|två axl|två rörel|horisontell.*vertikal|vertikal.*horisontell|pick.and.place|pick.*place|plocka.*placera|plocka.*flytta|lyfter.*flytta|flytta.*lyft|2-axl|2 axl|multi.*axl|cartesian|portalsystem|lyfter.*flyttar|lyfter.*och.*flyttar/i.test(text);
+  // Axis patterns must be WORD-BOUNDED axis tokens (x-axel / XYZ / X-Z), NOT bare
+  // letters: the old `x.*y|y.*x|x.*z|z.*x` matched any x/y/z across the whole string,
+  // so "Cylinder … exakt" (y…x) was falsely flagged multi-axis — which disabled the
+  // precision hard-filter and triggered per-axis BOM logic on single-axis jobs.
+  return /\b[xyz][-_\s]?ax(el|is|e)|\bxyz\b|\b[xyz]\s*[\/-]\s*[xyz]\b|två axl|två rörel|horisontell.*vertikal|vertikal.*horisontell|pick.and.place|pick.*place|plocka.*placera|plocka.*flytta|lyfter.*flytta|flytta.*lyft|2-axl|2 axl|multi.*axl|cartesian|portalsystem|lyfter.*flyttar|lyfter.*och.*flyttar/i.test(text);
 }
 
 function needsVacuumGrip(text: string): boolean {
@@ -1194,9 +1198,13 @@ async function handleOptions(
   // Configurable families are eligible for display (ranked BELOW concrete + labelled),
   // but they do NOT count as the catalog being able to meet the stroke requirement.
   const concreteOrFallback = qualified.length > 0 ? qualified : (bestFallback ? [bestFallback] : []);
+  // Washdown fallback shows the closest catalog products when nothing qualifies on
+  // stroke — but NOT for high-precision washdown: no stock electric ball-screw is
+  // IP69K, so the honest answer is a CUSTOM-SOLUTION escalation, never a pneumatic
+  // (which physically cannot hold the precision). Empty here → only CUSTOM is shown.
   const showProducts = (concreteOrFallback.length > 0 || configurable.length > 0)
     ? [...concreteOrFallback, ...configurable]
-    : (isWashdown ? allProducts : []);
+    : (isWashdown && !isHighPrecision ? allProducts : []);
   const catalogCanHandle = qualified.length > 0;
 
   const tempFiltered = requiredTemp > 0

@@ -23,6 +23,23 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         continue-on-error: true   # Fånga output även vid fel
 
+      # Property-based eval: randomized scenarios (incl. no-stroke + precision)
+      # checking INVARIANTS that must hold for every response. Report-only.
+      - name: Run property-based invariant eval
+        id: invariants
+        run: |
+          python3 scripts/eval-invariants.py --runs 20 --seed $(date +%Y%m%d) \
+            2>&1 | tee invariants-output.txt
+          INV_FAILS=$(grep -oE '[0-9]+ ❌' invariants-output.txt | grep -oE '[0-9]+' | tail -1 || echo 0)
+          echo "fails=${INV_FAILS:-0}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## 🔬 Invariant Eval — $(date '+%Y-%m-%d')"
+            echo '```'
+            tail -50 invariants-output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+        continue-on-error: true
+
       - name: Parse results
         id: results
         run: |
@@ -81,5 +98,27 @@ jobs:
                 title: `🚨 Nightly eval: ${fails} fel hittade (${date})`,
                 body:  `## Eval misslyckades\n\n${fails} scenarios returnerade fysikaliskt felaktiga produktval.\n\n\`\`\`\n${output.slice(0, 3000)}\n\`\`\`\n\nKör lokalt för att reproducera:\n\`\`\`bash\npython3 scripts/eval-auto.py --seed $(date +%Y%m%d) --runs 30 --verbose\n\`\`\``,
                 labels: ['eval-failure', 'bug'],
+              });
+            }
+
+      - name: Open GitHub Issue on invariant failures
+        if: steps.invariants.outputs.fails != '0'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fails  = '${{ steps.invariants.outputs.fails }}';
+            const date   = new Date().toISOString().split('T')[0];
+            const fs     = require('fs');
+            const output = fs.existsSync('invariants-output.txt') ? fs.readFileSync('invariants-output.txt', 'utf8') : '';
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              labels: 'invariant-failure', state: 'open',
+            });
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title: `🔬 Invariant eval: ${fails} invariantbrott (${date})`,
+                body:  `## Invariantbrott\n\n${fails} scenario(n) bröt en invariant (precision / ATEX / stroke / bore / no-hallucination).\n\n\`\`\`\n${output.slice(0, 3000)}\n\`\`\`\n\nReproducera:\n\`\`\`bash\npython3 scripts/eval-invariants.py --seed $(date +%Y%m%d) --runs 20\n\`\`\``,
+                labels: ['invariant-failure', 'bug'],
               });
             }
