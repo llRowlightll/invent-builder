@@ -92,3 +92,16 @@ Deno.test("concrete product that meets the requirement is the top pick (T01-styl
   const ranked = rankActuators(candidates, ctx({ requiredStroke: 200 }));
   assertEquals(ranked[0].sku, "0822040200");
 });
+
+// ── Bore adequacy: a family's bore RANGE uses the MAX, not the min ──────────────
+
+Deno.test("bore range/list normalizes to the MAX bore (family can cover high loads)", () => {
+  const dsbf = prod("FESTO-DSBF", "cylinder", "festo", { bore_range: "32–125", stroke_mm: "500 mm" });
+  assertEquals(parseFloat(String(dsbf.key_specs.bore_mm)), 125); // max, not 32
+  assertEquals(dsbf.key_specs.is_family, true);
+  const cq2 = prod("SMC-CQ2", "cylinder", "smc", { bore_diameter_mm: "12,16,20,25,32,40,50,63,80,100,125,160,200 mm" });
+  assertEquals(parseFloat(String(cq2.key_specs.bore_mm)), 200); // max of the list
+  const concrete = prod("0822040200", "cylinder", "bosch-rexroth", { bore_mm: "40 mm" });
+  assertEquals(parseFloat(String(concrete.key_specs.bore_mm)), 40); // single value unchanged, not a family
+  assertEquals(concrete.key_specs.is_family, undefined);
+});

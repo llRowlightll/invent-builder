@@ -84,21 +84,21 @@ export function normalizeKeySpecs(raw: Record<string, unknown>): Record<string, 
   }
 
   // ── Bore ──────────────────────────────────────────────────────────────────
-  // Canonical output key: bore_mm (first/lowest numeric value)
+  // Canonical output key: bore_mm. For a FAMILY (comma list or range), use the MAX
+  // bore for adequacy — the series can be ordered at any bore up to its max, so a
+  // big-bore family (e.g. stainless DSBF Ø32–125) must qualify for high-load jobs.
+  // Mirrors how stroke uses the max of its range; taking the min wrongly excluded
+  // big-bore families from loads they can actually carry.
   if (!out.bore_mm) {
     for (const k of ["bore_diameter_mm", "bore_diameter"]) {
       if (raw[k] != null) { out.bore_mm = raw[k]; delete out[k]; break; }
     }
   }
-  if (!out.bore_mm && raw.bore_range) {
-    // e.g. "32,40,50,63,80,100" or "32–100" — take first value
-    const first = parseFloat(String(raw.bore_range).replace(/[^0-9.]/g, "0").split("0")[0]);
-    if (!isNaN(first) && first > 0) { out.bore_mm = first + " mm"; out.is_family = true; }
-  }
-  if (typeof out.bore_mm === "string" && out.bore_mm.includes(",")) {
-    // e.g. "8,12,16,20,25,32,40,50,63" → take first
-    const first = parseFloat(out.bore_mm);
-    if (!isNaN(first)) { out.bore_mm = first + " mm"; out.is_family = true; }
+  if (!out.bore_mm && raw.bore_range) { out.bore_mm = raw.bore_range; }
+  if (typeof out.bore_mm === "string") {
+    const nums = (out.bore_mm.match(/\d+(?:[.,]\d+)?/g) ?? []).map((s) => parseFloat(s.replace(",", ".")));
+    if (nums.length > 1) { out.bore_mm = Math.max(...nums) + " mm"; out.is_family = true; }
+    else if (nums.length === 1) { out.bore_mm = nums[0] + " mm"; }
   }
 
   // ── Force ─────────────────────────────────────────────────────────────────
