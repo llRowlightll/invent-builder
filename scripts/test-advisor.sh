@@ -177,6 +177,38 @@ else
   echo "  ✅ T04 Bästa valet är el-aktuator: $BEST_SKU"; ((PASS++))
 fi
 
+# Test 4b: MULTI-AXIS precision pick-and-place → el, ALDRIG pneumatik.
+# Reproduces the reported bug: a multi-axis job disabled the precision filter and
+# a pneumatic cylinder became "Bästa valet". Also exercises bare comma-decimal
+# precision parsing ("0,05 mm" — no ± and no keyword).
+echo "  [4b] Multi-axis precision pick-and-place → el, INTE pneumatik..."
+R=$(call_options \
+  "Plocka och placera elektronikdetaljer, 3 programmerbara positioner, 300 mm rörelse, 1 m/s" \
+  '{"precision":"0,05 mm","last_kg":"8"}')
+BEST_SKU=$(echo "$R" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+opts=d.get('options',[])
+best=[o for o in opts if o.get('badge','').lower() in ('bästa valet','best choice')]
+print((best[0] if best else (opts[0] if opts else {})).get('sku',''))
+" 2>/dev/null || echo "")
+if options_unusable "$R"; then
+  echo "  ⚠️  T04b [SKIP — rate limited / empty response]"; ((SKIP++))
+elif echo "$BEST_SKU" | grep -qiE '^(KPZ|0822|P1D-S|SMC-C|SMC-MB|SMC-MGP|FESTO-DSBC|FESTO-ADN|FESTO-ADVC|FESTO-DGC|FESTO-DFM|BR-PRA|PARKER-P1D|CAMOZZI)'; then
+  echo "  ❌ T04b multi-axis precision gav pneumatik: $BEST_SKU (ska vara elektrisk)"; ((FAIL++)); FAILURES+=("T04b pneumatic for multi-axis precision: $BEST_SKU")
+else
+  echo "  ✅ T04b multi-axis precision → el-aktuator: $BEST_SKU"; ((PASS++))
+fi
+
+# Test 4c: precision system BOM → första-ordningens dimensionering i förklaringen
+# (cykeltid + massa + slag → topphastighet/acceleration/kraft), inte tyst "uppfyller kraven".
+echo "  [4c] Precision-system → dimensionering i förklaringen..."
+R=$(call_bom \
+  "Plocka och placera 12 kg, 750 mm total rörelse, 1,0 sekund cykeltid, hög precision" \
+  '{"precision":"0,02 mm","last_kg":"12","cykeltid":"1,0 s","slag":"750 mm"}' \
+  "FESTO-EGSK-33")
+check "T04c sizing note present" "$R" "Dimensionering|acceleration|toppkraft|peak force|📐" ""
+
 # Test 5: Elektrisk vertikal → bromsmotor obligatorisk i BOM
 echo "  [5] Elektrisk vertikal → bromsmotor..."
 R=$(call_bom \

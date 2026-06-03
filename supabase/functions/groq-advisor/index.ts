@@ -16,6 +16,13 @@ import {
   rankActuators,
 } from "./scoring.ts";
 
+// v51 — Engineering-correctness pass (reported via boss-tests): (1) multi-axis precision
+//        hole — applyPrecisionFilter no longer disables on multi-axis non-vertical, so a
+//        ±0.05mm pick-and-place can't pick a pneumatic; (2) extractPrecisionMm catches bare
+//        sub-0.5mm values ("0,05 mm", no ±/keyword); (3) P0 secondary axes match a REAL
+//        catalog SKU (findAxisActuator) instead of "ej i katalog" placeholders; (4) P1
+//        conflict/feasibility flags (precision×env, precision×cost, speed×precision, 24/7);
+//        (5) P2 first-order dynamics sizing (computeDynamics) appended to the explanation.
 // v50 — Bore/force gating: calcMinBoreMm(loadKg), extractLoadKg(), minBoreMm in ScoringCtx (±40pts), hard bore pre-filter before scoring. Catalog: 12 new ISO cylinders at 250/300mm stroke Ø40-Ø80 (BR/Parker/Camozzi). Eval: test-options-accuracy.sh.
 // v49 — FULLY DETERMINISTIC BOM: LLM extras removed entirely. LLM writes title+explanation only. Mandatory BOM now includes fitting, cable, mounting rows. All SKU selection is server-side.
 // v48 — needsMounting detector + mounting category in bomCategories; LLM multi-axis prompt no longer asks for axis actuators; L3/L4 merged: all actuator SKUs banned from extras unconditionally.
@@ -497,6 +504,13 @@ function extractPrecisionMm(text: string, answers: Record<string, string>): numb
     || all.match(/[±]\s*(\d+(?:[.,]\d+)?)\s*mm/i)
     || all.match(/(\d+(?:[.,]\d+)?)\s*mm\s*(?:precision|accuracy|repeatability|noggrannhet|repeterbarhet)/i);
   if (precMatch) return parseFloat(precMatch[1].replace(",", "."));
+  // A bare sub-0.5 mm value ("0,05 mm", "0.02mm") is virtually always a tolerance /
+  // repeatability spec, never a stroke — catch it even without ± or a keyword nearby.
+  const subMm = all.match(/(?<![\d.,])(0[.,]\d+)\s*mm\b/i);
+  if (subMm) {
+    const v = parseFloat(subMm[1].replace(",", "."));
+    if (v > 0 && v < 0.5) return v;
+  }
   return 0;
 }
 
@@ -743,6 +757,78 @@ function findCatalogProductByType(
   return null;
 }
 
+/** Find a real catalog actuator for a secondary axis (electric axis or pneumatic
+ *  cylinder) matching a target stroke — so multi-axis BOMs emit real SKUs, not
+ *  "ej i katalog" placeholders. */
+function findAxisActuator(products: CatalogProduct[], strokeMm: number, isElectric: boolean): CatalogProduct | null {
+  const cands = products.filter(p => isElectric
+    ? isElectricActuator(p) && !isPneumaticByDrive(p)
+    : isPneumaticActuatorProduct(p) && !isElectricActuator(p));
+  if (cands.length === 0) return null;
+  if (strokeMm > 0) {
+    const fit = cands.find(p => { const s = parseStrokeFromSpecs(p.key_specs ?? {}); return s === 0 || s >= strokeMm; });
+    if (fit) return fit;
+  }
+  return cands[0];
+}
+
+/** Cycle time in seconds from free text / answers ("1,5 sek cykeltid", "cykeltid 2 s"). */
+function extractCycleTimeS(text: string, answers: Record<string, string>): number {
+  const all = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
+  const m = all.match(/(?:cykeltid|cycle\s*time|takt(?:tid)?)[^\d]{0,12}(\d+(?:[.,]\d+)?)\s*(?:s\b|sek\w*|sec\w*)/i)
+    || all.match(/(\d+(?:[.,]\d+)?)\s*(?:s\b|sek\w*|sec\w*)\s*(?:cykel|cycle|takt)/i);
+  return m ? parseFloat(m[1].replace(",", ".")) : 0;
+}
+
+function needsLowCost(text: string): boolean {
+  return /\blåg\s*kostnad\b|\bbillig\w*\b|\bkostnadseffektiv\w*\b|\bbudget\b|\blow[\s-]?cost\b|\bcheap\b|\bcost[\s-]?effective\b|\bminimera\s*kostnad/i.test(text);
+}
+function needsContinuousDuty(text: string): boolean {
+  return /\b24\s*\/?\s*7\b|\bdygnet\s*runt\b|\bkontinuerlig\w*\s*drift\b|\bcontinuous\s*(?:duty|operation)\b|\bnon[\s-]?stop\b|\b3[\s-]?skift\b/i.test(text);
+}
+function needsDirtyEnv(text: string): boolean {
+  return /\bdamm\w*\b|\bdust\w*\b|\bolja\b|\boil\w*\b|\bsmuts\w*\b|\bdirty\b|\bspån\b|\bchips\b|\bkylvätska\b|\bcoolant\b|\bpartik\w*\b|\bcontaminat/i.test(text);
+}
+
+/** First-order move dynamics from cycle time + stroke + mass (triangular profile). */
+function computeDynamics(massKg: number, strokeMm: number, cycleTimeS: number, isVertical: boolean):
+  { vPeak: number; accel: number; forceN: number } | null {
+  if (massKg <= 0 || strokeMm <= 0 || cycleTimeS <= 0) return null;
+  const s = strokeMm / 1000;
+  const tMove = Math.max(0.3 * cycleTimeS, 0.05);   // assume ~30% of the cycle is the move
+  const accel = (4 * s) / (tMove * tMove);           // triangular profile, peak accel
+  const vPeak = (2 * s) / tMove;
+  const g = 9.81;
+  const forceN = massKg * accel + (isVertical ? massKg * g : 0) + 0.1 * massKg * g;
+  return { vPeak, accel, forceN };
+}
+
+/** Flag conflicting / unrealistic requirement combinations — what a real engineer says. */
+function detectConflicts(f: {
+  isSv: boolean; precisionMm: number; isHighPrecision: boolean; speedMs: number;
+  isDirtyEnv: boolean; isWashdown: boolean; isAtexDust: boolean; isLowCost: boolean;
+  is24x7: boolean; dyn: { vPeak: number; accel: number; forceN: number } | null;
+}): string[] {
+  const { isSv } = f; const out: string[] = [];
+  if (f.isHighPrecision && (f.isDirtyEnv || f.isWashdown || f.isAtexDust))
+    out.push(isSv
+      ? `±${f.precisionMm} mm i smutsig/våt miljö krockar — kulskruv kräver tätning/bälg och skydd mot damm/olja, annars degraderar precisionen. Kräver IP-klassad/skyddad axel (fördyrar).`
+      : `±${f.precisionMm} mm in a dusty/wet environment conflicts — a ball screw needs sealing/bellows and protection or precision degrades. Requires an IP-rated/protected axis (adds cost).`);
+  if (f.isHighPrecision && f.isLowCost)
+    out.push(isSv
+      ? `Hög precision (±${f.precisionMm} mm) och låg kostnad krockar — kulskruvsservo + styrning är dyrare än pneumatik. Prioritera ett av kraven.`
+      : `High precision (±${f.precisionMm} mm) and low cost conflict — ball-screw servo + control costs more than pneumatics. Prioritise one.`);
+  if (f.isHighPrecision && f.speedMs > 0.8)
+    out.push(isSv
+      ? `Hög hastighet (${f.speedMs} m/s) + ±${f.precisionMm} mm — kulskruv begränsas av varvtal/resonans, kuggrem av backlash. Verifiera axeln; ev. kuggrem + linjärgivare (sluten loop).`
+      : `High speed (${f.speedMs} m/s) + ±${f.precisionMm} mm — ball screws are rpm/resonance-limited, belts have backlash. Verify the axis; possibly belt + linear encoder (closed loop).`);
+  if (f.is24x7 && f.dyn)
+    out.push(isSv
+      ? `Kontinuerlig drift (24/7) vid ~${Math.round(f.dyn.forceN)} N — dimensionera för livslängd/duty cycle (L10); kulskruv och lager slits vid hög acceleration.`
+      : `Continuous duty (24/7) at ~${Math.round(f.dyn.forceN)} N — size for service life/duty cycle (L10); ball screw and bearings wear under high acceleration.`);
+  return out;
+}
+
 interface BomCtx {
   primarySku: string;
   primaryIsFamilyProd: boolean;
@@ -919,12 +1005,18 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     const secondaryAxes = perAxisStrokes.slice(1);
     for (const ax of secondaryAxes) {
       const axLabel = ax.axis.toUpperCase();
+      // P0: match a REAL catalog actuator for this axis instead of a placeholder.
+      const axMatch = findAxisActuator(products, ax.stroke, isElectric);
       rows.push({
-        sku: "SPECIFY", quantity: 1,
+        sku: axMatch?.sku ?? "SPECIFY", quantity: 1,
         role: isSv ? `Aktuator — ${axLabel}-axel` : `Actuator — ${axLabel}-axis`,
-        reason: isSv
-          ? `${ax.stroke > 0 ? ax.stroke + "mm slag — v" : "V"}älj aktuator av samma typ och spänning som primäraxeln. Konfigurera stroke och fäste för ${axLabel}-axelns krav.`
-          : `${ax.stroke > 0 ? ax.stroke + "mm stroke — s" : "S"}elect same actuator type and voltage as primary axis. Configure stroke and mounting for ${axLabel}-axis requirements.`,
+        reason: axMatch
+          ? (isSv
+              ? `${ax.stroke > 0 ? ax.stroke + " mm slag — " : ""}${axMatch.name} (${axMatch.brand}). Samma drivtyp/spänning som primäraxeln; konfigurera slaglängd och fäste för ${axLabel}-axeln.`
+              : `${ax.stroke > 0 ? ax.stroke + " mm stroke — " : ""}${axMatch.name} (${axMatch.brand}). Same drive type/voltage as the primary axis; configure stroke and mounting for the ${axLabel}-axis.`)
+          : (isSv
+              ? `Ingen exakt katalogmatch för ${axLabel}-axeln (${ax.stroke > 0 ? ax.stroke + " mm" : "okänt slag"}) — begär offert så specar vi rätt ${isElectric ? "elektrisk axel" : "cylinder"} (gissa inte ihop en lösning).`
+              : `No exact catalog match for the ${axLabel}-axis (${ax.stroke > 0 ? ax.stroke + " mm" : "unknown stroke"}) — request a quote and we'll spec the right ${isElectric ? "electric axis" : "cylinder"} (do not guess a solution).`),
       });
     }
   }
@@ -1171,8 +1263,18 @@ async function handleOptions(
   // ── Hard pre-filters ──────────────────────────────────────────────
   const atexFiltered = isAtex ? allProducts.filter(p => !isElectricActuator(p)) : allProducts;
   const washdownFiltered = isWashdown ? atexFiltered.filter(p => isWashdownProduct(p)) : atexFiltered;
-  const applyPrecisionFilter = isHighPrecision && (!isMultiAxis || isHighPrecisionVertical);
-  const precisionFiltered = applyPrecisionFilter ? washdownFiltered.filter(p => isAllowedForHighPrecision(p)) : washdownFiltered;
+  // v51: precision (≤0.1 mm) excludes PNEUMATICS on EVERY axis — they physically cannot
+  // hold the tolerance. Single-axis / vertical-precision also exclude belt (ball-screw
+  // only). Multi-axis keeps belt for a fast axis but STILL drops pneumatics — the old code
+  // skipped the filter entirely for multi-axis, letting a pneumatic cylinder become the
+  // primary on a ±0.05 mm pick-and-place (the reported bug).
+  const applyPrecisionFilter = isHighPrecision;
+  const precisionFiltered = applyPrecisionFilter
+    ? washdownFiltered.filter(p =>
+        (!isMultiAxis || isHighPrecisionVertical)
+          ? isAllowedForHighPrecision(p)          // ball-screw only
+          : !isPneumaticActuatorProduct(p))        // multi-axis: drop pneumatics, keep belt
+    : washdownFiltered;
   const applySpeedFilter = speedMs > 0.8 && !isHighPrecision && !isAtex;
   const speedFiltered = applySpeedFilter ? precisionFiltered.filter(p => isAllowedForHighSpeed(p)) : precisionFiltered;
   // Hard bore filter: remove products whose bore is provably too small for load
@@ -1408,6 +1510,11 @@ async function handleBom(
   const isWashdown = needsWashdown(combinedText);
   const isEndPosDetect = needsEndPositionDetection(combinedText);
   const isMounting = needsMounting(combinedText);
+  const massKg = extractLoadKg(combinedText, answers);
+  const cycleTimeS = extractCycleTimeS(combinedText, answers);
+  const isLowCost = needsLowCost(combinedText);
+  const is24x7 = needsContinuousDuty(combinedText);
+  const isDirtyEnv = needsDirtyEnv(combinedText);
   const minStroke = extractMinStroke(answers, description);
   const primaryIsFamilyProd = isFamilyProduct({ sku: primarySku, name: "", category: "", brand: "", key_specs: {} });
 
@@ -1437,6 +1544,10 @@ async function handleBom(
 
   // ── v40: Build complete mandatory BOM deterministically ─────────────────────
   const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
+  // P2 sizing + P1 conflicts (first-order — guaranteed in the output below)
+  const maxStroke = perAxisStrokes.length > 0 ? Math.max(...perAxisStrokes.map(a => a.stroke)) : minStroke;
+  const dyn = computeDynamics(massKg, maxStroke, cycleTimeS, isVerticalLoad);
+  const conflicts = detectConflicts({ isSv, precisionMm, isHighPrecision, speedMs, isDirtyEnv, isWashdown, isAtexDust, isLowCost, is24x7, dyn });
   const bomCtx: BomCtx = {
     primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
     isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isVacuum, isSv,
@@ -1484,6 +1595,8 @@ async function handleBom(
     isHighTemp ? (isSv ? "⚠️ Hög temp >80°C — PTFE/FKM-tätning krävs." : "⚠️ High temp >80°C — PTFE/FKM seals required.") : "",
     isOxygenClean ? (isSv ? "⛔ Syrgasmiljö — oljefria komponenter." : "⛔ Oxygen atmosphere — oil-free only.") : "",
     isSilSafety ? (isSv ? "⚠️ SIL/PL säkerhetsfunktion — certifierad ventil krävs." : "⚠️ SIL/PL safety function — certified valve required.") : "",
+    dyn ? (isSv ? `📐 Rörelse-uppskattning: ~${dyn.accel.toFixed(1)} m/s², ~${Math.round(dyn.forceN)} N topp — säg uttryckligen att servo/motor måste dimensioneras för detta.` : `📐 Motion estimate: ~${dyn.accel.toFixed(1)} m/s², ~${Math.round(dyn.forceN)} N peak — state explicitly the servo/motor must be sized for this.`) : "",
+    conflicts.length ? (isSv ? `⚠️ Kravkonflikter att nämna: ${conflicts.join(" | ")}` : `⚠️ Requirement conflicts to mention: ${conflicts.join(" | ")}`) : "",
   ].filter(Boolean).join(" ");
 
   // LLM only writes title + explanation — no extras, no SKU selection
@@ -1531,6 +1644,16 @@ JSON: { "title": "...", "explanation": "..." }`;
       ? `System baserat på ${primarySku}. ${isElectric ? "Elektrisk servoaxel för precision och repeterbarhet." : "Pneumatisk cylinder med komplett luftberedning (FRL + ventil)."} ${isVerticalLoad ? (isElectric ? "Bromsmotor obligatorisk för lastsäkerhet vid strömavbrott." : "Backslagsventil förhindrar lastfall vid lufttrycksförlust.") : ""}${wasRateLimited ? " [Automatgenererad — AI tillfälligt otillgänglig]" : ""}`
       : `System based on ${primarySku}. ${isElectric ? "Electric servo axis for precision and repeatability." : "Pneumatic cylinder with complete air preparation (FRL + valve)."} ${isVerticalLoad ? (isElectric ? "Brake motor mandatory for load safety on power loss." : "Check valve prevents load drop on air pressure loss.") : ""}${wasRateLimited ? " [Auto-generated — AI temporarily unavailable]" : ""}`;
   }
+
+  // Deterministically append sizing + conflict notes so they are GUARANTEED present
+  // (even if the LLM drops them or was rate-limited). The advisor must never look
+  // "complete" while ignoring the physics and the requirement conflicts.
+  const engNotes: string[] = [];
+  if (dyn) engNotes.push(isSv
+    ? `📐 Dimensionering (första-ordningens uppskattning): för ${cycleTimeS} s cykeltid, ${maxStroke} mm slag och ${massKg} kg → topphastighet ~${dyn.vPeak.toFixed(2)} m/s, acceleration ~${dyn.accel.toFixed(1)} m/s², toppkraft ~${Math.round(dyn.forceN)} N${isVerticalLoad ? " (inkl. gravitation)" : ""}. Verifiera vald axel/motor mot kraft, varvtal och kontinuerlig last — detta ersätter inte en full servoberäkning.`
+    : `📐 Sizing (first-order estimate): for a ${cycleTimeS} s cycle, ${maxStroke} mm stroke and ${massKg} kg → peak velocity ~${dyn.vPeak.toFixed(2)} m/s, acceleration ~${dyn.accel.toFixed(1)} m/s², peak force ~${Math.round(dyn.forceN)} N${isVerticalLoad ? " (incl. gravity)" : ""}. Verify the chosen axis/motor for force, rpm and continuous load — this does not replace a full servo calculation.`);
+  for (const c of conflicts) engNotes.push("⚠️ " + c);
+  if (engNotes.length) explanation += "\n\n" + engNotes.join("\n\n");
 
   // ── Extra validation pipeline (4 layers) ────────────────────────────────────
 
