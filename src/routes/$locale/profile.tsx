@@ -196,12 +196,15 @@ function ProfilePage() {
           <p className="text-[11px] uppercase tracking-widest text-muted-foreground mb-3">{t("profilePage.scoreBreakdown")}</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {[
-              { key: "domain",   labelKey: "profilePage.scoreEmailDomain" as const,  max: 12 },
-              { key: "size",     labelKey: "profilePage.scoreCompanySize" as const, max: 20 },
-              { key: "industry", labelKey: "profilePage.scoreIndustry" as const,       max: 22 },
-              { key: "role",     labelKey: "profilePage.scoreRole" as const,          max: 16 },
-              { key: "country",  labelKey: "profilePage.scoreCountry" as const,          max: 18 },
-              { key: "complete", labelKey: "profilePage.scoreComplete" as const,   max: 12 },
+              { key: "domain",   labelKey: "profilePage.scoreEmailDomain" as const, max: 8 },
+              { key: "size",     labelKey: "profilePage.scoreCompanySize" as const, max: 12 },
+              { key: "industry", labelKey: "profilePage.scoreIndustry" as const,    max: 14 },
+              { key: "role",     labelKey: "profilePage.scoreRole" as const,        max: 10 },
+              { key: "country",  labelKey: "profilePage.scoreCountry" as const,     max: 10 },
+              { key: "complete", labelKey: "profilePage.scoreComplete" as const,    max: 6 },
+              { key: "rfqs",     labelKey: "profilePage.scoreRfqs" as const,        max: 16 },
+              { key: "pipeline", labelKey: "profilePage.scorePipeline" as const,    max: 18 },
+              { key: "recency",  labelKey: "profilePage.scoreRecency" as const,     max: 6 },
             ].map(({ key, labelKey, max }) => {
               const pts = (breakdown[key] ?? 0) as number;
               const pct = Math.round((pts / max) * 100);
