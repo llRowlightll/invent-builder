@@ -29,6 +29,7 @@ type Rfq = {
   status: string | null;
   quote_amount: number | null;
   quote_currency: string | null;
+  discount_pct: number | null;
   created_at: string;
 };
 
@@ -83,8 +84,11 @@ export default function PublicOffertPage() {
     lineTotal: (it.qty ?? 1) * (it.unit_price ?? 0),
   }));
   const totalEx  = lineItems.reduce((s, l) => s + l.lineTotal, 0);
-  const vatAmt   = totalEx * VAT;
-  const totalInc = totalEx + vatAmt;
+  const discountPct = Number(rfq?.discount_pct ?? 0);
+  const discountAmt = totalEx * (discountPct / 100);
+  const netEx = totalEx - discountAmt;
+  const vatAmt   = netEx * VAT;
+  const totalInc = netEx + vatAmt;
   const currency = rfq?.quote_currency ?? "SEK";
 
   async function respond(decision: "accepted" | "rejected") {
@@ -199,6 +203,12 @@ export default function PublicOffertPage() {
                   <td className="py-1 text-gray-500">Summa ex. moms</td>
                   <td className="py-1 text-right font-medium text-gray-800">{fmt(totalEx, currency)}</td>
                 </tr>
+                {discountPct > 0 && (
+                  <tr>
+                    <td className="py-1 text-emerald-700">Intro-rabatt −{discountPct} %</td>
+                    <td className="py-1 text-right text-emerald-700">−{fmt(discountAmt, currency)}</td>
+                  </tr>
+                )}
                 <tr>
                   <td className="py-1 text-gray-500">Moms 25 %</td>
                   <td className="py-1 text-right text-gray-700">{fmt(vatAmt, currency)}</td>
