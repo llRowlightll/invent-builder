@@ -269,7 +269,7 @@ function fallbackSearch(query: string, isSv: boolean): AiSearchResult {
   else if (/ventil|valve/.test(t)) result.category_slug = "valve";
   else if (/grepp|gripper|klämm/.test(t)) result.category_slug = "gripper";
   else if (/vakuum|vacuum|sug/.test(t)) result.category_slug = "vacuum";
-  else if (/luft|frl|filter|regul/.test(t)) result.category_slug = "air-preparation";
+  else if (/luft|frl|filter|regul/.test(t)) result.category_slug = "frl";
   else if (/elektrisk|servo|linjär/.test(t)) result.category_slug = "electric-actuator";
 
   if (/festo/.test(t)) result.brand_slug = "festo";
