@@ -249,6 +249,8 @@ function detectCategories(text: string): string[] {
   if (/elektrisk|servo|stepper|präcis|precis|positioner|linjäraxel|electric|ball.screw|kuggrem|kuggremsaxel|elaxel|eldriven|repeterbar|repeatab|noggrann|accura|mikrometer|µm|\bum\b/i.test(t)) {
     slugs.add("electric-actuator");
     slugs.add("linear-module");
+    slugs.add("servo-motor");   // drivetrain: motor for the electric axis
+    slugs.add("servo-drive");   // drivetrain: drive/amplifier for the motor
   }
   if (/linjär.*modul|slide|guidning|linear.*module|linear.*axis|linjär.*axel|linjärmodul|egc\b|lefs\b|lesh\b|egsk\b|egsp\b|hmr\b|osp.e|lbb\b|hlr\b|elga\b/i.test(t))
     slugs.add("linear-module");
@@ -714,7 +716,7 @@ function extractLoadKg(text: string, answers: Record<string, string>): number {
  * Returns null if no catalog match exists — caller should use SPECIFY.
  */
 function findCatalogProductByType(
-  type: "valve" | "frl" | "check-valve" | "shock-absorber" | "sensor" | "valve-terminal" | "fitting" | "cable" | "mounting",
+  type: "valve" | "frl" | "check-valve" | "shock-absorber" | "sensor" | "valve-terminal" | "fitting" | "cable" | "mounting" | "servo-motor" | "servo-drive",
   products: CatalogProduct[]
 ): CatalogProduct | null {
   // FRL: prefer Festo MS4/MS6 first — avoids Camozzi MC- sorting to front alphabetically
@@ -751,6 +753,12 @@ function findCatalogProductByType(
         break;
       case "mounting":
         if (p.category === "mounting" || /fotfäste|foot.mount|flansfäste|flange.mount|monteringsfäste|bracket|trunnion/i.test(nameSkuLower)) return p;
+        break;
+      case "servo-motor":
+        if (p.category === "servo-motor" || /\bservo.?motor\b|\bstegmotor\b|\bstepper.?motor\b|\bEMMS\b|\bEMME\b|\bEMCA\b|\bEMMT\b/i.test(p.name + " " + p.sku)) return p;
+        break;
+      case "servo-drive":
+        if (p.category === "servo-drive" || /\bservodriv|\bdrivsteg\b|\bamplifier\b|\bCMMP\b|\bCMMT\b|\bLECP\b|\bLECA\b|\bSTM\b/i.test(p.name + " " + p.sku)) return p;
         break;
     }
   }
@@ -879,14 +887,27 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     reason: (isSv ? "Vald primär aktuator" : "Selected primary actuator") + famNote,
   });
 
-  // ── 2. Brake motor (vertical electric) ───────────────────────────
+  // ── 2. Servo motor (vertical electric → brake motor) ─────────────
   if (isVerticalLoad && isElectric) {
+    const motorMatch = findCatalogProductByType("servo-motor", products);
     rows.push({
-      sku: "SPECIFY", quantity: 1,
+      sku: motorMatch?.sku ?? "SPECIFY", quantity: 1,
       role: isSv ? "Bromsmotor — Z-axel (vertikal säkerhet)" : "Brake motor — Z-axis (vertical safety)",
-      reason: isSv
-        ? "OBLIGATORISK för vertikal elektrisk servoaxel — integrerad hållbroms säkerställer att lasten hålls kvar vid strömavbrott eller nödstopp. Standard servomotor utan broms är EJ tillräcklig."
-        : "MANDATORY for vertical electric servo axis — integrated holding brake ensures load is held on power loss or emergency stop. Standard servo motor without brake is NOT sufficient.",
+      reason: (motorMatch ? `${motorMatch.name} (${motorMatch.brand}) — ` : "") + (isSv
+        ? "OBLIGATORISK för vertikal elektrisk servoaxel — integrerad hållbroms håller lasten kvar vid strömavbrott/nödstopp. Standardmotor utan broms är EJ tillräcklig."
+        : "MANDATORY for a vertical electric servo axis — integrated holding brake keeps the load on power loss/E-stop. A standard motor without brake is NOT sufficient."),
+    });
+  }
+
+  // ── 2b. Servo drive / amplifier (all electric axes) ──────────────
+  if (isElectric) {
+    const driveMatch = findCatalogProductByType("servo-drive", products);
+    rows.push({
+      sku: driveMatch?.sku ?? "SPECIFY", quantity: 1,
+      role: isSv ? "Servodrivare (drivsteg)" : "Servo drive (amplifier)",
+      reason: (driveMatch ? `${driveMatch.name} (${driveMatch.brand}). ` : "") + (isSv
+        ? "Driver och styr servomotorn — matcha effekt/spänning mot motor och axel; ange fältbuss (EtherCAT/PROFINET) till styrsystemet."
+        : "Drives and controls the servo motor — match power/voltage to the motor and axis; specify fieldbus (EtherCAT/PROFINET) to the controller."),
     });
   }
 
@@ -1525,6 +1546,8 @@ async function handleBom(
     valveTerminal                     ? "valve-terminal" : null,
     "sensor",
     isElectric                        ? "cable"          : "fitting",
+    isElectric                        ? "servo-motor"    : null,
+    isElectric                        ? "servo-drive"    : null,
     isPneumaticBom                    ? "frl"            : null,
     isPneumaticBom && isHighSpeed     ? "shock-absorber" : null,
     isPneumaticBom && isVerticalLoad  ? "check-valve"    : null,

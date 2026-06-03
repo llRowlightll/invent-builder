@@ -1,0 +1,5 @@
+sku,name,brand_slug,category_slug,family,description,lead_time_days,ip_rating,fieldbus,voltage
+FESTO-EMME-AS-40,EMME-AS-40 Servomotor 0.4 kW,festo,servo-motor,EMME-AS,Servomotor med absolutgivare och optional hållbroms,14,IP54,,400 V
+FESTO-CMMT-AS,CMMT-AS Servodrivare 1-fas,festo,servo-drive,CMMT,Servodrivare/drivsteg med EtherCAT/PROFINET,14,IP20,EtherCAT,230 V
+FESTO-CPX-E,CPX-E Motion Controller,festo,controller,CPX-E,Fleraxlig motion controller (EtherCAT master),21,IP20,EtherCAT,24 V
+FESTO-NEBM-M23,NEBM-M23 Motorkabel 5 m,festo,cable,NEBM,Skärmad motorkabel M23 till servomotor,7,IP67,,
