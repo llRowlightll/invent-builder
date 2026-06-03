@@ -34,6 +34,7 @@ type Rfq = {
   message: string | null;
   quote_amount: number | null;
   quote_currency: string | null;
+  discount_pct: number | null;
   status: string | null;
   created_at: string;
 };
@@ -64,6 +65,8 @@ export default function AdminOffertPage() {
   const [quoteReading, setQuoteReading] = useState(false);
   const [quoteReadMsg, setQuoteReadMsg] = useState<string | null>(null);
   const [copiedBrand, setCopiedBrand] = useState<string | null>(null);
+  const [discountPct, setDiscountPct] = useState(0);
+  const [firstTimer, setFirstTimer] = useState(false);
   const quoteFileRef = useRef<HTMLInputElement>(null);
 
   // Document-level editable fields
@@ -98,6 +101,17 @@ export default function AdminOffertPage() {
     if (rfqData) {
       setRfq(rfqData as Rfq);
       setCurrency((rfqData as Rfq).quote_currency ?? "SEK");
+      setDiscountPct(Number((rfqData as Rfq).discount_pct ?? 0));
+      // First-time customer? (no other RFQs from this contact email)
+      const email = (rfqData as { contact_email?: string | null }).contact_email;
+      if (email) {
+        const { count } = await supabase
+          .from("rfqs")
+          .select("id", { count: "exact", head: true })
+          .eq("contact_email", email)
+          .neq("id", rfqId);
+        setFirstTimer((count ?? 0) === 0);
+      }
     }
     const mapped: RfqItem[] = (itemData ?? []).map((d: Record<string, unknown>) => ({
       id: d.id as string,
@@ -127,8 +141,10 @@ export default function AdminOffertPage() {
     return { ...it, editQty: e.qty, editPrice: e.price, editNote: e.note, lineTotal: e.qty * e.price };
   });
   const totalEx = lineItems.reduce((s, l) => s + l.lineTotal, 0);
-  const vatAmt  = totalEx * VAT;
-  const totalInc = totalEx + vatAmt;
+  const discountAmt = totalEx * (discountPct / 100);
+  const netEx = totalEx - discountAmt;
+  const vatAmt  = netEx * VAT;
+  const totalInc = netEx + vatAmt;
 
   function setLine(id: string, field: "qty" | "price" | "note", value: string | number) {
     setLineEdits((prev) => ({
@@ -150,7 +166,7 @@ export default function AdminOffertPage() {
     // Also update quote_amount on the RFQ
     await supabase
       .from("rfqs")
-      .update({ quote_amount: totalInc, quote_currency: currency })
+      .update({ quote_amount: totalInc, quote_currency: currency, discount_pct: discountPct })
       .eq("id", rfqId);
     setSaving(false);
     setSaved(true);
@@ -445,6 +461,28 @@ ${co.name}`;
                 <option>SEK</option><option>EUR</option><option>USD</option>
               </select>
             </label>
+            <label className="block col-span-2">
+              <span className="text-gray-500 uppercase tracking-wide">
+                Intro-rabatt (%)
+                {firstTimer && <span className="ml-2 text-emerald-700 normal-case font-medium">🎁 Förstagångskund</span>}
+              </span>
+              <div className="mt-1 flex items-center gap-2 flex-wrap">
+                <input
+                  type="number" min={0} max={90} value={discountPct}
+                  onChange={e => { setDiscountPct(Math.max(0, Math.min(90, Number(e.target.value) || 0))); setSaved(false); }}
+                  className="w-20 border border-gray-200 rounded px-2 py-1" />
+                {firstTimer && discountPct === 0 && (
+                  <button type="button"
+                    onClick={() => { setDiscountPct(15); setSaved(false); }}
+                    className="px-2 py-1 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition">
+                    Applicera −15 % på första ordern
+                  </button>
+                )}
+                {discountPct > 0 && (
+                  <span className="text-emerald-700">−{fmt(discountAmt, currency)} på {fmt(totalEx, currency)}</span>
+                )}
+              </div>
+            </label>
           </div>
 
           {/* Line items table */}
@@ -515,6 +553,12 @@ ${co.name}`;
                   <td className="py-1 text-gray-500">Summa ex. moms</td>
                   <td className="py-1 text-right font-medium text-gray-800">{fmt(totalEx, currency)}</td>
                 </tr>
+                {discountPct > 0 && (
+                  <tr>
+                    <td className="py-1 text-emerald-700">Intro-rabatt −{discountPct} %</td>
+                    <td className="py-1 text-right text-emerald-700">−{fmt(discountAmt, currency)}</td>
+                  </tr>
+                )}
                 <tr>
                   <td className="py-1 text-gray-500">Moms 25 %</td>
                   <td className="py-1 text-right text-gray-700">{fmt(vatAmt, currency)}</td>
