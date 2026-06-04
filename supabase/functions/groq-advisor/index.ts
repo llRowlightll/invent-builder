@@ -877,13 +877,20 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
   const rows: Array<{ sku: string; quantity: number; role: string; reason: string }> = [];
 
   // ── 1. Primary actuator (ALWAYS first) ───────────────────────────
+  // In a multi-axis job the primary covers the LONGEST-stroke axis — label rows by
+  // axis so X/Z are never ambiguous (and "primary" isn't just "first parsed").
+  const primaryAxisIdx = perAxisStrokes.length
+    ? perAxisStrokes.reduce((best, a, i, arr) => (a.stroke > arr[best].stroke ? i : best), 0)
+    : -1;
+  const primaryAxisLabel = (isMultiAxis && primaryAxisIdx >= 0) ? perAxisStrokes[primaryAxisIdx].axis.toUpperCase() : "";
   const famNote = primaryIsFamilyProd ? (isSv
     ? " ⚠️ Produktfamilj — ange komplett beställningskod (bore + stroke + varianter) vid order."
     : " ⚠️ Product family — specify full ordering code (bore + stroke + variants) when ordering.")
     : "";
   rows.push({
     sku: primarySku, quantity: 1,
-    role: isSv ? "Primär aktuator" : "Primary actuator",
+    role: (isSv ? "Primär aktuator" : "Primary actuator")
+      + (primaryAxisLabel ? (isSv ? ` — ${primaryAxisLabel}-axel` : ` — ${primaryAxisLabel}-axis`) : ""),
     reason: (isSv ? "Vald primär aktuator" : "Selected primary actuator") + famNote,
   });
 
@@ -1022,8 +1029,9 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
 
   // ── 11. Multi-axis secondary actuators ───────────────────────────
   if (isMultiAxis && perAxisStrokes.length >= 2) {
-    // First axis = primary (already row 1). Add one row per remaining axis.
-    const secondaryAxes = perAxisStrokes.slice(1);
+    // Secondary = every axis EXCEPT the primary (longest-stroke) one — so the
+    // primary axis is never also emitted as a secondary, and labels stay correct.
+    const secondaryAxes = perAxisStrokes.filter((_, i) => i !== primaryAxisIdx);
     for (const ax of secondaryAxes) {
       const axLabel = ax.axis.toUpperCase();
       // P0: match a REAL catalog actuator for this axis instead of a placeholder.
