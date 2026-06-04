@@ -34,6 +34,27 @@ FESTO-DSBC-50-200,Festo DSBC ISO-cylinder 50x200,festo,cylinder,DSBC,Dubbelverka
 SMC-CQ2B32-50D,SMC Kompakt cylinder 32x50,smc,cylinder,CQ2,,14,,,
 `;
 
+// Client-side PDF text extraction (pdfjs-dist, CDN worker) — same as admin.pricing.
+async function extractPdfText(file: File): Promise<string> {
+  try {
+    const pdfjsLib = await import("pdfjs-dist");
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const parts: string[] = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const tc = await page.getTextContent();
+      parts.push(tc.items.map((item) => ("str" in item ? (item.str ?? "") : "")).join(" "));
+    }
+    return parts.join("\n");
+  } catch (err) {
+    console.error("PDF extraction failed:", err);
+    throw new Error("Kunde inte läsa PDF. Prova att klistra in texten manuellt.");
+  }
+}
+
 function ImportPage() {
   const { locale } = Route.useParams();
   const t = makeT(locale as Locale);
@@ -48,6 +69,8 @@ function ImportPage() {
   const [log, setLog] = useState<{ type: "ok" | "err" | "info"; msg: string }[]>([]);
   const [version, setVersion] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfMsg, setPdfMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) window.location.href = `/${locale}/login`;
@@ -81,6 +104,41 @@ function ImportPage() {
     setDragOver(false);
     const file = e.dataTransfer.files[0];
     if (file?.name.endsWith(".csv")) handleFile(file);
+    else if (file?.name.toLowerCase().endsWith(".pdf")) handlePdfCatalog(file);
+  }
+
+  // AI PDF-catalog import: extract text client-side → extract-products edge fn →
+  // populate the SAME preview table + upsert path as CSV.
+  async function handlePdfCatalog(file: File) {
+    setPdfLoading(true); setPdfMsg(null); setLog([]); setParseErrors([]);
+    try {
+      const text = await extractPdfText(file);
+      const res = await fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/extract-products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json() as { products?: ParsedRow[]; error?: string };
+      if (data.error) throw new Error(data.error);
+      // Normalise a brand prefix to UPPERCASE (catalog convention FESTO-…) so an
+      // AI-lowercased "festo-X" can't duplicate an existing "FESTO-X".
+      const products = (data.products ?? []).map(p => {
+        const bp = new RegExp(`^${p.brand_slug}-`, "i");
+        return bp.test(p.sku) ? { ...p, sku: p.brand_slug.toUpperCase() + p.sku.slice(p.brand_slug.length) } : p;
+      });
+      if (!products.length) {
+        setPdfMsg("Inga produkter kunde läsas ut ur PDF:en. Prova en annan fil eller klistra in CSV.");
+        setRows([]); setState("idle");
+      } else {
+        setRows(products);
+        setState("preview");
+        setPdfMsg(`✓ ${products.length} produkter extraherade — granska och importera nedan.`);
+      }
+    } catch (err) {
+      setPdfMsg(`Fel: ${(err as Error).message}`);
+    } finally {
+      setPdfLoading(false);
+    }
   }
 
   async function runImport() {
@@ -178,7 +236,7 @@ function ImportPage() {
             ← Produkter
           </Link>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight">Produktimport</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Ladda upp en CSV-fil för att lägga till eller uppdatera produkter i katalogen.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Ladda upp en PDF-katalog (AI) eller en CSV för att lägga till/uppdatera produkter i katalogen.</p>
         </div>
         <button
           onClick={downloadTemplate}
@@ -205,6 +263,24 @@ function ImportPage() {
           <strong>brand_slug:</strong> festo · smc · parker · bosch-rexroth · norgren · camozzi &nbsp;&nbsp;
           <strong>category_slug:</strong> cylinder · valve · gripper · vacuum · electric-actuator · …
         </p>
+      </div>
+
+      {/* AI: PDF catalog import */}
+      <div className="rounded-xl border border-info/30 bg-info/5 p-5 mb-4">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-sm font-semibold text-foreground">📄 AI: Importera PDF-katalog</span>
+          <span className="text-xs text-muted-foreground">— läser ut produkter automatiskt</span>
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">
+          Ladda upp en leverantörskatalog (PDF) så extraherar AI:n SKU, namn, kategori och specar.
+          Granska sedan listan nedan och importera — hundratals artiklar på en gång.
+        </p>
+        <label className={`inline-flex items-center gap-2 cursor-pointer text-sm px-4 py-2 rounded-md bg-info text-primary-foreground hover:opacity-90 transition ${pdfLoading ? "opacity-60 pointer-events-none" : ""}`}>
+          {pdfLoading ? "Läser katalog…" : "Välj PDF-katalog"}
+          <input type="file" accept=".pdf" className="hidden" disabled={pdfLoading}
+            onChange={e => { const f = e.target.files?.[0]; if (f) handlePdfCatalog(f); e.currentTarget.value = ""; }} />
+        </label>
+        {pdfMsg && <p className="mt-2 text-xs text-foreground">{pdfMsg}</p>}
       </div>
 
       {/* Drop zone */}
