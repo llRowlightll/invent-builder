@@ -901,16 +901,26 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     ? [...products].sort((a, b) => (a.brand?.toLowerCase() === primaryBrand ? 0 : 1) - (b.brand?.toLowerCase() === primaryBrand ? 0 : 1))
     : products;
 
-  // ── 2. Servo motor (vertical electric → brake motor) ─────────────
+  // ── 2. Servo motor / holding brake (vertical electric) ───────────
   if (isVerticalLoad && isElectric) {
     const motorMatch = findCatalogProductByType("servo-motor", brandSorted);
-    rows.push({
-      sku: motorMatch?.sku ?? "SPECIFY", quantity: 1,
-      role: isSv ? "Bromsmotor — Z-axel (vertikal säkerhet)" : "Brake motor — Z-axis (vertical safety)",
-      reason: (motorMatch ? `${motorMatch.name} (${motorMatch.brand}) — ` : "") + (isSv
-        ? "OBLIGATORISK för vertikal elektrisk servoaxel — integrerad hållbroms håller lasten kvar vid strömavbrott/nödstopp. Standardmotor utan broms är EJ tillräcklig."
-        : "MANDATORY for a vertical electric servo axis — integrated holding brake keeps the load on power loss/E-stop. A standard motor without brake is NOT sufficient."),
-    });
+    const sameBrandMotor = !!motorMatch && !!primaryBrand && motorMatch.brand?.toLowerCase() === primaryBrand;
+    if (sameBrandMotor) {
+      // Separate-motor brands (e.g. Festo EGSK axis + EMME motor).
+      rows.push({
+        sku: motorMatch!.sku, quantity: 1,
+        role: isSv ? "Bromsmotor — Z-axel (vertikal säkerhet)" : "Brake motor — Z-axis (vertical safety)",
+        reason: `${motorMatch!.name} (${motorMatch!.brand}) — ` + (isSv
+          ? "OBLIGATORISK för vertikal elektrisk servoaxel — integrerad hållbroms håller lasten vid strömavbrott/nödstopp."
+          : "MANDATORY for a vertical electric servo axis — integrated holding brake keeps the load on power loss/E-stop."),
+      });
+    } else {
+      // Integrated-motor actuator (e.g. SMC LE-series) — the holding brake is an
+      // ORDER OPTION on the actuator, not a separate (foreign-brand) motor.
+      rows[0].reason += isSv
+        ? " Beställ med integrerad hållbroms (bromsoption) för vertikal säkerhet — håller lasten vid strömavbrott."
+        : " Order with the integrated holding-brake option for vertical safety — holds the load on power loss.";
+    }
   }
 
   // ── 2b. Servo drive / amplifier (all electric axes) ──────────────
