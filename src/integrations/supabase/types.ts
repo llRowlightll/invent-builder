@@ -976,6 +976,45 @@ export type Database = {
         }
         Relationships: []
       }
+      expenses: {
+        Row: {
+          amount_ex_vat: number
+          category: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          description: string
+          expense_date: string
+          id: string
+          supplier: string | null
+          vat_amount: number
+        }
+        Insert: {
+          amount_ex_vat?: number
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          description: string
+          expense_date?: string
+          id?: string
+          supplier?: string | null
+          vat_amount?: number
+        }
+        Update: {
+          amount_ex_vat?: number
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          description?: string
+          expense_date?: string
+          id?: string
+          supplier?: string | null
+          vat_amount?: number
+        }
+        Relationships: []
+      }
       inquiries: {
         Row: {
           created_at: string | null
@@ -1757,6 +1796,7 @@ export type Database = {
           contact_name: string | null
           contact_phone: string | null
           created_at: string | null
+          discount_pct: number
           estimated_delivery: string | null
           fortnox_order_id: string | null
           hubspot_contact_id: string | null
@@ -1793,6 +1833,7 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string | null
+          discount_pct?: number
           estimated_delivery?: string | null
           fortnox_order_id?: string | null
           hubspot_contact_id?: string | null
@@ -1829,6 +1870,7 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string | null
+          discount_pct?: number
           estimated_delivery?: string | null
           fortnox_order_id?: string | null
           hubspot_contact_id?: string | null
@@ -2169,6 +2211,20 @@ export type Database = {
       }
     }
     Functions: {
+      admin_list_product_pricing: {
+        Args: never
+        Returns: {
+          brand_id: string
+          brand_name: string
+          category_id: string
+          category_name: string
+          id: string
+          margin: number
+          name: string
+          purchase_price: number
+          sku: string
+        }[]
+      }
       calculate_customer_score: {
         Args: {
           profile: Database["public"]["Tables"]["company_profiles"]["Row"]
@@ -2235,6 +2291,7 @@ export type Database = {
           contact_name: string | null
           contact_phone: string | null
           created_at: string | null
+          discount_pct: number
           estimated_delivery: string | null
           fortnox_order_id: string | null
           hubspot_contact_id: string | null

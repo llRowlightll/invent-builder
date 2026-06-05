@@ -237,7 +237,18 @@
     "ctaCompareBody": "Put 2–4 products side by side and see the best value per spec.",
     "ctaMachineTitle": "Build machine",
     "ctaMachineBody": "Describe your application — AI generates a complete BOM and you send a quote with one click.",
-    "open": "Open →"
+    "open": "Open →",
+    "howLabel": "How we work",
+    "how1Title": "AI search around the clock",
+    "how1Body": "Find the right component directly in the catalog — no waiting, no phone queues.",
+    "how2Title": "Real engineers & salespeople",
+    "how2Body": "Tough questions? Our technical salespeople with deep product knowledge answer personally.",
+    "how3Title": "Quote the same day",
+    "how3Body": "Send your bill of materials — we'll get back with price and lead time within one business day.",
+    "metaTitleSuffix": "Pneumatics, cylinders & automation",
+    "metaDescription": "Search industrial automation components from Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work and Camozzi. AI search, spec comparison and a complete bill of materials instantly.",
+    "ogTitleSuffix": "Industrial automation",
+    "ogDescription": "AI-driven component selector for machine builders. Pneumatics, electric actuators, valves and more."
   },
   "productsPage": {
     "aiSearchLabel": "✦ AI search",

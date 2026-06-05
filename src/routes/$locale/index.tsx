@@ -17,10 +17,10 @@ export const Route = createFileRoute("/$locale/")({
     const canonical = `${SITE}/${locale}`;
     return {
       meta: [
-        { title: `${t("common.appName")} — Pneumatik, cylindrar & automation` },
-        { name: "description", content: "Sök industriella automationskomponenter från Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work och Camozzi. AI-sökning, spec-jämförelse och komplett stycklista direkt." },
-        { property: "og:title", content: `${t("common.appName")} — Industriell automation` },
-        { property: "og:description", content: "AI-driven komponentväljare för maskinbyggare. Pneumatik, elektriska aktuatorer, ventiler och mer." },
+        { title: `${t("common.appName")} — ${t("index.metaTitleSuffix")}` },
+        { name: "description", content: t("index.metaDescription") },
+        { property: "og:title", content: `${t("common.appName")} — ${t("index.ogTitleSuffix")}` },
+        { property: "og:description", content: t("index.ogDescription") },
         { property: "og:image", content: `${SITE}/og-image.svg` },
         { property: "og:url", content: canonical },
       ],
@@ -339,27 +339,27 @@ function Landing() {
       {/* HUMAN + AI TRUST BAND */}
       <section className="border-y border-border bg-card">
         <div className="container-page py-10">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground font-medium text-center mb-7">Hur vi arbetar</p>
+          <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground font-medium text-center mb-7">{t("index.howLabel")}</p>
           <div className="grid sm:grid-cols-3 gap-6 text-center">
             <div className="flex flex-col items-center gap-3">
               <div className="size-12 rounded-full bg-info/10 flex items-center justify-center text-2xl">✦</div>
               <div>
-                <div className="font-semibold text-sm text-foreground">AI-sökning dygnet runt</div>
-                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">Hitta rätt komponent direkt i katalogen — ingen väntetid, inga telefonköer.</p>
+                <div className="font-semibold text-sm text-foreground">{t("index.how1Title")}</div>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t("index.how1Body")}</p>
               </div>
             </div>
             <div className="flex flex-col items-center gap-3">
               <div className="size-12 rounded-full bg-[oklch(0.92_0.06_155)]/60 flex items-center justify-center text-2xl">👷</div>
               <div>
-                <div className="font-semibold text-sm text-foreground">Riktiga ingenjörer & säljare</div>
-                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">Svåra frågor? Våra tekniska säljare med djup produktkunskap svarar personligen.</p>
+                <div className="font-semibold text-sm text-foreground">{t("index.how2Title")}</div>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t("index.how2Body")}</p>
               </div>
             </div>
             <div className="flex flex-col items-center gap-3">
               <div className="size-12 rounded-full bg-gold/10 flex items-center justify-center text-2xl">📋</div>
               <div>
-                <div className="font-semibold text-sm text-foreground">Offert samma dag</div>
-                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">Skicka din stycklista — vi återkommer med pris och leveranstid inom en arbetsdag.</p>
+                <div className="font-semibold text-sm text-foreground">{t("index.how3Title")}</div>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t("index.how3Body")}</p>
               </div>
             </div>
           </div>
