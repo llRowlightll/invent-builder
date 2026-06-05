@@ -94,15 +94,50 @@ Originalkällor finns i användarens Downloads-mapp.
 
 **Originalplats:** `/Users/ch/Downloads/Festo topseller/SMC topseller/`
 
+## Parker (4 PDFer)
+
+### Elektrisk drivlina (tillagd)
+| Fil | Produkt | Kategori | DB-SKU |
+|-----|---------|----------|--------|
+| `192_120013_Compax3_Catalog.pdf` | Compax3 servodrivare | servo-drive | `PARKER-COMPAX3` |
+| `PSD_Parker_Servo_Drive_Catalog_NA.pdf` | PSD servodrivare | servo-drive | `PARKER-PSD` |
+| `MPP-Brochure-Rev2-Jan2021.pdf` | MPP servomotor | servo-motor | `PARKER-MPP` |
+| `192_061013_SMB_SMH_Motoren.pdf` | SMB/SMH servomotor | servo-motor | `PARKER-SMH` |
+
+## Bosch Rexroth (6 PDFer)
+
+### Elektrisk drivlina (tillagd)
+| Fil | Produkt | Kategori | DB-SKU |
+|-----|---------|----------|--------|
+| `Rexroth CS Drive Data Sheet p146994_en.pdf` | IndraDrive Cs servodrivare | servo-drive | `BR-INDRADRIVE-CS` |
+| `R911325518_07_EN_IndraDrive ... HCS01_Commissioning Manual.pdf` | IndraDrive HCS01 effektdel (samma familj) | servo-drive | (ingår i `BR-INDRADRIVE-CS`) |
+| `Rexroth MS2N Product Catalog.pdf` | MS2N servomotor | servo-motor | `BR-MS2N` |
+| `Rexroth MSK Project Planning Manual R911296289_10.pdf` | MSK servomotor | servo-motor | `BR-MSK` |
+| `Bosch-Rexroth-EMC-Brochure.pdf` | EMC elcylinder (kulskruv) | electric-actuator | `BR-EMC` |
+| `kompakta-moduler-ckk-ckr.pdf` | CKK/CKR linjärmodul | linear-module | `BR-CKK` |
+
+## Metal Work (4 PDFer, tillägg)
+
+| Fil | Produkt | Kategori | DB-SKU |
+|-----|---------|----------|--------|
+| `ELEKTRO_ISO15552_EN_0224.pdf` | Elektro ISO 15552 elcylinder | electric-actuator | täcks av befintliga `MW-ELK-ISO-*` |
+| `EB80-BOXI-EN.pdf` | EB 80 ventilterminal (fältbuss) | valve-terminal | `MW-EB80` |
+| `MW_Leaflet_Raccordi_EN.pdf` | Raccordi snabbkopplingar | fitting | `MW-RACCORDI` |
+| `ZJJ3zfP5...pdf` | SOV L in-line magnetventil 3/2 | valve | `MW-SOV-L` |
+
+**Originalplats:** `/Users/ch/Downloads/`
+
 ## Saknade PDFer
 
 **Elektrisk drivlina** (orsakade "ej i katalog" i BOM:en):
 - **Festo** motor/drivare/styrsystem — ✅ tillagt (EMMT/EMME + CMMT/CMMP + CPX-E)
-- **SMC-drivare** (LECP6 / LECPA / LECA6) — ✅ tillagt; advisorn paras dem nu med SMC:s LEF/LEY-ställdon (märkesmatchning).
-- **Parker / Bosch Rexroth** servomotor + drivare — saknas (behövs bara om du säljer deras elektriska drivlina).
+- **SMC-drivare** (LECP6 / LECPA / LECA6) — ✅ tillagt; paras med SMC:s LEF/LEY-ställdon (märkesmatchning).
+- **Parker** servomotor + drivare — ✅ tillagt (MPP/SMH + Compax3/PSD).
+- **Bosch Rexroth** servomotor + drivare — ✅ tillagt (MS2N/MSK + IndraDrive Cs); även EMC elcylinder + CKK linjärmodul.
+- **Camozzi** elektrisk drivlina (Series 6 har 4 elaxlar men 0 motor/drivare) — saknas; nästa lucka att fylla om du säljer Camozzis elaxlar.
 
 **Varumärken utan sparade PDFer** (har redan specs i databasen):
-- **Metal Work** (137 produkter) · **Parker** (54) · **Bosch Rexroth** (29) · **Norgren** (23)
+- **Norgren** (23) · övriga mindre märken.
 
-> Dessa har komplett spec-täckning i databasen redan. PDFerna behövs bara om specs ska
-> korrigeras/utökas — eller för Parker/Bosch elektriska drivlina om du säljer den.
+> Märkesren BOM kräver att varje elektriskt ställdons-märke har egen motor + drivare.
+> Efter detta är Festo, Parker, Bosch Rexroth och SMC kompletta; Camozzi återstår.
