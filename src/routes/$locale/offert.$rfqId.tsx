@@ -99,7 +99,7 @@ export default function PublicOffertPage() {
     await supabase.rpc("respond_to_quote", {
       p_id: rfqId,
       p_decision: decision,
-      p_po: poInput.trim() || null,
+      p_po: poInput.trim() || undefined,
     });
     // Fire notification email
     await fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email", {

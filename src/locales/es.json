@@ -237,7 +237,18 @@
     "ctaCompareBody": "Ponga 2–4 productos uno al lado del otro y vea el mejor valor por spec.",
     "ctaMachineTitle": "Construir máquina",
     "ctaMachineBody": "Describa su aplicación — la IA genera una lista de materiales completa y usted envía una oferta con un clic.",
-    "open": "Abrir →"
+    "open": "Abrir →",
+    "howLabel": "Cómo trabajamos",
+    "how1Title": "Búsqueda con IA las 24 horas",
+    "how1Body": "Encuentra el componente adecuado directamente en el catálogo: sin esperas ni colas telefónicas.",
+    "how2Title": "Ingenieros y vendedores reales",
+    "how2Body": "¿Preguntas difíciles? Nuestros vendedores técnicos con profundo conocimiento del producto responden personalmente.",
+    "how3Title": "Presupuesto el mismo día",
+    "how3Body": "Envía tu lista de materiales: te responderemos con precio y plazo de entrega en un día hábil.",
+    "metaTitleSuffix": "Neumática, cilindros y automatización",
+    "metaDescription": "Busca componentes de automatización industrial de Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work y Camozzi. Búsqueda con IA, comparación de especificaciones y lista de materiales completa al instante.",
+    "ogTitleSuffix": "Automatización industrial",
+    "ogDescription": "Selector de componentes con IA para fabricantes de máquinas. Neumática, actuadores eléctricos, válvulas y más."
   },
   "productsPage": {
     "aiSearchLabel": "✦ Búsqueda IA",

@@ -237,7 +237,18 @@
     "ctaCompareBody": "Sätt 2–4 produkter sida vid sida och se bästa värde per spec.",
     "ctaMachineTitle": "Bygg maskin",
     "ctaMachineBody": "Beskriv din applikation — AI genererar komplett stycklista och du skickar offert med ett klick.",
-    "open": "Öppna →"
+    "open": "Öppna →",
+    "howLabel": "Hur vi arbetar",
+    "how1Title": "AI-sökning dygnet runt",
+    "how1Body": "Hitta rätt komponent direkt i katalogen — ingen väntetid, inga telefonköer.",
+    "how2Title": "Riktiga ingenjörer & säljare",
+    "how2Body": "Svåra frågor? Våra tekniska säljare med djup produktkunskap svarar personligen.",
+    "how3Title": "Offert samma dag",
+    "how3Body": "Skicka din stycklista — vi återkommer med pris och leveranstid inom en arbetsdag.",
+    "metaTitleSuffix": "Pneumatik, cylindrar & automation",
+    "metaDescription": "Sök industriella automationskomponenter från Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work och Camozzi. AI-sökning, spec-jämförelse och komplett stycklista direkt.",
+    "ogTitleSuffix": "Industriell automation",
+    "ogDescription": "AI-driven komponentväljare för maskinbyggare. Pneumatik, elektriska aktuatorer, ventiler och mer."
   },
   "productsPage": {
     "aiSearchLabel": "✦ AI-sökning",

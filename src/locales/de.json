@@ -237,7 +237,18 @@
     "ctaCompareBody": "Stellen Sie 2–4 Produkte nebeneinander und sehen Sie den besten Wert pro Spec.",
     "ctaMachineTitle": "Maschine bauen",
     "ctaMachineBody": "Beschreiben Sie Ihre Anwendung — KI generiert eine vollständige Stückliste und Sie senden ein Angebot mit einem Klick.",
-    "open": "Öffnen →"
+    "open": "Öffnen →",
+    "howLabel": "So arbeiten wir",
+    "how1Title": "KI-Suche rund um die Uhr",
+    "how1Body": "Finden Sie die richtige Komponente direkt im Katalog — keine Wartezeit, keine Telefonwarteschlangen.",
+    "how2Title": "Echte Ingenieure & Vertrieb",
+    "how2Body": "Schwierige Fragen? Unsere technischen Vertriebsmitarbeiter mit tiefem Produktwissen antworten persönlich.",
+    "how3Title": "Angebot am selben Tag",
+    "how3Body": "Senden Sie Ihre Stückliste — wir melden uns innerhalb eines Werktags mit Preis und Lieferzeit.",
+    "metaTitleSuffix": "Pneumatik, Zylinder & Automation",
+    "metaDescription": "Durchsuchen Sie Industrieautomationskomponenten von Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work und Camozzi. KI-Suche, Spec-Vergleich und komplette Stückliste sofort.",
+    "ogTitleSuffix": "Industrielle Automation",
+    "ogDescription": "KI-gestützte Komponentenauswahl für Maschinenbauer. Pneumatik, elektrische Antriebe, Ventile und mehr."
   },
   "productsPage": {
     "aiSearchLabel": "✦ KI-Suche",

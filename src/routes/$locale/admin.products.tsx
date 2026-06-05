@@ -13,7 +13,6 @@ type Product = {
   family: string | null; availability: string | null; status: string | null;
   lead_time_days: number | null; image_url: string | null;
   ip_rating: string | null; fieldbus: string | null; voltage: string | null;
-  purchase_price: number | null; margin: number | null;
   brand_id: string; category_id: string;
   brand: Brand; category: Cat;
   created_at: string;
