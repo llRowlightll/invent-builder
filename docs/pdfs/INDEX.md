@@ -62,7 +62,7 @@ Originalkällor finns i användarens Downloads-mapp.
 
 **Originalplats:** `/Users/ch/Downloads/Festo topseller/Festo topsellers/`
 
-## SMC (18 PDFs)
+## SMC (21 PDFs)
 
 | Fil | Produkt |
 |-----|---------|
@@ -85,17 +85,24 @@ Originalkällor finns i användarens Downloads-mapp.
 | `SY3000-5000-7000-E_EN.pdf` | SY3000/5000/7000 ventilterminaler |
 | `SY_EU.pdf` | SY solenoidventil |
 
+### Elektrisk drivlina (tillagd)
+| Fil | Produkt | Kategori |
+|-----|---------|----------|
+| `LECP6_E.pdf` | LECP6 stegmotorstyrning (servo, programmerbar) | servo-drive |
+| `JXCx-OMT0042.pdf` | LECPA stegmotordrivare (pulsingång) | servo-drive |
+| `DOC1114726.pdf` | LECA6 servomotorstyrning | servo-drive |
+
 **Originalplats:** `/Users/ch/Downloads/Festo topseller/SMC topseller/`
 
 ## Saknade PDFer
 
 **Elektrisk drivlina** (orsakade "ej i katalog" i BOM:en):
-- **Festo** motor/drivare/styrsystem — ✅ tillagt (se "Elektrisk drivlina" ovan)
-- **SMC-drivare** (LECP6 / LECA6 / LECPA) — **saknas**. SMC har LEF/LEY-ställdon men inte drivar-databladen → skicka dem så paras SMC-elaxlar med rätt drivare.
+- **Festo** motor/drivare/styrsystem — ✅ tillagt (EMMT/EMME + CMMT/CMMP + CPX-E)
+- **SMC-drivare** (LECP6 / LECPA / LECA6) — ✅ tillagt; advisorn paras dem nu med SMC:s LEF/LEY-ställdon (märkesmatchning).
 - **Parker / Bosch Rexroth** servomotor + drivare — saknas (behövs bara om du säljer deras elektriska drivlina).
 
 **Varumärken utan sparade PDFer** (har redan specs i databasen):
 - **Metal Work** (137 produkter) · **Parker** (54) · **Bosch Rexroth** (29) · **Norgren** (23)
 
 > Dessa har komplett spec-täckning i databasen redan. PDFerna behövs bara om specs ska
-> korrigeras/utökas — eller för el-drivlinan (SMC-drivare är mest värdefull att fylla nu).
+> korrigeras/utökas — eller för Parker/Bosch elektriska drivlina om du säljer den.
