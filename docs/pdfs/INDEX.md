@@ -9,7 +9,7 @@ Originalkällor finns i användarens Downloads-mapp.
 |-----|-------------|---------------|
 | `camozzi/Camozzi Short Form Catalogue_ENG.pdf` | Komplett Camozzi-katalog: Serier 31, 32, 40K, 41K, 63, ARP, QN, 6000, 7000, SCU/MCU/GSCU, VEB/VEC, VTCF/VTCL, MX | `/Users/ch/Downloads/Ny mapp med objekt/` |
 
-## Festo (25 PDFs)
+## Festo (31 PDFs)
 
 ### Cylindrar
 | Fil | Produkt |
@@ -50,6 +50,16 @@ Originalkällor finns i användarens Downloads-mapp.
 | `203917_documentation.pdf` | VTUG |
 | `203921_documentation.pdf` | CPX-AP |
 
+### Elektrisk drivlina (tillagd – fyllde "ej i katalog"-hålet)
+| Fil | Produkt | Kategori |
+|-----|---------|----------|
+| `EMMT-AS_EN.pdf` | EMMT-AS servomotor | servo-motor |
+| `203016_documentation.pdf` | EMME-AS servomotor | servo-motor |
+| `202668_documentation.pdf` | CMMT-AS servodrivare | servo-drive |
+| `202650_documentation.pdf` | CMMP-AS motorstyrning | servo-drive |
+| `202715_documentation.pdf` | CPX-E motion controller | controller |
+| `8065114.pdf` | NEBL-M8W4 anslutningskabel | cable |
+
 **Originalplats:** `/Users/ch/Downloads/Festo topseller/Festo topsellers/`
 
 ## SMC (18 PDFs)
@@ -79,11 +89,13 @@ Originalkällor finns i användarens Downloads-mapp.
 
 ## Saknade PDFer
 
-Följande varumärken har produkter i databasen men inga PDFer sparade:
-- **Metal Work** (137 produkter) — skicka PDF om tillgänglig
-- **Parker** (54 produkter) — skicka PDF om tillgänglig
-- **Bosch Rexroth** (29 produkter) — skicka PDF om tillgänglig
-- **Norgren** (23 produkter) — skicka PDF om tillgänglig
+**Elektrisk drivlina** (orsakade "ej i katalog" i BOM:en):
+- **Festo** motor/drivare/styrsystem — ✅ tillagt (se "Elektrisk drivlina" ovan)
+- **SMC-drivare** (LECP6 / LECA6 / LECPA) — **saknas**. SMC har LEF/LEY-ställdon men inte drivar-databladen → skicka dem så paras SMC-elaxlar med rätt drivare.
+- **Parker / Bosch Rexroth** servomotor + drivare — saknas (behövs bara om du säljer deras elektriska drivlina).
 
-> Notera: Alla dessa varumärken har redan komplett spec-täckning i databasen.
-> PDFerna behövs bara om specs behöver korrigeras eller utökas.
+**Varumärken utan sparade PDFer** (har redan specs i databasen):
+- **Metal Work** (137 produkter) · **Parker** (54) · **Bosch Rexroth** (29) · **Norgren** (23)
+
+> Dessa har komplett spec-täckning i databasen redan. PDFerna behövs bara om specs ska
+> korrigeras/utökas — eller för el-drivlinan (SMC-drivare är mest värdefull att fylla nu).
