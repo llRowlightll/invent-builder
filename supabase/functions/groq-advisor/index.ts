@@ -716,7 +716,7 @@ function extractLoadKg(text: string, answers: Record<string, string>): number {
  * Returns null if no catalog match exists — caller should use SPECIFY.
  */
 function findCatalogProductByType(
-  type: "valve" | "frl" | "check-valve" | "shock-absorber" | "sensor" | "valve-terminal" | "fitting" | "cable" | "mounting" | "servo-motor" | "servo-drive",
+  type: "valve" | "frl" | "check-valve" | "shock-absorber" | "sensor" | "valve-terminal" | "fitting" | "cable" | "mounting" | "servo-motor" | "servo-drive" | "silencer" | "flow-control" | "tubing",
   products: CatalogProduct[]
 ): CatalogProduct | null {
   // FRL: prefer Festo MS4/MS6 first — avoids Camozzi MC- sorting to front alphabetically
@@ -727,7 +727,13 @@ function findCatalogProductByType(
       null
     );
   }
-  for (const p of products) {
+  // Prefer catalog SKUs with a brand prefix (FESTO-/FE-/SMC-/MW-/…) over raw,
+  // un-prefixed manufacturer part numbers so BOMs stay consistent and clean.
+  const BRAND_PREFIX = /^(festo|fe|smc|mw|cam|camozzi|nor|norgren|parker|br)-/i;
+  const ordered = [...products].sort(
+    (a, b) => (BRAND_PREFIX.test(a.sku) ? 0 : 1) - (BRAND_PREFIX.test(b.sku) ? 0 : 1)
+  );
+  for (const p of ordered) {
     const nameSkuLower = (p.name + " " + p.sku).toLowerCase();
     switch (type) {
       case "valve":
@@ -759,6 +765,15 @@ function findCatalogProductByType(
         break;
       case "servo-drive":
         if (p.category === "servo-drive" || /\bservodriv|\bdrivsteg\b|\bamplifier\b|\bCMMP\b|\bCMMT\b|\bLECP\b|\bLECA\b|\bSTM\b/i.test(p.name + " " + p.sku)) return p;
+        break;
+      case "silencer":
+        if (p.category === "silencer" || /ljuddämp|silencer|muffler|schalldämp/i.test(nameSkuLower)) return p;
+        break;
+      case "flow-control":
+        if (p.category === "flow-control" || /flödesregler|flow.?control|strypback|speed.?control|throttle|drossel/i.test(nameSkuLower)) return p;
+        break;
+      case "tubing":
+        if (p.category === "tubing" || /\bslang\b|tubing|polyuret|\bpun\b|\bpan\b|\btu\b/i.test(nameSkuLower)) return p;
         break;
     }
   }
@@ -974,6 +989,26 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     });
   }
 
+  // ── 4b. Silencer + one-way flow control (all pneumatic) ──────────
+  if (isPneumatic) {
+    const silMatch = findCatalogProductByType("silencer", products);
+    rows.push({
+      sku: silMatch?.sku ?? "SPECIFY", quantity: valveTerminal ? 1 : 2,
+      role: isSv ? "Ljuddämpare (avluftning)" : "Silencer (exhaust)",
+      reason: isSv
+        ? "OBLIGATORISK på ventilens avluftningsportar (3/5) — sänker ljudnivån och skyddar mot smuts. En per avluftningsport (2 st för en 5/2-ventil); vid ventilramp räcker en central enhet."
+        : "MANDATORY on the valve exhaust ports (3/5) — cuts noise and keeps dirt out. One per exhaust port (2 for a 5/2 valve); one central unit suffices on a manifold.",
+    });
+    const fcMatch = findCatalogProductByType("flow-control", products);
+    rows.push({
+      sku: fcMatch?.sku ?? "SPECIFY", quantity: 2,
+      role: isSv ? "Strypbackventil (hastighetsreglering)" : "One-way flow control (speed)",
+      reason: isSv
+        ? "OBLIGATORISK för att ställa cylinderns hastighet — 2 st strypbackventiler (meter-out) på cylinderns portar ger jämn, kontrollerad rörelse fram och åter."
+        : "MANDATORY to set cylinder speed — 2 one-way flow-control valves (meter-out) on the cylinder ports give smooth, controlled extend/retract.",
+    });
+  }
+
   // ── 5. FRL (all pneumatic) ────────────────────────────────────────
   if (isPneumatic) {
     const frlMatch = findCatalogProductByType("frl", products);
@@ -1020,6 +1055,20 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
         reason: isSv
           ? "Ansluter cylinder och ventil till luftslang — välj diameter (6/8/10 mm) för rätt slanganslutning till cylinderns G-port."
           : "Connects cylinder and valve to air tubing — select diameter (6/8/10 mm) matching cylinder G-port.",
+      });
+    }
+  }
+
+  // ── 8b. Tubing (all pneumatic) ───────────────────────────────────
+  if (isPneumatic) {
+    const tubeMatch = findCatalogProductByType("tubing", products);
+    if (tubeMatch) {
+      rows.push({
+        sku: tubeMatch.sku, quantity: 1,
+        role: isSv ? "Tryckluftsslang (per meter)" : "Pneumatic tubing (per metre)",
+        reason: isSv
+          ? "Förbinder ventil, FRL och cylinder — välj ytterdiameter (6/8/10 mm) och längd efter installationen. Anges per meter."
+          : "Connects valve, FRL and cylinder — select outer diameter (6/8/10 mm) and length per the installation. Sold per metre.",
       });
     }
   }
@@ -1579,7 +1628,11 @@ async function handleBom(
     isElectric                        ? "cable"          : "fitting",
     isElectric                        ? "servo-motor"    : null,
     isElectric                        ? "servo-drive"    : null,
+    isPneumaticBom                    ? "valve"          : null,
     isPneumaticBom                    ? "frl"            : null,
+    isPneumaticBom                    ? "silencer"       : null,
+    isPneumaticBom                    ? "flow-control"   : null,
+    isPneumaticBom                    ? "tubing"         : null,
     isPneumaticBom && isHighSpeed     ? "shock-absorber" : null,
     isPneumaticBom && isVerticalLoad  ? "check-valve"    : null,
     isMounting                        ? "mounting"       : null,
