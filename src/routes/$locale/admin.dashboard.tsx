@@ -41,6 +41,7 @@ const ADMIN_LINKS = [
   { to: "/$locale/admin/rfq",       label: "RFQ / Order", icon: "📋" },
   { to: "/$locale/admin/products",  label: "Produkter", icon: "📦" },
   { to: "/$locale/admin/pricing",   label: "Prissättning", icon: "💰" },
+  { to: "/$locale/admin/ekonomi",   label: "Ekonomi", icon: "📊" },
   { to: "/$locale/admin/knowledge", label: "Knowledge base", icon: "🧠" },
   { to: "/$locale/admin/crm",       label: "CRM", icon: "👥" },
   { to: "/$locale/admin/images",    label: "Bilder", icon: "🖼" },
