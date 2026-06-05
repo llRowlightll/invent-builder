@@ -894,9 +894,16 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     reason: (isSv ? "Vald primär aktuator" : "Selected primary actuator") + famNote,
   });
 
+  // Prefer the primary's brand when picking motor/drive/secondary axis, so e.g. an
+  // SMC axis gets an SMC drive rather than a Festo one. Same-brand sorted to front.
+  const primaryBrand = (products.find(p => p.sku === primarySku)?.brand ?? "").toLowerCase();
+  const brandSorted = primaryBrand
+    ? [...products].sort((a, b) => (a.brand?.toLowerCase() === primaryBrand ? 0 : 1) - (b.brand?.toLowerCase() === primaryBrand ? 0 : 1))
+    : products;
+
   // ── 2. Servo motor (vertical electric → brake motor) ─────────────
   if (isVerticalLoad && isElectric) {
-    const motorMatch = findCatalogProductByType("servo-motor", products);
+    const motorMatch = findCatalogProductByType("servo-motor", brandSorted);
     rows.push({
       sku: motorMatch?.sku ?? "SPECIFY", quantity: 1,
       role: isSv ? "Bromsmotor — Z-axel (vertikal säkerhet)" : "Brake motor — Z-axis (vertical safety)",
@@ -908,7 +915,7 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
 
   // ── 2b. Servo drive / amplifier (all electric axes) ──────────────
   if (isElectric) {
-    const driveMatch = findCatalogProductByType("servo-drive", products);
+    const driveMatch = findCatalogProductByType("servo-drive", brandSorted);
     rows.push({
       sku: driveMatch?.sku ?? "SPECIFY", quantity: 1,
       role: isSv ? "Servodrivare (drivsteg)" : "Servo drive (amplifier)",
@@ -1035,7 +1042,7 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     for (const ax of secondaryAxes) {
       const axLabel = ax.axis.toUpperCase();
       // P0: match a REAL catalog actuator for this axis instead of a placeholder.
-      const axMatch = findAxisActuator(products, ax.stroke, isElectric);
+      const axMatch = findAxisActuator(brandSorted, ax.stroke, isElectric);
       rows.push({
         sku: axMatch?.sku ?? "SPECIFY", quantity: 1,
         role: isSv ? `Aktuator — ${axLabel}-axel` : `Actuator — ${axLabel}-axis`,
