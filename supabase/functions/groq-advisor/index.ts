@@ -733,6 +733,11 @@ function findCatalogProductByType(
   const ordered = [...products].sort(
     (a, b) => (BRAND_PREFIX.test(a.sku) ? 0 : 1) - (BRAND_PREFIX.test(b.sku) ? 0 : 1)
   );
+  // Exact category match wins (branded-first) so a loose name regex for one type
+  // can't grab a product from another category — e.g. a "silencer" (ljuddämpare)
+  // must never satisfy a "shock-absorber" (stötdämpare) lookup via "dämpare".
+  const exactCat = ordered.find(p => p.category === type);
+  if (exactCat) return exactCat;
   for (const p of ordered) {
     const nameSkuLower = (p.name + " " + p.sku).toLowerCase();
     switch (type) {
@@ -743,7 +748,7 @@ function findCatalogProductByType(
         if (p.category === "check-valve" || /backslagsventil|check.valve|pilot.operated.check|sperrventil|non.return/i.test(nameSkuLower)) return p;
         break;
       case "shock-absorber":
-        if (p.category === "shock-absorber" || /st.tdämpare|shock.absorber|dämpare|dämpning/i.test(nameSkuLower)) return p;
+        if (p.category === "shock-absorber" || /st.tdämpare|shock.?absorber|st.tdämp/i.test(nameSkuLower)) return p;
         break;
       case "sensor":
         if (p.category === "sensor" || /\bSME\b|\bSMT\b|\bgivare\b|\breed.switch\b|\bproximity\b|\bend.pos/i.test(p.name + " " + p.sku)) return p;
@@ -916,20 +921,27 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     ? [...products].sort((a, b) => (a.brand?.toLowerCase() === primaryBrand ? 0 : 1) - (b.brand?.toLowerCase() === primaryBrand ? 0 : 1))
     : products;
 
-  // ── 2. Servo motor / holding brake (vertical electric) ───────────
-  if (isVerticalLoad && isElectric) {
+  // ── 2. Servo motor (all electric axes; brake emphasised when vertical) ───
+  if (isElectric) {
     const motorMatch = findCatalogProductByType("servo-motor", brandSorted);
     const sameBrandMotor = !!motorMatch && !!primaryBrand && motorMatch.brand?.toLowerCase() === primaryBrand;
     if (sameBrandMotor) {
-      // Separate-motor brands (e.g. Festo EGSK axis + EMME motor).
+      // Separate-motor brands (e.g. Festo EGSK + EMME, Parker HMR + MPP) — the axis
+      // needs its own servo motor whether horizontal or vertical.
       rows.push({
         sku: motorMatch!.sku, quantity: 1,
-        role: isSv ? "Bromsmotor — Z-axel (vertikal säkerhet)" : "Brake motor — Z-axis (vertical safety)",
-        reason: `${motorMatch!.name} (${motorMatch!.brand}) — ` + (isSv
-          ? "OBLIGATORISK för vertikal elektrisk servoaxel — integrerad hållbroms håller lasten vid strömavbrott/nödstopp."
-          : "MANDATORY for a vertical electric servo axis — integrated holding brake keeps the load on power loss/E-stop."),
+        role: isVerticalLoad
+          ? (isSv ? "Bromsmotor (vertikal säkerhet)" : "Brake motor (vertical safety)")
+          : (isSv ? "Servomotor" : "Servo motor"),
+        reason: `${motorMatch!.name} (${motorMatch!.brand}) — ` + (isVerticalLoad
+          ? (isSv
+              ? "OBLIGATORISK för vertikal elektrisk servoaxel — beställ med integrerad hållbroms som håller lasten vid strömavbrott/nödstopp."
+              : "MANDATORY for a vertical electric servo axis — order with integrated holding brake to keep the load on power loss/E-stop.")
+          : (isSv
+              ? "Driver axeln — matcha moment/varvtal mot lasten; samma märke som axel och drivare."
+              : "Drives the axis — match torque/speed to the load; same brand as the axis and drive.")),
       });
-    } else {
+    } else if (isVerticalLoad) {
       // Integrated-motor actuator (e.g. SMC LE-series) — the holding brake is an
       // ORDER OPTION on the actuator, not a separate (foreign-brand) motor.
       rows[0].reason += isSv
