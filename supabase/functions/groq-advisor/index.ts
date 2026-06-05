@@ -1602,6 +1602,10 @@ async function handleBom(
   const maxStroke = perAxisStrokes.length > 0 ? Math.max(...perAxisStrokes.map(a => a.stroke)) : minStroke;
   const dyn = computeDynamics(massKg, maxStroke, cycleTimeS, isVerticalLoad);
   const conflicts = detectConflicts({ isSv, precisionMm, isHighPrecision, speedMs, isDirtyEnv, isWashdown, isAtexDust, isLowCost, is24x7, dyn });
+  // P2 force check: does the chosen actuator's rated force cover the computed peak load?
+  const ratedForceN = parseFloat(String(products.find(p => p.sku === primarySku)?.key_specs?.force_n ?? "0").replace(/[^\d.]/g, ""));
+  const forceShortfall = (dyn && ratedForceN > 0 && dyn.forceN > ratedForceN)
+    ? { needN: Math.round(dyn.forceN), ratedN: Math.round(ratedForceN) } : null;
   const bomCtx: BomCtx = {
     primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
     isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isVacuum, isSv,
@@ -1706,6 +1710,9 @@ JSON: { "title": "...", "explanation": "..." }`;
   if (dyn) engNotes.push(isSv
     ? `📐 Dimensionering (första-ordningens uppskattning): för ${cycleTimeS} s cykeltid, ${maxStroke} mm slag och ${massKg} kg → topphastighet ~${dyn.vPeak.toFixed(2)} m/s, acceleration ~${dyn.accel.toFixed(1)} m/s², toppkraft ~${Math.round(dyn.forceN)} N${isVerticalLoad ? " (inkl. gravitation)" : ""}. Verifiera vald axel/motor mot kraft, varvtal och kontinuerlig last — detta ersätter inte en full servoberäkning.`
     : `📐 Sizing (first-order estimate): for a ${cycleTimeS} s cycle, ${maxStroke} mm stroke and ${massKg} kg → peak velocity ~${dyn.vPeak.toFixed(2)} m/s, acceleration ~${dyn.accel.toFixed(1)} m/s², peak force ~${Math.round(dyn.forceN)} N${isVerticalLoad ? " (incl. gravity)" : ""}. Verify the chosen axis/motor for force, rpm and continuous load — this does not replace a full servo calculation.`);
+  if (forceShortfall) engNotes.push(isSv
+    ? `⛔ Kraftvarning: beräknad toppkraft ~${forceShortfall.needN} N överstiger vald aktuators märkkraft ~${forceShortfall.ratedN} N. Välj kraftigare axel / större borrning, sänk last/acceleration eller öka cykeltiden.`
+    : `⛔ Force warning: computed peak force ~${forceShortfall.needN} N exceeds the chosen actuator's rated force ~${forceShortfall.ratedN} N. Pick a stronger axis / larger bore, reduce load/acceleration, or increase the cycle time.`);
   for (const c of conflicts) engNotes.push("⚠️ " + c);
   if (engNotes.length) explanation += "\n\n" + engNotes.join("\n\n");
 
