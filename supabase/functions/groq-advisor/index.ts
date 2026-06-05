@@ -926,12 +926,18 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
   // ── 2b. Servo drive / amplifier (all electric axes) ──────────────
   if (isElectric) {
     const driveMatch = findCatalogProductByType("servo-drive", brandSorted);
+    const sameBrandDrive = !!driveMatch && !!primaryBrand && driveMatch.brand?.toLowerCase() === primaryBrand;
+    const bU = primaryBrand ? primaryBrand.toUpperCase() : "";
     rows.push({
-      sku: driveMatch?.sku ?? "SPECIFY", quantity: 1,
+      sku: sameBrandDrive ? driveMatch!.sku : "SPECIFY", quantity: 1,
       role: isSv ? "Servodrivare (drivsteg)" : "Servo drive (amplifier)",
-      reason: (driveMatch ? `${driveMatch.name} (${driveMatch.brand}). ` : "") + (isSv
-        ? "Driver och styr servomotorn — matcha effekt/spänning mot motor och axel; ange fältbuss (EtherCAT/PROFINET) till styrsystemet."
-        : "Drives and controls the servo motor — match power/voltage to the motor and axis; specify fieldbus (EtherCAT/PROFINET) to the controller."),
+      reason: sameBrandDrive
+        ? `${driveMatch!.name} (${driveMatch!.brand}). ` + (isSv
+            ? "Driver och styr servomotorn — matcha effekt/spänning mot axel; ange fältbuss (EtherCAT/PROFINET)."
+            : "Drives and controls the servo motor — match power/voltage to the axis; specify fieldbus (EtherCAT/PROFINET).")
+        : (isSv
+            ? `Specificera kompatibel drivare för ${bU ? bU + "-" : ""}axeln — vi har ingen ${bU} servodrivare i katalogen ännu, begär offert.`
+            : `Specify a compatible drive for the ${bU ? bU + " " : ""}axis — no ${bU} servo drive in the catalogue yet, request a quote.`),
     });
   }
 
