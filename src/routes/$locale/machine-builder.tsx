@@ -770,7 +770,7 @@ function exportBomPdf(bom: BomLine[], title: string, explanation: string, select
   const rows = bom.map(l => `
     <tr>
       <td>${l.sku}</td>
-      <td>${l.product?.name ?? "<em>Ej i katalog</em>"}</td>
+      <td>${l.product?.name ?? (l.sku === "SPECIFY" ? "<em>Specificera variant / kräver offert</em>" : "<em>Ej i katalog</em>")}</td>
       <td style="text-align:center">${l.quantity}</td>
       <td>${l.role}</td>
       <td>${l.reason}</td>
@@ -1292,12 +1292,12 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
                             className="font-mono text-xs text-info hover:underline"
                           >{line.sku}</Link>
                         ) : (
-                          <span className="font-mono text-xs text-muted-foreground">{line.sku}</span>
+                          <span className="font-mono text-xs text-muted-foreground">{line.sku === "SPECIFY" ? "—" : line.sku}</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-foreground">
                         <div className="flex items-center gap-2 flex-wrap">
-                          {line.product?.name ?? <span className="text-muted-foreground italic">{t("machineBuilder.notInCatalog")}</span>}
+                          {line.product?.name ?? <span className="text-muted-foreground italic">{line.sku === "SPECIFY" ? t("machineBuilder.specifyVariant") : t("machineBuilder.notInCatalog")}</span>}
                           {isSwapped && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-[oklch(0.88_0.08_155)] text-[oklch(0.35_0.12_155)] font-semibold">
                               {t("machineBuilder.altSwappedBadge")}

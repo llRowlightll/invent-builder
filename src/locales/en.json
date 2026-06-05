@@ -604,6 +604,7 @@
     "roleCol": "Role",
     "reasonCol": "Reason",
     "notInCatalog": "Not in catalog",
+    "specifyVariant": "Specify variant / request quote",
     "articlesTotal": "articles total",
     "sendQuote": "Send quote request",
     "sendQuoteBody": "We'll send a quote with these items within 24 hours.",

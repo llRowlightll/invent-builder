@@ -604,6 +604,7 @@
     "roleCol": "Roll",
     "reasonCol": "Motivering",
     "notInCatalog": "Ej i katalog",
+    "specifyVariant": "Specificera variant / kräver offert",
     "articlesTotal": "artiklar totalt",
     "sendQuote": "Skicka offertförfrågan",
     "sendQuoteBody": "Vi skickar en offert med dessa artiklar inom 24 timmar.",
