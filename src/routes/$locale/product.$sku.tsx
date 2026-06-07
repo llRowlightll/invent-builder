@@ -59,6 +59,7 @@ function ProductDetail() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const [addedToCart, setAddedToCart] = useState(false);
+  const [configSlug, setConfigSlug] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -77,6 +78,16 @@ function ProductDetail() {
           .filter((p) => p.category.slug === product.category.slug && p.brand.slug !== product.brand.slug && p.sku !== product.sku)
           .slice(0, 6);
         setAlternatives(alts);
+        // Show a "Configure" button when this product's family has a configurator.
+        const fam = product.family?.toLowerCase().trim();
+        if (fam) {
+          const { data: cf } = await supabase
+            .from("configurator_families")
+            .select("slug")
+            .eq("slug", fam)
+            .maybeSingle();
+          if (cf?.slug) setConfigSlug(cf.slug);
+        }
       }
       setLoading(false);
     })();
@@ -169,6 +180,15 @@ function ProductDetail() {
           >
             {addedToCart ? t("productPage.addedToCart") : t("productPage.addToCart")}
           </button>
+          {configSlug && (
+            <Link
+              to="/$locale/configurator/$family"
+              params={{ locale, family: configSlug }}
+              className="flex items-center justify-center gap-2 w-full text-center mt-2 px-3 py-2 rounded-md bg-foreground text-background text-sm font-semibold hover:opacity-90 transition"
+            >
+              <span>⚙️</span> {t("common.configure")}
+            </Link>
+          )}
           <Link
             to="/$locale/compare"
             params={{ locale }}
