@@ -105,6 +105,7 @@ function LocaleLayout() {
 
   const navLinks = [
     { to: "/$locale/products", label: t("nav.products") },
+    { to: "/$locale/configure", label: t("nav.configurator") },
     { to: "/$locale/new", label: t("nav.new") },
     { to: "/$locale/chat", label: t("nav.chat") },
     { to: "/$locale/advisor", label: t("nav.advisor") },
