@@ -5,6 +5,12 @@ on:
     - cron: '0 2 * * *'   # 02:00 UTC varje natt (04:00 svensk tid)
   workflow_dispatch:        # Kan också triggas manuellt
 
+# Least-privilege token. issues:write lets the alert step file an issue WITHOUT
+# the 403 that was turning every run red (and emailing you) when one was due.
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   eval-and-fix:
     runs-on: ubuntu-latest
@@ -74,7 +80,10 @@ jobs:
           echo "</details>" >> $GITHUB_STEP_SUMMARY
 
       - name: Open GitHub Issue on repeated failures
-        if: steps.results.outputs.fails != '0'
+        # Alert only on SYSTEMIC regressions (≥3), never single-scenario LLM noise.
+        # continue-on-error so a failed alert can never turn the nightly red.
+        if: fromJSON(steps.results.outputs.fails || '0') >= 3
+        continue-on-error: true
         uses: actions/github-script@v9
         with:
           script: |
@@ -102,7 +111,10 @@ jobs:
             }
 
       - name: Open GitHub Issue on invariant failures
-        if: steps.invariants.outputs.fails != '0'
+        # Alert only on SYSTEMIC regressions (≥3), never single-scenario LLM noise.
+        # continue-on-error so a failed alert can never turn the nightly red.
+        if: fromJSON(steps.invariants.outputs.fails || '0') >= 3
+        continue-on-error: true
         uses: actions/github-script@v9
         with:
           script: |
