@@ -139,8 +139,13 @@ function MachineBuilderPage() {
   const [rfqPoNumber, setRfqPoNumber] = useState("");
   const [rfqOrgNumber, setRfqOrgNumber] = useState("");
   const [autoSaved, setAutoSaved] = useState(false);
+  const [configFamilies, setConfigFamilies] = useState<Set<string>>(new Set());
 
   useEffect(() => { loadCatalog().then(setCatalog).catch(() => {}); }, []);
+  useEffect(() => {
+    supabase.from("configurator_families").select("slug")
+      .then(({ data }) => setConfigFamilies(new Set((data ?? []).map((r: { slug: string }) => r.slug))));
+  }, []);
 
   // Pre-fill RFQ form from company profile when user logs in
   useEffect(() => {
@@ -1298,6 +1303,16 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
                       <td className="px-4 py-3 text-sm text-foreground">
                         <div className="flex items-center gap-2 flex-wrap">
                           {line.product?.name ?? <span className="text-muted-foreground italic">{line.sku === "SPECIFY" ? t("machineBuilder.specifyVariant") : t("machineBuilder.notInCatalog")}</span>}
+                          {(() => {
+                            const fam = line.product?.family?.toLowerCase().trim();
+                            return fam && configFamilies.has(fam) ? (
+                              <Link
+                                to="/$locale/configurator/$family"
+                                params={{ locale, family: fam } as never}
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-foreground text-background font-semibold hover:opacity-90 inline-flex items-center gap-1"
+                              >⚙️ {t("common.configure")}</Link>
+                            ) : null;
+                          })()}
                           {isSwapped && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-[oklch(0.88_0.08_155)] text-[oklch(0.35_0.12_155)] font-semibold">
                               {t("machineBuilder.altSwappedBadge")}
