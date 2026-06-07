@@ -3,11 +3,21 @@
 PDFerna är för stora för git (627 MB totalt) och lagras lokalt i denna mapp.
 Originalkällor finns i användarens Downloads-mapp.
 
-## Camozzi (1 PDF)
+## Camozzi (4 PDFer)
 
 | Fil | Beskrivning | Originalplats |
 |-----|-------------|---------------|
 | `camozzi/Camozzi Short Form Catalogue_ENG.pdf` | Komplett Camozzi-katalog: Serier 31, 32, 40K, 41K, 63, ARP, QN, 6000, 7000, SCU/MCU/GSCU, VEB/VEC, VTCF/VTCL, MX | `/Users/ch/Downloads/Ny mapp med objekt/` |
+
+### Elektrisk drivlina (tillagd)
+| Fil | Produkt | Kategori | DB-SKU |
+|-----|---------|----------|--------|
+| `Series_DRCS_drives_Stepper_motors.pdf` | DRCS stegmotordrivare (CANopen, BT/NFC) | servo-drive | `CAM-DRCS` |
+| `ele_en.pdf` (C_Electrics-katalog) | MTS stegmotor (Nema 23/24) | servo-motor | `CAM-MTS` |
+| `ele_en.pdf` (C_Electrics-katalog) | Serie 5E elektromekanisk axel | linear-module | `CAM-5E` |
+| `6E-ENG.pdf` | Serie 6E elcylinder ISO 15552 | electric-actuator | täcks av befintliga `6E-*` |
+
+Märkesren parning: 6E-axeln paras nu med MTS-stegmotor + DRCS-drivare (en och samma teknik).
 
 ## Festo (31 PDFs)
 
@@ -134,10 +144,10 @@ Originalkällor finns i användarens Downloads-mapp.
 - **SMC-drivare** (LECP6 / LECPA / LECA6) — ✅ tillagt; paras med SMC:s LEF/LEY-ställdon (märkesmatchning).
 - **Parker** servomotor + drivare — ✅ tillagt (MPP/SMH + Compax3/PSD).
 - **Bosch Rexroth** servomotor + drivare — ✅ tillagt (MS2N/MSK + IndraDrive Cs); även EMC elcylinder + CKK linjärmodul.
-- **Camozzi** elektrisk drivlina (Series 6 har 4 elaxlar men 0 motor/drivare) — saknas; nästa lucka att fylla om du säljer Camozzis elaxlar.
+- **Camozzi** elektrisk drivlina — ✅ tillagt (MTS stegmotor + DRCS stegmotordrivare + 5E-axel); 6E-axeln paras nu märkesrent.
 
 **Varumärken utan sparade PDFer** (har redan specs i databasen):
 - **Norgren** (23) · övriga mindre märken.
 
 > Märkesren BOM kräver att varje elektriskt ställdons-märke har egen motor + drivare.
-> Efter detta är Festo, Parker, Bosch Rexroth och SMC kompletta; Camozzi återstår.
+> Efter detta har alla huvudmärken (Festo, Parker, Bosch Rexroth, SMC, Camozzi) komplett elektrisk drivlina.
