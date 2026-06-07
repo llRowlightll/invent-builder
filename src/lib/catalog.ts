@@ -50,7 +50,7 @@ export function byCategory(catalog: ProductRow[], slug: string) {
   return catalog.filter((p) => p.category.slug === slug);
 }
 export function specNum(p: ProductRow, key: string): number | null {
-  const v = p.specs[key]?.value;
+  const v = p.specs?.[key]?.value;
   if (v == null) return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;

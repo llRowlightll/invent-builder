@@ -154,7 +154,7 @@ function ComponentsPage() {
                   <div className="mt-4 flex flex-wrap gap-2">
                     {hasSchema.has(search.cat ?? "") && (
                       <Link
-                        to="/$locale/configurator/$schemaId"
+                        to="/$locale/configurator/schema/$schemaId"
                         params={{ locale, schemaId: "EA-LINEAR-AXIS" }}
                         className="text-xs px-3 py-1.5 rounded-md bg-foreground text-background"
                       >

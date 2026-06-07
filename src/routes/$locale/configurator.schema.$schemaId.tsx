@@ -15,7 +15,7 @@ import {
   validate,
 } from "@/lib/configurator-engine";
 
-export const Route = createFileRoute("/$locale/configurator/$schemaId")({
+export const Route = createFileRoute("/$locale/configurator/schema/$schemaId")({
   head: ({ params }) => {
     const t = makeT(params.locale as Locale);
     return {
