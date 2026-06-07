@@ -166,7 +166,7 @@ function ProjectPage() {
         )}
         {(best || cheap) && (
           <Link
-            to="/$locale/configurator/$schemaId"
+            to="/$locale/configurator/schema/$schemaId"
             params={{ locale, schemaId: "EA-LINEAR-AXIS" }}
             className="inline-block text-sm rounded-md bg-foreground text-background px-4 py-2"
           >

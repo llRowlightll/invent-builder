@@ -17,7 +17,7 @@ export const Route = createFileRoute("/$locale/app")({
 });
 
 const TILES: Array<{
-  to: "/$locale/chat" | "/$locale/wizard" | "/$locale/convert" | "/$locale/configurator" | "/$locale/products" | "/$locale/orders";
+  to: "/$locale/chat" | "/$locale/wizard" | "/$locale/convert" | "/$locale/configure" | "/$locale/products" | "/$locale/orders";
   titleKey: "app.tileChatTitle" | "app.tileWizardTitle" | "app.tileConvertTitle" | "app.tileConfiguratorTitle" | "app.tileProductsTitle" | "app.tileOrdersTitle";
   bodyKey: "app.tileChatBody" | "app.tileWizardBody" | "app.tileConvertBody" | "app.tileConfiguratorBody" | "app.tileProductsBody" | "app.tileOrdersBody";
   tone: string;
@@ -25,7 +25,7 @@ const TILES: Array<{
   { to: "/$locale/chat", titleKey: "app.tileChatTitle", bodyKey: "app.tileChatBody", tone: "var(--teal)" },
   { to: "/$locale/wizard", titleKey: "app.tileWizardTitle", bodyKey: "app.tileWizardBody", tone: "var(--copper)" },
   { to: "/$locale/convert", titleKey: "app.tileConvertTitle", bodyKey: "app.tileConvertBody", tone: "var(--gold)" },
-  { to: "/$locale/configurator", titleKey: "app.tileConfiguratorTitle", bodyKey: "app.tileConfiguratorBody", tone: "var(--info)" },
+  { to: "/$locale/configure", titleKey: "app.tileConfiguratorTitle", bodyKey: "app.tileConfiguratorBody", tone: "var(--info)" },
   { to: "/$locale/products", titleKey: "app.tileProductsTitle", bodyKey: "app.tileProductsBody", tone: "var(--steel)" },
   { to: "/$locale/orders", titleKey: "app.tileOrdersTitle", bodyKey: "app.tileOrdersBody", tone: "var(--graphite)" },
 ];

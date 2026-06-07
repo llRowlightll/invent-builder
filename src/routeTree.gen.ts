@@ -40,11 +40,11 @@ import { Route as LocaleAssembliesRouteImport } from './routes/$locale/assemblie
 import { Route as LocaleAppRouteImport } from './routes/$locale/app'
 import { Route as LocaleAdvisorRouteImport } from './routes/$locale/advisor'
 import { Route as LocaleAdminRouteImport } from './routes/$locale/admin'
+import { Route as LocaleConfiguratorIndexRouteImport } from './routes/$locale/configurator.index'
 import { Route as LocaleRfqRfqIdRouteImport } from './routes/$locale/rfq.$rfqId'
 import { Route as LocaleProductSkuRouteImport } from './routes/$locale/product.$sku'
 import { Route as LocaleOffertRfqIdRouteImport } from './routes/$locale/offert.$rfqId'
 import { Route as LocaleOcOrderIdRouteImport } from './routes/$locale/oc.$orderId'
-import { Route as LocaleConfiguratorSchemaIdRouteImport } from './routes/$locale/configurator.$schemaId'
 import { Route as LocaleConfiguratorFamilyRouteImport } from './routes/$locale/configurator.$family'
 import { Route as LocaleBomBomIdRouteImport } from './routes/$locale/bom.$bomId'
 import { Route as LocaleAssemblySlugRouteImport } from './routes/$locale/assembly.$slug'
@@ -57,10 +57,12 @@ import { Route as LocaleAdminKnowledgeRouteImport } from './routes/$locale/admin
 import { Route as LocaleAdminIntegrationsRouteImport } from './routes/$locale/admin.integrations'
 import { Route as LocaleAdminImportRouteImport } from './routes/$locale/admin.import'
 import { Route as LocaleAdminImagesRouteImport } from './routes/$locale/admin.images'
+import { Route as LocaleAdminEkonomiRouteImport } from './routes/$locale/admin.ekonomi'
 import { Route as LocaleAdminDashboardRouteImport } from './routes/$locale/admin.dashboard'
 import { Route as LocaleAdminCrmRouteImport } from './routes/$locale/admin.crm'
 import { Route as LocaleAdminAuditRouteImport } from './routes/$locale/admin.audit'
 import { Route as ApiPublicNotifyRfqRouteImport } from './routes/api/public/notify/rfq'
+import { Route as LocaleConfiguratorSchemaSchemaIdRouteImport } from './routes/$locale/configurator.schema.$schemaId'
 import { Route as LocaleAdminOrderbekraftelseOrderIdRouteImport } from './routes/$locale/admin.orderbekraftelse.$orderId'
 import { Route as LocaleAdminOffertRfqIdRouteImport } from './routes/$locale/admin.offert.$rfqId'
 
@@ -219,6 +221,11 @@ const LocaleAdminRoute = LocaleAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocaleConfiguratorIndexRoute = LocaleConfiguratorIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LocaleConfiguratorRoute,
+} as any)
 const LocaleRfqRfqIdRoute = LocaleRfqRfqIdRouteImport.update({
   id: '/rfq/$rfqId',
   path: '/rfq/$rfqId',
@@ -239,12 +246,6 @@ const LocaleOcOrderIdRoute = LocaleOcOrderIdRouteImport.update({
   path: '/oc/$orderId',
   getParentRoute: () => LocaleRoute,
 } as any)
-const LocaleConfiguratorSchemaIdRoute =
-  LocaleConfiguratorSchemaIdRouteImport.update({
-    id: '/$schemaId',
-    path: '/$schemaId',
-    getParentRoute: () => LocaleConfiguratorRoute,
-  } as any)
 const LocaleConfiguratorFamilyRoute =
   LocaleConfiguratorFamilyRouteImport.update({
     id: '/$family',
@@ -306,6 +307,11 @@ const LocaleAdminImagesRoute = LocaleAdminImagesRouteImport.update({
   path: '/images',
   getParentRoute: () => LocaleAdminRoute,
 } as any)
+const LocaleAdminEkonomiRoute = LocaleAdminEkonomiRouteImport.update({
+  id: '/ekonomi',
+  path: '/ekonomi',
+  getParentRoute: () => LocaleAdminRoute,
+} as any)
 const LocaleAdminDashboardRoute = LocaleAdminDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -326,6 +332,12 @@ const ApiPublicNotifyRfqRoute = ApiPublicNotifyRfqRouteImport.update({
   path: '/api/public/notify/rfq',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LocaleConfiguratorSchemaSchemaIdRoute =
+  LocaleConfiguratorSchemaSchemaIdRouteImport.update({
+    id: '/schema/$schemaId',
+    path: '/schema/$schemaId',
+    getParentRoute: () => LocaleConfiguratorRoute,
+  } as any)
 const LocaleAdminOrderbekraftelseOrderIdRoute =
   LocaleAdminOrderbekraftelseOrderIdRouteImport.update({
     id: '/orderbekraftelse/$orderId',
@@ -373,6 +385,7 @@ export interface FileRoutesByFullPath {
   '/$locale/admin/audit': typeof LocaleAdminAuditRoute
   '/$locale/admin/crm': typeof LocaleAdminCrmRoute
   '/$locale/admin/dashboard': typeof LocaleAdminDashboardRoute
+  '/$locale/admin/ekonomi': typeof LocaleAdminEkonomiRoute
   '/$locale/admin/images': typeof LocaleAdminImagesRoute
   '/$locale/admin/import': typeof LocaleAdminImportRoute
   '/$locale/admin/integrations': typeof LocaleAdminIntegrationsRoute
@@ -385,13 +398,14 @@ export interface FileRoutesByFullPath {
   '/$locale/assembly/$slug': typeof LocaleAssemblySlugRoute
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
   '/$locale/configurator/$family': typeof LocaleConfiguratorFamilyRoute
-  '/$locale/configurator/$schemaId': typeof LocaleConfiguratorSchemaIdRoute
   '/$locale/oc/$orderId': typeof LocaleOcOrderIdRoute
   '/$locale/offert/$rfqId': typeof LocaleOffertRfqIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
+  '/$locale/configurator/': typeof LocaleConfiguratorIndexRoute
   '/$locale/admin/offert/$rfqId': typeof LocaleAdminOffertRfqIdRoute
   '/$locale/admin/orderbekraftelse/$orderId': typeof LocaleAdminOrderbekraftelseOrderIdRoute
+  '/$locale/configurator/schema/$schemaId': typeof LocaleConfiguratorSchemaSchemaIdRoute
   '/api/public/notify/rfq': typeof ApiPublicNotifyRfqRoute
 }
 export interface FileRoutesByTo {
@@ -405,7 +419,6 @@ export interface FileRoutesByTo {
   '/$locale/claims': typeof LocaleClaimsRoute
   '/$locale/compare': typeof LocaleCompareRoute
   '/$locale/components': typeof LocaleComponentsRoute
-  '/$locale/configurator': typeof LocaleConfiguratorRouteWithChildren
   '/$locale/configure': typeof LocaleConfigureRoute
   '/$locale/convert': typeof LocaleConvertRoute
   '/$locale/login': typeof LocaleLoginRoute
@@ -428,6 +441,7 @@ export interface FileRoutesByTo {
   '/$locale/admin/audit': typeof LocaleAdminAuditRoute
   '/$locale/admin/crm': typeof LocaleAdminCrmRoute
   '/$locale/admin/dashboard': typeof LocaleAdminDashboardRoute
+  '/$locale/admin/ekonomi': typeof LocaleAdminEkonomiRoute
   '/$locale/admin/images': typeof LocaleAdminImagesRoute
   '/$locale/admin/import': typeof LocaleAdminImportRoute
   '/$locale/admin/integrations': typeof LocaleAdminIntegrationsRoute
@@ -440,13 +454,14 @@ export interface FileRoutesByTo {
   '/$locale/assembly/$slug': typeof LocaleAssemblySlugRoute
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
   '/$locale/configurator/$family': typeof LocaleConfiguratorFamilyRoute
-  '/$locale/configurator/$schemaId': typeof LocaleConfiguratorSchemaIdRoute
   '/$locale/oc/$orderId': typeof LocaleOcOrderIdRoute
   '/$locale/offert/$rfqId': typeof LocaleOffertRfqIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
+  '/$locale/configurator': typeof LocaleConfiguratorIndexRoute
   '/$locale/admin/offert/$rfqId': typeof LocaleAdminOffertRfqIdRoute
   '/$locale/admin/orderbekraftelse/$orderId': typeof LocaleAdminOrderbekraftelseOrderIdRoute
+  '/$locale/configurator/schema/$schemaId': typeof LocaleConfiguratorSchemaSchemaIdRoute
   '/api/public/notify/rfq': typeof ApiPublicNotifyRfqRoute
 }
 export interface FileRoutesById {
@@ -485,6 +500,7 @@ export interface FileRoutesById {
   '/$locale/admin/audit': typeof LocaleAdminAuditRoute
   '/$locale/admin/crm': typeof LocaleAdminCrmRoute
   '/$locale/admin/dashboard': typeof LocaleAdminDashboardRoute
+  '/$locale/admin/ekonomi': typeof LocaleAdminEkonomiRoute
   '/$locale/admin/images': typeof LocaleAdminImagesRoute
   '/$locale/admin/import': typeof LocaleAdminImportRoute
   '/$locale/admin/integrations': typeof LocaleAdminIntegrationsRoute
@@ -497,13 +513,14 @@ export interface FileRoutesById {
   '/$locale/assembly/$slug': typeof LocaleAssemblySlugRoute
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
   '/$locale/configurator/$family': typeof LocaleConfiguratorFamilyRoute
-  '/$locale/configurator/$schemaId': typeof LocaleConfiguratorSchemaIdRoute
   '/$locale/oc/$orderId': typeof LocaleOcOrderIdRoute
   '/$locale/offert/$rfqId': typeof LocaleOffertRfqIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
+  '/$locale/configurator/': typeof LocaleConfiguratorIndexRoute
   '/$locale/admin/offert/$rfqId': typeof LocaleAdminOffertRfqIdRoute
   '/$locale/admin/orderbekraftelse/$orderId': typeof LocaleAdminOrderbekraftelseOrderIdRoute
+  '/$locale/configurator/schema/$schemaId': typeof LocaleConfiguratorSchemaSchemaIdRoute
   '/api/public/notify/rfq': typeof ApiPublicNotifyRfqRoute
 }
 export interface FileRouteTypes {
@@ -543,6 +560,7 @@ export interface FileRouteTypes {
     | '/$locale/admin/audit'
     | '/$locale/admin/crm'
     | '/$locale/admin/dashboard'
+    | '/$locale/admin/ekonomi'
     | '/$locale/admin/images'
     | '/$locale/admin/import'
     | '/$locale/admin/integrations'
@@ -555,13 +573,14 @@ export interface FileRouteTypes {
     | '/$locale/assembly/$slug'
     | '/$locale/bom/$bomId'
     | '/$locale/configurator/$family'
-    | '/$locale/configurator/$schemaId'
     | '/$locale/oc/$orderId'
     | '/$locale/offert/$rfqId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
+    | '/$locale/configurator/'
     | '/$locale/admin/offert/$rfqId'
     | '/$locale/admin/orderbekraftelse/$orderId'
+    | '/$locale/configurator/schema/$schemaId'
     | '/api/public/notify/rfq'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -575,7 +594,6 @@ export interface FileRouteTypes {
     | '/$locale/claims'
     | '/$locale/compare'
     | '/$locale/components'
-    | '/$locale/configurator'
     | '/$locale/configure'
     | '/$locale/convert'
     | '/$locale/login'
@@ -598,6 +616,7 @@ export interface FileRouteTypes {
     | '/$locale/admin/audit'
     | '/$locale/admin/crm'
     | '/$locale/admin/dashboard'
+    | '/$locale/admin/ekonomi'
     | '/$locale/admin/images'
     | '/$locale/admin/import'
     | '/$locale/admin/integrations'
@@ -610,13 +629,14 @@ export interface FileRouteTypes {
     | '/$locale/assembly/$slug'
     | '/$locale/bom/$bomId'
     | '/$locale/configurator/$family'
-    | '/$locale/configurator/$schemaId'
     | '/$locale/oc/$orderId'
     | '/$locale/offert/$rfqId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
+    | '/$locale/configurator'
     | '/$locale/admin/offert/$rfqId'
     | '/$locale/admin/orderbekraftelse/$orderId'
+    | '/$locale/configurator/schema/$schemaId'
     | '/api/public/notify/rfq'
   id:
     | '__root__'
@@ -654,6 +674,7 @@ export interface FileRouteTypes {
     | '/$locale/admin/audit'
     | '/$locale/admin/crm'
     | '/$locale/admin/dashboard'
+    | '/$locale/admin/ekonomi'
     | '/$locale/admin/images'
     | '/$locale/admin/import'
     | '/$locale/admin/integrations'
@@ -666,13 +687,14 @@ export interface FileRouteTypes {
     | '/$locale/assembly/$slug'
     | '/$locale/bom/$bomId'
     | '/$locale/configurator/$family'
-    | '/$locale/configurator/$schemaId'
     | '/$locale/oc/$orderId'
     | '/$locale/offert/$rfqId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
+    | '/$locale/configurator/'
     | '/$locale/admin/offert/$rfqId'
     | '/$locale/admin/orderbekraftelse/$orderId'
+    | '/$locale/configurator/schema/$schemaId'
     | '/api/public/notify/rfq'
   fileRoutesById: FileRoutesById
 }
@@ -903,6 +925,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAdminRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/configurator/': {
+      id: '/$locale/configurator/'
+      path: '/'
+      fullPath: '/$locale/configurator/'
+      preLoaderRoute: typeof LocaleConfiguratorIndexRouteImport
+      parentRoute: typeof LocaleConfiguratorRoute
+    }
     '/$locale/rfq/$rfqId': {
       id: '/$locale/rfq/$rfqId'
       path: '/rfq/$rfqId'
@@ -930,13 +959,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/$locale/oc/$orderId'
       preLoaderRoute: typeof LocaleOcOrderIdRouteImport
       parentRoute: typeof LocaleRoute
-    }
-    '/$locale/configurator/$schemaId': {
-      id: '/$locale/configurator/$schemaId'
-      path: '/$schemaId'
-      fullPath: '/$locale/configurator/$schemaId'
-      preLoaderRoute: typeof LocaleConfiguratorSchemaIdRouteImport
-      parentRoute: typeof LocaleConfiguratorRoute
     }
     '/$locale/configurator/$family': {
       id: '/$locale/configurator/$family'
@@ -1022,6 +1044,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAdminImagesRouteImport
       parentRoute: typeof LocaleAdminRoute
     }
+    '/$locale/admin/ekonomi': {
+      id: '/$locale/admin/ekonomi'
+      path: '/ekonomi'
+      fullPath: '/$locale/admin/ekonomi'
+      preLoaderRoute: typeof LocaleAdminEkonomiRouteImport
+      parentRoute: typeof LocaleAdminRoute
+    }
     '/$locale/admin/dashboard': {
       id: '/$locale/admin/dashboard'
       path: '/dashboard'
@@ -1050,6 +1079,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicNotifyRfqRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$locale/configurator/schema/$schemaId': {
+      id: '/$locale/configurator/schema/$schemaId'
+      path: '/schema/$schemaId'
+      fullPath: '/$locale/configurator/schema/$schemaId'
+      preLoaderRoute: typeof LocaleConfiguratorSchemaSchemaIdRouteImport
+      parentRoute: typeof LocaleConfiguratorRoute
+    }
     '/$locale/admin/orderbekraftelse/$orderId': {
       id: '/$locale/admin/orderbekraftelse/$orderId'
       path: '/orderbekraftelse/$orderId'
@@ -1071,6 +1107,7 @@ interface LocaleAdminRouteChildren {
   LocaleAdminAuditRoute: typeof LocaleAdminAuditRoute
   LocaleAdminCrmRoute: typeof LocaleAdminCrmRoute
   LocaleAdminDashboardRoute: typeof LocaleAdminDashboardRoute
+  LocaleAdminEkonomiRoute: typeof LocaleAdminEkonomiRoute
   LocaleAdminImagesRoute: typeof LocaleAdminImagesRoute
   LocaleAdminImportRoute: typeof LocaleAdminImportRoute
   LocaleAdminIntegrationsRoute: typeof LocaleAdminIntegrationsRoute
@@ -1088,6 +1125,7 @@ const LocaleAdminRouteChildren: LocaleAdminRouteChildren = {
   LocaleAdminAuditRoute: LocaleAdminAuditRoute,
   LocaleAdminCrmRoute: LocaleAdminCrmRoute,
   LocaleAdminDashboardRoute: LocaleAdminDashboardRoute,
+  LocaleAdminEkonomiRoute: LocaleAdminEkonomiRoute,
   LocaleAdminImagesRoute: LocaleAdminImagesRoute,
   LocaleAdminImportRoute: LocaleAdminImportRoute,
   LocaleAdminIntegrationsRoute: LocaleAdminIntegrationsRoute,
@@ -1108,12 +1146,14 @@ const LocaleAdminRouteWithChildren = LocaleAdminRoute._addFileChildren(
 
 interface LocaleConfiguratorRouteChildren {
   LocaleConfiguratorFamilyRoute: typeof LocaleConfiguratorFamilyRoute
-  LocaleConfiguratorSchemaIdRoute: typeof LocaleConfiguratorSchemaIdRoute
+  LocaleConfiguratorIndexRoute: typeof LocaleConfiguratorIndexRoute
+  LocaleConfiguratorSchemaSchemaIdRoute: typeof LocaleConfiguratorSchemaSchemaIdRoute
 }
 
 const LocaleConfiguratorRouteChildren: LocaleConfiguratorRouteChildren = {
   LocaleConfiguratorFamilyRoute: LocaleConfiguratorFamilyRoute,
-  LocaleConfiguratorSchemaIdRoute: LocaleConfiguratorSchemaIdRoute,
+  LocaleConfiguratorIndexRoute: LocaleConfiguratorIndexRoute,
+  LocaleConfiguratorSchemaSchemaIdRoute: LocaleConfiguratorSchemaSchemaIdRoute,
 }
 
 const LocaleConfiguratorRouteWithChildren =
