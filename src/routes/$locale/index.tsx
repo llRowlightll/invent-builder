@@ -30,6 +30,20 @@ export const Route = createFileRoute("/$locale/")({
       ],
     };
   },
+  // Fetch the live counts on the server so the SSR HTML already has the real
+  // numbers — no more "91+" flashing before a client query corrects it.
+  loader: async () => {
+    try {
+      const [pc, br, ct] = await Promise.all([
+        supabase.from("products").select("*", { count: "exact", head: true }).eq("status", "active"),
+        supabase.from("brands").select("slug,name").order("name"),
+        supabase.from("categories").select("slug,name").order("name"),
+      ]);
+      return { productCount: pc.count ?? null, brands: (br.data ?? []) as Brand[], cats: (ct.data ?? []) as Cat[] };
+    } catch {
+      return { productCount: null as number | null, brands: [] as Brand[], cats: [] as Cat[] };
+    }
+  },
   component: Landing,
 });
 
@@ -63,12 +77,13 @@ function Landing() {
   const { locale } = Route.useParams();
   const t = makeT(locale as Locale);
   const navigate = useNavigate();
-  const [cats, setCats] = useState<Cat[]>([]);
-  const [brands, setBrands] = useState<Brand[]>([]);
+  const ld = Route.useLoaderData();
+  const [cats, setCats] = useState<Cat[]>(ld.cats);
+  const [brands, setBrands] = useState<Brand[]>(ld.brands);
   const [q, setQ] = useState("");
   const [featured, setFeatured] = useState<ProductRow[]>([]);
-  const [totalProducts, setTotalProducts] = useState(91);
-  const [totalBrands, setTotalBrands] = useState(5);
+  const [totalProducts, setTotalProducts] = useState<number>(ld.productCount ?? 91);
+  const [totalBrands, setTotalBrands] = useState(ld.brands.length || 5);
 
   useEffect(() => {
     // Clear any stale module-level cache so we always get a fresh count

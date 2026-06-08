@@ -139,13 +139,8 @@ function MachineBuilderPage() {
   const [rfqPoNumber, setRfqPoNumber] = useState("");
   const [rfqOrgNumber, setRfqOrgNumber] = useState("");
   const [autoSaved, setAutoSaved] = useState(false);
-  const [configFamilies, setConfigFamilies] = useState<Set<string>>(new Set());
 
   useEffect(() => { loadCatalog().then(setCatalog).catch(() => {}); }, []);
-  useEffect(() => {
-    supabase.from("configurator_families").select("slug")
-      .then(({ data }) => setConfigFamilies(new Set((data ?? []).map((r: { slug: string }) => r.slug))));
-  }, []);
 
   // Pre-fill RFQ form from company profile when user logs in
   useEffect(() => {
@@ -1033,6 +1028,11 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
   const [projectDesc, setProjectDesc] = useState("");
   const [projectSaving, setProjectSaving] = useState(false);
   const [projectSaved, setProjectSaved] = useState(false);
+  const [configFamilies, setConfigFamilies] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    supabase.from("configurator_families").select("slug")
+      .then(({ data }) => setConfigFamilies(new Set((data ?? []).map((r: { slug: string }) => r.slug))));
+  }, []);
   const { user } = useAuth();
   // Economic BOM
   const [ecoMode, setEcoMode] = useState(false);

@@ -6,7 +6,7 @@ export const Route = createFileRoute("/$locale/configurator/")({
   beforeLoad: ({ params }) => {
     throw redirect({
       to: "/$locale/configure",
-      params: { locale: (params as { locale: string }).locale },
+      params: { locale: (params as { locale: string }).locale } as never,
     });
   },
 });
