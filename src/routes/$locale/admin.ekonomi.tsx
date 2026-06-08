@@ -2,6 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useIsAdmin } from "@/lib/auth-context";
+import { downloadXlsx, b, type Sheet } from "@/lib/xlsx";
+import { buildSie, downloadSie, type SieSale, type SieExpense } from "@/lib/sie";
 
 export const Route = createFileRoute("/$locale/admin/ekonomi")({
   component: EkonomiPage,
@@ -30,6 +32,7 @@ function docRef(id: string) { return `OE-${id.slice(0, 8).toUpperCase()}`; }
 function kr(n: number) { return n.toLocaleString("sv-SE", { maximumFractionDigits: 0 }); }
 function dec(n: number) { return n.toFixed(2).replace(".", ","); }
 function num(s: string) { const n = Number(s.replace(/\s/g, "").replace(",", ".")); return isNaN(n) ? 0 : n; }
+function r2(n: number) { return Math.round(n * 100) / 100; }
 
 function EkonomiPage() {
   const { locale } = Route.useParams();
@@ -148,6 +151,51 @@ function EkonomiPage() {
     w.document.close(); w.focus(); setTimeout(() => w.print(), 300);
   }
 
+  function exportXlsx() {
+    const today = new Date().toISOString().slice(0, 10);
+    const summary: Sheet = { name: "Sammanfattning", rows: [
+      [b("Maskinval — Ekonomirapport")],
+      ["Period", `${from || "start"} – ${to || "idag"}`],
+      ["Genererad", new Date().toLocaleString("sv-SE")],
+      [],
+      [b("Nyckeltal"), b("Belopp (kr)")],
+      ["Försäljning ex moms", r2(sum.salesEx)],
+      ["Utgående moms", r2(sum.salesVat)],
+      ["Utgifter ex moms", r2(sum.expEx)],
+      ["Ingående moms", r2(sum.expVat)],
+      ["Moms netto att redovisa", r2(sum.vatNet)],
+      ["Resultat (netto)", r2(sum.result)],
+    ] };
+    const sales: Sheet = { name: "Försäljning", rows: [
+      [b("Datum"), b("Referens"), b("Kund"), b("Org.nr"), b("PO"), b("Status"), b("Ex moms"), b("Moms"), b("Ink moms"), b("Valuta")],
+      ...rows.map((r) => [r.date, r.ref, r.kund, r.org, r.po, r.statusLabel, r2(r.ex), r2(r.vat), r2(r.inc), r.currency]),
+      [b(""), b(""), b(""), b(""), b(""), b("Summa"), b(r2(sum.salesEx)), b(r2(sum.salesVat)), b(r2(sum.salesEx + sum.salesVat)), b("")],
+    ] };
+    const exp: Sheet = { name: "Utgifter", rows: [
+      [b("Datum"), b("Beskrivning"), b("Leverantör"), b("Kategori"), b("Ex moms"), b("Moms"), b("Ink moms"), b("Valuta")],
+      ...exRows.map((x) => [x.expense_date, x.description, x.supplier ?? "", x.category ?? "", r2(Number(x.amount_ex_vat)), r2(Number(x.vat_amount)), r2(Number(x.amount_ex_vat) + Number(x.vat_amount)), x.currency]),
+      [b(""), b(""), b(""), b("Summa"), b(r2(sum.expEx)), b(r2(sum.expVat)), b(r2(sum.expEx + sum.expVat)), b("")],
+    ] };
+    downloadXlsx(`maskinval-ekonomi-${today}.xlsx`, [summary, sales, exp]);
+  }
+
+  function exportSie() {
+    // Only book real revenue (accepted/shipped/paid/completed) — not draft quotes.
+    const sales: SieSale[] = rows
+      .filter((r) => REVENUE_STATUSES.includes(r.statusKey))
+      .map((r) => ({ date: r.date, ref: r.ref, customer: r.kund, ex: r2(r.ex), vat: r2(r.vat) }));
+    const expenses: SieExpense[] = exRows.map((x) => ({
+      date: x.expense_date, description: x.description, supplier: x.supplier,
+      ex: r2(Number(x.amount_ex_vat)), vat: r2(Number(x.vat_amount)),
+    }));
+    if (sales.length === 0 && expenses.length === 0) {
+      alert("Inget att exportera i urvalet (SIE bokför endast accepterad/skickad/betald försäljning samt utgifter).");
+      return;
+    }
+    const bytes = buildSie({ companyName: "Maskinval", sales, expenses });
+    downloadSie(`maskinval-bokforing-${new Date().toISOString().slice(0, 10)}.se`, bytes);
+  }
+
   if (loading || !user) return <div className="container-page py-16 text-sm text-muted-foreground">Laddar…</div>;
   if (!isAdmin) return (
     <div className="container-page py-16 max-w-md text-center">
@@ -168,11 +216,13 @@ function EkonomiPage() {
         <div>
           <Link to="/$locale/admin/dashboard" params={{ locale }} className="text-xs text-muted-foreground hover:text-info">← Översikt</Link>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight">Ekonomi</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Försäljning + utgifter med moms. Exportera till Excel eller PDF.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Försäljning + utgifter med moms. Exportera till Excel (.xlsx), SIE-fil för bokföringen eller PDF.</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={exportCsv} className="text-sm px-4 py-2 rounded-md border border-border hover:border-info transition">↓ Excel (CSV)</button>
-          <button onClick={exportPdf} className="text-sm px-4 py-2 rounded-md bg-info text-primary-foreground hover:opacity-90 transition">🖨 PDF / Skriv ut</button>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={exportXlsx} className="text-sm px-4 py-2 rounded-md bg-info text-primary-foreground hover:opacity-90 transition">↓ Excel (.xlsx)</button>
+          <button onClick={exportSie} title="SIE 4 — importeras direkt i Fortnox/Visma/Bokio" className="text-sm px-4 py-2 rounded-md border border-border hover:border-info transition">↓ SIE-fil</button>
+          <button onClick={exportPdf} className="text-sm px-4 py-2 rounded-md border border-border hover:border-info transition">🖨 PDF</button>
+          <button onClick={exportCsv} className="text-xs px-2 py-2 rounded-md text-muted-foreground hover:text-info transition">CSV</button>
         </div>
       </div>
 
@@ -280,7 +330,7 @@ function EkonomiPage() {
       )}
 
       <p className="text-[11px] text-muted-foreground mt-4">
-        Försäljningsbelopp härleds från offertens totalsumma (ink moms ÷ 1,25). <strong>Resultat</strong> = accepterad intäkt − utgifter (ex moms). Försäljnings-/utgiftsregister för överblick och underlag — <strong>ej formell bokföring</strong> enligt Bokföringslagen. Exportera och lämna till revisor/bokföring.
+        Försäljningsbelopp härleds från offertens totalsumma (ink moms ÷ 1,25). <strong>Resultat</strong> = accepterad intäkt − utgifter (ex moms). <strong>SIE-filen</strong> bokför endast accepterad/skickad/betald försäljning som verifikationer på BAS-konton (kundfordran 1510, försäljning 3001, utgående moms 2611; utgifter 6990 / ingående moms 2640 / leverantörsskuld 2440) och importeras direkt i Fortnox, Visma eller Bokio. Försäljnings-/utgiftsregister för överblick och underlag — <strong>ej formell bokföring</strong> enligt Bokföringslagen. Lämna SIE-filen till revisor/bokföring.
       </p>
     </div>
   );
