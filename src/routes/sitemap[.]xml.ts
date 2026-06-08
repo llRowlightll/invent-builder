@@ -11,6 +11,7 @@ const STATIC_PATHS = [
   "/advisor",
   "/compare",
   "/machine-builder",
+  "/configure",
 ];
 
 export const Route = createFileRoute("/sitemap.xml")({
@@ -20,17 +21,20 @@ export const Route = createFileRoute("/sitemap.xml")({
         const supabaseUrl = process.env.SUPABASE_URL ?? "";
         const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? "";
 
-        let skus: string[] = [];
+        let products: { sku: string; updated_at: string | null }[] = [];
         let cats: string[] = [];
+        let families: string[] = [];
 
         if (supabaseUrl && supabaseKey) {
           const sb = createClient(supabaseUrl, supabaseKey);
-          const [{ data: products }, { data: categories }] = await Promise.all([
-            sb.from("products").select("sku, updated_at"),
+          const [{ data: prods }, { data: categories }, { data: fams }] = await Promise.all([
+            sb.from("products").select("sku, updated_at").eq("status", "active"),
             sb.from("categories").select("slug"),
+            sb.from("configurator_families").select("slug"),
           ]);
-          skus = (products ?? []).map((p) => p.sku);
+          products = (prods ?? []) as { sku: string; updated_at: string | null }[];
           cats = (categories ?? []).map((c) => c.slug);
+          families = (fams ?? []).map((f) => f.slug);
         }
 
         const today = new Date().toISOString().split("T")[0];
@@ -50,8 +54,13 @@ export const Route = createFileRoute("/sitemap.xml")({
             urls.push(url(`/${locale}/products?category=${cat}`, today, "weekly", "0.7"));
           }
           // Product detail pages
-          for (const sku of skus) {
-            urls.push(url(`/${locale}/product/${encodeURIComponent(sku)}`, today, "monthly", "0.9"));
+          for (const p of products) {
+            const lm = p.updated_at ? p.updated_at.slice(0, 10) : today;
+            urls.push(url(`/${locale}/product/${encodeURIComponent(p.sku)}`, lm, "monthly", "0.9"));
+          }
+          // Configurator pages — custom-build landing pages, strong long-tail SEO
+          for (const fam of families) {
+            urls.push(url(`/${locale}/configurator/${encodeURIComponent(fam)}`, today, "monthly", "0.7"));
           }
         }
 
