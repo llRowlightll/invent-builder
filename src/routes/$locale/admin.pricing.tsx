@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import Papa from "papaparse";
 
 export const Route = createFileRoute("/$locale/admin/pricing")({
   component: AdminPricingPage,
@@ -108,6 +109,7 @@ export default function AdminPricingPage() {
   const [intakeMsg,   setIntakeMsg]   = useState<{ text: string; ok: boolean } | null>(null);
   const [saving2,     setSaving2]     = useState(false);
   const [pdfLoading,  setPdfLoading]  = useState(false);
+  const csvRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { load(); }, []);
@@ -206,6 +208,44 @@ export default function AdminPricingPage() {
     } finally {
       setPdfLoading(false);
       if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  // ── Prisintag: CSV/Excel upload (SKU + inköpspris, valfritt marginal) ───────
+  async function handleCsvUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIntakeMsg(null);
+    const pick = (r: Record<string, string>, keys: string[]) => {
+      for (const k of Object.keys(r)) if (keys.includes(k.toLowerCase().trim())) return r[k];
+      return undefined;
+    };
+    const SKU = ["sku","artikelnummer","artikelnr","artnr","art.nr","artikel","article","article_number","part","part_number","partnumber","produkt"];
+    const PRICE = ["purchase_price","inköpspris","inkopspris","inköp","inkop","pris","price","cost","kostnad","nettopris","netto","unit_price"];
+    const MARGIN = ["margin","marginal","margin_pct","marginal_pct","pålägg"];
+    const NAME = ["name","namn","beskrivning","description","benämning"];
+    try {
+      const text = await file.text();
+      const res = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
+      const list: ProposalRow[] = [];
+      for (const r of res.data) {
+        const sku = String(pick(r, SKU) ?? "").trim();
+        const pp = parseFloat(String(pick(r, PRICE) ?? "").replace(/[^\d.,-]/g, "").replace(",", "."));
+        if (!sku || !isFinite(pp) || pp <= 0) continue;
+        const mg = String(pick(r, MARGIN) ?? "").replace(",", ".").replace(/[^\d.]/g, "");
+        list.push({ sku, name: String(pick(r, NAME) ?? "").trim(), brand: "", purchase_price: pp,
+          confidence: "high", evidence: "CSV-import", selected: true, margin: mg || "30" });
+      }
+      if (csvRef.current) csvRef.current.value = "";
+      if (list.length === 0) {
+        setIntakeMsg({ text: "Inga giltiga rader. Filen behöver en kolumn för SKU/artikelnummer och en för inköpspris.", ok: false });
+      } else {
+        setProposals(list);
+        setIntakeMsg({ text: `${list.length} rader inlästa från fil — granska och bekräfta nedan.`, ok: true });
+      }
+    } catch (err: unknown) {
+      setIntakeMsg({ text: (err as Error).message, ok: false });
+      if (csvRef.current) csvRef.current.value = "";
     }
   }
 
@@ -427,7 +467,7 @@ export default function AdminPricingPage() {
           <div className="rounded-xl border border-border bg-card p-5">
             <h2 className="text-sm font-semibold mb-1">Hur det fungerar</h2>
             <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-              <li>Klistra in en offert, ett mejl eller en prislista — eller ladda upp en PDF.</li>
+              <li>Klistra in en offert/prislista, ladda upp en PDF, eller ladda upp en <strong>CSV</strong> med kolumner för SKU + inköpspris (snabbast för hela sortimentet).</li>
               <li>Klicka <strong className="text-foreground">Analysera</strong> — AI:n matchar priser mot produktkatalogen.</li>
               <li>Granska resultaten, justera marginal per rad, avmarkera felaktiga matchningar.</li>
               <li>Klicka <strong className="text-foreground">Bekräfta valda</strong> för att spara priserna.</li>
@@ -461,6 +501,16 @@ export default function AdminPricingPage() {
                       Ladda upp PDF
                     </>
                   )}
+                </button>
+                <input ref={csvRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsvUpload} />
+                <button
+                  onClick={() => csvRef.current?.click()}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:border-info hover:text-info transition"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18M12 4v16" />
+                  </svg>
+                  Ladda upp CSV
                 </button>
                 <button
                   onClick={() => { setInputText(""); setProposals([]); setIntakeMsg(null); }}
