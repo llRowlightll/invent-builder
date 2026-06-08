@@ -34,12 +34,15 @@ export const Route = createFileRoute("/$locale/")({
   // numbers — no more "91+" flashing before a client query corrects it.
   loader: async () => {
     try {
+      // Count via data.length, not { count: 'exact', head: true } — the count
+      // header isn't read in the Cloudflare SSR runtime (returns null there),
+      // which left the product stat falling back to 91. .select().data works.
       const [pc, br, ct] = await Promise.all([
-        supabase.from("products").select("*", { count: "exact", head: true }).eq("status", "active"),
+        supabase.from("products").select("id").eq("status", "active").limit(5000),
         supabase.from("brands").select("slug,name").order("name"),
         supabase.from("categories").select("slug,name").order("name"),
       ]);
-      return { productCount: pc.count ?? null, brands: (br.data ?? []) as Brand[], cats: (ct.data ?? []) as Cat[] };
+      return { productCount: pc.data?.length ?? null, brands: (br.data ?? []) as Brand[], cats: (ct.data ?? []) as Cat[] };
     } catch {
       return { productCount: null as number | null, brands: [] as Brand[], cats: [] as Cat[] };
     }
