@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { makeT, type Locale } from "@/lib/i18n";
+import { SITE, hreflangLinks } from "@/lib/site";
 
 // Types
 interface Family {
@@ -111,6 +112,10 @@ export const Route = createFileRoute("/$locale/configurator/$family")({
             : `Configure ${name} – custom ${noun} | Maskinval`,
         },
         { name: "description", content: configuratorIntro(fam, params.locale) },
+      ],
+      links: [
+        { rel: "canonical", href: `${SITE}/${params.locale}/configurator/${params.family}` },
+        ...hreflangLinks(`configurator/${params.family}`),
       ],
     };
   },

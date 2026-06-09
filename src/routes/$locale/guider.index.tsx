@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { makeT, type Locale } from "@/lib/i18n";
 import { GUIDES } from "@/lib/guides";
+import { SITE, hreflangLinks } from "@/lib/site";
 
 export const Route = createFileRoute("/$locale/guider/")({
-  head: () => ({
+  head: ({ params }) => ({
     meta: [
       { title: "Guider — pneumatik & automation | Maskinval" },
       {
@@ -11,6 +12,10 @@ export const Route = createFileRoute("/$locale/guider/")({
         content:
           "Köpguider för pneumatik och automation: dimensionera cylinder, välja ventil, beräkna luftförbrukning och välja mellan elektrisk och pneumatisk aktuator.",
       },
+    ],
+    links: [
+      { rel: "canonical", href: `${SITE}/${(params as { locale: string }).locale}/guider` },
+      ...hreflangLinks("guider"),
     ],
   }),
   component: GuidesIndex,

@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { getGuide, GUIDES } from "@/lib/guides";
-import { SITE } from "@/lib/site";
+import { SITE, hreflangLinks } from "@/lib/site";
 
 export const Route = createFileRoute("/$locale/guider/$slug")({
   head: ({ params }) => {
@@ -12,6 +12,10 @@ export const Route = createFileRoute("/$locale/guider/$slug")({
       meta: [
         { title: `${sv ? g.title.sv : g.title.en} — Maskinval` },
         { name: "description", content: sv ? g.metaDescription.sv : g.metaDescription.en },
+      ],
+      links: [
+        { rel: "canonical", href: `${SITE}/${p.locale}/guider/${p.slug}` },
+        ...hreflangLinks(`guider/${p.slug}`),
       ],
     };
   },
