@@ -249,6 +249,23 @@ export default function AdminPricingPage() {
     }
   }
 
+  // Export every active product as a CSV template — sku/name/brand pre-filled,
+  // inköpspris empty to fill in. Re-imports through "Ladda upp CSV" above.
+  function downloadTemplate() {
+    const esc = (s: string | null) => (s ?? "").replace(/;/g, ",").replace(/[\r\n]+/g, " ").trim();
+    const header = "artikelnummer;namn;marke;inkopspris;marginal";
+    const body = rows.map((r) =>
+      `${esc(r.sku)};${esc(r.name)};${esc(r.brand?.name ?? "")};${r.purchase_price ?? ""};${r.margin ?? 30}`
+    );
+    const csv = "﻿" + [header, ...body].join("\r\n") + "\r\n";
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `maskinval-prislista-mall-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // ── Prisintag: analyze ─────────────────────────────────────────────────────
   async function analyze() {
     if (!inputText.trim()) return;
@@ -511,6 +528,16 @@ export default function AdminPricingPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18M12 4v16" />
                   </svg>
                   Ladda upp CSV
+                </button>
+                <button
+                  onClick={downloadTemplate}
+                  title="Ladda ner alla artiklar som CSV — fyll i inköpspris och ladda upp igen"
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:border-info hover:text-info transition"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Ladda ner mall
                 </button>
                 <button
                   onClick={() => { setInputText(""); setProposals([]); setIntakeMsg(null); }}
