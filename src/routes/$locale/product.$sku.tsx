@@ -18,6 +18,14 @@ function formatSpecKey(key: string): string {
   return isUnit ? `${label} (${last})` : label;
 }
 
+type ProductSeo = {
+  name: string;
+  description: string | null;
+  brand: string;
+  category: string;
+  specs: { key: string; value: string; unit: string | null }[];
+};
+
 export const Route = createFileRoute("/$locale/product/$sku")({
   head: ({ params }) => {
     const t = makeT(params.locale as Locale);
@@ -44,6 +52,27 @@ export const Route = createFileRoute("/$locale/product/$sku")({
       ],
     };
   },
+  // Fetch the product server-side so the page SSRs real content (name, specs)
+  // instead of a "loading" line — the full catalog still loads client-side for
+  // related/alternatives. Avoids Googlebot seeing a soft 404.
+  loader: async ({ params }): Promise<{ seo: ProductSeo | null }> => {
+    const { data } = await supabase
+      .from("products")
+      .select("name,description,brands(name),categories(name),product_specs(key,value,unit)")
+      .eq("sku", params.sku)
+      .maybeSingle();
+    const d = data as Record<string, unknown> | null;
+    const seo: ProductSeo | null = d
+      ? {
+          name: String(d.name ?? ""),
+          description: (d.description as string | null) ?? null,
+          brand: (d.brands as { name?: string } | null)?.name ?? "",
+          category: (d.categories as { name?: string } | null)?.name ?? "",
+          specs: (d.product_specs as { key: string; value: string; unit: string | null }[]) ?? [],
+        }
+      : null;
+    return { seo };
+  },
   component: ProductDetail,
   notFoundComponent: () => {
     return <div className="container-page py-16 text-sm">Product not found.</div>;
@@ -52,6 +81,9 @@ export const Route = createFileRoute("/$locale/product/$sku")({
 
 function ProductDetail() {
   const { locale, sku } = Route.useParams();
+  // Cast: TanStack's deep generic inference returns `undefined` for this route's
+  // loaderData type (head + loader + notFoundComponent), but the loader does run.
+  const { seo } = Route.useLoaderData() as unknown as { seo: ProductSeo | null };
   const t = makeT(locale as Locale);
   const [catalog, setCatalog] = useState<ProductRow[] | null>(null);
   const [related, setRelated] = useState<ProductRow[]>([]);
@@ -93,7 +125,30 @@ function ProductDetail() {
     })();
   }, [sku]);
 
-  if (loading) return <div className="container-page py-16 text-sm text-muted-foreground">{t("common.loading")}</div>;
+  if (loading) return (
+    <div className="container-page py-8 max-w-5xl">
+      {seo && (
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">{seo.name}</h1>
+          <div className="mt-1 text-sm text-muted-foreground">{[seo.brand, seo.category].filter(Boolean).join(" · ")}</div>
+          {seo.description && <p className="mt-4 text-sm text-foreground/80 leading-relaxed max-w-2xl">{seo.description}</p>}
+          {seo.specs.length > 0 && (
+            <table className="mt-6 text-sm border-collapse">
+              <tbody>
+                {seo.specs.slice(0, 14).map((s) => (
+                  <tr key={s.key} className="border-b border-border">
+                    <td className="pr-6 py-1.5 text-muted-foreground">{formatSpecKey(s.key)}</td>
+                    <td className="py-1.5">{s.value}{s.unit ? " " + s.unit : ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+      <div className="mt-8 text-sm text-muted-foreground">{t("common.loading")}</div>
+    </div>
+  );
   const product = catalog?.find((x) => x.sku === sku);
   if (!product) throw notFound();
 

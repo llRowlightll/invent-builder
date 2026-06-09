@@ -134,6 +134,7 @@ function buildOrderCode(
 function ConfiguratorPage() {
   const { locale, family: familySlug } = Route.useParams();
   const t = makeT(locale as Locale);
+  const { fam: seo } = Route.useLoaderData();
   const [family, setFamily] = useState<Family | null>(null);
   const [params, setParams] = useState<Param[]>([]);
   const [accessories, setAccessories] = useState<Accessory[]>([]);
@@ -229,10 +230,31 @@ function ConfiguratorPage() {
     }
   }
 
+  // SSR-visible content from the loader (the family loads client-side, but the
+  // loader gives us name/category/standard/stroke so Googlebot sees a real,
+  // unique page instead of a bare spinner — avoids soft 404).
   if (loading)
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        {seo && (
+          <header className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">{seo.name}</h1>
+            <p className="text-sm text-gray-500 mt-3 leading-relaxed max-w-2xl">{configuratorIntro(seo, locale)}</p>
+            <div className="flex items-center gap-3 mt-3">
+              {seo.standard && (
+                <span className="inline-block px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded font-medium">{seo.standard}</span>
+              )}
+              {seo.stroke_min_mm != null && seo.stroke_max_mm != null && seo.stroke_max_mm > 0 && (
+                <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
+                  Slag: {seo.stroke_min_mm}–{seo.stroke_max_mm} mm
+                </span>
+              )}
+            </div>
+          </header>
+        )}
+        <div className="flex items-center justify-center h-40">
+          <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
+        </div>
       </div>
     );
 
