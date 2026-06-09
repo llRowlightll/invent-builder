@@ -319,18 +319,28 @@ function ProductsPage() {
     n.has(val) ? n.delete(val) : n.add(val);
     setter(n);
   }
+  const activeCatSlug = cats.size === 1 ? [...cats][0] : search.category ?? null;
+  const catSeo = activeCatSlug ? CATEGORY_SEO[activeCatSlug] : null;
+  const catSeoText = catSeo ? (locale === "sv" ? catSeo.sv : catSeo.en) : null;
+
+  // While the catalog loads client-side, still SSR the category heading + intro so
+  // Googlebot sees real, unique content (avoids soft 404) instead of a bare spinner.
   if (!items) return (
-    <div className="container-page py-16 text-sm text-muted-foreground flex items-center gap-2">
-      <span className="inline-block size-3 rounded-full bg-info animate-pulse" />
-      {t("common.loading")}
+    <div className="container-page py-8">
+      {activeCatSlug && (
+        <h1 className="text-xl md:text-2xl font-semibold tracking-tight mb-2">{categoryName(activeCatSlug, locale)}</h1>
+      )}
+      {catSeoText && (
+        <p className="text-sm text-muted-foreground mb-6 leading-relaxed max-w-2xl">{catSeoText}</p>
+      )}
+      <div className="text-sm text-muted-foreground flex items-center gap-2">
+        <span className="inline-block size-3 rounded-full bg-info animate-pulse" />
+        {t("common.loading")}
+      </div>
     </div>
   );
 
   const activeFilterCount = brands.size + cats.size + grades.size;
-
-  const activeCatSlug = cats.size === 1 ? [...cats][0] : search.category ?? null;
-  const catSeo = activeCatSlug ? CATEGORY_SEO[activeCatSlug] : null;
-  const catSeoText = catSeo ? (locale === "sv" ? catSeo.sv : catSeo.en) : null;
 
   return (
     <div className="container-page py-6 md:py-8">
