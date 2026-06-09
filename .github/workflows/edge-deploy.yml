@@ -8,10 +8,13 @@ on:
       - 'scripts/test-advisor.sh'
   workflow_dispatch:
 
-# Shared group with deploy.yml so the two LLM-heavy advisor workflows run one at a
-# time on a push, instead of both hammering Groq and tripping rate limits.
+# Edge deploy gets its OWN concurrency group (NOT shared with deploy.yml). When it
+# was shared, a frontend deploy or a second edge merge queuing in the group could
+# get the pending edge run cancelled — silently skipping the function deploy while
+# CI looked green (PR #68 incident). The tests have retry/backoff, so the rare
+# overlap with deploy.yml's Groq load is tolerable.
 concurrency:
-  group: advisor-llm-ci
+  group: edge-deploy
   cancel-in-progress: false
 
 jobs:
@@ -36,15 +39,20 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
-      - name: Warn if deploy skipped
-        if: steps.deploy.outcome == 'failure'
+      - name: Fail if deploy did not succeed
+        # A failed/skipped deploy must turn the run RED. Otherwise the live function
+        # silently stays on the old code while CI looks green (PR #68 incident).
+        if: steps.deploy.outcome != 'success'
         run: |
-          echo "::warning::Edge function deploy failed (invalid or missing SUPABASE_ACCESS_TOKEN)."
-          echo "::warning::Regression tests will run against the currently deployed version."
+          echo "::error::Edge function deploy did not succeed (outcome=${{ steps.deploy.outcome }})."
+          echo "::error::The live function was NOT updated — failing the run so it can't slip through."
+          exit 1
 
       - name: Wait for cold start
         run: sleep 8
 
+      # Post-deploy verification: the 29-scenario suite runs against the LIVE
+      # endpoint, so a green run here proves the just-deployed function works.
       - name: Run regression suite (29 tests)
         run: |
           chmod +x scripts/test-advisor.sh
