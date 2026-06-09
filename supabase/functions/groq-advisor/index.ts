@@ -1635,10 +1635,20 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
   // summary tends to hallucinate that our products meet the requirement (e.g.
   // claiming we lift 5000 kg). Override it with an honest message in that case.
   const customOnly = topProducts.length === 0;
+  // Multi-axis (e.g. XYZ pick & place) needs one axis PER direction — the options
+  // are not a single pick. Say so in the summary and point to the machine builder,
+  // instead of implying one actuator covers the whole motion.
+  const axesNote = perAxisStrokes.length >= 2
+    ? ` (${perAxisStrokes.map((a) => `${a.axis.toUpperCase()} ${a.stroke} mm`).join(", ")})`
+    : "";
   const summary = customOnly
     ? (isSv
         ? "Den här kombinationen av krav ligger utanför vårt standardsortiment — ingen katalogprodukt klarar den säkert. Vi föreslår en kundspecifik lösning; kontakta oss så tar vi fram ett förslag."
         : "This combination of requirements is outside our standard range — no catalog product meets it safely. We propose a custom-engineered solution; contact us and we'll work one out.")
+    : isMultiAxis
+    ? (isSv
+        ? `Det här är ett fleraxligt system${axesNote} — det behöver en separat axel per riktning, inte en enda aktuator. Se förslagen nedan som en axel i taget och kombinera dem i maskinbyggaren, där varje rörelse dimensioneras för sig.`
+        : `This is a multi-axis system${axesNote} — it needs a separate axis per direction, not a single actuator. Treat the suggestions below as one axis at a time and combine them in the machine builder, where each motion is sized individually.`)
     : (llmSummary || (isSv
         ? `${topProducts.length} alternativ valda baserat på krav${maxRequiredStroke > 0 ? ` (slag ${maxRequiredStroke} mm)` : ""}.`
         : `${topProducts.length} options selected for ${maxRequiredStroke > 0 ? `${maxRequiredStroke} mm stroke` : "this application"}.`));
