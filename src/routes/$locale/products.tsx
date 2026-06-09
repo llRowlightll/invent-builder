@@ -74,6 +74,66 @@ const CATEGORY_SEO: Record<string, { sv: string; en: string }> = {
     sv: "Vakuumsystem, sugkoppar och ejektorer för vakuumgrepp av plana och krökta ytor. Festo VADM/VN, SMC ZP/ZR, Metal Work.",
     en: "Vacuum systems, suction cups and ejectors for vacuum gripping of flat and curved surfaces. Festo VADM/VN, SMC ZP/ZR, Metal Work.",
   },
+  fitting: {
+    sv: "Snabbkopplingar och anslutningar för pneumatikslang — push-in-kopplingar, L-, T- och Y-kopplingar samt gänganslutningar. Välj efter slangdiameter (Ø4–Ø12 mm) och gänga (M5, G1/8–G1/2). Märken: Festo QS, SMC KQ2, Camozzi 6000/7000.",
+    en: "Push-in fittings and connectors for pneumatic tubing — straight, elbow, tee and Y push-in fittings plus threaded adapters. Select by tube diameter (Ø4–Ø12 mm) and thread (M5, G1/8–G1/2). Brands: Festo QS, SMC KQ2, Camozzi 6000/7000.",
+  },
+  tubing: {
+    sv: "Pneumatikslang och tryckluftsrör i polyuretan (PU) och polyamid (PA). Välj efter ytterdiameter (Ø4–Ø12 mm), arbetstryck och temperatur — flexibel PU för rörliga delar, styvare PA för fasta dragningar. Märken: Festo PUN/PAN, SMC TU.",
+    en: "Pneumatic tubing and hose in polyurethane (PU) and polyamide (PA). Select by outer diameter (Ø4–Ø12 mm), working pressure and temperature — flexible PU for moving parts, stiffer PA for fixed runs. Brands: Festo PUN/PAN, SMC TU.",
+  },
+  "flow-control": {
+    sv: "Flödesreglerventiler och strypventiler för hastighetsstyrning av pneumatiska cylindrar. Strypbackventiler för avlufts- eller tilluftsstrypning som monteras direkt i cylinderns port. Festo GRLA/GRLZ, SMC AS, Camozzi.",
+    en: "Flow control and throttle valves for speed control of pneumatic cylinders. One-way (meter-out / meter-in) throttle check valves that mount directly in the cylinder port. Festo GRLA/GRLZ, SMC AS, Camozzi.",
+  },
+  "rotary-actuator": {
+    sv: "Pneumatiska vriddon och svängcylindrar för vridrörelse — kuggstångsdrivna (rack & pinion) och vinglamelltyp. Välj efter vridmoment, vinkel (90°, 180°, 270°) och storlek. Festo DRRD/DSM, SMC CRB, Metal Work.",
+    en: "Pneumatic rotary actuators for rotary motion — rack-and-pinion and vane types. Select by torque, rotation angle (90°, 180°, 270°) and size. Festo DRRD/DSM, SMC CRB, Metal Work.",
+  },
+  sensor: {
+    sv: "Givare och sensorer för pneumatik och automation — cylindergivare (reed/magnetoresistiva), tryckvakter och närvarogivare. Monteras i cylinderns T-spår för ändlägesavkänning. Festo SME/SDAT, SMC D-M9.",
+    en: "Sensors for pneumatics and automation — cylinder position sensors (reed / magnetoresistive), pressure switches and proximity sensors. Mount in the cylinder T-slot for end-position sensing. Festo SME/SDAT, SMC D-M9.",
+  },
+  mounting: {
+    sv: "Fästen och monteringstillbehör för pneumatiska cylindrar — svängtapps-, fläns-, fot- och gaffelinfästningar enligt ISO 15552 och ISO 6432. Välj efter cylinderstandard och borr. Festo, SMC, Metal Work.",
+    en: "Mounting brackets and accessories for pneumatic cylinders — clevis, flange, foot and rod-eye mounts to ISO 15552 and ISO 6432. Select by cylinder standard and bore. Festo, SMC, Metal Work.",
+  },
+  silencer: {
+    sv: "Ljuddämpare för pneumatisk frånluft som sänker bullernivån vid ventilers och cylindrars avluftning. Sintrade brons- eller plastdämpare med gänga M5–G1/2. Festo U/UC, SMC AN, Camozzi.",
+    en: "Pneumatic exhaust silencers that cut noise from valve and cylinder exhaust air. Sintered bronze or plastic mufflers with M5–G1/2 threads. Festo U/UC, SMC AN, Camozzi.",
+  },
+  "servo-drive": {
+    sv: "Servodrivare och motorstyrningar för elektriska axlar och servomotorer. Styr position, hastighet och vridmoment med fältbuss (PROFINET, EtherCAT). Festo CMMT-AS/CMMP-AS, Parker Compax3/PSD, SMC LECP/LECA, Bosch Rexroth IndraDrive.",
+    en: "Servo drives and motor controllers for electric axes and servo motors. Control position, speed and torque over fieldbus (PROFINET, EtherCAT). Festo CMMT-AS/CMMP-AS, Parker Compax3/PSD, SMC LECP/LECA, Bosch Rexroth IndraDrive.",
+  },
+  "shock-absorber": {
+    sv: "Industristötdämpare som bromsar rörliga massor mjukt vid ändläge och skyddar mekaniken. Välj efter energiupptagning (Nm/slag), slaglängd och gänga — självinställande eller justerbara. Festo YSR/DYSR, SMC RB, Camozzi.",
+    en: "Industrial shock absorbers that decelerate moving loads smoothly at end positions and protect the mechanics. Select by energy capacity (Nm/cycle), stroke and thread — self-compensating or adjustable. Festo YSR/DYSR, SMC RB, Camozzi.",
+  },
+  "servo-motor": {
+    sv: "Servomotorer och stegmotorer för elektriska axlar och precisionspositionering — borstlösa synkronmotorer med absolutgivare. Välj efter vridmoment, varvtal och flänsstorlek. Festo EMMT-AS/EMME-AS, Parker MPP/SMH, Bosch Rexroth MSK/MS2N, Camozzi.",
+    en: "Servo and stepper motors for electric axes and precision positioning — brushless synchronous motors with absolute encoders. Select by torque, speed and flange size. Festo EMMT-AS/EMME-AS, Parker MPP/SMH, Bosch Rexroth MSK/MS2N, Camozzi.",
+  },
+  cable: {
+    sv: "Anslutningskablar och kontakter för givare, ventiler och servomotorer — M8- och M12-kontakter samt motor- och encoderkablar. Välj efter poltal, längd och kapslingsklass (IP65/IP67). Festo NEBL/NEBU.",
+    en: "Connection cables and connectors for sensors, valves and servo motors — M8 and M12 connectors plus motor and encoder cables. Select by number of poles, length and protection class (IP65/IP67). Festo NEBL/NEBU.",
+  },
+  "check-valve": {
+    sv: "Backventiler som släpper igenom luft i en riktning och spärrar i den motsatta — för tryckhållning, nödsänkningsskydd och säker frånluft. Festo H/HA, SMC AK, Camozzi.",
+    en: "Check valves that pass airflow in one direction and block the reverse — for pressure holding, emergency-drop prevention and safe exhaust. Festo H/HA, SMC AK, Camozzi.",
+  },
+  "seal-kit": {
+    sv: "Tätningssatser och reservdelar för renovering av pneumatiska cylindrar — O-ringar samt kolv- och stångtätningar matchade mot cylinderns borr och serie. Förläng livslängden istället för att byta hela cylindern. Festo DARP, SMC.",
+    en: "Seal kits and spare parts for reconditioning pneumatic cylinders — O-rings plus piston and rod seals matched to the cylinder bore and series. Extend service life instead of replacing the whole cylinder. Festo DARP, SMC.",
+  },
+  "rod-lock": {
+    sv: "Stångbromsar och låsenheter som mekaniskt låser cylinderns kolvstång i läge vid tryckbortfall — för säkerhet vid vertikala laster och nödstopp. Monteras på cylinderns framgavel. Festo, SMC.",
+    en: "Rod locks and clamping units that mechanically lock the cylinder piston rod in place on pressure loss — for safety with vertical loads and emergency stops. Mounts on the cylinder front cap. Festo, SMC.",
+  },
+  controller: {
+    sv: "Styrsystem och motion controllers för automation — programmerbar rörelsestyrning, multiaxelkoordinering och fältbussintegration. Festo CPX-E för styrning av elektriska axlar och ventilterminaler.",
+    en: "Controllers and motion controllers for automation — programmable motion control, multi-axis coordination and fieldbus integration. Festo CPX-E for controlling electric axes and valve terminals.",
+  },
 };
 
 type Grade = "HIGH" | "MEDIUM" | "LOW";
