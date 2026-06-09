@@ -254,7 +254,7 @@ function detectCategories(text: string): string[] {
   }
   if (/linjär.*modul|slide|guidning|linear.*module|linear.*axis|linjär.*axel|linjärmodul|egc\b|lefs\b|lesh\b|egsk\b|egsp\b|hmr\b|osp.e|lbb\b|hlr\b|elga\b/i.test(t))
     slugs.add("linear-module");
-  if (/roter|rotat|\bvrid|sväng|rotary|svängrör|vridrör/i.test(t)) slugs.add("rotary-actuator");
+  if (/roter|rotat|\bvrid|sväng|rotary|svängrör|vridrör|\bNm\b/i.test(t)) slugs.add("rotary-actuator");
   if (/vakuum|sugg|sugkopp|vacuum|suction|plocka|pick.*place|pick.and.place|lyft.*upp|grepp|grip|känslig|inte.*repa|skada.*inte|kretskort|pcb|elektronik|glas|optik/i.test(t))
     slugs.add("vacuum");
   if (/gripper|klämma|jaw|parallel.grip/i.test(t)) slugs.add("gripper");
