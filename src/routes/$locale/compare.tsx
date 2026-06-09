@@ -130,9 +130,7 @@ function makeSpecGroups(t: ReturnType<typeof makeT>): SpecGroup[] {
       rows: [
         { kind: "flat", label: t("comparePage.label_ip_rating"),   get: (p) => p.ip_rating ?? "—" },
         { kind: "spec", label: t("comparePage.label_ip_rating"),   key: "ip_rating" },
-        { kind: "spec", label: t("comparePage.label_prot_class"),  key: "protection_class" },
         { kind: "spec", label: t("comparePage.label_temp_range"),  key: "temp_range" },
-        { kind: "spec", label: t("comparePage.label_temp_range"),  key: "temperature_range" },
         { kind: "spec", label: t("comparePage.label_medium"),      key: "medium" },
         { kind: "spec", label: t("comparePage.label_clean_room"),  key: "clean_room_compatible" },
       ],
@@ -146,7 +144,6 @@ function makeSpecGroups(t: ReturnType<typeof makeT>): SpecGroup[] {
         { kind: "spec", label: t("comparePage.label_material"),    key: "material" },
         { kind: "spec", label: t("comparePage.label_material"),    key: "body_material" },
         { kind: "spec", label: t("comparePage.label_guide_type"),  key: "guide_type" },
-        { kind: "spec", label: t("comparePage.label_guide_type"),  key: "guide_types" },
         { kind: "spec", label: t("comparePage.label_cushioning"),  key: "cushioning_types" },
         { kind: "spec", label: t("comparePage.label_pos_sensing"), key: "position_sensing" },
         { kind: "spec", label: t("comparePage.label_pos_output"),  key: "position_output" },
