@@ -254,7 +254,7 @@ function detectCategories(text: string): string[] {
   }
   if (/linjär.*modul|slide|guidning|linear.*module|linear.*axis|linjär.*axel|linjärmodul|egc\b|lefs\b|lesh\b|egsk\b|egsp\b|hmr\b|osp.e|lbb\b|hlr\b|elga\b/i.test(t))
     slugs.add("linear-module");
-  if (/roter|vrida|sväng|rotary/i.test(t)) slugs.add("rotary-actuator");
+  if (/roter|rotat|\bvrid|sväng|rotary|svängrör|vridrör/i.test(t)) slugs.add("rotary-actuator");
   if (/vakuum|sugg|sugkopp|vacuum|suction|plocka|pick.*place|pick.and.place|lyft.*upp|grepp|grip|känslig|inte.*repa|skada.*inte|kretskort|pcb|elektronik|glas|optik/i.test(t))
     slugs.add("vacuum");
   if (/gripper|klämma|jaw|parallel.grip/i.test(t)) slugs.add("gripper");
@@ -1576,9 +1576,17 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
   };
   finalOptions.push(buildCustomSolutionOption(maxRequiredStroke, isSv, maxCatalogStroke, catalogCanHandle, customCtx));
 
-  const summary = llmSummary || (isSv
-    ? `${topProducts.length} alternativ valda baserat på krav${maxRequiredStroke > 0 ? ` (slag ${maxRequiredStroke} mm)` : ""}.`
-    : `${topProducts.length} options selected for ${maxRequiredStroke > 0 ? `${maxRequiredStroke} mm stroke` : "this application"}.`);
+  // When no real catalog product matched (only CUSTOM-SOLUTION remains), the LLM
+  // summary tends to hallucinate that our products meet the requirement (e.g.
+  // claiming we lift 5000 kg). Override it with an honest message in that case.
+  const customOnly = topProducts.length === 0;
+  const summary = customOnly
+    ? (isSv
+        ? "Den här kombinationen av krav ligger utanför vårt standardsortiment — ingen katalogprodukt klarar den säkert. Vi föreslår en kundspecifik lösning; kontakta oss så tar vi fram ett förslag."
+        : "This combination of requirements is outside our standard range — no catalog product meets it safely. We propose a custom-engineered solution; contact us and we'll work one out.")
+    : (llmSummary || (isSv
+        ? `${topProducts.length} alternativ valda baserat på krav${maxRequiredStroke > 0 ? ` (slag ${maxRequiredStroke} mm)` : ""}.`
+        : `${topProducts.length} options selected for ${maxRequiredStroke > 0 ? `${maxRequiredStroke} mm stroke` : "this application"}.`));
 
   if (optRateLimited) {
     logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: true, top_sku: topProducts[0]?.sku ?? null }, false, "rate_limited");
