@@ -20,9 +20,37 @@ export const Route = createFileRoute("/$locale/products")({
     brand: z.string().optional(),
     ai: z.string().optional(),
   }),
-  head: ({ params }) => {
+  // Surface the active category filter to head() so the page gets a unique,
+  // category-specific <title> + meta description (better Google CTR).
+  loaderDeps: ({ search }) => ({ category: search.category ?? null }),
+  loader: ({ deps }) => ({ category: deps.category }),
+  head: ({ params, loaderData }) => {
     const t = makeT(params.locale as Locale);
     const locale = params.locale;
+    const sv = locale === "sv";
+    const cat = (loaderData as { category: string | null } | undefined)?.category ?? null;
+    const seo = cat ? CATEGORY_SEO[cat] : null;
+
+    if (cat && seo) {
+      const name = categoryName(cat, locale);
+      const desc = sv ? seo.sv : seo.en;
+      const canonical = `${SITE}/${locale}/products?category=${cat}`;
+      return {
+        meta: [
+          {
+            title: sv
+              ? `${name} — köp, jämför & beställ | ${t("common.appName")}`
+              : `${name} — buy, compare & order | ${t("common.appName")}`,
+          },
+          { name: "description", content: desc },
+          { property: "og:title", content: `${name} | ${t("common.appName")}` },
+          { property: "og:url", content: canonical },
+          { property: "og:description", content: desc },
+        ],
+        links: [{ rel: "canonical", href: canonical }, ...hreflangLinks(`products?category=${cat}`)],
+      };
+    }
+
     const canonical = `${SITE}/${locale}/products`;
     return {
       meta: [
