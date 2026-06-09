@@ -109,6 +109,7 @@ function LocaleLayout() {
     { to: "/$locale/new", label: t("nav.new") },
     { to: "/$locale/chat", label: t("nav.chat") },
     { to: "/$locale/advisor", label: t("nav.advisor") },
+    { to: "/$locale/guider", label: t("nav.guides") },
     { to: "/$locale/compare", label: t("nav.compare") },
   ];
 

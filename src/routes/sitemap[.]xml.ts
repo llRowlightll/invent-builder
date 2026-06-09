@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
+import { GUIDES } from "@/lib/guides";
 
 const BASE = "https://maskinval.se";
 const LOCALES = ["sv", "en", "de", "es"];
@@ -12,6 +13,7 @@ const STATIC_PATHS = [
   "/compare",
   "/machine-builder",
   "/configure",
+  "/guider",
 ];
 
 export const Route = createFileRoute("/sitemap.xml")({
@@ -61,6 +63,10 @@ export const Route = createFileRoute("/sitemap.xml")({
           // Configurator pages — custom-build landing pages, strong long-tail SEO
           for (const fam of families) {
             urls.push(url(`/${locale}/configurator/${encodeURIComponent(fam)}`, today, "monthly", "0.7"));
+          }
+          // Buying guides — long-tail SEO content
+          for (const g of GUIDES) {
+            urls.push(url(`/${locale}/guider/${g.slug}`, today, "monthly", "0.6"));
           }
         }
 

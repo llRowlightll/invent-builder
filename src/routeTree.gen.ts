@@ -29,6 +29,7 @@ import { Route as LocaleOrdersRouteImport } from './routes/$locale/orders'
 import { Route as LocaleNewRouteImport } from './routes/$locale/new'
 import { Route as LocaleMachineBuilderRouteImport } from './routes/$locale/machine-builder'
 import { Route as LocaleLoginRouteImport } from './routes/$locale/login'
+import { Route as LocaleGuiderRouteImport } from './routes/$locale/guider'
 import { Route as LocaleConvertRouteImport } from './routes/$locale/convert'
 import { Route as LocaleConfigureRouteImport } from './routes/$locale/configure'
 import { Route as LocaleConfiguratorRouteImport } from './routes/$locale/configurator'
@@ -40,11 +41,13 @@ import { Route as LocaleAssembliesRouteImport } from './routes/$locale/assemblie
 import { Route as LocaleAppRouteImport } from './routes/$locale/app'
 import { Route as LocaleAdvisorRouteImport } from './routes/$locale/advisor'
 import { Route as LocaleAdminRouteImport } from './routes/$locale/admin'
+import { Route as LocaleGuiderIndexRouteImport } from './routes/$locale/guider.index'
 import { Route as LocaleConfiguratorIndexRouteImport } from './routes/$locale/configurator.index'
 import { Route as LocaleRfqRfqIdRouteImport } from './routes/$locale/rfq.$rfqId'
 import { Route as LocaleProductSkuRouteImport } from './routes/$locale/product.$sku'
 import { Route as LocaleOffertRfqIdRouteImport } from './routes/$locale/offert.$rfqId'
 import { Route as LocaleOcOrderIdRouteImport } from './routes/$locale/oc.$orderId'
+import { Route as LocaleGuiderSlugRouteImport } from './routes/$locale/guider.$slug'
 import { Route as LocaleConfiguratorFamilyRouteImport } from './routes/$locale/configurator.$family'
 import { Route as LocaleBomBomIdRouteImport } from './routes/$locale/bom.$bomId'
 import { Route as LocaleAssemblySlugRouteImport } from './routes/$locale/assembly.$slug'
@@ -166,6 +169,11 @@ const LocaleLoginRoute = LocaleLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocaleGuiderRoute = LocaleGuiderRouteImport.update({
+  id: '/guider',
+  path: '/guider',
+  getParentRoute: () => LocaleRoute,
+} as any)
 const LocaleConvertRoute = LocaleConvertRouteImport.update({
   id: '/convert',
   path: '/convert',
@@ -221,6 +229,11 @@ const LocaleAdminRoute = LocaleAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocaleGuiderIndexRoute = LocaleGuiderIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LocaleGuiderRoute,
+} as any)
 const LocaleConfiguratorIndexRoute = LocaleConfiguratorIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -245,6 +258,11 @@ const LocaleOcOrderIdRoute = LocaleOcOrderIdRouteImport.update({
   id: '/oc/$orderId',
   path: '/oc/$orderId',
   getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleGuiderSlugRoute = LocaleGuiderSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => LocaleGuiderRoute,
 } as any)
 const LocaleConfiguratorFamilyRoute =
   LocaleConfiguratorFamilyRouteImport.update({
@@ -365,6 +383,7 @@ export interface FileRoutesByFullPath {
   '/$locale/configurator': typeof LocaleConfiguratorRouteWithChildren
   '/$locale/configure': typeof LocaleConfigureRoute
   '/$locale/convert': typeof LocaleConvertRoute
+  '/$locale/guider': typeof LocaleGuiderRouteWithChildren
   '/$locale/login': typeof LocaleLoginRoute
   '/$locale/machine-builder': typeof LocaleMachineBuilderRoute
   '/$locale/new': typeof LocaleNewRoute
@@ -398,11 +417,13 @@ export interface FileRoutesByFullPath {
   '/$locale/assembly/$slug': typeof LocaleAssemblySlugRoute
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
   '/$locale/configurator/$family': typeof LocaleConfiguratorFamilyRoute
+  '/$locale/guider/$slug': typeof LocaleGuiderSlugRoute
   '/$locale/oc/$orderId': typeof LocaleOcOrderIdRoute
   '/$locale/offert/$rfqId': typeof LocaleOffertRfqIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
   '/$locale/configurator/': typeof LocaleConfiguratorIndexRoute
+  '/$locale/guider/': typeof LocaleGuiderIndexRoute
   '/$locale/admin/offert/$rfqId': typeof LocaleAdminOffertRfqIdRoute
   '/$locale/admin/orderbekraftelse/$orderId': typeof LocaleAdminOrderbekraftelseOrderIdRoute
   '/$locale/configurator/schema/$schemaId': typeof LocaleConfiguratorSchemaSchemaIdRoute
@@ -454,11 +475,13 @@ export interface FileRoutesByTo {
   '/$locale/assembly/$slug': typeof LocaleAssemblySlugRoute
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
   '/$locale/configurator/$family': typeof LocaleConfiguratorFamilyRoute
+  '/$locale/guider/$slug': typeof LocaleGuiderSlugRoute
   '/$locale/oc/$orderId': typeof LocaleOcOrderIdRoute
   '/$locale/offert/$rfqId': typeof LocaleOffertRfqIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
   '/$locale/configurator': typeof LocaleConfiguratorIndexRoute
+  '/$locale/guider': typeof LocaleGuiderIndexRoute
   '/$locale/admin/offert/$rfqId': typeof LocaleAdminOffertRfqIdRoute
   '/$locale/admin/orderbekraftelse/$orderId': typeof LocaleAdminOrderbekraftelseOrderIdRoute
   '/$locale/configurator/schema/$schemaId': typeof LocaleConfiguratorSchemaSchemaIdRoute
@@ -480,6 +503,7 @@ export interface FileRoutesById {
   '/$locale/configurator': typeof LocaleConfiguratorRouteWithChildren
   '/$locale/configure': typeof LocaleConfigureRoute
   '/$locale/convert': typeof LocaleConvertRoute
+  '/$locale/guider': typeof LocaleGuiderRouteWithChildren
   '/$locale/login': typeof LocaleLoginRoute
   '/$locale/machine-builder': typeof LocaleMachineBuilderRoute
   '/$locale/new': typeof LocaleNewRoute
@@ -513,11 +537,13 @@ export interface FileRoutesById {
   '/$locale/assembly/$slug': typeof LocaleAssemblySlugRoute
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
   '/$locale/configurator/$family': typeof LocaleConfiguratorFamilyRoute
+  '/$locale/guider/$slug': typeof LocaleGuiderSlugRoute
   '/$locale/oc/$orderId': typeof LocaleOcOrderIdRoute
   '/$locale/offert/$rfqId': typeof LocaleOffertRfqIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
   '/$locale/configurator/': typeof LocaleConfiguratorIndexRoute
+  '/$locale/guider/': typeof LocaleGuiderIndexRoute
   '/$locale/admin/offert/$rfqId': typeof LocaleAdminOffertRfqIdRoute
   '/$locale/admin/orderbekraftelse/$orderId': typeof LocaleAdminOrderbekraftelseOrderIdRoute
   '/$locale/configurator/schema/$schemaId': typeof LocaleConfiguratorSchemaSchemaIdRoute
@@ -540,6 +566,7 @@ export interface FileRouteTypes {
     | '/$locale/configurator'
     | '/$locale/configure'
     | '/$locale/convert'
+    | '/$locale/guider'
     | '/$locale/login'
     | '/$locale/machine-builder'
     | '/$locale/new'
@@ -573,11 +600,13 @@ export interface FileRouteTypes {
     | '/$locale/assembly/$slug'
     | '/$locale/bom/$bomId'
     | '/$locale/configurator/$family'
+    | '/$locale/guider/$slug'
     | '/$locale/oc/$orderId'
     | '/$locale/offert/$rfqId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
     | '/$locale/configurator/'
+    | '/$locale/guider/'
     | '/$locale/admin/offert/$rfqId'
     | '/$locale/admin/orderbekraftelse/$orderId'
     | '/$locale/configurator/schema/$schemaId'
@@ -629,11 +658,13 @@ export interface FileRouteTypes {
     | '/$locale/assembly/$slug'
     | '/$locale/bom/$bomId'
     | '/$locale/configurator/$family'
+    | '/$locale/guider/$slug'
     | '/$locale/oc/$orderId'
     | '/$locale/offert/$rfqId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
     | '/$locale/configurator'
+    | '/$locale/guider'
     | '/$locale/admin/offert/$rfqId'
     | '/$locale/admin/orderbekraftelse/$orderId'
     | '/$locale/configurator/schema/$schemaId'
@@ -654,6 +685,7 @@ export interface FileRouteTypes {
     | '/$locale/configurator'
     | '/$locale/configure'
     | '/$locale/convert'
+    | '/$locale/guider'
     | '/$locale/login'
     | '/$locale/machine-builder'
     | '/$locale/new'
@@ -687,11 +719,13 @@ export interface FileRouteTypes {
     | '/$locale/assembly/$slug'
     | '/$locale/bom/$bomId'
     | '/$locale/configurator/$family'
+    | '/$locale/guider/$slug'
     | '/$locale/oc/$orderId'
     | '/$locale/offert/$rfqId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
     | '/$locale/configurator/'
+    | '/$locale/guider/'
     | '/$locale/admin/offert/$rfqId'
     | '/$locale/admin/orderbekraftelse/$orderId'
     | '/$locale/configurator/schema/$schemaId'
@@ -848,6 +882,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleLoginRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/guider': {
+      id: '/$locale/guider'
+      path: '/guider'
+      fullPath: '/$locale/guider'
+      preLoaderRoute: typeof LocaleGuiderRouteImport
+      parentRoute: typeof LocaleRoute
+    }
     '/$locale/convert': {
       id: '/$locale/convert'
       path: '/convert'
@@ -925,6 +966,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAdminRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/guider/': {
+      id: '/$locale/guider/'
+      path: '/'
+      fullPath: '/$locale/guider/'
+      preLoaderRoute: typeof LocaleGuiderIndexRouteImport
+      parentRoute: typeof LocaleGuiderRoute
+    }
     '/$locale/configurator/': {
       id: '/$locale/configurator/'
       path: '/'
@@ -959,6 +1007,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/$locale/oc/$orderId'
       preLoaderRoute: typeof LocaleOcOrderIdRouteImport
       parentRoute: typeof LocaleRoute
+    }
+    '/$locale/guider/$slug': {
+      id: '/$locale/guider/$slug'
+      path: '/$slug'
+      fullPath: '/$locale/guider/$slug'
+      preLoaderRoute: typeof LocaleGuiderSlugRouteImport
+      parentRoute: typeof LocaleGuiderRoute
     }
     '/$locale/configurator/$family': {
       id: '/$locale/configurator/$family'
@@ -1159,6 +1214,20 @@ const LocaleConfiguratorRouteChildren: LocaleConfiguratorRouteChildren = {
 const LocaleConfiguratorRouteWithChildren =
   LocaleConfiguratorRoute._addFileChildren(LocaleConfiguratorRouteChildren)
 
+interface LocaleGuiderRouteChildren {
+  LocaleGuiderSlugRoute: typeof LocaleGuiderSlugRoute
+  LocaleGuiderIndexRoute: typeof LocaleGuiderIndexRoute
+}
+
+const LocaleGuiderRouteChildren: LocaleGuiderRouteChildren = {
+  LocaleGuiderSlugRoute: LocaleGuiderSlugRoute,
+  LocaleGuiderIndexRoute: LocaleGuiderIndexRoute,
+}
+
+const LocaleGuiderRouteWithChildren = LocaleGuiderRoute._addFileChildren(
+  LocaleGuiderRouteChildren,
+)
+
 interface LocaleRouteChildren {
   LocaleAdminRoute: typeof LocaleAdminRouteWithChildren
   LocaleAdvisorRoute: typeof LocaleAdvisorRoute
@@ -1171,6 +1240,7 @@ interface LocaleRouteChildren {
   LocaleConfiguratorRoute: typeof LocaleConfiguratorRouteWithChildren
   LocaleConfigureRoute: typeof LocaleConfigureRoute
   LocaleConvertRoute: typeof LocaleConvertRoute
+  LocaleGuiderRoute: typeof LocaleGuiderRouteWithChildren
   LocaleLoginRoute: typeof LocaleLoginRoute
   LocaleMachineBuilderRoute: typeof LocaleMachineBuilderRoute
   LocaleNewRoute: typeof LocaleNewRoute
@@ -1207,6 +1277,7 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleConfiguratorRoute: LocaleConfiguratorRouteWithChildren,
   LocaleConfigureRoute: LocaleConfigureRoute,
   LocaleConvertRoute: LocaleConvertRoute,
+  LocaleGuiderRoute: LocaleGuiderRouteWithChildren,
   LocaleLoginRoute: LocaleLoginRoute,
   LocaleMachineBuilderRoute: LocaleMachineBuilderRoute,
   LocaleNewRoute: LocaleNewRoute,
