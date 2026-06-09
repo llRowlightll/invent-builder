@@ -41,7 +41,79 @@ interface Accessory {
   sort_order: number;
 }
 
+type FamSeo = {
+  name: string;
+  category_slug: string;
+  standard: string | null;
+  stroke_min_mm: number | null;
+  stroke_max_mm: number | null;
+};
+
+const CAT_NOUN: Record<string, { sv: string; en: string }> = {
+  cylinder: { sv: "pneumatikcylinder", en: "pneumatic cylinder" },
+  "electric-actuator": { sv: "elektrisk aktuator", en: "electric actuator" },
+  "linear-module": { sv: "linjärmodul", en: "linear module" },
+  gripper: { sv: "gripdon", en: "gripper" },
+  valve: { sv: "ventil", en: "valve" },
+  "rotary-actuator": { sv: "vriddon", en: "rotary actuator" },
+  "valve-terminal": { sv: "ventilterminal", en: "valve terminal" },
+  vacuum: { sv: "vakuumkomponent", en: "vacuum component" },
+};
+
+function catNoun(slug: string | null | undefined, locale: string): string {
+  const sv = locale === "sv";
+  const n = slug ? CAT_NOUN[slug] : undefined;
+  if (!n) return sv ? "komponent" : "component";
+  return sv ? n.sv : n.en;
+}
+
+// Unique, data-driven intro per configurator family — used for the SSR meta
+// description (head) and the visible on-page text. Long-tail SEO across 159 pages.
+function configuratorIntro(fam: FamSeo | null, locale: string): string {
+  const sv = locale === "sv";
+  if (!fam) {
+    return sv
+      ? "Konfigurera din komponent efter dina mått och få artikelnummer och offert direkt."
+      : "Configure your component to your dimensions and get a part number and quote instantly.";
+  }
+  const noun = catNoun(fam.category_slug, locale);
+  const std = fam.standard ? (sv ? ` enligt ${fam.standard}` : ` to ${fam.standard}`) : "";
+  const hasStroke = (fam.stroke_max_mm ?? 0) > (fam.stroke_min_mm ?? 0);
+  const stroke = hasStroke
+    ? sv
+      ? ` med slaglängd ${fam.stroke_min_mm}–${fam.stroke_max_mm} mm`
+      : ` with stroke ${fam.stroke_min_mm}–${fam.stroke_max_mm} mm`
+    : "";
+  return sv
+    ? `Konfigurera din ${fam.name} — en ${noun}${std}${stroke}. Välj mått och tillval och få ett artikelnummer och en offert direkt, utan att vänta på en säljare.`
+    : `Configure your ${fam.name} — a ${noun}${std}${stroke}. Choose dimensions and options and get a part number and quote instantly, without waiting for a salesperson.`;
+}
+
 export const Route = createFileRoute("/$locale/configurator/$family")({
+  loader: async ({ params }) => {
+    const { data } = await supabase
+      .from("configurator_families")
+      .select("name, category_slug, standard, stroke_min_mm, stroke_max_mm")
+      .eq("slug", params.family)
+      .maybeSingle();
+    return { fam: (data as FamSeo | null) ?? null };
+  },
+  head: ({ params, loaderData }) => {
+    const sv = params.locale === "sv";
+    const fam = (loaderData as { fam: FamSeo | null } | undefined)?.fam ?? null;
+    const name = fam?.name ?? params.family.toUpperCase();
+    const noun = catNoun(fam?.category_slug, params.locale);
+    return {
+      meta: [
+        {
+          title: sv
+            ? `Konfigurera ${name} – kundanpassad ${noun} | Maskinval`
+            : `Configure ${name} – custom ${noun} | Maskinval`,
+        },
+        { name: "description", content: configuratorIntro(fam, params.locale) },
+      ],
+    };
+  },
   component: ConfiguratorPage,
 });
 
@@ -203,6 +275,18 @@ function ConfiguratorPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">{family.name}</h1>
         <p className="text-gray-600 mt-1 text-lg">{family.title}</p>
+        <p className="text-sm text-gray-500 mt-3 leading-relaxed max-w-2xl">
+          {configuratorIntro(
+            {
+              name: family.name,
+              category_slug: family.category_slug,
+              standard: family.standard,
+              stroke_min_mm: family.stroke_min_mm,
+              stroke_max_mm: family.stroke_max_mm,
+            },
+            locale
+          )}
+        </p>
         <div className="flex items-center gap-3 mt-3">
           {family.standard && (
             <span className="inline-block px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded font-medium">
