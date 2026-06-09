@@ -281,6 +281,15 @@ function detectCategories(text: string): string[] {
     slugs.add("vacuum");
     slugs.add("linear-module");
   }
+  // Shock absorber: decelerating an EXTERNAL moving mass at end of travel (not a
+  // cylinder's own end-cushioning). Needs a braking verb + a velocity/mass context.
+  if (/stötdämp|shock.?absorb/i.test(t) ||
+      (/\bstoppa\b|bromsa|deceler|fånga upp|kollision|anslag|krock/i.test(t)
+       && /m\/s|km\/h|rörelseenergi|kinetisk|rörlig massa|\bvagn\b|tung massa/i.test(t))) {
+    slugs.delete("cylinder"); slugs.delete("electric-actuator");
+    slugs.delete("linear-module"); slugs.delete("rotary-actuator");
+    slugs.add("shock-absorber");
+  }
   if (slugs.size === 0) slugs.add("cylinder");
   return Array.from(slugs);
 }
@@ -1365,6 +1374,52 @@ async function handleOptions(
   // ── Load → minimum bore calculation ──────────────────────────────
   const loadKg = extractLoadKg(combinedText, answers);
   const minBoreMm = calcMinBoreMm(loadKg);
+
+  // ── Shock-absorber application (decelerate an external moving mass) ──────────
+  // Sized by kinetic energy ½·m·v², not bore/force — handled here so it skips the
+  // actuator ranker (which would filter out these bore-less products). We have no
+  // energy-capacity spec in the catalog, so we recommend a size spread (M8–M20)
+  // and surface the computed energy for the engineer to verify on the datasheet.
+  if (categories.length === 1 && categories[0] === "shock-absorber") {
+    const shocks = await fetchProducts(["shock-absorber"], 30);
+    const thread = (p: CatalogProduct) => {
+      const m = String(p.key_specs?.sizes ?? p.name ?? "").match(/M\s?(\d+)/i);
+      return m ? Number(m[1]) : 99;
+    };
+    const seen = new Set<number>();
+    const picks: CatalogProduct[] = [];
+    for (const p of shocks.slice().sort((a, b) => thread(a) - thread(b))) {
+      const th = thread(p);
+      if (!seen.has(th)) { seen.add(th); picks.push(p); }
+      if (picks.length >= 4) break;
+    }
+    const energyJ = loadKg > 0 && speedMs > 0 ? 0.5 * loadKg * speedMs * speedMs : 0;
+    const options = picks.map((p, i) => ({
+      sku: p.sku,
+      name: p.name,
+      badge: i === 0 ? (isSv ? "Minsta" : "Smallest")
+        : i === picks.length - 1 ? (isSv ? "Störst kapacitet" : "Highest capacity") : "",
+      bore_mm: null,
+      stroke_mm: Number(String(p.key_specs?.stroke_mm ?? "").replace(/[^\d.]/g, "")) || null,
+      force_n: null,
+      why: isSv
+        ? `Justerbar hydraulisk stötdämpare ${String(p.key_specs?.sizes ?? "")}. Dimensioneras efter energi per slag — verifiera mot databladets energikapacitet.`
+        : `Adjustable hydraulic shock absorber ${String(p.key_specs?.sizes ?? "")}. Sized by energy per cycle — verify against the datasheet's energy capacity.`,
+      pros: isSv ? ["Justerbar dämpning", "Mjuk inbromsning som skyddar mekaniken"]
+        : ["Adjustable damping", "Smooth deceleration that protects the mechanics"],
+      cons: isSv ? ["Välj storlek efter energikapacitet (Nm/slag) i databladet"]
+        : ["Choose size by the energy capacity (Nm/cycle) in the datasheet"],
+    }));
+    const eNote = energyJ > 0
+      ? (isSv ? ` Beräknad rörelseenergi ≈ ${energyJ.toFixed(1)} J/slag (½·${loadKg} kg·(${speedMs} m/s)²).`
+              : ` Estimated kinetic energy ≈ ${energyJ.toFixed(1)} J/cycle (½·${loadKg} kg·(${speedMs} m/s)²).`)
+      : "";
+    const summary = isSv
+      ? `Det här är en stötdämpar-applikation — en cylinder bromsar inte en rullande massa, det gör en stötdämpare.${eNote} Välj storlek (M8–M20) efter dämparens energikapacitet per slag (se datablad).`
+      : `This is a shock-absorber application — a cylinder won't stop a rolling mass, a shock absorber does.${eNote} Pick a size (M8–M20) by the absorber's energy capacity per cycle (see datasheet).`;
+    logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: options[0]?.sku ?? null, option_count: options.length }, true);
+    return Response.json({ summary, options }, { headers: CORS });
+  }
   if (minBoreMm > 0) console.log(`[options] load=${loadKg}kg → minBore=${minBoreMm}mm`);
 
   const [allProducts, pdfCtx] = await Promise.all([
