@@ -34,3 +34,7 @@ dist-ssr
 # Product PDFs (too large for git – stored locally at docs/pdfs/)
 docs/pdfs/**/*.pdf
 docs/pdfs/**/*.zip
+
+# Machine-local Claude Code preview config (absolute paths, per-machine).
+# Untracked so `git reset` never clobbers each developer's local launch path.
+.claude/launch.json
