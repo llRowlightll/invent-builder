@@ -1423,7 +1423,12 @@ async function handleOptions(
   if (minBoreMm > 0) console.log(`[options] load=${loadKg}kg → minBore=${minBoreMm}mm`);
 
   const [allProducts, pdfCtx] = await Promise.all([
-    fetchProducts(categories, 80),
+    // High limit so the WHOLE category is considered: the fetch RPC orders by
+    // brand, so a limit of 80 over 325 cylinders only ever returned early-alphabet
+    // brands (Bosch/Camozzi) — a Festo stainless cylinder that uniquely meets a
+    // wet + Ø63 + 300 mm spec was never even a candidate. Downstream still narrows
+    // to the best 25 by stroke fit, so fetching more is safe and just improves coverage.
+    fetchProducts(categories, 500),
     searchKnowledge(combinedText, 5),
   ]);
   const productMap = new Map<string, CatalogProduct>(allProducts.map(p => [p.sku, p]));
@@ -1664,6 +1669,20 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
 // ── ACTION: bom (v40) ─────────────────────────────────────────────────────────
 // v40: Mandatory BOM is built deterministically BEFORE calling LLM.
 // If LLM is rate-limited, the BOM skeleton is returned as-is — never an empty BOM.
+// Fetch just the chosen primary's category, so the BOM matches the ACTUAL product
+// (pneumatic vs electric) rather than loose candidate-category triggers.
+async function fetchPrimaryCategory(sku: string): Promise<string> {
+  if (!sku || sku === "CUSTOM-SOLUTION" || sku === "SPECIFY") return "";
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/products?sku=eq.${encodeURIComponent(sku)}&select=categories(slug)`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    });
+    if (!res.ok) return "";
+    const d = await res.json();
+    return Array.isArray(d) && d[0]?.categories?.slug ? String(d[0].categories.slug) : "";
+  } catch { return ""; }
+}
+
 async function handleBom(
   description: string, answers: Record<string, string>, primarySku: string, locale: string
 ): Promise<Response> {
@@ -1688,7 +1707,14 @@ async function handleBom(
   const speedMs = extractSpeedMs(combinedText, answers);
   const precisionMm = extractPrecisionMm(combinedText, answers);
   const isHighPrecision = precisionMm > 0 && precisionMm <= 0.1;
-  const isElectric = !isAtex && !isAtexDust && categories.some(c => c === "electric-actuator" || c === "linear-module");
+  // Base isElectric on the ACTUAL chosen primary product, not the loose candidate
+  // categories — a trigger like "noggrann"/"precis" can put electric-actuator into
+  // the categories even when the chosen primary is a pneumatic cylinder, which then
+  // wrongly built an electric drivetrain (servo drive + motor cable) for it.
+  const primaryCategory = await fetchPrimaryCategory(primarySku);
+  const isElectric = !isAtex && !isAtexDust && (primaryCategory
+    ? ["electric-actuator", "linear-module", "servo-motor", "servo-drive"].includes(primaryCategory)
+    : categories.some(c => c === "electric-actuator" || c === "linear-module"));
   const isCleanroom = /\brenrum\b|\bcleanroom\b|\bclean\s+room\b/i.test(combinedText);
   const isMultiAxis = needsMultiAxis(combinedText);
   const isVacuum = needsVacuumGrip(combinedText);
