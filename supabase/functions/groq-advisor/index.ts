@@ -241,6 +241,28 @@ function sortByStrokeMatch(products: CatalogProduct[], requiredStroke: number): 
   });
 }
 
+/**
+ * Multi-function / line-level system request: the user is describing a whole
+ * production line with several distinct stations (weighing, identification/
+ * vision, robot handling, multi-lane sorting) — not a single actuator. We must
+ * NOT collapse this to one component (least of all a passive shock absorber),
+ * and we must be honest that weighing/vision/PLC/robot are outside our component
+ * catalog. Triggers when >=2 of these out-of-catalog functions are requested.
+ */
+function isMultiFunctionSystem(text: string): boolean {
+  const t = text.toLowerCase();
+  let n = 0;
+  // weighing / load cells (the weighing FUNCTION, not "the box weighs 5 kg")
+  if (/lastcell|load.?cell|\bweigh|vägning|väga\b|\bväg\s+och|registrera\s+vikt/i.test(t)) n++;
+  // identification: barcode / label / vision / camera / scanner / object-ID
+  if (/streckkod|barcode|\betikett|\blabel\b|\bvision\b|kamera|\bcamera\b|scanner|skanna|\bocr\b|\bqr\b|identifiera\s+(kartong|produkt|objekt|artikel|enhet|paket|låda|del)/i.test(t)) n++;
+  // robot handling
+  if (/\brobot\b|scara|delta.?robot|plockrobot|industrirobot|cobot/i.test(t)) n++;
+  // multi-lane sorting (several lanes — not a single divert cylinder)
+  if (/sorteringsban|sorter[a-z]*\b.{0,20}(\d+|tre|flera)\s*(olika\s*)?(ban|väg|lane|fack)|\d+[-\s]*vägs?\s*sorter/i.test(t)) n++;
+  return n >= 2;
+}
+
 function detectCategories(text: string): string[] {
   const t = text.toLowerCase();
   const slugs = new Set<string>();
@@ -283,9 +305,13 @@ function detectCategories(text: string): string[] {
   }
   // Shock absorber: decelerating an EXTERNAL moving mass at end of travel (not a
   // cylinder's own end-cushioning). Needs a braking verb + a velocity/mass context.
-  if (/stötdämp|shock.?absorb/i.test(t) ||
+  // In a multi-function LINE request, "stoppa" + a velocity is just one station
+  // among many — do NOT strip the active actuators and collapse to a passive
+  // shock absorber (the carton sort-line bug). handleOptions owns system scope.
+  if (!isMultiFunctionSystem(t) &&
+      (/stötdämp|shock.?absorb/i.test(t) ||
       (/\bstoppa\b|bromsa|deceler|fånga upp|kollision|anslag|krock/i.test(t)
-       && /m\/s|km\/h|rörelseenergi|kinetisk|rörlig massa|\bvagn\b|tung massa/i.test(t))) {
+       && /m\/s|km\/h|rörelseenergi|kinetisk|rörlig massa|\bvagn\b|tung massa/i.test(t)))) {
     slugs.delete("cylinder"); slugs.delete("electric-actuator");
     slugs.delete("linear-module"); slugs.delete("rotary-actuator");
     slugs.add("shock-absorber");
@@ -1330,6 +1356,10 @@ async function handleOptions(
   const isCleanroom = /\brenrum\b|\bcleanroom\b|\bclean\s+room\b/i.test(combinedText);
   const needsProgrammable = /programmer|stopp-position|servo|positioner/i.test(combinedText);
   const isMultiAxis = needsMultiAxis(combinedText);
+  // Whole-line, multi-station request (weigh + identify + sort + robot/PLC). The
+  // catalog can't be a single "solution" here — we surface motion building blocks
+  // and the summary is honest about what needs system integration vs. our range.
+  const isSystemScope = isMultiFunctionSystem(combinedText);
   const isVacuum = needsVacuumGrip(combinedText);
   const valveTerminal = needsValveTerminal(combinedText);
   const isWashdown = needsWashdown(combinedText);
@@ -1367,8 +1397,10 @@ async function handleOptions(
   }
 
   const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
-  const maxRequiredStroke = perAxisStrokes.length > 0
-    ? Math.max(...perAxisStrokes.map(a => a.stroke))
+  // System scope: a number like "200-500 mm" is carton SIZE, not actuator stroke —
+  // don't treat it as a stroke requirement (it would falsely fail every cylinder).
+  const maxRequiredStroke = isSystemScope ? 0
+    : perAxisStrokes.length > 0 ? Math.max(...perAxisStrokes.map(a => a.stroke))
     : minStroke;
 
   // ── Load → minimum bore calculation ──────────────────────────────
@@ -1380,7 +1412,7 @@ async function handleOptions(
   // actuator ranker (which would filter out these bore-less products). We have no
   // energy-capacity spec in the catalog, so we recommend a size spread (M8–M20)
   // and surface the computed energy for the engineer to verify on the datasheet.
-  if (categories.length === 1 && categories[0] === "shock-absorber") {
+  if (!isSystemScope && categories.length === 1 && categories[0] === "shock-absorber") {
     const shocks = await fetchProducts(["shock-absorber"], 30);
     const thread = (p: CatalogProduct) => {
       const m = String(p.key_specs?.sizes ?? p.name ?? "").match(/M\s?(\d+)/i);
@@ -1422,13 +1454,19 @@ async function handleOptions(
   }
   if (minBoreMm > 0) console.log(`[options] load=${loadKg}kg → minBore=${minBoreMm}mm`);
 
+  // System scope: surface only motion/actuator building blocks (drop loose
+  // sensor/vacuum/drive categories) so the 3 options are clean actuators; the
+  // summary already routes weighing/vision/PLC/robot to engineering.
+  const motionCats = categories.filter(c => ["cylinder","electric-actuator","linear-module","rotary-actuator"].includes(c));
+  const systemMotionCats = isSystemScope && motionCats.length > 0 ? motionCats : categories;
+
   const [allProducts, pdfCtx] = await Promise.all([
     // High limit so the WHOLE category is considered: the fetch RPC orders by
     // brand, so a limit of 80 over 325 cylinders only ever returned early-alphabet
     // brands (Bosch/Camozzi) — a Festo stainless cylinder that uniquely meets a
     // wet + Ø63 + 300 mm spec was never even a candidate. Downstream still narrows
     // to the best 25 by stroke fit, so fetching more is safe and just improves coverage.
-    fetchProducts(categories, 500),
+    fetchProducts(systemMotionCats, 500),
     searchKnowledge(combinedText, 5),
   ]);
   const productMap = new Map<string, CatalogProduct>(allProducts.map(p => [p.sku, p]));
@@ -1510,7 +1548,9 @@ async function handleOptions(
     const ms = parseStrokeFromSpecs(p.key_specs ?? {});
     return {
       sku: p.sku, name: p.name,
-      badge: i === 0 && boreInexact
+      badge: i === 0 && isSystemScope
+        ? (isSv ? "Byggblock – rörelsedel" : "Building block – motion")
+        : i === 0 && boreInexact
         ? (isSv ? "Närmaste — överdimensionerad" : "Closest — oversized")
         : (isSv ? ["Bästa valet","Kompakt alternativ","Budgetalternativ"][i] : ["Best choice","Compact option","Budget option"][i]),
       bore_mm: parseFloat(String(p.key_specs?.bore_mm ?? "0")) || null,
@@ -1659,6 +1699,10 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     ? (isSv
         ? "Den här kombinationen av krav ligger utanför vårt standardsortiment — ingen katalogprodukt klarar den säkert. Vi föreslår en kundspecifik lösning; kontakta oss så tar vi fram ett förslag."
         : "This combination of requirements is outside our standard range — no catalog product meets it safely. We propose a custom-engineered solution; contact us and we'll work one out.")
+    : isSystemScope
+    ? (isSv
+        ? `Det här är ett flerstegssystem på linjenivå (detektera → stoppa/centrera → väga → identifiera → sortera till flera banor), inte en enskild komponent. Vårt sortiment täcker rörelse- och hanteringsdelen — pneumatiska aktuatorer för stopp, centrering och sortering samt sensorik — och förslagen nedan är byggblock för just den delen. Vägning (lastceller), identifiering (vision/streckkodsläsare), robot och PLC-styrning ligger utanför vårt komponentsortiment och kräver systemintegration. För kapacitet (t.ex. 30 st/min utan köbildning), buffring, cykeltid och komplett linjedesign tar våra ingenjörer helheten — kontakta oss för projektering.`
+        : `This is a line-level multi-stage system (detect → stop/center → weigh → identify → sort to several lanes), not a single component. Our range covers the motion and handling part — pneumatic actuators for stopping, centering and sorting plus sensing — and the options below are building blocks for that part only. Weighing (load cells), identification (vision/barcode readers), robotics and PLC control are outside our component range and need system integration. For throughput (e.g. 30 units/min without queueing), buffering, cycle time and full line design our engineers take the whole — contact us for project engineering.`)
     : isMultiAxis
     ? (isSv
         ? `Det här är ett fleraxligt system${axesNote} — det behöver en separat axel per riktning, inte en enda aktuator. Se förslagen nedan som en axel i taget och kombinera dem i maskinbyggaren, där varje rörelse dimensioneras för sig.`
