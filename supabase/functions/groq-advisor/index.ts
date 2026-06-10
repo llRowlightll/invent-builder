@@ -1503,11 +1503,19 @@ async function handleOptions(
     ? "'Bästa valet'|'Kompakt alternativ'|'Budgetalternativ'|'Premium alternativ'|'Närmaste katalogalternativ'"
     : "'Best choice'|'Compact option'|'Budget option'|'Premium option'|'Closest catalog option'";
 
+  // No exact-size stock match → the top pick is the closest (oversized) one. Per
+  // policy we RECOMMEND it but don't present it as the definitive choice; the
+  // honest path for an exact fit is a configurable variant or a custom solution.
+  const topBore0 = parseFloat(String(topProducts[0]?.key_specs?.bore_mm ?? "0"));
+  const boreInexact = minBoreMm > 0 && topBore0 > 0 && topBore0 > minBoreMm * 1.4;
+
   const serverOptions = topProducts.map((p, i) => {
     const ms = parseStrokeFromSpecs(p.key_specs ?? {});
     return {
       sku: p.sku, name: p.name,
-      badge: isSv ? ["Bästa valet","Kompakt alternativ","Budgetalternativ"][i] : ["Best choice","Compact option","Budget option"][i],
+      badge: i === 0 && boreInexact
+        ? (isSv ? "Närmaste — överdimensionerad" : "Closest — oversized")
+        : (isSv ? ["Bästa valet","Kompakt alternativ","Budgetalternativ"][i] : ["Best choice","Compact option","Budget option"][i]),
       bore_mm: parseFloat(String(p.key_specs?.bore_mm ?? "0")) || null,
       stroke_mm: ms > 0 ? ms : null,
       force_n: parseFloat(String(p.key_specs?.force_n ?? "0")) || null,
@@ -1654,6 +1662,10 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     ? (isSv
         ? `Det här är ett fleraxligt system${axesNote} — det behöver en separat axel per riktning, inte en enda aktuator. Se förslagen nedan som en axel i taget och kombinera dem i maskinbyggaren, där varje rörelse dimensioneras för sig.`
         : `This is a multi-axis system${axesNote} — it needs a separate axis per direction, not a single actuator. Treat the suggestions below as one axis at a time and combine them in the machine builder, where each motion is sized individually.`)
+    : boreInexact
+    ? (isSv
+        ? `Vi har ingen lagervara i exakt rätt storlek för det här — ${topProducts[0].name} är närmaste (något överdimensionerad) och klarar kraven tekniskt. Se den som en rekommendation; för exakt mått väljer du en konfigurerbar variant (beställs i rätt borrning och slag) eller en kundspecifik lösning.`
+        : `We don't stock an exact-size match for this — ${topProducts[0].name} is the closest (slightly oversized) and meets the requirements technically. Treat it as a recommendation; for an exact fit choose a configurable variant (ordered to the right bore and stroke) or a custom solution.`)
     : (llmSummary || (isSv
         ? `${topProducts.length} alternativ valda baserat på krav${maxRequiredStroke > 0 ? ` (slag ${maxRequiredStroke} mm)` : ""}.`
         : `${topProducts.length} options selected for ${maxRequiredStroke > 0 ? `${maxRequiredStroke} mm stroke` : "this application"}.`));
