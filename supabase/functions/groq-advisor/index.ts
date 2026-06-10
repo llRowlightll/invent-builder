@@ -1499,9 +1499,6 @@ async function handleOptions(
 
   // Build server-side option objects (correct data, LLM fills in text)
   const lang = isSv ? "svenska" : "English";
-  const badgeList = isSv
-    ? "'Bästa valet'|'Kompakt alternativ'|'Budgetalternativ'|'Premium alternativ'|'Närmaste katalogalternativ'"
-    : "'Best choice'|'Compact option'|'Budget option'|'Premium option'|'Closest catalog option'";
 
   // No exact-size stock match → the top pick is the closest (oversized) one. Per
   // policy we RECOMMEND it but don't present it as the definitive choice; the
@@ -1541,11 +1538,11 @@ async function handleOptions(
 
 MANDATORY RULES:
 1. Use EXACTLY these SKUs: ${topProducts.map(p => p.sku).join(", ")} — do NOT change them
-2. First product gets badge ${isSv ? "'Bästa valet'" : "'Best choice'"}, others get appropriate badges from: ${badgeList}
-3. "why" = engineering justification (mechanism, stroke fit, safety, material) — be specific, mention numbers
-4. pros: 2-3 items, cons: 1-2 items
+2. "why" = engineering justification (mechanism, stroke fit, safety, material) — be specific, mention numbers
+3. pros: 2-3 items, cons: 1-2 items
+Do NOT output a badge field — badges are assigned server-side and must not be set by you.
 
-JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "EXACT_SKU", "badge": "...", "why": "...", "pros": [...], "cons": [...] } ] }`;
+JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "EXACT_SKU", "why": "...", "pros": [...], "cons": [...] } ] }`;
 
   const optUser = `Application: ${description}\nRequirements: ${reqSummary || "standard"}\n${Object.entries(answers).map(([k,v])=>`${k}: ${v}`).join(", ")}\n\nPre-selected products (write descriptions for these ONLY):\n${preselectedStr}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
 
@@ -1566,9 +1563,13 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
       finalOptions = finalOptions.map(opt => {
         const llmOpt = llmBySkuMap.get(opt.sku as string);
         if (!llmOpt) return opt;
+        // Badge is server-authoritative — the LLM only writes prose (why/pros/cons).
+        // It used to be allowed to override the badge and always re-stamped the top
+        // pick 'Bästa valet', even when the server had flagged it as the closest
+        // OVERSIZED match — contradicting the honest "no exact-size match" summary.
+        // Structured semantics (badge) stay on the server; the model never sets them.
         return {
           ...opt,
-          badge: (typeof llmOpt.badge === "string" && llmOpt.badge) ? llmOpt.badge : opt.badge,
           why:   (typeof llmOpt.why === "string" && llmOpt.why)     ? llmOpt.why   : opt.why,
           pros:  (Array.isArray(llmOpt.pros) && llmOpt.pros.length) ? llmOpt.pros  : opt.pros,
           cons:  (Array.isArray(llmOpt.cons) && llmOpt.cons.length) ? llmOpt.cons  : opt.cons,
