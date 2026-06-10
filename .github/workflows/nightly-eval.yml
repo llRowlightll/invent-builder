@@ -1,4 +1,4 @@
-name: Nightly Self-Eval & Catalog Auto-Fix
+name: Nightly Self-Eval (report-only)
 
 on:
   schedule:
@@ -19,10 +19,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Run 30 random scenarios + auto-fix catalog gaps
+      - name: Run 30 random scenarios (eval, report-only — never writes the catalog)
         id: eval
         run: |
-          python3 scripts/eval-auto.py --runs 30 --seed $(date +%Y%m%d) --fix \
+          python3 scripts/eval-auto.py --runs 30 --seed $(date +%Y%m%d) \
             2>&1 | tee eval-output.txt
           echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         env:
@@ -52,11 +52,11 @@ jobs:
           PASSES=$(grep -o '[0-9]* ✅' eval-output.txt | grep -o '[0-9]*' | tail -1 || echo 0)
           FAILS=$(grep -o '[0-9]* ❌' eval-output.txt | grep -o '[0-9]*' | tail -1 || echo 0)
           SKIPS=$(grep -o '[0-9]* ⚠️' eval-output.txt | grep -o '[0-9]*' | tail -1 || echo 0)
-          FIXED=$(grep -o 'Lade till: [^$]*' eval-output.txt | head -5 || echo "")
+          GAPS=$(grep -c 'KATALOGLUCKA' eval-output.txt || true)
           echo "passes=$PASSES" >> $GITHUB_OUTPUT
           echo "fails=$FAILS"   >> $GITHUB_OUTPUT
           echo "skips=$SKIPS"   >> $GITHUB_OUTPUT
-          echo "fixed=$FIXED"   >> $GITHUB_OUTPUT
+          echo "gaps=$GAPS"     >> $GITHUB_OUTPUT
 
       - name: Write job summary
         run: |
@@ -68,8 +68,8 @@ jobs:
           echo "| ❌ Fel   | ${{ steps.results.outputs.fails }} |" >> $GITHUB_STEP_SUMMARY
           echo "| ⚠️ Skip  | ${{ steps.results.outputs.skips }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [[ -n "${{ steps.results.outputs.fixed }}" ]]; then
-            echo "**Auto-fixade katalogluckor:** ${{ steps.results.outputs.fixed }}" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ steps.results.outputs.gaps }}" != "0" && -n "${{ steps.results.outputs.gaps }}" ]]; then
+            echo "**Katalogluckor (rapport — EJ auto-skapade):** ${{ steps.results.outputs.gaps }} st — se loggen för stroke/bore. Överväg att ta in en riktig produkt." >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "<details><summary>Fullständig output</summary>" >> $GITHUB_STEP_SUMMARY

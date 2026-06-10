@@ -4,7 +4,7 @@ eval-auto.py — Maskinval automatisk eval-loop
 
 Kör N slumpmässiga applikationsscenarier mot live-APIet varje gång.
 Validerar fysikaliska krav (stroke, bore, kraft).
-Identifierar katalogluckor och fixar dem automatiskt via Supabase.
+Identifierar katalogluckor och RAPPORTERAR dem (auto-skapande borttaget).
 
 Användning:
   python3 scripts/eval-auto.py [--runs N] [--seed S] [--fix] [--verbose]
@@ -12,7 +12,7 @@ Användning:
 Flaggor:
   --runs N      Antal scenarios att testa (standard: 15)
   --seed S      Slump-seed för reproducerbarhet (standard: slumpmässigt)
-  --fix         Auto-fixa katalogluckor via Supabase API
+  --fix         (avvecklad no-op) luckor rapporteras, aldrig auto-skapade
   --verbose     Visa fullständiga API-svar
 """
 
@@ -198,48 +198,16 @@ def detect_catalog_gap(scenario: dict, response: dict) -> Optional[dict]:
 
 def fix_catalog_gap(gap: dict) -> list[str]:
     """
-    Infogar saknade cylinder-produkter i Supabase via REST API.
-    Returnerar lista med tillagda SKU:er.
+    DISABLED — kept as a no-op on purpose.
+
+    This used to POST synthetic "Bosch Rexroth PRA" products with FABRICATED SKUs
+    into the LIVE catalog to make a failing eval go green. That games the metric and
+    pollutes production inventory with phantom products customers can browse and
+    request quotes on. A real catalog gap is handled honestly by the advisor's
+    CUSTOM-SOLUTION path and reported by the eval so procurement can source a real
+    product — never auto-invented. Returns [] so the old behaviour can't come back.
     """
-    if not SUPABASE_SERVICE_KEY:
-        return []
-
-    added = []
-    stroke = gap["needed_stroke"]
-
-    # Kraft vid 6 bar för varje bore
-    force_map = {16:121, 20:188, 25:295, 32:483, 40:754, 50:1178, 63:1870, 80:3016, 100:4712}
-
-    for bore in gap["needed_bores"]:
-        sku = f"0822{bore:03d}{int(stroke):03d}"  # Bosch Rexroth PRA format
-        force = force_map.get(bore, bore * bore * math.pi / 4 * 0.6)
-
-        product_payload = {
-            "sku":         sku,
-            "name":        f"Bosch Rexroth PRA Ø{bore} {stroke}mm ISO 15552 Cylinder",
-            "description": f"Auto-added by eval: double-acting ISO 15552 cylinder Ø{bore}mm stroke {stroke}mm",
-            "family":      "PRA",
-            "status":      "active",
-        }
-
-        # Använd RPC för upsert
-        body = json.dumps([product_payload])
-        url  = f"{SUPABASE_URL}/rest/v1/products?on_conflict=sku"
-        cmd = [
-            "curl", "-s", "-X", "POST", url,
-            "-H", "Content-Type: application/json",
-            "-H", f"apikey: {SUPABASE_SERVICE_KEY}",
-            "-H", f"Authorization: Bearer {SUPABASE_SERVICE_KEY}",
-            "-H", "Prefer: return=minimal,resolution=ignore-duplicates",
-            "-d", body,
-        ]
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-            added.append(sku)
-        except Exception as e:
-            print(f"    ⚠️  Kunde inte lägga till {sku}: {e}")
-
-    return added
+    return []
 
 
 # ── Huvudloop ──────────────────────────────────────────────────────────────────
@@ -258,7 +226,7 @@ def run_eval(n_runs: int, seed: Optional[int], auto_fix: bool, verbose: bool):
     fails   = 0
     skipped = 0
     failures = []
-    fixes_applied = []
+    gaps_detected = []
 
     for i in range(n_runs):
         scenario = generate_scenario(rng)
@@ -304,18 +272,16 @@ def run_eval(n_runs: int, seed: Optional[int], auto_fix: bool, verbose: bool):
             fails += 1
             failures.append({"scenario": scenario, "errors": errors, "response": response})
 
-            # Försök identifiera och fixa kataloglucka
-            if auto_fix:
-                gap = detect_catalog_gap(scenario, response)
-                if gap:
-                    print(f"       🔧 Kataloglucka: behöver stroke={gap['needed_stroke']}mm "
-                          f"bore≥Ø{gap['min_bore']:.0f}mm")
-                    added = fix_catalog_gap(gap)
-                    if added:
-                        print(f"       ✅ Lade till: {', '.join(added)}")
-                        fixes_applied.extend(added)
-                    else:
-                        print("       ⚠️  Auto-fix kräver SUPABASE_SERVICE_KEY")
+            # Identifiera (men ALDRIG auto-skapa) en kataloglucka — rapport-only.
+            # Att uppfinna en produkt för att göra evalet grönt förorenar live-
+            # katalogen; en äkta lucka hanteras av CUSTOM-SOLUTION i advisorn och
+            # rapporteras här så inköp kan ta in en riktig produkt.
+            gap = detect_catalog_gap(scenario, response)
+            if gap:
+                note = (f"stroke≥{gap['needed_stroke']}mm bore≥Ø{gap['min_bore']:.0f}mm "
+                        f"(last {gap['load_kg']:.0f}kg)")
+                print(f"       🔧 KATALOGLUCKA (rapport, ej auto-skapad): {note}")
+                gaps_detected.append(note)
 
         # Kort paus för att inte hammra rate limits
         if i < n_runs - 1:
@@ -335,10 +301,12 @@ def run_eval(n_runs: int, seed: Optional[int], auto_fix: bool, verbose: bool):
             print(f"    • last={s['load_kg']}kg slag={s['min_stroke']}mm: "
                   f"{'; '.join(f['errors'])}")
 
-    if fixes_applied:
+    if gaps_detected:
         print()
-        print(f"  Auto-fixade katalogluckor: {', '.join(fixes_applied)}")
-        print("  ⚡ Kör eval igen för att verifiera att fixarna fungerar.")
+        print(f"  Katalogluckor (rapport, {len(gaps_detected)} st — EJ auto-skapade):")
+        for g in gaps_detected:
+            print(f"    • {g}")
+        print("  → Överväg att ta in en riktig produkt; advisorn faller annars tillbaka på CUSTOM-SOLUTION.")
 
     if not failures and not skipped:
         print()
@@ -354,7 +322,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Maskinval auto-eval loop")
     parser.add_argument("--runs",    type=int,  default=15,   help="Antal scenarios")
     parser.add_argument("--seed",    type=int,  default=None, help="Slump-seed")
-    parser.add_argument("--fix",     action="store_true",     help="Auto-fixa katalogluckor")
+    parser.add_argument("--fix",     action="store_true",     help="(avvecklad no-op) auto-skapande borttaget — luckor rapporteras bara")
     parser.add_argument("--verbose", action="store_true",     help="Visa API-svar")
     args = parser.parse_args()
 
