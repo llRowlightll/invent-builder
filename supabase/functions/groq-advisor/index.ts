@@ -295,6 +295,12 @@ function detectCategories(text: string): string[] {
   if (needsAtex(t)) {
     slugs.delete("electric-actuator");
     slugs.delete("linear-module");
+    // ATEX bans ALL electric kit, including the drivetrain (motor + drive). Without
+    // deleting these too, an ATEX + precision request was left with ONLY servo-
+    // motor/servo-drive candidates and ranked a strokeless stepper motor as
+    // "Bästa valet" (invariant breach #49) instead of escalating to CUSTOM.
+    slugs.delete("servo-motor");
+    slugs.delete("servo-drive");
     if (slugs.size === 0) slugs.add("cylinder");
   }
   // Pick & place: cylinders + vacuum + linear-module (electric option)
