@@ -14,6 +14,7 @@ type Row   = {
   id: string; sku: string; name: string;
   purchase_price: number | null; margin: number | null;
   brand: Brand; category: Cat; brand_id: string; category_id: string;
+  is_family: boolean;
 };
 // Shape returned by the admin_list_product_pricing() RPC (flat brand/category names).
 type PricingRpcRow = {
@@ -21,6 +22,7 @@ type PricingRpcRow = {
   purchase_price: number | null; margin: number | null;
   brand_id: string; category_id: string;
   brand_name: string | null; category_name: string | null;
+  is_family: boolean | null;
 };
 type Proposal = {
   sku: string; name: string; brand: string;
@@ -131,6 +133,7 @@ export default function AdminPricingPage() {
       brand_id: d.brand_id, category_id: d.category_id,
       brand: { id: d.brand_id, name: d.brand_name ?? "—" },
       category: { id: d.category_id, name: d.category_name ?? "—" },
+      is_family: d.is_family ?? false,
     })) as Row[]);
     setBrands((bs ?? []) as Brand[]);
     setCats((cs ?? []) as Cat[]);
@@ -253,9 +256,12 @@ export default function AdminPricingPage() {
   // inköpspris empty to fill in. Re-imports through "Ladda upp CSV" above.
   function downloadTemplate() {
     const esc = (s: string | null) => (s ?? "").replace(/;/g, ",").replace(/[\r\n]+/g, " ").trim();
-    const header = "artikelnummer;namn;marke;inkopspris;marginal";
+    // `typ` column: "familj" = configure-to-order series (set a nominal price);
+    // "specifik" = real article number (VLOOKUP against the supplier price list).
+    // The CSV import ignores this column on re-upload (it matches sku/price/margin).
+    const header = "artikelnummer;namn;marke;typ;inkopspris;marginal";
     const body = rows.map((r) =>
-      `${esc(r.sku)};${esc(r.name)};${esc(r.brand?.name ?? "")};${r.purchase_price ?? ""};${r.margin ?? 30}`
+      `${esc(r.sku)};${esc(r.name)};${esc(r.brand?.name ?? "")};${r.is_family ? "familj" : "specifik"};${r.purchase_price ?? ""};${r.margin ?? 30}`
     );
     const csv = "﻿" + [header, ...body].join("\r\n") + "\r\n";
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
