@@ -596,6 +596,19 @@ print('OK' if (len(bom)>=3 and has_valve and has_atex) else f'INCOMPLETE rows={l
   fi
 fi
 
+# Test 31: Multi-function sort-line → honest system scope, NOT a shock absorber.
+# Regression lock for the carton-line bug: "stoppa" + a velocity used to collapse a
+# whole pick/weigh/identify/sort line down to a hydraulic shock absorber as the
+# "primary actuator". The advisor must instead recognise system scope and surface
+# motion building blocks (cylinders), never a passive damper.
+echo "  [31] Sorteringslinje (väg+ID+sortera) → systemscope, ej stötdämpare..."
+R=$(call_options \
+  "Plocka väga identifiera och sortera kartonger till 3 banor med vision och PLC-styrning, 30 st per minut på transportband" \
+  '{}')
+check "T31 sorteringslinje = systemscope (ej stötdämpare)" "$R" \
+  "systemintegration|flerstegssystem|Byggblock" \
+  "YSR|RBQ|shock.?absorb"
+
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════"
