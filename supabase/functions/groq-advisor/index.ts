@@ -200,6 +200,31 @@ async function fetchProducts(categorySlugs: string[], limit = 30): Promise<Catal
   return results.flat() as CatalogProduct[];
 }
 
+// Grippers/vacuum are sized by spec keys (clamping_force, grip_force_kgf,
+// cup_diameter_mm, …) that the shared advisor RPC curates away. Fetch the FULL
+// product_specs directly so the end-effector branch can size on real grip/holding
+// force instead of falling back to fetch order.
+async function fetchEndEffectorProducts(slug: string, limit: number): Promise<CatalogProduct[]> {
+  try {
+    const q = `select=sku,name,categories!inner(slug),specs:product_specs(key,value)&categories.slug=eq.${encodeURIComponent(slug)}&status=eq.active&limit=${limit}`;
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/products?${q}`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!Array.isArray(data)) return [];
+    return data.map((p: { sku: string; name: string; specs?: Array<{ key: string; value: unknown }> }) => ({
+      sku: p.sku,
+      name: p.name,
+      category: slug,
+      brand: "",
+      key_specs: Object.fromEntries((p.specs ?? []).map((s) => [s.key, s.value])),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 function balancedSlice(products: CatalogProduct[], maxTotal: number): CatalogProduct[] {
   const byCategory = new Map<string, CatalogProduct[]>();
   for (const p of products) {
@@ -1397,7 +1422,7 @@ async function handleEndEffectorOptions(
   };
 
   if (intent === "vacuum") {
-    const prods = await fetchProducts(["vacuum"], 40);
+    const prods = await fetchEndEffectorProducts("vacuum", 40);
     const dia = (p: CatalogProduct) => firstNumAbs(p.key_specs?.cup_diameter_mm ?? p.key_specs?.pad_diameter_mm);
     const cups = prods.filter(p => dia(p) > 0).sort((a, b) => dia(a) - dia(b));
     const ejector = prods.find(p => /eject|venturi/i.test(`${p.key_specs?.type ?? ""} ${p.name}`));
@@ -1437,7 +1462,7 @@ async function handleEndEffectorOptions(
   const wantType: "parallel" | "angular" | "radial" =
       /radial|3-?back|treback|tre-?back|självcentr|sjalvcentr|centrer|\brunda?\b|cylindrisk/.test(t) ? "radial"
     : /vinkel|angular|\bangle\b|hinged/.test(t) ? "angular" : "parallel";
-  const prods = await fetchProducts(["gripper"], 60);
+  const prods = await fetchEndEffectorProducts("gripper", 60);
   const typed = prods.filter(p => gripperTypeOf(p) === wantType);
   const pool = typed.length ? typed : prods;
   const concrete = pool.filter(p => !isGripperFamily(p) && gripperForceN(p.key_specs ?? {}) > 0);
