@@ -1348,6 +1348,141 @@ async function handleQuestions(description: string, locale: string): Promise<Res
   }
 }
 
+// ── End-effector (gripper / vacuum) helpers ───────────────────────────────────
+// A gripping request's PRIMARY part is the gripper / suction cup, NOT a linear
+// actuator. The actuator ranker scores bore/stroke/force, so grippers (sized by
+// GRIP FORCE) and vacuum cups (sized by HOLDING FORCE) never surfaced — a
+// "parallellgripare" request fell through to a guide cylinder or CUSTOM even though
+// we stock 50 grippers + 12 vacuum parts. This branch surfaces the right family.
+function detectEndEffectorIntent(text: string): "gripper" | "vacuum" | null {
+  const t = text.toLowerCase();
+  const vacuumAsk = /vakuumgrepp|vakuumgripare|sugkopp|sugkoppar|suction.?cup|\bsugg\b|ejektor|vakuum.{0,12}(plock|grepp|lyft|hanter)/i.test(t);
+  const gripperAsk = /gripdon|parallellgripare|vinkelgripare|griparback|\bgripper\b|\bgripare\b|klämback|gripa\s+(och|tag|fast|om)|griper\s+(om|fast|tag|och)/i.test(t);
+  // Fragile, flat parts imply vacuum even without the word (glass / PCB / thin sheet).
+  const fragileFlat = /\bglas\b|glasskiv|\bwafer\b|kretskort|\bpcb\b|tunn(a|t)?\s*pl(å|a)t|folie|laminat|solcell|\bdisplay\b|\blins(er)?\b/i.test(t)
+                      && /plock|lyft|grepp|gripa|hanter|flytta/i.test(t);
+  if (vacuumAsk) return "vacuum";
+  if (gripperAsk) return "gripper";
+  if (fragileFlat) return "vacuum";
+  return null;
+}
+function firstNumAbs(v: unknown): number {
+  const m = String(v ?? "").match(/-?\d+(?:[.,]\d+)?/);
+  return m ? Math.abs(parseFloat(m[0].replace(",", "."))) : 0;
+}
+function gripperForceN(s: Record<string, unknown>): number {
+  if (s.clamping_force != null) return firstNumAbs(s.clamping_force);
+  if (s.grip_force_kgf != null) return firstNumAbs(s.grip_force_kgf) * 9.81;
+  if (s.gripping_force_N != null) return firstNumAbs(s.gripping_force_N);
+  if (s.gripping_force_closing_N != null) return firstNumAbs(s.gripping_force_closing_N);
+  if (s.max_jaw_force_Fz != null) return firstNumAbs(s.max_jaw_force_Fz);
+  return 0;
+}
+function gripperTypeOf(p: CatalogProduct): "parallel" | "angular" | "radial" {
+  const blob = `${p.key_specs?.gripper_type ?? ""} ${p.key_specs?.type ?? ""} ${p.name}`.toLowerCase();
+  if (/radial|3-?jaw|three-?jaw|self-?center|tre-?back|treback|centrer/.test(blob)) return "radial";
+  if (/angle|angular|hinged|vinkel/.test(blob)) return "angular";
+  return "parallel";
+}
+const isGripperFamily = (p: CatalogProduct) => /,/.test(String(p.key_specs?.sizes ?? ""));
+
+async function handleEndEffectorOptions(
+  intent: "gripper" | "vacuum", text: string, loadKg: number,
+  isSv: boolean, locale: string, t0: number,
+): Promise<Response> {
+  const t = text.toLowerCase();
+  const customCtx: CustomSolutionContext = {
+    isWashdown: false, isVertical: false, isFoodGrade: false,
+    isBatteryDryroom: false, isHydraulic: false, isAtex: false, isSilSafety: false,
+  };
+
+  if (intent === "vacuum") {
+    const prods = await fetchProducts(["vacuum"], 40);
+    const dia = (p: CatalogProduct) => firstNumAbs(p.key_specs?.cup_diameter_mm ?? p.key_specs?.pad_diameter_mm);
+    const cups = prods.filter(p => dia(p) > 0).sort((a, b) => dia(a) - dia(b));
+    const ejector = prods.find(p => /eject|venturi/i.test(`${p.key_specs?.type ?? ""} ${p.name}`));
+    const picks = cups.length <= 3 ? cups : [cups[0], cups[Math.floor(cups.length / 2)], cups[cups.length - 1]];
+    const reqN = loadKg > 0 ? loadKg * 9.81 * 2 : 0; // 2× safety
+    const options: Array<Record<string, unknown>> = picks.map((p, i) => {
+      const d = dia(p);
+      const holdN = Math.round(Math.PI * (d / 2) ** 2 * 0.04); // ≈ -0.6 bar usable
+      const mat = p.key_specs?.material ? `Material: ${p.key_specs.material}. ` : "";
+      return {
+        sku: p.sku, name: p.name,
+        badge: (isSv ? ["Liten kopp", "Mellan", "Stor kopp"] : ["Small cup", "Medium", "Large cup"])[i] ?? "",
+        bore_mm: null, stroke_mm: null, force_n: holdN || null,
+        why: isSv
+          ? `Sugkopp Ø${d} mm, uppskattad håll-kraft ≈ ${holdN} N/kopp vid ~-0,6 bar. ${mat}Verifiera mot ytans täthet och säkerhetsfaktor.`
+          : `Suction cup Ø${d} mm, est. holding force ≈ ${holdN} N/cup at ~-0.6 bar. ${mat}Verify against surface tightness and safety factor.`,
+        pros: isSv ? ["Skonsam mot känsliga/plana ytor", "Snabb on/off via ejektor"] : ["Gentle on delicate/flat surfaces", "Fast on/off via ejector"],
+        cons: isSv ? ["Kräver tät, plan yta", "Lägg till ejektor + vakuumvakt"] : ["Needs a tight, flat surface", "Add an ejector + vacuum switch"],
+      };
+    });
+    const need = reqN > 0
+      ? (isSv ? ` För ~${loadKg} kg krävs ≈ ${Math.round(reqN)} N håll-kraft (2× säkerhet) — fördela på en eller flera koppar.`
+              : ` For ~${loadKg} kg you need ≈ ${Math.round(reqN)} N holding force (2× safety) — across one or more cups.`)
+      : "";
+    const ejNote = ejector
+      ? (isSv ? ` Lägg till en Venturi-ejektor (t.ex. ${ejector.name}) för att skapa vakuumet.` : ` Add a Venturi ejector (e.g. ${ejector.name}) to generate the vacuum.`)
+      : "";
+    const summary = isSv
+      ? `Det här är ett vakuumgrepp — välj sugkopp efter håll-kraft (kopparea × vakuum), inte cylinderslag.${need}${ejNote}`
+      : `This is a vacuum-gripping application — choose the suction cup by holding force (cup area × vacuum), not cylinder stroke.${need}${ejNote}`;
+    if (!options.length) options.push(buildCustomSolutionOption(0, isSv, 0, false, customCtx) as Record<string, unknown>);
+    logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: options[0]?.sku ?? null, option_count: options.length }, true);
+    return Response.json({ summary, options }, { headers: CORS });
+  }
+
+  // gripper
+  const wantType: "parallel" | "angular" | "radial" =
+      /radial|3-?back|treback|tre-?back|självcentr|sjalvcentr|centrer|\brunda?\b|cylindrisk/.test(t) ? "radial"
+    : /vinkel|angular|\bangle\b|hinged/.test(t) ? "angular" : "parallel";
+  const prods = await fetchProducts(["gripper"], 60);
+  const typed = prods.filter(p => gripperTypeOf(p) === wantType);
+  const pool = typed.length ? typed : prods;
+  const concrete = pool.filter(p => !isGripperFamily(p) && gripperForceN(p.key_specs ?? {}) > 0);
+  const ranked = (concrete.length ? concrete : pool.filter(p => gripperForceN(p.key_specs ?? {}) > 0))
+    .sort((a, b) => gripperForceN(a.key_specs ?? {}) - gripperForceN(b.key_specs ?? {}));
+  const reqN = loadKg > 0 ? Math.max(loadKg * 100, 20) : 0; // rule of thumb ≈ weight × 100 N
+  let picks: CatalogProduct[];
+  if (reqN > 0 && ranked.length) {
+    const adequate = ranked.filter(p => gripperForceN(p.key_specs ?? {}) >= reqN);
+    picks = (adequate.length ? adequate : ranked.slice(-3)).slice(0, 3);
+  } else {
+    picks = (ranked.length ? ranked : pool).slice(0, 3);
+  }
+  const options: Array<Record<string, unknown>> = picks.map((p, i) => {
+    const fN = Math.round(gripperForceN(p.key_specs ?? {}));
+    const jaw = p.key_specs?.jaw_stroke_per_side ?? p.key_specs?.stroke_per_jaw;
+    const gt = p.key_specs?.gripper_type ?? (isSv ? "Gripdon" : "Gripper");
+    return {
+      sku: p.sku, name: p.name,
+      badge: (isSv ? ["Rätt storlek", "Marginal", "Reserv (mer kraft)"] : ["Right size", "Tighter", "Reserve (more force)"])[i] ?? "",
+      bore_mm: firstNumAbs(p.key_specs?.bore_mm) || null,
+      stroke_mm: null,
+      force_n: fN || null,
+      why: isSv
+        ? `${gt}${fN ? `, gripkraft ≈ ${fN} N` : ""}${jaw ? `, backslag ${jaw} mm/sida` : ""}. Dimensioneras på gripkraft mot detaljens vikt och friktion.`
+        : `${gt}${fN ? `, grip force ≈ ${fN} N` : ""}${jaw ? `, jaw stroke ${jaw} mm/side` : ""}. Sized by grip force vs. part weight and friction.`,
+      pros: isSv ? ["Pneumatiskt, enkel styrning", "Lägesgivare för grepp-kontroll"] : ["Pneumatic, simple control", "Position sensing for grip confirmation"],
+      cons: isSv ? ["Verifiera gripkraft mot friktionskoefficient", "Backar/fingrar specas separat"] : ["Verify grip force vs. friction", "Jaws/fingers specified separately"],
+    };
+  });
+  const typeLabel = isSv
+    ? ({ parallel: "parallellgripdon", angular: "vinkelgripdon", radial: "radial-/3-backsgripdon" } as Record<string, string>)[wantType]
+    : ({ parallel: "parallel grippers", angular: "angle grippers", radial: "radial / 3-jaw grippers" } as Record<string, string>)[wantType];
+  const need = reqN > 0
+    ? (isSv ? ` För ~${loadKg} kg är en rimlig tumregel ≈ ${Math.round(reqN)} N gripkraft (≈ vikt × 100; justera för friktion och acceleration).`
+            : ` For ~${loadKg} kg a reasonable rule of thumb is ≈ ${Math.round(reqN)} N grip force (≈ weight × 100; adjust for friction and acceleration).`)
+    : "";
+  const summary = isSv
+    ? `Det här är en gripapplikation — gripdon dimensioneras på gripkraft, inte cylinderslag.${need} Förslagen är ${typeLabel}.`
+    : `This is a gripping application — grippers are sized by grip force, not cylinder stroke.${need} The options are ${typeLabel}.`;
+  if (!options.length) options.push(buildCustomSolutionOption(0, isSv, 0, false, customCtx) as Record<string, unknown>);
+  logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: options[0]?.sku ?? null, option_count: options.length }, true);
+  return Response.json({ summary, options }, { headers: CORS });
+}
+
 // ── ACTION: options (v40) ─────────────────────────────────────────────────────
 // v40: Server selects top 3 products deterministically; LLM only writes badge/why/pros/cons.
 // This eliminates hallucinated SKUs and inconsistent product selection.
@@ -1458,6 +1593,14 @@ async function handleOptions(
     logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: options[0]?.sku ?? null, option_count: options.length }, true);
     return Response.json({ summary, options }, { headers: CORS });
   }
+  // End-effector (gripper / vacuum) — the primary function is GRIPPING, not linear
+  // motion. Skip for a multi-axis line or whole-system request (those own the motion
+  // axes; the end-effector is then a BOM detail, not the headline recommendation).
+  const endEffector = detectEndEffectorIntent(combinedText);
+  if (endEffector && !isMultiAxis && !isSystemScope) {
+    return await handleEndEffectorOptions(endEffector, combinedText, loadKg, isSv, locale, t0);
+  }
+
   if (minBoreMm > 0) console.log(`[options] load=${loadKg}kg → minBore=${minBoreMm}mm`);
 
   // System scope: surface only motion/actuator building blocks (drop loose
