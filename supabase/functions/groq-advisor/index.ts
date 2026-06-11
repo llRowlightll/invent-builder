@@ -611,6 +611,18 @@ function needsEndPositionDetection(text: string): boolean {
   return /detekt|givare|sensor|ändläge|end.pos|end.stop|stroke.end|reed|proximity|närhets|position.*detect|detect.*position|elektron.*detekt|signalera|signal.*läge|läges.*signal|kontrollera.*läge|läge.*kontroll|home.*detect|detect.*home|smcm|smc.*sensor|piston.*sens/i.test(text);
 }
 
+/** Articulated/swivel mounting: the cylinder PIVOTS during the stroke (angled push).
+ *  Needs a rear swivel/pivot flange (ledlager/svängfläns) + a rod clevis (gaffelfäste),
+ *  and the actuator must be a ROD cylinder — slides/rodless/guided units cannot
+ *  articulate and must be excluded from the candidates. */
+function needsArticulatedMount(text: string): boolean {
+  return /ledlager|sväng.?fläns|swivel|gaffelfäste|gaffelkoppling|clevis|pivå|trunnion|vinkelbart|vrider sig|vrida sig|vrids under/i.test(text);
+}
+/** Slides, rodless and guided units cannot take a rear pivot + rod clevis. */
+function isNonArticulatingActuator(p: CatalogProduct): boolean {
+  return /slide|linjärslid|linjarslid|rodless|kolvstångslös|kolvstangslos|guide/i.test(`${p.name} ${p.sku}`);
+}
+
 /** Returns true if user wants mounting brackets / foot mounts / flanges. */
 function needsMounting(text: string): boolean {
   return /fotfäste|foot.*mount|fot.*fäste|flansfäste|flange.*mount|monteringsfäste|bracket|montering|montage|fäste|befästning|konsol|mounting|swivel.*flange|trunnion/i.test(text);
@@ -938,6 +950,7 @@ interface BomCtx {
   products: CatalogProduct[];
   // Accessory flags — drive deterministic accessory rows
   isMounting: boolean;
+  isArticulated: boolean;
   // Safety & environment flags — drive mandatory warning rows
   isHighTemp: boolean;
   isWashdown: boolean;
@@ -957,7 +970,7 @@ interface BomCtx {
 function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: number; role: string; reason: string }> {
   const { primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
           isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isSv, products,
-          isMounting, isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
+          isMounting, isArticulated, isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
           isMultiAxis, perAxisStrokes } = ctx;
   const isPneumatic = !isElectric && !isAtex && !isAtexDust;
   const rows: Array<{ sku: string; quantity: number; role: string; reason: string }> = [];
@@ -1170,16 +1183,62 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     }
   }
 
-  // ── 10. Mounting bracket (when explicitly requested) ──────────────
-  if (isMounting) {
-    const mountMatch = findCatalogProductByType("mounting", products);
-    rows.push({
-      sku: mountMatch?.sku ?? "SPECIFY", quantity: 1,
-      role: isSv ? "Monteringsfäste (fotfäste/flänsfäste)" : "Mounting bracket (foot/flange mount)",
-      reason: isSv
-        ? "Fäster cylindern till maskinstommen — välj fotfäste eller flänsfäste kompatibelt med cylinderns serie och borrning (bore). Kontrollera hålavstånd mot ritning."
-        : "Mounts cylinder to machine frame — select foot mount or flange mount compatible with cylinder series and bore. Verify hole pattern against drawing.",
-    });
+  // ── 10. Mounting (when requested) — must MATCH the primary's bore ─────────
+  // A mounting whose bore differs from the cylinder physically does not fit. We
+  // only emit a real SKU when its bore equals the primary's; otherwise SPECIFY
+  // with the required Ø called out (recommend, never force a mismatched part).
+  if (isMounting || isArticulated) {
+    const primary = products.find(p => p.sku === primarySku);
+    const pBore = firstNumAbs(primary?.key_specs?.bore_mm) ||
+                  firstNumAbs((primary?.name ?? "").match(/Ø\s?(\d+)/)?.[1]);
+    const boreTxt = pBore > 0 ? `Ø${pBore}` : (isSv ? "cylinderns borrning" : "the cylinder's bore");
+    const mounts = products.filter(p =>
+      p.category === "mounting" ||
+      /fotfäste|foot.?mount|flansfäste|flänsfäste|flange|monteringsfäste|bracket|trunnion|svängfläns|gaffel|clevis|swivel|ledlager/i.test(`${p.name} ${p.sku}`));
+    const mountBore = (p: CatalogProduct) =>
+      firstNumAbs(p.key_specs?.bore_mm) || firstNumAbs(p.name.match(/Ø\s?(\d+)/)?.[1]);
+    const boreOk = (p: CatalogProduct) => pBore > 0 && mountBore(p) === pBore;
+
+    if (isArticulated) {
+      // Angled push: rear pivot + rod clevis, both bore-matched.
+      const swivel = mounts.find(p => boreOk(p) && /svängfläns|swivel|pivå|trunnion|ledlager/i.test(p.name));
+      const clevis = mounts.find(p => boreOk(p) && /gaffel|clevis/i.test(p.name));
+      rows.push({
+        sku: swivel?.sku ?? "SPECIFY", quantity: 1,
+        role: isSv ? "Svängfläns/ledlager (bakgavel)" : "Rear swivel/pivot flange",
+        reason: swivel
+          ? (isSv
+              ? `${swivel.name} — matchar cylinderns borrning (${boreTxt}). Tillåter cylindern att vinkla sig under slaget; ISO 15552-fäste.`
+              : `${swivel.name} — matches the cylinder bore (${boreTxt}). Lets the cylinder pivot during the stroke; ISO 15552 mount.`)
+          : (isSv
+              ? `Ange svängfläns/ledlager i ${boreTxt} — vi saknar ${boreTxt}-varianten i lager; fästet MÅSTE matcha cylinderns borrning.`
+              : `Specify a rear swivel/pivot flange in ${boreTxt} — no ${boreTxt} variant in stock; the mount MUST match the cylinder bore.`),
+      });
+      rows.push({
+        sku: clevis?.sku ?? "SPECIFY", quantity: 1,
+        role: isSv ? "Gaffelfäste (kolvstångsände)" : "Rod clevis (rod end)",
+        reason: clevis
+          ? (isSv
+              ? `${clevis.name} — matchar kolvstångsgängan för ${boreTxt}-cylindern. Bildar ledad infästning tillsammans med svängflänsen.`
+              : `${clevis.name} — matches the rod thread of the ${boreTxt} cylinder. Forms the articulated linkage together with the swivel flange.`)
+          : (isSv
+              ? `Ange gaffelfäste i ${boreTxt} — vi saknar ${boreTxt}-varianten i lager; gaffeln MÅSTE matcha kolvstångsgängan.`
+              : `Specify a rod clevis in ${boreTxt} — no ${boreTxt} variant in stock; the clevis MUST match the rod thread.`),
+      });
+    } else {
+      const mount = mounts.find(p => boreOk(p) && /fotfäste|foot/i.test(p.name)) ?? mounts.find(boreOk) ?? null;
+      rows.push({
+        sku: mount?.sku ?? "SPECIFY", quantity: 1,
+        role: isSv ? "Monteringsfäste (fotfäste/flänsfäste)" : "Mounting bracket (foot/flange mount)",
+        reason: mount
+          ? (isSv
+              ? `${mount.name} — matchar cylinderns borrning (${boreTxt}). Kontrollera hålavstånd mot ritning.`
+              : `${mount.name} — matches the cylinder bore (${boreTxt}). Verify hole pattern against drawing.`)
+          : (isSv
+              ? `Ange fotfäste/flänsfäste i ${boreTxt} — vi saknar ${boreTxt}-varianten i lager; fästet MÅSTE matcha cylinderns borrning och serie.`
+              : `Specify a foot/flange mount in ${boreTxt} — no ${boreTxt} variant in stock; the mount MUST match the cylinder bore and series.`),
+      });
+    }
   }
 
   // ── 11. Multi-axis secondary actuators ───────────────────────────
@@ -1667,13 +1726,22 @@ async function handleOptions(
     : washdownFiltered;
   const applySpeedFilter = speedMs > 0.8 && !isHighPrecision && !isAtex;
   const speedFiltered = applySpeedFilter ? precisionFiltered.filter(p => isAllowedForHighSpeed(p)) : precisionFiltered;
+  // Articulated/swivel mounting (angled push, cylinder pivots during stroke): only a
+  // ROD cylinder can take a rear pivot flange + rod clevis. Slides/rodless/guided
+  // units mount rigidly — surfacing one here (e.g. a linear slide as "Bästa valet"
+  // for a swivel application) is a category error (package-sorter test).
+  const isArticulated = needsArticulatedMount(combinedText);
+  const articulatedFiltered = isArticulated
+    ? speedFiltered.filter(p =>
+        !(["cylinder", "electric-actuator", "linear-module"].includes(p.category) && isNonArticulatingActuator(p)))
+    : speedFiltered;
   // Hard bore filter: remove products whose bore is provably too small for load
   const boreFiltered = minBoreMm > 0
-    ? speedFiltered.filter(p => {
+    ? articulatedFiltered.filter(p => {
         const b = parseFloat(String(p.key_specs?.bore_mm ?? "0"));
         return b === 0 || b >= minBoreMm; // keep unknowns, reject confirmed undersized
       })
-    : speedFiltered;
+    : articulatedFiltered;
 
   const qualified: CatalogProduct[] = [];        // concrete stroke ≥ requirement
   const configurable: CatalogProduct[] = [];     // strokeless families — shown (labelled), never a silent stroke match
@@ -1958,6 +2026,7 @@ async function handleBom(
   const isWashdown = needsWashdown(combinedText);
   const isEndPosDetect = needsEndPositionDetection(combinedText);
   const isMounting = needsMounting(combinedText);
+  const isArticulated = needsArticulatedMount(combinedText);
   const massKg = extractLoadKg(combinedText, answers);
   const cycleTimeS = extractCycleTimeS(combinedText, answers);
   const isLowCost = needsLowCost(combinedText);
@@ -1982,7 +2051,7 @@ async function handleBom(
     isPneumaticBom                    ? "tubing"         : null,
     isPneumaticBom && isHighSpeed     ? "shock-absorber" : null,
     isPneumaticBom && isVerticalLoad  ? "check-valve"    : null,
-    isMounting                        ? "mounting"       : null,
+    (isMounting || isArticulated)     ? "mounting"       : null,
   ].filter(Boolean) as string[];
 
   const [products, pdfCtx] = await Promise.all([
@@ -2010,7 +2079,7 @@ async function handleBom(
     primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
     isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isVacuum, isSv,
     products: atexSafeProducts,
-    isMounting, isHighTemp, isWashdown, isSilSafety: needsSilSafety(combinedText), isHydraulic, isVeryHighForce,
+    isMounting, isArticulated, isHighTemp, isWashdown, isSilSafety: needsSilSafety(combinedText), isHydraulic, isVeryHighForce,
     isMultiAxis, perAxisStrokes,
   };
   const mandatoryBom = buildMandatoryBomRows(bomCtx);
