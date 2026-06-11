@@ -629,6 +629,19 @@ echo "  [34] El-aktuator BOM → stegmotor korrekt märkt (ej servo-mix)..."
 R=$(call_bom "Elektrisk aktuator flyttar 2 kg, slaglängd 50 mm, hög repeterbarhet, kompakt maskin" '{}' "6E-025-0100-24")
 check "T34 stegmotor ej felmärkt som servo" "$R" "Stegmotor|stepper" "Servomotor|servo/stepper"
 
+# Test 35: Paketsorteraren (vinklad knuff) — articulated mounting must yield a ROD
+# cylinder (never a slide/rodless as primary) and the BOM must contain a rear
+# swivel flange + rod clevis BORE-MATCHED to the primary (Ø40 → SNCS-40 + HNC-40),
+# with zero electric drivetrain. Locks the package-sorter test (mismatched
+# FE-CRHN-32 on a Ø25 slide bug).
+echo "  [35] Vinklad knuff → ledlager+gaffel Ø-matchade, ej slid..."
+DESC35="Pneumatisk cylinder knuffar paket 15 kg i vinkel, slaglängd exakt 400 mm, 6 bar. Cylindern vrider sig under slaget — kräver vinkelbart ledlager (swivel-fläns) i bakgaveln och matchande gaffelfäste på kolvstången. 2 magnetiska ändlägesgivare."
+R=$(call_options "$DESC35" '{"stroke":"400 mm"}')
+check "T35a options utan slid/rodless" "$R" "options" "Slide|Rodless|MW-S1"
+R=$(call_bom "$DESC35" '{"stroke":"400 mm","givare":"2"}' "0822121010")
+check "T35b BOM svängfläns+gaffel Ø40-matchade" "$R" "SNCS-40" "Servomotor|servodriv|Stegmotor|Motorkabel"
+check "T35c BOM gaffelfäste Ø40" "$R" "HNC-40" "CRHN-32"
+
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════"
