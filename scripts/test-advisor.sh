@@ -621,6 +621,14 @@ echo "  [33] Vakuumgrepp → sugkopp (ej cylinder)..."
 R=$(call_options "Vakuumgrepp med sugkoppar plockar 2 kg glasskivor" '{}')
 check "T33 vakuumgrepp = sugkopp" "$R" "vakuumgrepp|håll-kraft|sugkopp" ""
 
+# Test 34: Electric-actuator BOM must label the drivetrain by ACTUAL type. A Camozzi
+# 6E uses a STEPPER (CAM-MTS), so the row must read "Stegmotor", never "Servomotor"
+# (the hardcoded-label bug that mixed stepper/servo). Also kills the cable's
+# "servo/stepper" hedge.
+echo "  [34] El-aktuator BOM → stegmotor korrekt märkt (ej servo-mix)..."
+R=$(call_bom "Elektrisk aktuator flyttar 2 kg, slaglängd 50 mm, hög repeterbarhet, kompakt maskin" '{}' "6E-025-0100-24")
+check "T34 stegmotor ej felmärkt som servo" "$R" "Stegmotor|stepper" "Servomotor|servo/stepper"
+
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════"

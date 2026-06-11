@@ -994,15 +994,18 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     if (sameBrandMotor) {
       // Separate-motor brands (e.g. Festo EGSK + EMME, Parker HMR + MPP) — the axis
       // needs its own servo motor whether horizontal or vertical.
+      // Label by the ACTUAL motor type — a Camozzi MTS is a STEPPER, not a servo.
+      // Hard-coding "Servomotor" produced the stepper/servo mix-up users flagged.
+      const stepperMotor = /steg|stepper/i.test(`${motorMatch!.name} ${motorMatch!.sku}`);
       rows.push({
         sku: motorMatch!.sku, quantity: 1,
         role: isVerticalLoad
           ? (isSv ? "Bromsmotor (vertikal säkerhet)" : "Brake motor (vertical safety)")
-          : (isSv ? "Servomotor" : "Servo motor"),
+          : (isSv ? (stepperMotor ? "Stegmotor" : "Servomotor") : (stepperMotor ? "Stepper motor" : "Servo motor")),
         reason: `${motorMatch!.name} (${motorMatch!.brand}) — ` + (isVerticalLoad
           ? (isSv
-              ? "OBLIGATORISK för vertikal elektrisk servoaxel — beställ med integrerad hållbroms som håller lasten vid strömavbrott/nödstopp."
-              : "MANDATORY for a vertical electric servo axis — order with integrated holding brake to keep the load on power loss/E-stop.")
+              ? "OBLIGATORISK för vertikal elektrisk axel — beställ med integrerad hållbroms som håller lasten vid strömavbrott/nödstopp."
+              : "MANDATORY for a vertical electric axis — order with integrated holding brake to keep the load on power loss/E-stop.")
           : (isSv
               ? "Driver axeln — matcha moment/varvtal mot lasten; samma märke som axel och drivare."
               : "Drives the axis — match torque/speed to the load; same brand as the axis and drive.")),
@@ -1021,16 +1024,18 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     const driveMatch = findCatalogProductByType("servo-drive", brandSorted);
     const sameBrandDrive = !!driveMatch && !!primaryBrand && driveMatch.brand?.toLowerCase() === primaryBrand;
     const bU = primaryBrand ? primaryBrand.toUpperCase() : "";
+    const stepperDrive = !!driveMatch && /steg|stepper/i.test(`${driveMatch.name} ${driveMatch.sku}`);
     rows.push({
       sku: sameBrandDrive ? driveMatch!.sku : "SPECIFY", quantity: 1,
-      role: isSv ? "Servodrivare (drivsteg)" : "Servo drive (amplifier)",
+      role: isSv ? (stepperDrive ? "Stegmotordrivare (drivsteg)" : "Servodrivare (drivsteg)")
+                 : (stepperDrive ? "Stepper drive (driver)" : "Servo drive (amplifier)"),
       reason: sameBrandDrive
         ? `${driveMatch!.name} (${driveMatch!.brand}). ` + (isSv
-            ? "Driver och styr servomotorn — matcha effekt/spänning mot axel; ange fältbuss (EtherCAT/PROFINET)."
-            : "Drives and controls the servo motor — match power/voltage to the axis; specify fieldbus (EtherCAT/PROFINET).")
+            ? "Driver och styr motorn — matcha effekt/spänning mot axeln; ange styrgränssnitt (step/dir eller fältbuss)."
+            : "Drives and controls the motor — match power/voltage to the axis; specify control interface (step/dir or fieldbus).")
         : (isSv
-            ? `Specificera kompatibel drivare för ${bU ? bU + "-" : ""}axeln — vi har ingen ${bU} servodrivare i katalogen ännu, begär offert.`
-            : `Specify a compatible drive for the ${bU ? bU + " " : ""}axis — no ${bU} servo drive in the catalogue yet, request a quote.`),
+            ? `Specificera kompatibel drivare för ${bU ? bU + "-" : ""}axeln — vi har ingen ${bU}-drivare i katalogen ännu, begär offert.`
+            : `Specify a compatible drive for the ${bU ? bU + " " : ""}axis — no ${bU} drive in the catalogue yet, request a quote.`),
     });
   }
 
@@ -1157,10 +1162,10 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     if (cableMatch) {
       rows.push({
         sku: cableMatch.sku, quantity: 1,
-        role: isSv ? "Motorkabel (servo/stepper)" : "Motor cable (servo/stepper)",
+        role: isSv ? "Motorkabel" : "Motor cable",
         reason: isSv
-          ? "Anslutningskabel till servodrivaren — välj längd och kontakttyp kompatibel med vald motor och drivenhet."
-          : "Connection cable to servo drive — select length and connector type compatible with chosen motor and drive unit.",
+          ? "Anslutningskabel till drivenheten — välj längd och kontakttyp kompatibel med vald motor och drivare."
+          : "Connection cable to the drive — select length and connector type compatible with the chosen motor and drive.",
       });
     }
   }
