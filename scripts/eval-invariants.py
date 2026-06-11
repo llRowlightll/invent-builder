@@ -37,6 +37,13 @@ ELECTRIC_SKU = re.compile(r"^(6E-|FESTO-EG|FESTO-EP|FESTO-DNCE|FESTO-ELG|SMC-LE|
 # Electric actuator SKU prefixes that must NOT appear in an ATEX result:
 ELECTRIC_ATEX_BAN = re.compile(r"^(6E-|FESTO-EG|FESTO-EP|FESTO-DNCE|FESTO-ELG|SMC-LE|SMC-LEY|SMC-LESH|MW-ELK|PARKER-ETH|PARKER-OSPE|EGC|LEFS|LESH)", re.I)
 
+# Categories whose products may be the PRIMARY recommendation (they produce the
+# motion). Anything else as 'Bästa valet' for a linear request is a category error.
+ACTUATOR_CATS = {"cylinder", "electric-actuator", "linear-module", "rotary-actuator"}
+# Electric DRIVETRAIN categories — forbidden anywhere in an ATEX result (the SKU
+# regex above missed the Camozzi stepper / Bosch drive that caused #49/#77).
+ATEX_BANNED_CATS = {"electric-actuator", "linear-module", "servo-motor", "servo-drive", "controller"}
+
 
 # ── Catalog snapshot (anon) — for no-hallucination + electric-availability ─────
 def load_catalog():
@@ -47,17 +54,19 @@ def load_catalog():
         rows = json.loads(out)
     except Exception:
         return None
-    skus, electric_strokes = set(), []
+    skus, electric_strokes, sku_cat = set(), [], {}
     for r in rows:
         skus.add(r["sku"])
         cat = (r.get("category") or {}).get("slug", "")
+        sku_cat[r["sku"]] = cat
         if cat in ("electric-actuator", "linear-module"):
             for s in (r.get("specs") or []):
                 if s["key"] in ("stroke_mm", "stroke_max", "max_stroke", "stroke_range"):
                     m = re.findall(r"\d+", str(s["value"]))
                     if m:
                         electric_strokes.append(max(int(x) for x in m))
-    return {"skus": skus, "max_electric_stroke": max(electric_strokes) if electric_strokes else 0}
+    return {"skus": skus, "sku_cat": sku_cat,
+            "max_electric_stroke": max(electric_strokes) if electric_strokes else 0}
 
 
 def calc_min_bore(load_kg, pressure_bar=PRESSURE_BAR):
@@ -110,6 +119,21 @@ ENVS = {
 
 
 def gen_scenario(rng):
+    # ~15% braking/deceleration scenarios. A rolling mass stopped at an end position
+    # is a SHOCK-ABSORBER job, never a cylinder/electric axis. This is the inverse of
+    # the carton sort-line bug (a NON-braking request must never get a shock absorber);
+    # the two directions together pin "shock absorber ⇔ braking".
+    if rng.random() < 0.15:
+        load  = rng.choice(LOADS)
+        speed = rng.choice([0.5, 1.0, 1.5, 2.0])
+        desc = rng.choice([
+            f"Bromsar in en rullande massa {load}kg som rör sig {speed} m/s mot ett mekaniskt ändläge",
+            f"Stoppa en vagn på {load}kg i {speed} m/s vid bandänden utan hård stöt",
+            f"Fånga upp och bromsa {load}kg som rullar {speed} m/s mot ett stopp",
+        ])
+        return {"description": desc,
+                "answers": {"last": f"{load} kg", "hastighet": f"{speed} m/s"},
+                "load": load, "stroke": 0, "flags": {"braking", "no_stroke"}, "orient": "horiz"}
     # ~30% of scenarios omit the stroke entirely. This exercises the no-stroke path
     # (requiredStroke == 0), where strokeless / family products used to be able to
     # rank as "Bästa valet" — the exact bug fixed in the stroke-qualification work.
@@ -227,6 +251,30 @@ def check_options(scenario, resp, cat):
     out.append(("INV-best-concrete-stroke",
                 bsku == "CUSTOM-SOLUTION" or num(best.get("stroke_mm")) > 0,
                 f"best={bsku} stroke_mm={best.get('stroke_mm')}"))
+
+    # INV-8/9 CATEGORY correctness — the class of bug the physics invariants miss
+    # (shock absorber for a sort line; electric stepper in ATEX). Needs the SKU→
+    # category map from load_catalog.
+    if cat:
+        sku_cat = cat.get("sku_cat", {})
+        bcat = sku_cat.get(bsku, "")
+        if "braking" in f:
+            # Decelerating a rolling mass ⇒ a shock absorber is the RIGHT primary.
+            out.append(("INV-braking=>shock-absorber",
+                        bsku == "CUSTOM-SOLUTION" or bcat == "shock-absorber",
+                        f"best={bsku} cat={bcat or '?'} (förväntar stötdämpare)"))
+        else:
+            # Every other scenario is a linear actuator request: the primary must be a
+            # real actuator (or honest CUSTOM) — never a shock absorber, motor, drive,
+            # sensor or valve. This catches the ATEX-stepper bug (#49/#77) by category.
+            known_non_actuator = bcat != "" and bcat not in ACTUATOR_CATS
+            out.append(("INV-best-is-actuator",
+                        bsku == "CUSTOM-SOLUTION" or not known_non_actuator,
+                        f"best={bsku} cat={bcat or '?'} (förväntar aktuator)"))
+        # ATEX forbids the electric drivetrain by CATEGORY (robust vs. the SKU regex).
+        if "atex" in f:
+            bad = [o.get("sku") for o in real if sku_cat.get(o.get("sku", ""), "") in ATEX_BANNED_CATS]
+            out.append(("INV-atex-no-electric-cat", not bad, f"elektrisk drivlina i ATEX: {bad}"))
     return out
 
 
