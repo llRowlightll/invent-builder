@@ -611,6 +611,21 @@ function needsEndPositionDetection(text: string): boolean {
   return /detekt|givare|sensor|ändläge|end.pos|end.stop|stroke.end|reed|proximity|närhets|position.*detect|detect.*position|elektron.*detekt|signalera|signal.*läge|läges.*signal|kontrollera.*läge|läge.*kontroll|home.*detect|detect.*home|smcm|smc.*sensor|piston.*sens/i.test(text);
 }
 
+/** Explicitly requested bore (user typed/answered "diameter 50", "Ø63", "borrning 40").
+ *  An explicit size must outrank the load-based "smallest adequate" sizing — answering
+ *  Ø50 and getting Ø40 back is a trust-breaker even when Ø40 carries the load. */
+function extractExplicitBoreMm(text: string, answers: Record<string, string>): number {
+  for (const [k, v] of Object.entries(answers ?? {})) {
+    if (/diam|borr|bore|⌀|ø/i.test(k)) {
+      const m = String(v).match(/(\d{2,3})/);
+      if (m) { const n = Number(m[1]); if (n >= 8 && n <= 320) return n; }
+    }
+  }
+  const m = text.match(/(?:Ø|⌀)\s*(\d{2,3})|(?:diameter|borrning|bore)[^\d]{0,12}(\d{2,3})/i);
+  if (m) { const n = Number(m[1] ?? m[2]); if (n >= 8 && n <= 320) return n; }
+  return 0;
+}
+
 /** Articulated/swivel mounting: the cylinder PIVOTS during the stroke (angled push).
  *  Needs a rear swivel/pivot flange (ledlager/svängfläns) + a rod clevis (gaffelfäste),
  *  and the actuator must be a ROD cylinder — slides/rodless/guided units cannot
@@ -1226,7 +1241,12 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
               : `Specify a rod clevis in ${boreTxt} — no ${boreTxt} variant in stock; the clevis MUST match the rod thread.`),
       });
     } else {
-      const mount = mounts.find(p => boreOk(p) && /fotfäste|foot/i.test(p.name)) ?? mounts.find(boreOk) ?? null;
+      // A foot/flange request must never fall back to a different mounting TYPE —
+      // a bore-matched rod clevis is still the wrong part (conveyor-stopper test
+      // emitted HNC-40 gaffelkoppling as "fotfäste"). Only foot/flange-style mounts
+      // qualify; if the bore variant is missing, SPECIFY (with the Ø called out).
+      const footish = mounts.filter(p => !/gaffel|clevis|svängfläns|swivel|pivå|trunnion|ledlager/i.test(p.name));
+      const mount = footish.find(p => boreOk(p) && /fotfäste|foot/i.test(p.name)) ?? footish.find(boreOk) ?? null;
       rows.push({
         sku: mount?.sku ?? "SPECIFY", quantity: 1,
         role: isSv ? "Monteringsfäste (fotfäste/flänsfäste)" : "Mounting bracket (foot/flange mount)",
@@ -1743,12 +1763,29 @@ async function handleOptions(
       })
     : articulatedFiltered;
 
+  // Explicit bore (user answered "diameter: 50" / wrote Ø50): exact matches outrank
+  // the load-based "smallest adequate" — answering Ø50 and getting Ø40 back is a
+  // trust-breaker (conveyor-stopper test). Falls back to all candidates when no
+  // exact-bore product exists (then the honest inexact framing kicks in below).
+  const explicitBoreMm = extractExplicitBoreMm(combinedText, answers);
+  const exactBoreSet = explicitBoreMm > 0
+    ? boreFiltered.filter(p => parseFloat(String(p.key_specs?.bore_mm ?? "0")) === explicitBoreMm)
+    : [];
+  const boreScoped0 = exactBoreSet.length > 0 ? exactBoreSet : boreFiltered;
+  // "standard pneumatisk cylinder" explicitly requested → a plain profile/rod
+  // cylinder must outrank guided/compact/rodless/stainless specials.
+  const wantsPlainStd = /standard\s*(pneumatisk\s*)?cylinder|standardcylinder|vanlig\s+(profil)?cylinder/i.test(combinedText);
+  const isSpecialCyl = (p: CatalogProduct) =>
+    p.category === "cylinder" && /guide|guided|compact|rodless|slide|stainless|rostfri|kolvstångslös/i.test(p.name);
+  const plainSet = wantsPlainStd ? boreScoped0.filter(p => !isSpecialCyl(p)) : boreScoped0;
+  const boreScoped = plainSet.length > 0 ? plainSet : boreScoped0;
+
   const qualified: CatalogProduct[] = [];        // concrete stroke ≥ requirement
   const configurable: CatalogProduct[] = [];     // strokeless families — shown (labelled), never a silent stroke match
   let bestFallback: CatalogProduct | null = null;
   let bestFallbackStroke = 0;
   let maxCatalogStroke = 0;
-  for (const p of boreFiltered) {
+  for (const p of boreScoped) {
     const maxStroke = parseStrokeFromSpecs(p.key_specs ?? {});
     if (maxStroke > maxCatalogStroke) maxCatalogStroke = maxStroke;
     if (maxStroke === 0) { configurable.push(p); continue; } // no concrete stroke → configurable, not a confirmed match
@@ -1789,7 +1826,11 @@ async function handleOptions(
   // policy we RECOMMEND it but don't present it as the definitive choice; the
   // honest path for an exact fit is a configurable variant or a custom solution.
   const topBore0 = parseFloat(String(topProducts[0]?.key_specs?.bore_mm ?? "0"));
-  const boreInexact = minBoreMm > 0 && topBore0 > 0 && topBore0 > minBoreMm * 1.4;
+  // With an explicit bore: exact hit = exact (never "oversized" vs the LOAD minimum,
+  // which would mislabel the precisely-requested Ø50); a differing top bore = inexact.
+  const boreInexact = explicitBoreMm > 0
+    ? (topBore0 > 0 && topBore0 !== explicitBoreMm)
+    : (minBoreMm > 0 && topBore0 > 0 && topBore0 > minBoreMm * 1.4);
 
   const serverOptions = topProducts.map((p, i) => {
     const ms = parseStrokeFromSpecs(p.key_specs ?? {});

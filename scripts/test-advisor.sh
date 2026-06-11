@@ -642,6 +642,16 @@ R=$(call_bom "$DESC35" '{"stroke":"400 mm","givare":"2"}' "0822121010")
 check "T35b BOM svängfläns+gaffel Ø40-matchade" "$R" "SNCS-40" "Servomotor|servodriv|Stegmotor|Motorkabel"
 check "T35c BOM gaffelfäste Ø40" "$R" "HNC-40" "CRHN-32"
 
+# Test 36: Standardtransportören — explicit Ø50 must be honored (not load-min Ø40),
+# "standard cylinder" must yield a plain ISO 15552 (no Guide/Slide/Stainless), and
+# the foot mount must be the bore-matched FNC-50 — never a clevis as "fotfäste".
+echo "  [36] Explicit Ø50 + standardcylinder + fotfäste Ø50..."
+DESC36="En standard pneumatisk cylinder trycker upp en stopp-platta vertikalt för att stoppa plastlådor 25 kg, slaglängd exakt 100 mm, 6 bar, standard fotfäste, 2 magnetiska givare."
+R=$(call_options "$DESC36" '{"diameter":"50","slag":"100 mm"}')
+check "T36a explicit Ø50 respekteras (ej Ø40/guide/slid)" "$R" "Ø50" "Guide Cylinder|Slide|Stainless|rostfri"
+R=$(call_bom "$DESC36" '{"diameter":"50","slag":"100 mm","givare":"2"}' "0822122004")
+check "T36b fotfäste = FNC-50 (ej gaffel som fotfäste)" "$R" "FNC-50" "HNC-|Servomotor|Stegmotor|Motorkabel"
+
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════"
