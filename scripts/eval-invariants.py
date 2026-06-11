@@ -134,6 +134,24 @@ def gen_scenario(rng):
         return {"description": desc,
                 "answers": {"last": f"{load} kg", "hastighet": f"{speed} m/s"},
                 "load": load, "stroke": 0, "flags": {"braking", "no_stroke"}, "orient": "horiz"}
+    # ~10% gripping scenarios — a part is gripped/held, not moved over a stroke. The
+    # correct primary is a GRIPPER (sized by grip force), never a cylinder.
+    if rng.random() < 0.10:
+        gload = rng.choice([0.2, 0.5, 1, 2, 3, 5, 8])
+        part = rng.choice(["cylindriska detaljer", "fyrkantiga block", "små komponenter", "runda ämnen"])
+        desc = rng.choice([
+            f"Gripdon som griper {gload} kg {part} i en monteringsstation",
+            f"Parallellgripare för att gripa och hålla {gload} kg {part}",
+        ])
+        return {"description": desc, "answers": {"last": f"{gload} kg"},
+                "load": gload, "stroke": 0, "flags": {"gripping", "no_stroke"}, "orient": "horiz"}
+    # ~8% vacuum-gripping scenarios — fragile flat parts lifted by suction cups.
+    if rng.random() < 0.09:
+        vload = rng.choice([0.2, 0.5, 1, 2, 3, 5])
+        part = rng.choice(["glasskivor", "kretskort", "plåtark", "displayglas"])
+        return {"description": f"Vakuumgrepp med sugkoppar plockar {vload} kg {part}",
+                "answers": {"last": f"{vload} kg"},
+                "load": vload, "stroke": 0, "flags": {"vacuum_grip", "no_stroke"}, "orient": "horiz"}
     # ~30% of scenarios omit the stroke entirely. This exercises the no-stroke path
     # (requiredStroke == 0), where strokeless / family products used to be able to
     # rank as "Bästa valet" — the exact bug fixed in the stroke-qualification work.
@@ -207,6 +225,7 @@ def check_options(scenario, resp, cat):
     best = best_option(resp)
     bsku = best.get("sku", "")
     f = scenario["flags"]
+    is_end_effector = bool({"gripping", "vacuum_grip"} & f)
 
     # INV-1 no hallucinated SKU in options
     if cat:
@@ -218,11 +237,14 @@ def check_options(scenario, resp, cat):
                   if num(o.get("stroke_mm")) > 0 and num(o.get("stroke_mm")) < scenario["stroke"]]
     out.append(("INV-options-stroke>=req", not bad_stroke, f"krav={scenario['stroke']}mm underdim: {bad_stroke}"))
 
-    # INV-3 bore adequacy: best option bore ≥ minBore(load) (0/unknown allowed)
-    min_bore = calc_min_bore(scenario["load"])
-    bb = num(best.get("bore_mm"))
-    bore_ok = (bb == 0) or (bb >= min_bore)
-    out.append(("INV-options-bore>=minBore", bore_ok, f"load={scenario['load']}kg minBore=Ø{min_bore} best=Ø{bb:.0f} ({bsku})"))
+    # INV-3 bore adequacy: best option bore ≥ minBore(load) (0/unknown allowed).
+    # Skipped for grippers/vacuum — their bore is the mechanism size, not a
+    # load-bearing cylinder bore.
+    if not is_end_effector:
+        min_bore = calc_min_bore(scenario["load"])
+        bb = num(best.get("bore_mm"))
+        bore_ok = (bb == 0) or (bb >= min_bore)
+        out.append(("INV-options-bore>=minBore", bore_ok, f"load={scenario['load']}kg minBore=Ø{min_bore} best=Ø{bb:.0f} ({bsku})"))
 
     # INV-4 PRECISION ⇒ best option is an electric ball-screw OR an honest
     # CUSTOM-SOLUTION escalation — but NEVER a concrete pneumatic product
@@ -248,9 +270,10 @@ def check_options(scenario, resp, cat):
     # the bug the stroke-qualification work fixed: it must never be silently the
     # best match. (All scenarios here are cylinder/linear requests, so stroke is
     # the relevant spec; this also holds for the no-stroke scenarios.)
-    out.append(("INV-best-concrete-stroke",
-                bsku == "CUSTOM-SOLUTION" or num(best.get("stroke_mm")) > 0,
-                f"best={bsku} stroke_mm={best.get('stroke_mm')}"))
+    if not is_end_effector:
+        out.append(("INV-best-concrete-stroke",
+                    bsku == "CUSTOM-SOLUTION" or num(best.get("stroke_mm")) > 0,
+                    f"best={bsku} stroke_mm={best.get('stroke_mm')}"))
 
     # INV-8/9 CATEGORY correctness — the class of bug the physics invariants miss
     # (shock absorber for a sort line; electric stepper in ATEX). Needs the SKU→
@@ -263,6 +286,16 @@ def check_options(scenario, resp, cat):
             out.append(("INV-braking=>shock-absorber",
                         bsku == "CUSTOM-SOLUTION" or bcat == "shock-absorber",
                         f"best={bsku} cat={bcat or '?'} (förväntar stötdämpare)"))
+        elif "gripping" in f:
+            # A part is gripped/held ⇒ the primary is a GRIPPER, not a cylinder.
+            out.append(("INV-gripping=>gripper",
+                        bsku == "CUSTOM-SOLUTION" or bcat == "gripper",
+                        f"best={bsku} cat={bcat or '?'} (förväntar gripdon)"))
+        elif "vacuum_grip" in f:
+            # Fragile flat part picked by suction ⇒ the primary is a vacuum cup.
+            out.append(("INV-vacuum=>vacuum",
+                        bsku == "CUSTOM-SOLUTION" or bcat == "vacuum",
+                        f"best={bsku} cat={bcat or '?'} (förväntar sugkopp/vakuum)"))
         else:
             # Every other scenario is a linear actuator request: the primary must be a
             # real actuator (or honest CUSTOM) — never a shock absorber, motor, drive,

@@ -609,6 +609,18 @@ check "T31 sorteringslinje = systemscope (ej stötdämpare)" "$R" \
   "systemintegration|flerstegssystem|Byggblock" \
   "YSR|RBQ|shock.?absorb"
 
+# Test 32: Gripping request → grippers as primary (we stock 50; must not fall to a
+# guide cylinder or CUSTOM). The end-effector branch emits "gripapplikation".
+echo "  [32] Gripapplikation → gripdon (ej cylinder)..."
+R=$(call_options "Parallellgripare som griper 1 kg cylindriska detaljer i en monteringsstation" '{}')
+check "T32 gripapplikation = gripdon" "$R" "gripapplikation|gripkraft|gripdon" ""
+
+# Test 33: Vacuum-gripping request → suction cups as primary (we stock 12). The
+# end-effector branch emits "vakuumgrepp" + "håll-kraft".
+echo "  [33] Vakuumgrepp → sugkopp (ej cylinder)..."
+R=$(call_options "Vakuumgrepp med sugkoppar plockar 2 kg glasskivor" '{}')
+check "T33 vakuumgrepp = sugkopp" "$R" "vakuumgrepp|håll-kraft|sugkopp" ""
+
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════"
