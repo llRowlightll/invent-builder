@@ -110,6 +110,22 @@ async function advisorCall(body: object) {
   return res.json();
 }
 
+// Downscale a customer photo client-side (≤1024 px, JPEG) so the payload stays
+// small and under the vision API's 4 MB base64 cap regardless of camera size.
+async function fileToJpegDataUrl(file: File, maxDim = 1024): Promise<string> {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height));
+  const w = Math.max(1, Math.round(bmp.width * scale));
+  const h = Math.max(1, Math.round(bmp.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas");
+  ctx.drawImage(bmp, 0, 0, w, h);
+  bmp.close();
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
+
 // ── Main component ──────────────────────────────────────────────────────────
 function MachineBuilderPage() {
   const { locale } = Route.useParams();
@@ -451,6 +467,45 @@ function DescribeStep({ t, locale, description, setDescription, onSubmit }: {
   t: (key: import("@/lib/i18n").TKey) => string; locale: string; description: string; setDescription: (v: string) => void; onSubmit: () => void;
 }) {
   const examples = EXAMPLES[locale] ?? EXAMPLES.en;
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [imgBusy, setImgBusy] = useState(false);
+  const [imgError, setImgError] = useState("");
+  const [thumbs, setThumbs] = useState<string[]>([]);
+
+  // Photo → vision action → editable TEXT appended to the description. The image
+  // itself never reaches options/BOM — only its analysis text does, so the
+  // deterministic selection pipeline is untouched and the user can correct it.
+  async function onPickImages(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setImgError("");
+    const picked = Array.from(files).slice(0, 3 - thumbs.length);
+    if (picked.length === 0) return;
+    setImgBusy(true);
+    try {
+      // Accumulate locally — the `description` prop is stale inside the loop, so
+      // appending two analyses via the prop would drop the first one.
+      let desc = description;
+      for (const file of picked) {
+        if (!file.type.startsWith("image/") || file.size > 15_000_000) {
+          setImgError(t("machineBuilder.imageError")); continue;
+        }
+        const dataUrl = await fileToJpegDataUrl(file);
+        const res = await advisorCall({ action: "vision", image: dataUrl, locale });
+        const text = (res?.description ?? "").trim();
+        if (!text) { setImgError(t("machineBuilder.imageError")); continue; }
+        setThumbs(prev => [...prev, dataUrl]);
+        const block = `📷 ${t("machineBuilder.imageAnalysisLabel")}: ${text}`;
+        desc = desc.trim() ? `${desc.trim()}\n\n${block}` : block;
+        setDescription(desc);
+      }
+    } catch {
+      setImgError(t("machineBuilder.imageError"));
+    } finally {
+      setImgBusy(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-border bg-card p-4">
@@ -466,11 +521,37 @@ function DescribeStep({ t, locale, description, setDescription, onSubmit }: {
           autoFocus
           className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50 resize-none"
         />
+        <div className="mt-2 flex items-center gap-2 flex-wrap">
+          <input
+            ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden
+            onChange={e => onPickImages(e.target.files)}
+          />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={imgBusy || thumbs.length >= 3}
+            className="px-3 py-1.5 rounded-lg border border-input text-xs font-medium text-muted-foreground hover:border-info hover:text-foreground disabled:opacity-40 transition flex items-center gap-1.5"
+          >
+            {imgBusy ? t("machineBuilder.analysingImage") : <>📷 {t("machineBuilder.uploadImage")}</>}
+          </button>
+          {thumbs.map((src, i) => (
+            <span key={i} className="relative inline-block">
+              <img src={src} alt="" className="h-9 w-9 rounded-md object-cover border border-border" />
+              <button
+                type="button"
+                onClick={() => setThumbs(prev => prev.filter((_, j) => j !== i))}
+                className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-secondary text-secondary-foreground text-[9px] leading-4 text-center border border-border"
+                aria-label="×"
+              >×</button>
+            </span>
+          ))}
+          <span className="text-[11px] text-muted-foreground">{imgError || t("machineBuilder.imageHint")}</span>
+        </div>
         <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
           <span className="text-[11px] text-muted-foreground">{t("machineBuilder.cmdEnterHint")}</span>
           <button
             onClick={onSubmit}
-            disabled={!description.trim()}
+            disabled={!description.trim() || imgBusy}
             className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition flex items-center gap-2"
           >
             {t("machineBuilder.analyse")}
