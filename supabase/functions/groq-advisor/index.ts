@@ -2259,6 +2259,62 @@ async function handleChat(
   return Response.json({ reply: raw }, { headers: CORS });
 }
 
+// ── ACTION: vision ────────────────────────────────────────────────────────────
+// Turns a customer PHOTO (their current installation / components to replace)
+// into a short TEXT description that the user can edit and that flows into the
+// normal pipeline. The image never picks SKUs — vision output is prose only;
+// detectCategories/ranking stay deterministic (same rule as all LLM usage here).
+const LLM_MODEL_VISION = "meta-llama/llama-4-scout-17b-16e-instruct";
+
+async function handleVision(image: string, locale: string): Promise<Response> {
+  const t0 = Date.now();
+  // Data-URL guard: jpeg/png/webp only, ≤ ~4 MB base64 (Groq's base64 image cap).
+  const m = /^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(image ?? "");
+  if (!m) return Response.json({ error: "bad_image" }, { status: 400, headers: CORS });
+  if (m[2].length > 4_200_000) return Response.json({ error: "image_too_large" }, { status: 413, headers: CORS });
+
+  const langName = locale === "sv" ? "svenska" : locale === "de" ? "Deutsch" : locale === "es" ? "español" : "English";
+  const prompt =
+    `Du är senior automationsingenjör hos en industridistributör. Beskriv vad som SYNS på kundens foto, som underlag för komponentval:
+1. Komponenttyper du ser (pneumatisk cylinder, ventil, gripdon, elaxel, givare, FRL, slang, fästen ...).
+2. Märken/texter/typskyltar som är LÄSBARA i bilden — citera exakt, gissa aldrig artikelnummer.
+3. Uppskattade dimensioner bara om något i bilden ger skala.
+4. Montering (fotfäste/fläns/ledat), miljö (vått/dammigt/rent) och synligt slitage eller skador.
+Svara på ${langName}, 3–6 korta meningar utan rubriker eller punktlistor. Om bilden inte visar industrikomponenter: säg kort vad den visar istället. Spekulera inte bortom det synliga.`;
+
+  const body = {
+    model: LLM_MODEL_VISION, temperature: 0.2, max_tokens: 500,
+    messages: [{
+      role: "user",
+      content: [
+        { type: "text", text: prompt },
+        { type: "image_url", image_url: { url: image } },
+      ],
+    }],
+  };
+  // Dedicated call (not callGroq): the fast text fallback can't see images, so a
+  // 429 here retries the vision model once and then reports rate_limited honestly.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const res = await fetch(LLM_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
+      body: JSON.stringify(body),
+    });
+    if (res.status === 429) { await new Promise(r => setTimeout(r, 1500 * (attempt + 1))); continue; }
+    if (!res.ok) {
+      console.error("[vision] groq", res.status, (await res.text()).slice(0, 300));
+      return Response.json({ error: "vision_failed" }, { status: 502, headers: CORS });
+    }
+    const d = await res.json();
+    const text = (d?.choices?.[0]?.message?.content ?? "").trim();
+    if (!text) return Response.json({ error: "vision_failed" }, { status: 502, headers: CORS });
+    logAdvisorEvent("vision", { locale, duration_ms: Date.now() - t0, chars: text.length }, true);
+    return Response.json({ description: text }, { headers: CORS });
+  }
+  logAdvisorEvent("vision", { locale, duration_ms: Date.now() - t0, rate_limited: true }, false, "rate_limited");
+  return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
@@ -2270,6 +2326,7 @@ Deno.serve(async (req: Request) => {
     if (action === "options")   return handleOptions(description ?? "", answers ?? {}, loc);
     if (action === "bom")       return handleBom(description ?? "", answers ?? {}, primarySku ?? "", loc);
     if (action === "chat")      return handleChat(messages ?? [], contextQuery);
+    if (action === "vision")    return handleVision(body.image ?? "", loc);
     return Response.json({ error: "Unknown action" }, { status: 400, headers: CORS });
   } catch (e) {
     console.error("groq-advisor error:", e);
