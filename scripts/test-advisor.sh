@@ -652,6 +652,18 @@ check "T36a explicit Ø50 respekteras (ej Ø40/guide/slid)" "$R" "Ø50" "Guide C
 R=$(call_bom "$DESC36" '{"diameter":"50","slag":"100 mm","givare":"2"}' "0822122004")
 check "T36b fotfäste = FNC-50 (ej gaffel som fotfäste)" "$R" "FNC-50" "HNC-|Servomotor|Stegmotor|Motorkabel"
 
+# Test 37: Fyllnadslinjen (kemikalier + vertikal + mekaniskt lås) — chemical words
+# must trigger the corrosion-resistant pool (no standard/large-bore cylinder), and
+# the BOM must carry a fail-safe ROD LOCK row, bore-matched when stocked
+# (Ø50 → MW-PLT10-50) and an explicit Ø-called-out SPECIFY otherwise.
+echo "  [37] Kemisk fyllnadslinje → rostfri pool + stångbroms Ø-matchad..."
+DESC37="Pneumatisk cylinder sänker doseringsmunstycke vertikalt, kemikaliebeständiga tätningar krävs, frätande vätskor, slaglängd exakt 200 mm, 6 bar. Armen får inte falla ner vid luft- eller strömbortfall under nödstopp — kräver stångbroms eller mekaniskt lås. 2 magnetiska givare, standard fotfäste."
+R=$(call_options "$DESC37" '{"slag":"200 mm","riktning":"vertikal"}')
+check "T37a kemikalie → rostfri/HCR-pool (ej Ø200/standard)" "$R" "HCR|90M2|DSBF|rostfri|Stainless" "40KM2A200|Ø200"
+R=$(call_bom "$DESC37" '{"slag":"200 mm","riktning":"vertikal","givare":"2"}' "MW-HCR-50")
+check "T37b stångbroms Ø50-matchad (PLT10-50)" "$R" "MW-PLT10-50" "Servomotor|Stegmotor|Motorkabel"
+check "T37c backventil + lås båda med" "$R" "backslagsventil" ""
+
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════"
