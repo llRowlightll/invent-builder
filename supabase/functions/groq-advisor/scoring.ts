@@ -283,6 +283,13 @@ export function scoreProduct(p: CatalogProduct, ctx: ScoringCtx): number {
         score -= 40; // bore too small for load — hard penalty
       }
     }
+  } else {
+    // No load info: nothing anchors the bore, and on tie-noise a Ø200 "large
+    // bore" can become "Bästa valet" for a dosing nozzle (chemical-line test).
+    // Mild preference peaking at Ø40 — typical unspecified applications live in
+    // Ø20–63 — weak enough that any real signal (washdown, stroke) overrides it.
+    const boreMm = parseFloat(String(p.key_specs?.bore_mm ?? "0"));
+    if (boreMm > 0) score += Math.max(0, 10 - Math.abs(boreMm - 40) * 0.15);
   }
 
   // ── Penalties ────────────────────────────────────────────────────

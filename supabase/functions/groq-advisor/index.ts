@@ -597,13 +597,20 @@ function isPneumaticByDrive(p: CatalogProduct): boolean {
   return hasAirPressure && !hasElectricSignal;
 }
 
+/** Mechanical rod lock / holding brake demanded: the load must NOT drop on air
+ *  AND power loss (e-stop with corrosive media, etc.). A pilot check valve holds
+ *  pressure but not a broken hose — a spring-applied rod lock is the fail-safe. */
+function needsRodLock(text: string): boolean {
+  return /stångbroms|stång.?lås|rod.?lock|mekaniskt?\s+lås|fallskydd|spring.?applied|hållbroms|broms.*(strömavbrott|nödstopp|luftbortfall)|inte\s+fall(a|er)\s+(ner|ned)|får\s+inte\s+falla/i.test(text);
+}
+
 /**
  * Detects washdown / food-grade / wet-environment requirements.
  * These applications require IP67/IP69K and stainless or food-grade plastic —
  * standard aluminum cylinders will corrode immediately.
  */
 function needsWashdown(text: string): boolean {
-  return /washdown|wash[-\s]down|livsmedel|food[-\s]grade|food[-\s]safe|mejeri|dairy|slakteri|slakter|livsmedelsgodkänd|livsmedelsgodkand|ip[-\s]?69|högtrycksspolning|högtryck.*spol|spol.*kemik|kemisk.*reng|cip\b|sip\b|hygienic|hygienisk|clean[-\s]design|cleandesign|rostfri|stainless|korrosionsskyddad|vätsk.*milj|blot.*milj/i.test(text);
+  return /washdown|wash[-\s]down|livsmedel|food[-\s]grade|food[-\s]safe|mejeri|dairy|slakteri|slakter|livsmedelsgodkänd|livsmedelsgodkand|ip[-\s]?69|högtrycksspolning|högtryck.*spol|spol.*kemik|kemisk.*reng|cip\b|sip\b|hygienic|hygienisk|clean[-\s]design|cleandesign|rostfri|stainless|korrosionsskyddad|vätsk.*milj|blot.*milj|kemikalie|frätande|korrosiv|korrosion|\bsyra\b|syrabeständig|aggressiva?\s+(medier|vätskor|kemikalier)/i.test(text);
 }
 
 /** Returns true if the user requested end-position / stroke-end detection (sensors). */
@@ -966,6 +973,7 @@ interface BomCtx {
   // Accessory flags — drive deterministic accessory rows
   isMounting: boolean;
   isArticulated: boolean;
+  isRodLock: boolean;
   // Safety & environment flags — drive mandatory warning rows
   isHighTemp: boolean;
   isWashdown: boolean;
@@ -985,7 +993,7 @@ interface BomCtx {
 function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: number; role: string; reason: string }> {
   const { primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
           isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isSv, products,
-          isMounting, isArticulated, isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
+          isMounting, isArticulated, isRodLock, isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
           isMultiAxis, perAxisStrokes } = ctx;
   const isPneumatic = !isElectric && !isAtex && !isAtexDust;
   const rows: Array<{ sku: string; quantity: number; role: string; reason: string }> = [];
@@ -1076,6 +1084,33 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
       reason: isSv
         ? "OBLIGATORISK vid pneumatisk vertikal last — förhindrar att lasten faller vid lufttrycksförlust (IEC 60947-5-1)"
         : "MANDATORY for pneumatic vertical load — prevents load drop on air pressure loss (IEC 60947-5-1)",
+    });
+  }
+
+  // ── 3b. Mechanical rod lock (fail-safe holding) — bore-matched ────
+  // Explicitly demanded ("stångbroms/mekaniskt lås/får inte falla") or vertical +
+  // SIL/e-stop context. The check valve holds PRESSURE; only a spring-applied rod
+  // lock holds the load through a broken hose or e-stop venting. Same matching
+  // rule as mountings: a real SKU only when its bore equals the primary's,
+  // otherwise SPECIFY with the required Ø called out — never a mismatched lock.
+  if (isRodLock && isPneumatic) {
+    const primary = products.find(p => p.sku === primarySku);
+    const pBore = firstNumAbs(primary?.key_specs?.bore_mm) ||
+                  firstNumAbs((primary?.name ?? "").match(/Ø\s?(\d+)/)?.[1]);
+    const boreTxt = pBore > 0 ? `Ø${pBore}` : (isSv ? "cylinderns borrning" : "the cylinder's bore");
+    const lock = products.find(p =>
+      p.category === "rod-lock" && pBore > 0 &&
+      (firstNumAbs(p.key_specs?.bore_mm) === pBore || firstNumAbs(p.name.match(/Ø\s?(\d+)/)?.[1]) === pBore));
+    rows.push({
+      sku: lock?.sku ?? "SPECIFY", quantity: 1,
+      role: isSv ? "Stångbroms/mekaniskt lås (fail-safe)" : "Rod lock / mechanical brake (fail-safe)",
+      reason: lock
+        ? (isSv
+            ? `${lock.name} — fjäderbelastat lås som låser kolvstången vid luftbortfall, ${boreTxt}-matchad mot cylindern. Backventilen håller trycket; låset håller lasten även vid slangbrott eller nödstoppsavluftning.`
+            : `${lock.name} — spring-applied lock that clamps the rod on air loss, ${boreTxt}-matched to the cylinder. The check valve holds pressure; the lock holds the load even through hose rupture or e-stop venting.`)
+        : (isSv
+            ? `Ange stångbroms/mekaniskt lås i ${boreTxt} — fjäderbelastat, låser vid luft-/strömbortfall. MÅSTE matcha cylinderns borrning; ${boreTxt}-variant saknas i lager (kundspecifik/offert).`
+            : `Specify a rod lock / mechanical brake in ${boreTxt} — spring-applied, locks on air/power loss. MUST match the cylinder bore; no ${boreTxt} variant in stock (custom/quote).`),
     });
   }
 
@@ -2068,6 +2103,7 @@ async function handleBom(
   const isEndPosDetect = needsEndPositionDetection(combinedText);
   const isMounting = needsMounting(combinedText);
   const isArticulated = needsArticulatedMount(combinedText);
+  const isRodLock = needsRodLock(combinedText) || (isVerticalLoad && needsSilSafety(combinedText));
   const massKg = extractLoadKg(combinedText, answers);
   const cycleTimeS = extractCycleTimeS(combinedText, answers);
   const isLowCost = needsLowCost(combinedText);
@@ -2093,6 +2129,7 @@ async function handleBom(
     isPneumaticBom && isHighSpeed     ? "shock-absorber" : null,
     isPneumaticBom && isVerticalLoad  ? "check-valve"    : null,
     (isMounting || isArticulated)     ? "mounting"       : null,
+    isRodLock                         ? "rod-lock"       : null,
   ].filter(Boolean) as string[];
 
   const [products, pdfCtx] = await Promise.all([
@@ -2120,7 +2157,7 @@ async function handleBom(
     primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
     isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isVacuum, isSv,
     products: atexSafeProducts,
-    isMounting, isArticulated, isHighTemp, isWashdown, isSilSafety: needsSilSafety(combinedText), isHydraulic, isVeryHighForce,
+    isMounting, isArticulated, isRodLock, isHighTemp, isWashdown, isSilSafety: needsSilSafety(combinedText), isHydraulic, isVeryHighForce,
     isMultiAxis, perAxisStrokes,
   };
   const mandatoryBom = buildMandatoryBomRows(bomCtx);
