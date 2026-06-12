@@ -974,6 +974,7 @@ interface BomCtx {
   isMounting: boolean;
   isArticulated: boolean;
   isRodLock: boolean;
+  primaryBoreMm: number;   // fetched by SKU — `products` (30/category) may miss the primary
   // Safety & environment flags — drive mandatory warning rows
   isHighTemp: boolean;
   isWashdown: boolean;
@@ -993,7 +994,7 @@ interface BomCtx {
 function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: number; role: string; reason: string }> {
   const { primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
           isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isSv, products,
-          isMounting, isArticulated, isRodLock, isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
+          isMounting, isArticulated, isRodLock, primaryBoreMm, isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
           isMultiAxis, perAxisStrokes } = ctx;
   const isPneumatic = !isElectric && !isAtex && !isAtexDust;
   const rows: Array<{ sku: string; quantity: number; role: string; reason: string }> = [];
@@ -1095,7 +1096,8 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
   // otherwise SPECIFY with the required Ø called out — never a mismatched lock.
   if (isRodLock && isPneumatic) {
     const primary = products.find(p => p.sku === primarySku);
-    const pBore = firstNumAbs(primary?.key_specs?.bore_mm) ||
+    const pBore = primaryBoreMm ||
+                  firstNumAbs(primary?.key_specs?.bore_mm) ||
                   firstNumAbs((primary?.name ?? "").match(/Ø\s?(\d+)/)?.[1]);
     const boreTxt = pBore > 0 ? `Ø${pBore}` : (isSv ? "cylinderns borrning" : "the cylinder's bore");
     const lock = products.find(p =>
@@ -1239,7 +1241,8 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
   // with the required Ø called out (recommend, never force a mismatched part).
   if (isMounting || isArticulated) {
     const primary = products.find(p => p.sku === primarySku);
-    const pBore = firstNumAbs(primary?.key_specs?.bore_mm) ||
+    const pBore = primaryBoreMm ||
+                  firstNumAbs(primary?.key_specs?.bore_mm) ||
                   firstNumAbs((primary?.name ?? "").match(/Ø\s?(\d+)/)?.[1]);
     const boreTxt = pBore > 0 ? `Ø${pBore}` : (isSv ? "cylinderns borrning" : "the cylinder's bore");
     const mounts = products.filter(p =>
@@ -2051,16 +2054,23 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
 // If LLM is rate-limited, the BOM skeleton is returned as-is — never an empty BOM.
 // Fetch just the chosen primary's category, so the BOM matches the ACTUAL product
 // (pneumatic vs electric) rather than loose candidate-category triggers.
-async function fetchPrimaryCategory(sku: string): Promise<string> {
-  if (!sku || sku === "CUSTOM-SOLUTION" || sku === "SPECIFY") return "";
+// Also returns the primary's BORE: the per-category BOM fetch is limited to 30
+// brand-ordered rows, so a late-alphabet primary (e.g. Metal Work HCR-50) is often
+// NOT in `products` — bore-matched accessory rows (rod lock, mounting) then had no
+// bore to match against and fell to SPECIFY even when the Ø-variant is stocked.
+async function fetchPrimaryInfo(sku: string): Promise<{ category: string; boreMm: number }> {
+  if (!sku || sku === "CUSTOM-SOLUTION" || sku === "SPECIFY") return { category: "", boreMm: 0 };
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/products?sku=eq.${encodeURIComponent(sku)}&select=categories(slug)`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/products?sku=eq.${encodeURIComponent(sku)}&select=name,categories(slug),specs:product_specs(key,value)`, {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
     });
-    if (!res.ok) return "";
+    if (!res.ok) return { category: "", boreMm: 0 };
     const d = await res.json();
-    return Array.isArray(d) && d[0]?.categories?.slug ? String(d[0].categories.slug) : "";
-  } catch { return ""; }
+    if (!Array.isArray(d) || !d[0]) return { category: "", boreMm: 0 };
+    const specs = Object.fromEntries(((d[0].specs ?? []) as Array<{ key: string; value: unknown }>).map(s => [s.key, s.value]));
+    const boreMm = firstNumAbs(specs.bore_mm) || firstNumAbs(String(d[0].name ?? "").match(/Ø\s?(\d+)/)?.[1]);
+    return { category: d[0]?.categories?.slug ? String(d[0].categories.slug) : "", boreMm };
+  } catch { return { category: "", boreMm: 0 }; }
 }
 
 async function handleBom(
@@ -2091,7 +2101,7 @@ async function handleBom(
   // categories — a trigger like "noggrann"/"precis" can put electric-actuator into
   // the categories even when the chosen primary is a pneumatic cylinder, which then
   // wrongly built an electric drivetrain (servo drive + motor cable) for it.
-  const primaryCategory = await fetchPrimaryCategory(primarySku);
+  const { category: primaryCategory, boreMm: primaryBoreMm } = await fetchPrimaryInfo(primarySku);
   const isElectric = !isAtex && !isAtexDust && (primaryCategory
     ? ["electric-actuator", "linear-module", "servo-motor", "servo-drive"].includes(primaryCategory)
     : categories.some(c => c === "electric-actuator" || c === "linear-module"));
@@ -2157,7 +2167,7 @@ async function handleBom(
     primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
     isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isVacuum, isSv,
     products: atexSafeProducts,
-    isMounting, isArticulated, isRodLock, isHighTemp, isWashdown, isSilSafety: needsSilSafety(combinedText), isHydraulic, isVeryHighForce,
+    isMounting, isArticulated, isRodLock, primaryBoreMm, isHighTemp, isWashdown, isSilSafety: needsSilSafety(combinedText), isHydraulic, isVeryHighForce,
     isMultiAxis, perAxisStrokes,
   };
   const mandatoryBom = buildMandatoryBomRows(bomCtx);
