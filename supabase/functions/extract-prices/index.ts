@@ -7,7 +7,8 @@
  * The caller sends free-form text (pasted email, quote body, PDF text).
  * This function:
  *   1. Fetches the full product catalog from Supabase (sku + name + brand).
- *   2. Sends the text + catalog to Groq (llama-3.3-70b-versatile).
+ *   2. Sends the text + catalog to Groq (openai/gpt-oss-120b — llama-3.3-70b-versatile
+ *      was decommissioned by Groq 2026-08-16).
  *   3. Returns structured price proposals for admin confirmation.
  */
 
@@ -47,7 +48,7 @@ async function callGroq(messages: { role: string; content: string }[]): Promise<
     method: "POST",
     headers: { Authorization: `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model:       "llama-3.3-70b-versatile",
+      model:       "openai/gpt-oss-120b",
       temperature: 0.05,
       max_tokens:  4096,
       messages,

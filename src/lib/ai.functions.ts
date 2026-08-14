@@ -3,7 +3,9 @@ import { createClient } from "@supabase/supabase-js";
 import type { PhysicsDimensions, PhysicsResult } from "./physics";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL = "llama-3.3-70b-versatile";
+// llama-3.3-70b-versatile decommissioned by Groq 2026-08-16. Moved to openai/gpt-oss-120b
+// (Groq's production replacement — same fix as groq-advisor/index.ts's LLM_MODEL).
+const GROQ_MODEL = "openai/gpt-oss-120b";
 const AI_SEARCH_EDGE = "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/ai-search";
 
 /** Shared conversation message type for passing chat history to AI functions */
