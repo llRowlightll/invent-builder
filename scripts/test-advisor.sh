@@ -664,6 +664,26 @@ R=$(call_bom "$DESC37" '{"slag":"200 mm","riktning":"vertikal","givare":"2"}' "M
 check "T37b stångbroms Ø50-matchad (PLT10-50)" "$R" "MW-PLT10-50" "Servomotor|Stegmotor|Motorkabel"
 check "T37c backventil + lås båda med" "$R" "backslagsventil" ""
 
+# Test 38: Hydraulik (250 bar / 200 kN) must escalate to CUSTOM-SOLUTION, never
+# present a pneumatic ISO cylinder (rated ~6-10 bar) as a viable pick.
+echo "  [38] Hydraulik 250 bar → CUSTOM only, ej pneumatisk cylinder..."
+R=$(call_options "Hydraulcylinder pressar med 200 kN kraft, slaglängd 400 mm, arbetstryck 250 bar, oljedriven presscylinder." '{}')
+check "T38 hydraulik = CUSTOM-SOLUTION only" "$R" "CUSTOM-SOLUTION" "ISO 15552|Bästa valet"
+
+# Test 39: Pure rotary request (rotation angle + Nm, no linear stroke) must return
+# real rotary-actuator SKUs by torque, never linear cylinders with a fabricated
+# "lever arm" substitution.
+echo "  [39] Rotationsaktuator 180°/50Nm → riktig rotary-SKU, ej hävarm-cylinder..."
+R=$(call_options "Roterande pneumatisk aktuator vrider 180 grader, vridmoment 50 Nm, 6 bar." '{}')
+check "T39 rotary = real rotary SKU (MW-R/FESTO-DAPS/ARP), ej linjär cylinder" "$R" "MW-R|FESTO-DAPS|ARP-|rotary" "hävarm|lever arm"
+
+# Test 40: Marine/salt-spray environment must route to the same corrosion-resistant
+# pool as washdown — standard aluminium ISO cylinders will corrode in salt spray
+# exactly as fast as in a washdown/CIP environment.
+echo "  [40] Marin/saltdimma miljö → rostfri pool, ej standard aluminium..."
+R=$(call_options "Cylinder installerad utomhus i marin miljö med saltdimma, lyfter 20 kg last vertikalt, slaglängd 250 mm." '{}')
+check "T40 marin/salt → rostfri/HCR-pool" "$R" "HCR|90M2|DSBF|rostfri|Stainless" ""
+
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════"
