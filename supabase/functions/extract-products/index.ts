@@ -38,7 +38,8 @@ async function callGroq(messages: { role: string; content: string }[]): Promise<
   const res = await fetch(GROQ_URL, {
     method: "POST",
     headers: { Authorization: `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "llama-3.3-70b-versatile", temperature: 0.05, max_tokens: 8000, messages }),
+    // llama-3.3-70b-versatile decommissioned by Groq 2026-08-16 — moved to openai/gpt-oss-120b.
+    body: JSON.stringify({ model: "openai/gpt-oss-120b", temperature: 0.05, max_tokens: 8000, messages }),
   });
   const data = await res.json() as { choices?: { message?: { content?: string } }[] };
   return data.choices?.[0]?.message?.content ?? "[]";
