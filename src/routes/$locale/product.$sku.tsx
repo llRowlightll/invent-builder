@@ -174,16 +174,13 @@ function ProductDetail() {
     category: product.category.name,
     url: canonicalUrl,
     image: productImageUrl?.startsWith("http") ? productImageUrl : `${SITE}${productImageUrl}`,
-    offers: {
-      "@type": "Offer",
-      availability: "https://schema.org/InStock",
-      priceCurrency: "SEK",
-      url: canonicalUrl,
-      seller: { "@type": "Organization", name: "Maskinval", url: SITE },
-      // NOTE: no price published — purchase_price is internal cost, never a
-      // public selling price. Publishing it would leak margin + show wrong
-      // prices in Google. Add a real selling price here only when one exists.
-    },
+    // No `offers` property: Product.offers is optional per schema.org, and Google
+    // treats an Offer with no `price`/`priceSpecification.price` as an ERROR (GSC:
+    // "Ange antingen price eller priceSpecification.price"), not just an omission.
+    // purchase_price is internal cost — never a public selling price (would leak
+    // margin) — and there is no separate public list-price column yet. Add a real
+    // `offers: { "@type": "Offer", price, priceCurrency: "SEK", ... }` block here
+    // once real public pricing exists (see docs/LAUNCH.md pricing import).
     ...(Object.keys(product.specs).length > 0 && {
       additionalProperty: Object.entries(product.specs).map(([k, v]) => ({
         "@type": "PropertyValue",
