@@ -81,7 +81,11 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? SUPABASE_ANON_KEY;
 // Primary: 70b for full engineering quality. Fast: 8b fallback (500K TPD separate pool)
-const LLM_MODEL = "llama-3.3-70b-versatile";
+// llama-3.3-70b-versatile was decommissioned by Groq on 2026-08-16 (deprecation
+// notice 2026-08-14). Moved to openai/gpt-oss-120b, Groq's recommended PRODUCTION
+// replacement — NOT qwen/qwen3.6-27b (Groq's docs mark that one "preview... should
+// not be used in production", which would trade one instability for another).
+const LLM_MODEL = "openai/gpt-oss-120b";
 const LLM_MODEL_FAST = "llama-3.1-8b-instant";
 const LLM_URL = "https://api.groq.com/openai/v1/chat/completions";
 
