@@ -69,7 +69,8 @@ export default function IntegrationsPage() {
     try {
       const res = await fetch(FORTNOX_FN, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-hook-secret": "maskinval-fortnox" },
+        // Must match the FORTNOX_HOOK_SECRET set in Supabase Edge Function secrets.
+        headers: { "Content-Type": "application/json", "x-hook-secret": "86jOD-Fmm4n3uqKyhZzUIZ0j65xigUm20b4iuv1iy-g" },
         body: JSON.stringify({ rfq_id: rfqId }),
       });
       const data = await res.json();
@@ -89,7 +90,8 @@ export default function IntegrationsPage() {
     try {
       const res = await fetch(HUBSPOT_FN, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-hook-secret": "maskinval-hubspot" },
+        // Must match the HUBSPOT_HOOK_SECRET set in Supabase Edge Function secrets.
+        headers: { "Content-Type": "application/json", "x-hook-secret": "WhiZWGXw5t1JkbIqL-scnA38KncDq08FOhN0889Xtag" },
         body: JSON.stringify({
           rfq_id: rfq.id,
           contact_name: rfq.contact_name,

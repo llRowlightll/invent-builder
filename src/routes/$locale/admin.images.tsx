@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 const FUNCTION_URL =
   "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/generate-product-images";
-const HOOK_SECRET = "maskinval-images";
+// Must match the IMAGES_HOOK_SECRET set in Supabase Edge Function secrets.
+const HOOK_SECRET = "N1cuQ72lvyTWivYILKS_SonJqWyYGkfSHu0a_ZueWA0";
 
 // @ts-ignore
 export const Route = createFileRoute("/$locale/admin/images")({
