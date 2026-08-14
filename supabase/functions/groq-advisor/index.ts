@@ -815,6 +815,27 @@ function extractLoadKg(text: string, answers: Record<string, string>): number {
   return 0;
 }
 
+/** Extract required torque (Nm) for a rotary-actuator request. */
+function extractTorqueNm(text: string, answers: Record<string, string>): number {
+  const allText = text + " " + Object.values(answers).join(" ");
+  const m = allText.match(/(\d+(?:[.,]\d+)?)\s*Nm\b/i);
+  return m ? parseFloat(m[1].replace(",", ".")) : 0;
+}
+
+/** Extract required rotation angle (degrees) for a rotary-actuator request. */
+function extractRotationDeg(text: string, answers: Record<string, string>): number {
+  const allText = text + " " + Object.values(answers).join(" ");
+  const m = allText.match(/(\d{2,3})\s*(?:°|grad(?:er)?|degrees?)\b/i);
+  return m ? parseFloat(m[1]) : 0;
+}
+
+function parseTorqueFromSpecs(specs: Record<string, unknown>): number {
+  const v = specs["torque"] ?? specs["torque_nm"];
+  if (v == null) return 0;
+  const n = parseFloat(String(v).match(/\d+(?:\.\d+)?/)?.[0] ?? "");
+  return isNaN(n) ? 0 : n;
+}
+
 /**
  * v40: Find the best catalog product of a given component type.
  * Returns null if no catalog match exists — caller should use SPECIFY.
@@ -1667,6 +1688,12 @@ async function handleOptions(
   const isHighSpeed = needsHighSpeed(combinedText, answers);
   const isSilSafety = needsSilSafety(combinedText);
   const isOutdoor = needsOutdoor(combinedText);
+  // Outdoor/marine/salt-spray is just as corrosive as washdown, but wasn't wired
+  // into the corrosion-resistant filter/scoring — a saltmiljö request got standard
+  // aluminium ISO cylinders (no stainless boost, no washdown-only hard filter).
+  // Only for filter/score: keep isWashdown itself pure for BOM text ("IP69K",
+  // CIP/SIP) that shouldn't be claimed for a marine-only case.
+  const needsCorrosionResistant = isWashdown || isOutdoor;
   const isPharmaGmp = needsPharmaGmp(combinedText);
   const isBatteryDryroom = needsBatteryDryroom(combinedText);
   const speedMs = extractSpeedMs(combinedText, answers);
@@ -1744,6 +1771,83 @@ async function handleOptions(
     logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: options[0]?.sku ?? null, option_count: options.length }, true);
     return Response.json({ summary, options }, { headers: CORS });
   }
+  // ── Hydraulic application — outside the pneumatic/electric catalog entirely ──
+  // isHydraulicApplication() used to be computed but never actually FILTERED the
+  // candidate pool: a 250-bar / 200 kN hydraulic press request still got standard
+  // 6-10 bar pneumatic ISO cylinders ranked as "Bästa valet" (they matched on
+  // stroke alone, with no pressure/force-class check at all). We carry zero
+  // hydraulic products — escalate honestly instead of presenting pneumatic parts
+  // as if they could survive hydraulic oil pressure.
+  const isHydraulicReq = isHydraulicApplication(combinedText);
+  if (isHydraulicReq) {
+    const customCtx: CustomSolutionContext = {
+      isWashdown: false, isVertical: false, isFoodGrade: false,
+      isBatteryDryroom: false, isHydraulic: true, isAtex: false, isSilSafety: false,
+    };
+    const options = [buildCustomSolutionOption(0, isSv, 0, false, customCtx)];
+    const summary = isSv
+      ? "Det här är en hydraulisk applikation (oljedrift, högt tryck) — helt utanför vårt pneumatiska/elektriska sortiment. Att föreslå en pneumatisk katalogcylinder här vore direkt farligt (den är inte tryckklassad för hydraulolja). Vi tar fram en kundspecifik hydrauliklösning."
+      : "This is a hydraulic application (oil-driven, high pressure) — entirely outside our pneumatic/electric range. Recommending a pneumatic catalog cylinder here would be unsafe (it isn't pressure-rated for hydraulic oil). We'll work out a custom hydraulic solution.";
+    logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: "CUSTOM-SOLUTION", option_count: 1 }, true);
+    return Response.json({ summary, options }, { headers: CORS });
+  }
+
+  // ── Pure rotary-actuator application (rotation angle + torque, no linear stroke) ──
+  // Without this branch, "180°, 50 Nm" ranked LINEAR cylinders above real rotary
+  // actuators: with maxRequiredStroke=0, actuatorTier()'s "meets" check auto-passes
+  // for everything, but a strokeless rotary actuator still counts as "configurable"
+  // (tier 1) while any linear cylinder with SOME concrete stroke value is tier 0 —
+  // so an unrelated linear part always won, and the LLM then fabricated a fictional
+  // "lever arm" justification for why it substitutes for rotation.
+  const isPureRotary = categories.includes("rotary-actuator") && maxRequiredStroke === 0
+    && !isSystemScope && !isMultiAxis;
+  if (isPureRotary) {
+    const rotaryProducts = await fetchProducts(["rotary-actuator"], 40);
+    const requiredTorque = extractTorqueNm(combinedText, answers);
+    const requiredDeg = extractRotationDeg(combinedText, answers);
+    const withTorque = rotaryProducts.filter(p => parseTorqueFromSpecs(p.key_specs ?? {}) > 0);
+    const pool = withTorque.length ? withTorque : rotaryProducts;
+    const sorted = [...pool].sort((a, b) => parseTorqueFromSpecs(a.key_specs ?? {}) - parseTorqueFromSpecs(b.key_specs ?? {}));
+    const adequate = requiredTorque > 0 ? sorted.filter(p => parseTorqueFromSpecs(p.key_specs ?? {}) >= requiredTorque) : sorted;
+    // No product reaches the required torque: closest (highest available) is the
+    // honest recommendation, flagged inexact — never silently undersized.
+    const torqueInexact = requiredTorque > 0 && adequate.length === 0;
+    const picks = (adequate.length ? adequate : sorted.slice(-3)).slice(0, 3);
+    const options = picks.map((p, i) => {
+      const torque = parseTorqueFromSpecs(p.key_specs ?? {});
+      return {
+        sku: p.sku, name: p.name,
+        badge: i === 0 && torqueInexact
+          ? (isSv ? "Närmaste — otillräckligt vridmoment" : "Closest — insufficient torque")
+          : (isSv ? ["Bästa valet", "Kompakt alternativ", "Budgetalternativ"][i] : ["Best choice", "Compact option", "Budget option"][i]),
+        bore_mm: null, stroke_mm: null,
+        force_n: torque || null,
+        why: torqueInexact
+          ? (isSv
+              ? `${p.name} — ${torque} Nm är det högsta vridmoment vi har i lager, men klarar INTE de begärda ${requiredTorque} Nm. Rekommendation, inte en bekräftad match — för ${requiredTorque} Nm krävs kundspecifik lösning.`
+              : `${p.name} — ${torque} Nm is the highest torque we stock, but does NOT meet the requested ${requiredTorque} Nm. A recommendation, not a confirmed match — ${requiredTorque} Nm needs a custom solution.`)
+          : (isSv
+              ? `${p.name} — ${torque} Nm vridmoment${requiredDeg > 0 ? `, ${requiredDeg}° rörelseomfång` : ""}.`
+              : `${p.name} — ${torque} Nm torque${requiredDeg > 0 ? `, ${requiredDeg}° rotation range` : ""}.`),
+        pros: [] as string[], cons: [] as string[],
+      };
+    });
+    const customCtx: CustomSolutionContext = {
+      isWashdown: false, isVertical: false, isFoodGrade: false,
+      isBatteryDryroom: false, isHydraulic: false, isAtex: false, isSilSafety: false,
+    };
+    options.push(buildCustomSolutionOption(0, isSv, 0, false, customCtx) as typeof options[number]);
+    const summary = torqueInexact
+      ? (isSv
+          ? `Ingen lagervara klarar de begärda ${requiredTorque} Nm — ${picks[0]?.name} (${parseTorqueFromSpecs(picks[0]?.key_specs ?? {})} Nm) är närmaste, men otillräcklig. Se den som en utgångspunkt; för ${requiredTorque} Nm behövs en kundspecifik rotationsaktuator.`
+          : `No stocked unit meets the requested ${requiredTorque} Nm — ${picks[0]?.name} (${parseTorqueFromSpecs(picks[0]?.key_specs ?? {})} Nm) is the closest, but insufficient. Treat it as a starting point; ${requiredTorque} Nm needs a custom rotary actuator.`)
+      : (isSv
+          ? `Rotationsaktuator vald efter vridmoment${requiredTorque > 0 ? ` (krav ${requiredTorque} Nm)` : ""}${requiredDeg > 0 ? ` och ${requiredDeg}° rörelseomfång` : ""} — inte cylinderslag.`
+          : `Rotary actuator selected by torque${requiredTorque > 0 ? ` (requirement ${requiredTorque} Nm)` : ""}${requiredDeg > 0 ? ` and ${requiredDeg}° rotation range` : ""} — not cylinder stroke.`);
+    logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: picks[0]?.sku ?? null, option_count: options.length }, true);
+    return Response.json({ summary, options }, { headers: CORS });
+  }
+
   // End-effector (gripper / vacuum) — the primary function is GRIPPING, not linear
   // motion. Skip for a multi-axis line or whole-system request (those own the motion
   // axes; the end-effector is then a BOM detail, not the headline recommendation).
@@ -1773,7 +1877,7 @@ async function handleOptions(
 
   // ── Hard pre-filters ──────────────────────────────────────────────
   const atexFiltered = isAtex ? allProducts.filter(p => !isElectricActuator(p)) : allProducts;
-  const washdownFiltered = isWashdown ? atexFiltered.filter(p => isWashdownProduct(p)) : atexFiltered;
+  const washdownFiltered = needsCorrosionResistant ? atexFiltered.filter(p => isWashdownProduct(p)) : atexFiltered;
   // v51: precision (≤0.1 mm) excludes PNEUMATICS on EVERY axis — they physically cannot
   // hold the tolerance. Single-axis / vertical-precision also exclude belt (ball-screw
   // only). Multi-axis keeps belt for a fast axis but STILL drops pneumatics — the old code
@@ -1858,7 +1962,7 @@ async function handleOptions(
   // ── v40/v51: Server-side product selection ───────────────────────
   // rankActuators() tiers candidates so a configurable family NEVER outranks a
   // concrete-stroke product that meets the requirement (regression-tested).
-  const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, isHighPrecision, isHighSpeed, isVertical: isVerticalLoad, isWashdown, isAtex };
+  const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, isHighPrecision, isHighSpeed, isVertical: isVerticalLoad, isWashdown: needsCorrosionResistant, isAtex };
   const topProducts = rankActuators(catalogProducts, scoringCtx).slice(0, 3);
 
   // Build server-side option objects (correct data, LLM fills in text)
