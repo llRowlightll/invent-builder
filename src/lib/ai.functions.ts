@@ -481,6 +481,18 @@ Mark any component that does not meet requirements as: ⚠ Does not meet require
 3-5 short precise notes on critical integration constraints (utilities, grounding, cable management, compliance).
 `;
 
+    // CATALOG GROUNDING: foundProducts is the REAL, physics-filtered SKU list the
+    // caller already computed against our actual catalog (see chat.tsx's
+    // physicsFilter()). It used to be accepted as a parameter and never referenced
+    // in the prompt at all — the LLM had zero knowledge of what we stock and could
+    // only pull brand/model numbers from its own training data, i.e. it was
+    // structurally guaranteed to sometimes hallucinate SKUs we don't carry. Now
+    // it's injected and the rules forbid inventing anything outside this list —
+    // same "pre-selected SKUs, LLM only writes text" pattern as groq-advisor.
+    const catalogListText = (data.foundProducts ?? [])
+      .map(g => `${g.label}: ${g.skus.length ? g.skus.join(", ") : "(inga träffar i sortimentet)"}`)
+      .join("\n");
+
     const rules = isSv ? `
 REGLER:
 - Elektrisk aktuator → systemet MÅSTE innehålla servomotor + servodrivenhet + rörelsestyrenhet
@@ -488,6 +500,7 @@ REGLER:
 - Inget osäkerhetsspråk. Inga ord som "kan", "bör övervägas", "möjligen". Var direkt och tekniskt precis.
 - Om ett krav är odefinierat: ange exakt vilken parameter som måste specificeras innan komponenten kan väljas
 - Separera tydligt ELEKTRISKA och PNEUMATISKA delsystem
+- KOMPONENTLISTAN (BOM) FÅR ENDAST INNEHÅLLA ARTIKELNUMMER FRÅN "VÅRT SORTIMENT" NEDAN. Hitta ALDRIG på ett artikelnummer eller modellbeteckning som inte står där. Om rätt komponenttyp saknas i listan: skriv "⚠ Inte i sortimentet — kundspecifik offert krävs" istället för att gissa ett märke/modell.
 ` : `
 RULES:
 - Electric actuator → system MUST include servo motor + servo drive + motion controller
@@ -495,6 +508,7 @@ RULES:
 - No uncertainty language. No "might", "could", "consider", "may be suitable". Be direct and technically precise.
 - If a requirement is undefined: state exactly what parameter must be specified before that component can be selected
 - Clearly separate ELECTRIC and PNEUMATIC subsystems
+- THE COMPONENT LIST (BOM) MAY ONLY CONTAIN SKUS FROM "OUR CATALOG" BELOW. NEVER invent a part number or model designation not listed there. If the right component type is missing from the list: write "⚠ Not in catalog — custom quote required" instead of guessing a brand/model.
 `;
 
     const reqSummary = [
@@ -510,6 +524,9 @@ RULES:
       formatInstructions,
       rules,
       `\nExtracted requirements:\n${reqSummary || (isSv ? "Inga parametrar specificerade — ange krav i varje BOM-post." : "No parameters specified — note requirements in each BOM entry.")}`,
+      isSv
+        ? `\nVårt sortiment (ENDA tillåtna artikelnummer för BOM-listan, per delsystem):\n${catalogListText || "(inga produkter hittades — hela systemet kräver kundspecifik offert)"}`
+        : `\nOur catalog (the ONLY SKUs allowed in the BOM list, per subsystem):\n${catalogListText || "(no products found — the whole system needs a custom quote)"}`,
       context ? `\nProduct knowledge from documentation:\n${context}` : "",
       `\n${isSv ? "Besvara på svenska." : "Answer in English."}`,
     ].join("\n");
