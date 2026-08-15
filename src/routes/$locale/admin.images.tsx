@@ -4,8 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 
 const FUNCTION_URL =
   "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/generate-product-images";
-// Must match the IMAGES_HOOK_SECRET set in Supabase Edge Function secrets.
-const HOOK_SECRET = "N1cuQ72lvyTWivYILKS_SonJqWyYGkfSHu0a_ZueWA0";
 
 // @ts-ignore
 export const Route = createFileRoute("/$locale/admin/images")({
@@ -96,9 +94,12 @@ export default function AdminImagesPage() {
   async function callFunction(opts: Record<string, unknown>) {
     const body: Record<string, unknown> = { provider, ...opts };
     if (!PROVIDER_META[provider].free && apiKey) body.api_key = apiKey;
+    const { data: { session } } = await supabase.auth.getSession();
     const res = await fetch(FUNCTION_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-hook-secret": HOOK_SECRET },
+      // Function verifies this is a real, logged-in admin (has_role RPC) —
+      // replaces the old shared-secret stopgap.
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token ?? ""}` },
       body: JSON.stringify(body),
     });
     return res.json();

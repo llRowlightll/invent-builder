@@ -67,10 +67,12 @@ export default function IntegrationsPage() {
   async function pushToFortnox(rfqId: string) {
     setPushing(rfqId);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(FORTNOX_FN, {
         method: "POST",
-        // Must match the FORTNOX_HOOK_SECRET set in Supabase Edge Function secrets.
-        headers: { "Content-Type": "application/json", "x-hook-secret": "86jOD-Fmm4n3uqKyhZzUIZ0j65xigUm20b4iuv1iy-g" },
+        // Function verifies this is a real, logged-in admin (has_role RPC) —
+        // replaces the old shared-secret stopgap.
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token ?? ""}` },
         body: JSON.stringify({ rfq_id: rfqId }),
       });
       const data = await res.json();
@@ -88,10 +90,12 @@ export default function IntegrationsPage() {
   async function retryHubSpot(rfq: RfqRow) {
     setPushing(rfq.id);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(HUBSPOT_FN, {
         method: "POST",
-        // Must match the HUBSPOT_HOOK_SECRET set in Supabase Edge Function secrets.
-        headers: { "Content-Type": "application/json", "x-hook-secret": "WhiZWGXw5t1JkbIqL-scnA38KncDq08FOhN0889Xtag" },
+        // Function verifies this is a real, logged-in admin (has_role RPC) —
+        // replaces the old shared-secret stopgap.
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token ?? ""}` },
         body: JSON.stringify({
           rfq_id: rfq.id,
           contact_name: rfq.contact_name,

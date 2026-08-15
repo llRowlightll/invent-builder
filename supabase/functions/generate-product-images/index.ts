@@ -1,17 +1,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAdmin } from "../_shared/admin-auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const FAL_API_KEY = Deno.env.get("FAL_API_KEY") ?? "";
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
-// SECURITY: no fallback — verify_jwt is false, so this header is the ONLY auth
-// gate; a hardcoded guessable default defeated that entirely.
-const HOOK_SECRET = Deno.env.get("IMAGES_HOOK_SECRET");
 const BUCKET = "product-images";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, x-hook-secret",
+  "Access-Control-Allow-Headers": "authorization, content-type",
 };
 
 const CAT_DETAIL: Record<string, string> = {
@@ -91,8 +89,8 @@ async function generateWithReplicate(prompt: string, apiKey: string): Promise<Ui
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
-  const secret = req.headers.get("x-hook-secret");
-  if (!HOOK_SECRET || secret !== HOOK_SECRET) return new Response("Unauthorized", { status: 401 });
+  const admin = await requireAdmin(req);
+  if (admin instanceof Response) return admin;
 
   const body = await req.json().catch(() => ({}));
   const { product_id, batch_size = 5, provider = "pollinations", api_key } = body;
