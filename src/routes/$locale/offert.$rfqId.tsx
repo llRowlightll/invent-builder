@@ -53,6 +53,7 @@ export default function PublicOffertPage() {
   const [accepted, setAccepted] = useState(false);
   const [declined, setDeclined] = useState(false);
   const [poInput, setPoInput] = useState("");
+  const [orderId, setOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -95,12 +96,17 @@ export default function PublicOffertPage() {
     setAccepting(true);
     // SECURITY: respond via SECURITY DEFINER RPC. It only flips a quote that is
     // currently 'quoted' → accepted/rejected and validates the decision value,
-    // so anon can no longer mass-update arbitrary quotes.
-    await supabase.rpc("respond_to_quote", {
+    // so anon can no longer mass-update arbitrary quotes. On acceptance it also
+    // creates the real order atomically and returns its id, so the customer
+    // lands on an actual order confirmation instead of a "we'll follow up" promise.
+    const { data } = await supabase.rpc("respond_to_quote", {
       p_id: rfqId,
       p_decision: decision,
       p_po: poInput.trim() || undefined,
     });
+    const result = Array.isArray(data) ? data[0] : data;
+    const newOrderId = (result as { order_id?: string } | null)?.order_id ?? null;
+    if (newOrderId) setOrderId(newOrderId);
     // Fire notification email
     await fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email", {
       method: "POST",
@@ -112,6 +118,7 @@ export default function PublicOffertPage() {
         status: decision,
         quote_amount: totalInc,
         currency,
+        oc_url: newOrderId ? `${window.location.origin}/${locale}/oc/${newOrderId}` : undefined,
       }),
     }).catch(console.error);
     setAccepting(false);
@@ -223,10 +230,22 @@ export default function PublicOffertPage() {
 
           {/* Accept / decline */}
           {accepted || rfq.status === "accepted" ? (
-            <div className="rounded-xl border border-green-300 bg-green-50 p-6 text-center space-y-2">
+            <div className="rounded-xl border border-green-300 bg-green-50 p-6 text-center space-y-3">
               <div className="text-2xl">✅</div>
-              <p className="font-semibold text-green-800">Offert accepterad</p>
-              <p className="text-sm text-green-700">Vi återkommer med en orderbekräftelse. Tack!</p>
+              <p className="font-semibold text-green-800">Beställning bekräftad</p>
+              {orderId ? (
+                <>
+                  <p className="text-sm text-green-700">Din order är skapad. Orderbekräftelsen skickas även till din e-post.</p>
+                  <a
+                    href={`/${locale}/oc/${orderId}`}
+                    className="inline-block mt-1 px-6 py-2.5 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition"
+                  >
+                    Visa orderbekräftelse →
+                  </a>
+                </>
+              ) : (
+                <p className="text-sm text-green-700">Orderbekräftelsen skickas till din e-post.</p>
+              )}
             </div>
           ) : declined || rfq.status === "rejected" ? (
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center space-y-2">

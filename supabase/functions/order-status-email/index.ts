@@ -31,6 +31,7 @@ interface Payload {
   total_inc_vat?:   number | null;
   currency?:        string;
   locale?:          string;
+  oc_url?:          string | null;   // link to the order confirmation page
 }
 
 const STATUS_SV: Record<string, { emoji: string; label: string; body: string }> = {
@@ -148,6 +149,21 @@ function buildEmail(p: Payload): { subject: string; html: string } {
             📄 Ladda ned faktura
           </a>
         </div>` : ""}
+      ${p.oc_url && !p.invoice_url ? `
+        <div style="margin-top:12px;">
+          <a href="${p.oc_url}" style="display:inline-block;background:#1e293b;color:#fff;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;">
+            📄 Visa orderbekräftelse
+          </a>
+        </div>` : ""}
+    </div>`;
+  }
+
+  if (p.status === "accepted" && p.oc_url) {
+    extra = `
+    <div style="margin:20px 0;">
+      <a href="${p.oc_url}" style="display:inline-block;background:#1e293b;color:#fff;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;">
+        📄 Visa orderbekräftelse
+      </a>
     </div>`;
   }
 
