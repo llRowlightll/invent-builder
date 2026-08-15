@@ -1,18 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAdmin } from "../_shared/admin-auth.ts";
 
 const SUPABASE_URL             = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-// SECURITY: both of these were hardcoded fallbacks before (a live HubSpot API key,
-// and a guessable webhook secret) - a real credential sitting in deployed source,
-// and the ONLY auth gate on this endpoint (verify_jwt is false) defaulting to a
-// public string. Fail closed on both - no fallback values.
+// SECURITY: this was a hardcoded fallback before (a live HubSpot API key sitting
+// in deployed source) - fail closed, no fallback value.
 const HUBSPOT_API_KEY           = Deno.env.get("HUBSPOT_API_KEY") ?? "";
-const HOOK_SECRET               = Deno.env.get("HUBSPOT_HOOK_SECRET");
 const HS_BASE                   = "https://api.hubapi.com";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, x-hook-secret",
+  "Access-Control-Allow-Headers": "authorization, content-type",
 };
 
 function hsHeaders() {
@@ -98,8 +96,8 @@ async function createDeal(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
-  const secret = req.headers.get("x-hook-secret");
-  if (!HOOK_SECRET || secret !== HOOK_SECRET) return new Response("Unauthorized", { status: 401 });
+  const admin = await requireAdmin(req);
+  if (admin instanceof Response) return admin;
 
   const body = await req.json().catch(() => ({}));
   const { rfq_id, contact_name, contact_email, company, message } = body;

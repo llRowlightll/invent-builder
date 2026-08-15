@@ -7,24 +7,22 @@
  *   FORTNOX_CLIENT_SECRET  — OAuth2 client secret
  *   FORTNOX_ACCESS_TOKEN   — Aktuell access token (uppdateras via refresh)
  *   FORTNOX_REFRESH_TOKEN  — Refresh token
- *   FORTNOX_HOOK_SECRET    — Delad hemlighet för x-hook-secret (INGEN fallback —
- *                              måste sättas, annars 503)
+ *
+ * Auth: verify_jwt (admin only, via has_role RPC — see _shared/admin-auth.ts).
  *
  * Fortnox API-dokumentation: https://apps.fortnox.se/apidocs
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAdmin } from "../_shared/admin-auth.ts";
 
 const SUPABASE_URL              = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const FORTNOX_ACCESS_TOKEN       = Deno.env.get("FORTNOX_ACCESS_TOKEN") ?? "";
-// SECURITY: no fallback — verify_jwt is false, so this header is the ONLY auth
-// gate; a hardcoded guessable default defeated that entirely.
-const HOOK_SECRET                = Deno.env.get("FORTNOX_HOOK_SECRET");
 const FN_BASE                    = "https://api.fortnox.se/3";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, x-hook-secret",
+  "Access-Control-Allow-Headers": "authorization, content-type",
 };
 
 function fnHeaders() {
@@ -98,8 +96,8 @@ async function createFortnoxOrder(rfqId: string, items: Array<{ sku: string; qty
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
-  const secret = req.headers.get("x-hook-secret");
-  if (!HOOK_SECRET || secret !== HOOK_SECRET) return new Response("Unauthorized", { status: 401 });
+  const admin = await requireAdmin(req);
+  if (admin instanceof Response) return admin;
 
   if (!FORTNOX_ACCESS_TOKEN) {
     return new Response(
