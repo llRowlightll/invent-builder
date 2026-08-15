@@ -49,6 +49,17 @@ interface ActuatorOption {
   product?: ProductRow;
 }
 
+/** Server-computed requirement numbers — lets the UI draw a "required vs
+ * available" margin visual instead of just prose reasoning. Shared across all
+ * options in one response since they all answer the same application. */
+interface Requirements {
+  load_kg: number | null;
+  required_force_n: number | null;
+  required_stroke_mm: number | null;
+  safety_factor: number;
+  pressure_bar: number;
+}
+
 interface BomLine {
   sku: string;
   quantity: number;
@@ -140,6 +151,7 @@ function MachineBuilderPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [optionsSummary, setOptionsSummary] = useState("");
   const [options, setOptions] = useState<ActuatorOption[]>([]);
+  const [requirements, setRequirements] = useState<Requirements | null>(null);
   const [selected, setSelected] = useState<ActuatorOption | null>(null);
   const [bom, setBom] = useState<BomLine[]>([]);
   const [bomTitle, setBomTitle] = useState("");
@@ -263,6 +275,7 @@ function MachineBuilderPage() {
       const enriched = enrichWithCatalog<ActuatorOption>(data.options ?? []);
       setOptions(enriched);
       setOptionsSummary(data.summary ?? "");
+      setRequirements(data.requirements ?? null);
       setStep("options");
     } catch (e) {
       setError(t((e as Error).message === "RATE_LIMITED" ? "machineBuilder.errorRateLimit" : "machineBuilder.errorGeneric"));
@@ -304,6 +317,7 @@ function MachineBuilderPage() {
     setQuestions([]);
     setAnswers({});
     setOptions([]);
+    setRequirements(null);
     setSelected(null);
     setBom([]);
     setBomTitle("");
@@ -374,8 +388,10 @@ function MachineBuilderPage() {
       {step === "options" && (
         <OptionsStep
           t={t}
+          locale={locale}
           summary={optionsSummary}
           options={options}
+          requirements={requirements}
           onSelect={handleSelect}
           onBack={() => setStep("questions")}
         />
@@ -392,6 +408,7 @@ function MachineBuilderPage() {
           title={bomTitle}
           explanation={bomExplanation}
           selected={selected}
+          requirements={requirements}
           bom={bom}
           catalog={catalog}
           description={description}
@@ -692,8 +709,9 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
 }
 
 // ── Options Step ────────────────────────────────────────────────────────────
-function OptionsStep({ t, summary, options, onSelect, onBack }: {
-  t: (key: import("@/lib/i18n").TKey) => string; summary: string; options: ActuatorOption[]; onSelect: (o: ActuatorOption) => void; onBack: () => void;
+function OptionsStep({ t, locale, summary, options, requirements, onSelect, onBack }: {
+  t: (key: import("@/lib/i18n").TKey) => string; locale: string; summary: string; options: ActuatorOption[];
+  requirements: Requirements | null; onSelect: (o: ActuatorOption) => void; onBack: () => void;
 }) {
   const BADGE_COLORS: Record<string, string> = {
     "Bästa valet": "bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)]",
@@ -785,10 +803,13 @@ function OptionsStep({ t, summary, options, onSelect, onBack }: {
               {(opt.bore_mm || opt.stroke_mm || opt.force_n) && (
                 <div className="flex flex-wrap gap-2 mt-3">
                   {opt.bore_mm ? <SpecChip label="Bore" value={`${opt.bore_mm} mm`} /> : null}
-                  {opt.stroke_mm ? <SpecChip label="Stroke" value={`${opt.stroke_mm} mm`} /> : null}
-                  {opt.force_n ? <SpecChip label={opt.bore_mm ? "Force @ 6 bar" : "Force"} value={`${opt.force_n} N`} /> : null}
+                  {!requirements?.required_stroke_mm && opt.stroke_mm ? <SpecChip label="Stroke" value={`${opt.stroke_mm} mm`} /> : null}
+                  {!requirements?.required_force_n && opt.force_n ? <SpecChip label={opt.bore_mm ? "Force @ 6 bar" : "Force"} value={`${opt.force_n} N`} /> : null}
                 </div>
               )}
+
+              {/* Calculated dimensioning — required vs available */}
+              <DimensioningPanel locale={locale} requirements={requirements} option={opt} />
 
               {/* Why */}
               <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{opt.why}</p>
@@ -829,6 +850,82 @@ function SpecChip({ label, value }: { label: string; value: string }) {
     <span className="text-[11px] bg-muted px-2 py-1 rounded-md text-muted-foreground">
       <span className="text-foreground font-medium">{value}</span> {label}
     </span>
+  );
+}
+
+// ── Dimensioning visual — "required vs available", Festo/SMC-style margin bar ──
+// Renders nothing when the numbers needed for a given bar aren't available, so it
+// degrades silently for options/applications where force or stroke don't apply
+// (e.g. electric actuators, torque-based rotary picks, CUSTOM-SOLUTION).
+function DimensioningBar({ label, required, available, unit, requiredLabel, availableLabel }: {
+  label: string; required: number; available: number; unit: string; requiredLabel: string; availableLabel: string;
+}) {
+  const max = Math.max(required, available, 1) * 1.05; // headroom so the bar isn't edge-to-edge
+  const availPct = Math.min((available / max) * 100, 100);
+  const reqPct = Math.min((required / max) * 100, 100);
+  const meets = available >= required;
+  const margin = required > 0 ? available / required : null;
+
+  return (
+    <div className="min-w-[160px] flex-1">
+      <div className="flex items-baseline justify-between text-[11px] mb-1">
+        <span className="text-muted-foreground">{label}</span>
+        <span className={`font-semibold ${meets ? "text-[oklch(0.45_0.14_155)]" : "text-destructive"}`}>
+          {margin != null ? `${margin.toFixed(1)}×` : meets ? "✓" : "⚠"}
+        </span>
+      </div>
+      <div className="relative h-2 rounded-full bg-muted overflow-hidden">
+        <div
+          className={`absolute inset-y-0 left-0 rounded-full ${meets ? "bg-[oklch(0.72_0.15_155)]" : "bg-destructive/70"}`}
+          style={{ width: `${availPct}%` }}
+        />
+        <div
+          className="absolute inset-y-0 w-[2px] bg-foreground/50"
+          style={{ left: `${reqPct}%` }}
+          title={`${requiredLabel}: ${required} ${unit}`}
+        />
+      </div>
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-0.5">
+        <span>{requiredLabel} {required.toLocaleString()} {unit}</span>
+        <span>{availableLabel} {available.toLocaleString()} {unit}</span>
+      </div>
+    </div>
+  );
+}
+
+function DimensioningPanel({ locale, requirements, option, bordered = true }: {
+  locale: string; requirements: Requirements | null; option: ActuatorOption; bordered?: boolean;
+}) {
+  const isSv = locale === "sv";
+  if (!requirements || option.sku === "CUSTOM-SOLUTION") return null;
+
+  const showForce = requirements.required_force_n != null && option.force_n != null;
+  const showStroke = requirements.required_stroke_mm != null && option.stroke_mm != null;
+  if (!showForce && !showStroke) return null;
+
+  return (
+    <div className={`flex flex-wrap gap-4 ${bordered ? "mt-3 pt-3 border-t border-border/60" : ""}`}>
+      {showForce && (
+        <DimensioningBar
+          label={isSv ? `Kraft @ ${requirements.pressure_bar} bar` : `Force @ ${requirements.pressure_bar} bar`}
+          required={requirements.required_force_n!}
+          available={option.force_n!}
+          unit="N"
+          requiredLabel={isSv ? "Krävs" : "Required"}
+          availableLabel={isSv ? "Ger" : "Delivers"}
+        />
+      )}
+      {showStroke && (
+        <DimensioningBar
+          label={isSv ? "Slaglängd" : "Stroke"}
+          required={requirements.required_stroke_mm!}
+          available={option.stroke_mm!}
+          unit="mm"
+          requiredLabel={isSv ? "Krävs" : "Required"}
+          availableLabel={isSv ? "Klarar" : "Rated"}
+        />
+      )}
+    </div>
   );
 }
 
@@ -1087,11 +1184,11 @@ function findAlternativesTiered(
 }
 
 // ── Result Step ─────────────────────────────────────────────────────────────
-function ResultStep({ t, locale, title, explanation, selected, bom, catalog, description, answers,
+function ResultStep({ t, locale, title, explanation, selected, requirements, bom, catalog, description, answers,
   rfqName, rfqEmail, rfqCompany, rfqPhone, rfqPoNumber, rfqOrgNumber, rfqSent, rfqId, autoSaved,
   setRfqName, setRfqEmail, setRfqCompany, setRfqPhone, setRfqPoNumber, setRfqOrgNumber, setRfqSent, setRfqId, onRestart, onBack }: {
   t: (key: import("@/lib/i18n").TKey) => string; locale: string; title: string; explanation: string;
-  selected: ActuatorOption; bom: BomLine[]; catalog: ProductRow[]; description: string; answers: Record<string, string>;
+  selected: ActuatorOption; requirements: Requirements | null; bom: BomLine[]; catalog: ProductRow[]; description: string; answers: Record<string, string>;
   rfqName: string; rfqEmail: string; rfqCompany: string; rfqPhone: string; rfqPoNumber: string; rfqOrgNumber: string;
   rfqSent: boolean; rfqId: string; autoSaved: boolean;
   setRfqName: (v: string) => void; setRfqEmail: (v: string) => void;
@@ -1285,6 +1382,16 @@ function ResultStep({ t, locale, title, explanation, selected, bom, catalog, des
         <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
         <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{explanation}</p>
       </div>
+
+      {/* Calculated dimensioning — required vs available, for the chosen actuator */}
+      {requirements && (requirements.required_force_n != null || requirements.required_stroke_mm != null) && (
+        <div className="rounded-xl border border-border bg-card px-5 py-4">
+          <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground font-medium mb-3">
+            {locale === "sv" ? "Dimensionering — " : "Dimensioning — "}{selected.name}
+          </div>
+          <DimensioningPanel locale={locale} requirements={requirements} option={selected} bordered={false} />
+        </div>
+      )}
 
       {/* System overview — schematic + component cards */}
       <BomSystemView bom={bom} selected={selected} locale={locale} />
