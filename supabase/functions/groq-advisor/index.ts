@@ -1725,6 +1725,10 @@ async function handleOptions(
   // ── Load → minimum bore calculation ──────────────────────────────
   const loadKg = extractLoadKg(combinedText, answers);
   const minBoreMm = calcMinBoreMm(loadKg);
+  // Same formula as calcMinBoreMm's internal forceN — surfaced separately so the
+  // frontend can draw a "required vs available" margin visual per option instead
+  // of just prose reasoning (engineers expect a calculated load-curve feel here).
+  const requiredForceN = loadKg > 0 ? Math.round(loadKg * 9.81 * 2) : 0;
 
   // ── Shock-absorber application (decelerate an external moving mass) ──────────
   // Sized by kinetic energy ½·m·v², not bore/force — handled here so it skips the
@@ -2154,7 +2158,14 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
   }
   logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: finalOptions[0]?.sku ?? null, option_count: finalOptions.length }, true);
-  return Response.json({ summary, options: finalOptions }, { headers: CORS });
+  const requirements = {
+    load_kg: loadKg > 0 ? loadKg : null,
+    required_force_n: requiredForceN > 0 ? requiredForceN : null,
+    required_stroke_mm: maxRequiredStroke > 0 ? maxRequiredStroke : null,
+    safety_factor: 2,
+    pressure_bar: 6,
+  };
+  return Response.json({ summary, options: finalOptions, requirements }, { headers: CORS });
 }
 
 // ── ACTION: bom (v40) ─────────────────────────────────────────────────────────
