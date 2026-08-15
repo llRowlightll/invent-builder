@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
-import { aiSearchProducts, aiExplain, aiAskKnowledge, aiExtractDimensions, aiSystemDesign, aiVisionChat, type AiSearchResult, type ChatMessage } from "@/lib/ai.functions";
+import { aiSearchProducts, aiExplain, aiAskKnowledge, aiExtractDimensions, aiVisionChat, type AiSearchResult, type ChatMessage } from "@/lib/ai.functions";
 import { fileToBase64 } from "@/lib/document-ai";
 import { computePhysics } from "@/lib/physics";
 import type { ProductRow } from "@/lib/types";
@@ -27,7 +27,7 @@ export const Route = createFileRoute("/$locale/chat")({
   component: ChatPage,
 });
 
-type MsgRole = "user" | "assistant" | "products";
+type MsgRole = "user" | "assistant" | "products" | "advisor-options";
 interface Msg {
   role: MsgRole;
   text?: string;
@@ -36,6 +36,51 @@ interface Msg {
   aiResult?: AiSearchResult;
   sources?: string[];  // RAG source citations
   followups?: string[]; // clickable follow-up suggestion chips
+  advisorOptions?: AdvisorOption[];
+  advisorRequirements?: AdvisorRequirements | null;
+}
+
+/** One ranked option from groq-advisor's action:"options" — same shape machine-builder
+ * uses. Reusing this endpoint (instead of chat's own free-text aiSystemDesign call)
+ * means chat and machine-builder give the SAME answer for the same input: one AI
+ * voice for product selection, not two independent pipelines that can disagree. */
+interface AdvisorOption {
+  sku: string;
+  name: string;
+  badge: string;
+  bore_mm?: number | null;
+  stroke_mm?: number | null;
+  force_n?: number | null;
+  why: string;
+  pros: string[];
+  cons: string[];
+}
+interface AdvisorRequirements {
+  load_kg: number | null;
+  required_force_n: number | null;
+  required_stroke_mm: number | null;
+  safety_factor: number;
+  pressure_bar: number;
+}
+
+const ADVISOR_URL = "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/groq-advisor";
+const ADVISOR_ANON_KEY = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string) ?? "";
+
+/** Direct call to groq-advisor — same client pattern as machine-builder.tsx's advisorCall. */
+async function advisorOptionsCall(description: string, locale: string): Promise<{
+  summary: string; options: AdvisorOption[]; requirements: AdvisorRequirements | null;
+}> {
+  const res = await fetch(ADVISOR_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": ADVISOR_ANON_KEY,
+      "Authorization": `Bearer ${ADVISOR_ANON_KEY}`,
+    },
+    body: JSON.stringify({ action: "options", description, answers: {}, locale }),
+  });
+  if (!res.ok) throw new Error(`Advisor error ${res.status}`);
+  return res.json();
 }
 
 /** Build conversation history from visible messages (last N text exchanges) */
@@ -142,7 +187,6 @@ function ChatPage() {
   const explain = useServerFn(aiExplain);
   const askKnowledge = useServerFn(aiAskKnowledge);
   const extractDims = useServerFn(aiExtractDimensions);
-  const systemDesign = useServerFn(aiSystemDesign);
   const visionChat = useServerFn(aiVisionChat);
 
   const [catalog, setCatalog] = useState<ProductRow[] | null>(null);
@@ -336,16 +380,13 @@ function ChatPage() {
 
       // ── 8. Build response messages ──────────────────────────────────────
       if (physics.isSystem && systemGroups.length > 0) {
-        // System answer: generate full 5-section engineering design, then show product cards per subsystem
-        const foundProductsSummary = systemGroups.map((grp) => ({
-          label: grp.label,
-          skus: grp.products.map((p) => p.sku),
-        }));
-
-        // Show product cards immediately while AI generates the design
+        // System answer: show per-subsystem product cards immediately (grounded,
+        // client-side), then replace an intro placeholder with ranked main-actuator
+        // options from groq-advisor — the SAME hardened, catalog-grounded pipeline
+        // machine-builder uses, instead of chat's own free-text design generation.
         const introText = isSv
-          ? `Pick & place-system — genererar komplett systemdesign...`
-          : `Pick & place system — generating complete system design...`;
+          ? `Pick & place-system — hämtar rekommenderade komponenter...`
+          : `Pick & place system — fetching recommended components...`;
         setMsgs((m) => [...m, { role: "assistant", text: introText }]);
 
         for (const grp of systemGroups) {
@@ -356,26 +397,26 @@ function ChatPage() {
           ]);
         }
 
-        // Async: replace intro with full engineering design output
-        systemDesign({
-          data: {
-            dims,
-            physics: { technology: physics.technology, reasoning: physics.reasoning, warnings: physics.warnings, isSystem: physics.isSystem },
-            foundProducts: foundProductsSummary,
-            locale,
-          },
-        }).then((result) => {
+        // Async: replace intro with ranked options from groq-advisor
+        advisorOptionsCall(q, locale).then((result) => {
           setMsgs((m) => {
-            // Replace the intro "generating..." message with the full design
             let idx = -1;
             for (let i = m.length - 1; i >= 0; i--) {
               if (m[i].text === introText) { idx = i; break; }
             }
-            if (idx === -1) return [...m, { role: "assistant" as MsgRole, text: result.design }];
-            return [...m.slice(0, idx), { role: "assistant" as MsgRole, text: result.design }, ...m.slice(idx + 1)];
+            const optMsg: Msg = {
+              role: "advisor-options" as MsgRole,
+              text: result.summary,
+              advisorOptions: result.options,
+              advisorRequirements: result.requirements,
+            };
+            if (idx === -1) return [...m, optMsg];
+            return [...m.slice(0, idx), optMsg, ...m.slice(idx + 1)];
           });
         }).catch(() => {
-          // On failure, leave the product cards — they are still useful
+          // On failure, leave the product cards — they are still useful. Remove
+          // the "fetching..." placeholder rather than leave it stuck.
+          setMsgs((m) => m.filter((msg) => msg.text !== introText));
         });
       } else if (deduped.length > 0) {
         // Normal product results
@@ -634,6 +675,25 @@ function ChatPage() {
                 </div>
               );
             }
+            if (m.role === "advisor-options" && m.advisorOptions) {
+              return (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="size-6 rounded-full bg-info/15 text-info text-xs flex items-center justify-center shrink-0 mt-0.5">✦</span>
+                  <div className="space-y-2 max-w-2xl w-full">
+                    {m.text && (
+                      <div className="rounded-xl px-4 py-3 text-sm bg-surface-alt border border-border text-foreground">
+                        {m.text}
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      {m.advisorOptions.map((opt) => (
+                        <AdvisorOptionCard key={opt.sku} opt={opt} requirements={m.advisorRequirements ?? null} isSv={isSv} locale={locale} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
             if (m.role === "assistant") {
               return (
                 <div key={i} className="flex items-start gap-2">
@@ -687,6 +747,90 @@ function ChatPage() {
           <div ref={bottomRef} />
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Advisor option card — mirrors machine-builder's option cards so the "same AI
+// voice" is also visually consistent, not just backed by the same data. ──────────
+const ADVISOR_BADGE_COLORS: Record<string, string> = {
+  "Bästa valet": "bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)]",
+  "Best choice": "bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)]",
+  "Kompakt alternativ": "bg-info/10 text-info",
+  "Compact option": "bg-info/10 text-info",
+  "Budgetalternativ": "bg-gold/20 text-[oklch(0.45_0.12_80)]",
+  "Budget option": "bg-gold/20 text-[oklch(0.45_0.12_80)]",
+};
+
+function AdvisorOptionCard({ opt, requirements, isSv, locale }: {
+  opt: AdvisorOption; requirements: AdvisorRequirements | null; isSv: boolean; locale: string;
+}) {
+  const showForce = requirements?.required_force_n != null && opt.force_n != null;
+  const showStroke = requirements?.required_stroke_mm != null && opt.stroke_mm != null;
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${ADVISOR_BADGE_COLORS[opt.badge] ?? "bg-muted text-muted-foreground"}`}>
+            {opt.badge}
+          </span>
+          <span className="font-semibold text-sm text-foreground">{opt.name}</span>
+          <span className="font-mono text-xs text-muted-foreground">{opt.sku}</span>
+        </div>
+        <a
+          href={`/${locale}/machine-builder`}
+          className="text-info text-xs font-medium shrink-0 hover:underline"
+        >
+          {isSv ? "Fullständig stycklista →" : "Full BOM →"}
+        </a>
+      </div>
+      {opt.why && <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{opt.why}</p>}
+      {(showForce || showStroke) && (
+        <div className="mt-3 pt-3 border-t border-border/60 flex flex-wrap gap-4">
+          {showForce && (
+            <AdvisorDimBar
+              label={isSv ? `Kraft @ ${requirements!.pressure_bar} bar` : `Force @ ${requirements!.pressure_bar} bar`}
+              required={requirements!.required_force_n!} available={opt.force_n!} unit="N"
+              requiredLabel={isSv ? "Krävs" : "Required"} availableLabel={isSv ? "Ger" : "Delivers"}
+            />
+          )}
+          {showStroke && (
+            <AdvisorDimBar
+              label={isSv ? "Slaglängd" : "Stroke"}
+              required={requirements!.required_stroke_mm!} available={opt.stroke_mm!} unit="mm"
+              requiredLabel={isSv ? "Krävs" : "Required"} availableLabel={isSv ? "Klarar" : "Rated"}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdvisorDimBar({ label, required, available, unit, requiredLabel, availableLabel }: {
+  label: string; required: number; available: number; unit: string; requiredLabel: string; availableLabel: string;
+}) {
+  const max = Math.max(required, available, 1) * 1.05;
+  const availPct = Math.min((available / max) * 100, 100);
+  const reqPct = Math.min((required / max) * 100, 100);
+  const meets = available >= required;
+  const margin = required > 0 ? available / required : null;
+  return (
+    <div className="min-w-[140px] flex-1">
+      <div className="flex items-baseline justify-between text-[11px] mb-1">
+        <span className="text-muted-foreground">{label}</span>
+        <span className={`font-semibold ${meets ? "text-[oklch(0.45_0.14_155)]" : "text-destructive"}`}>
+          {margin != null ? `${margin.toFixed(1)}×` : meets ? "✓" : "⚠"}
+        </span>
+      </div>
+      <div className="relative h-2 rounded-full bg-muted overflow-hidden">
+        <div className={`absolute inset-y-0 left-0 rounded-full ${meets ? "bg-[oklch(0.72_0.15_155)]" : "bg-destructive/70"}`} style={{ width: `${availPct}%` }} />
+        <div className="absolute inset-y-0 w-[2px] bg-foreground/50" style={{ left: `${reqPct}%` }} />
+      </div>
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-0.5">
+        <span>{requiredLabel} {required.toLocaleString()} {unit}</span>
+        <span>{availableLabel} {available.toLocaleString()} {unit}</span>
+      </div>
     </div>
   );
 }
