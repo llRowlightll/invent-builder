@@ -445,7 +445,26 @@ function needsMultiAxis(text: string): boolean {
   // letters: the old `x.*y|y.*x|x.*z|z.*x` matched any x/y/z across the whole string,
   // so "Cylinder … exakt" (y…x) was falsely flagged multi-axis — which disabled the
   // precision hard-filter and triggered per-axis BOM logic on single-axis jobs.
-  return /\b[xyz][-_\s]?ax(el|is|e)|\bxyz\b|\b[xyz]\s*[\/-]\s*[xyz]\b|två axl|två rörel|horisontell.*vertikal|vertikal.*horisontell|pick.and.place|pick.*place|plocka.*placera|plocka.*flytta|lyfter.*flytta|flytta.*lyft|2-axl|2 axl|multi.*axl|cartesian|portalsystem|lyfter.*flyttar|lyfter.*och.*flyttar/i.test(text);
+  if (/\b[xyz][-_\s]?ax(el|is|e)|\bxyz\b|\b[xyz]\s*[\/-]\s*[xyz]\b|två axl|två rörel|horisontell.*vertikal|vertikal.*horisontell|pick.and.place|pick.*place|plocka.*placera|plocka.*flytta|lyfter.*flytta|flytta.*lyft|2-axl|2 axl|multi.*axl|cartesian|portalsystem|lyfter.*flyttar|lyfter.*och.*flyttar/i.test(text)) return true;
+
+  // Adversarial test finding 2026-08-16: "en enda cylinder som SAMTIDIGT lyfter,
+  // roterar och griper" fell through every pattern above (none of them anticipate
+  // lift+rotate+grip specifically) and landed in isPureRotary — a narrow,
+  // non-LLM path that only picks by torque and stayed silent about the missing
+  // lift/grip functions entirely. No catalog part does lift+rotate+grip; the
+  // honest answer is "separate axis per motion," same as pick-and-place already
+  // gets above. Gated on explicit simultaneity language (not just "lift" and
+  // "grip" co-occurring) — a plain "gripper that lifts a box" is one ordinary
+  // gripper request, not a multi-axis one, and must NOT trip this.
+  const isSimultaneous = /\bsamtidigt\b|\bsamma\s+gång\b|\bi\s+en\s+rörelse\b|\ben\s+enda\b.{0,20}\bsom\b|\bsimultaneous(ly)?\b|\bat\s+the\s+same\s+time\b|\bin\s+one\s+motion\b/i.test(text);
+  if (isSimultaneous) {
+    let motionTypes = 0;
+    if (/\blyft(er|a)?\b|\bhissa\b|\blift(s|ing)?\b/i.test(text)) motionTypes++;
+    if (/roter|rotat|\bvrid|\bsväng|rotary|\brotate|\brotation\b/i.test(text)) motionTypes++;
+    if (/gripdon|gripare|\bgripper\b|klämback|gripa\s|griper\s|\bgrip\b|\bclamp(ing)?\b/i.test(text)) motionTypes++;
+    if (motionTypes >= 2) return true;
+  }
+  return false;
 }
 
 function needsVacuumGrip(text: string): boolean {
