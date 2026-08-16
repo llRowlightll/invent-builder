@@ -107,19 +107,14 @@ export default function PublicOffertPage() {
     const result = Array.isArray(data) ? data[0] : data;
     const newOrderId = (result as { order_id?: string } | null)?.order_id ?? null;
     if (newOrderId) setOrderId(newOrderId);
-    // Fire notification email
+    // Fire notification email — order-status-email re-reads the rfq's real
+    // status/amount/order by id, so it reflects what respond_to_quote() actually
+    // did rather than trusting `decision` (which might not match, e.g. if the
+    // quote had already been responded to and the RPC's update was a no-op).
     await fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        order_ref: docRef(rfqId),
-        contact_email: rfq?.contact_email,
-        contact_name: rfq?.contact_name ?? "",
-        status: decision,
-        quote_amount: totalInc,
-        currency,
-        oc_url: newOrderId ? `${window.location.origin}/${locale}/oc/${newOrderId}` : undefined,
-      }),
+      body: JSON.stringify({ id: rfqId, kind: "rfq", locale }),
     }).catch(console.error);
     setAccepting(false);
     if (decision === "accepted") setAccepted(true);

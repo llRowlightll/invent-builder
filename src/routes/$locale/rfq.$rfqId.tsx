@@ -113,18 +113,12 @@ function RfqPage() {
     const { error } = await supabase.from("rfqs").update({ status: decision }).eq("id", rfq.id);
     if (error) { setAcceptError(error.message); setAccepting(false); return; }
     setRfq({ ...rfq, status: decision });
-    // Fire confirmation email to customer
+    // Fire confirmation email — order-status-email re-reads status/amount from
+    // the row we just updated, by id, rather than trusting a client payload.
     fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        order_ref: rfq.id.slice(0, 8).toUpperCase(),
-        contact_email: rfq.contact_email,
-        contact_name: rfq.contact_name ?? "",
-        status: decision,
-        quote_amount: rfq.quote_amount,
-        currency: rfq.quote_currency ?? "SEK",
-      }),
+      body: JSON.stringify({ id: rfq.id, kind: "rfq", locale }),
     }).catch(console.error);
     setAccepting(false);
   }

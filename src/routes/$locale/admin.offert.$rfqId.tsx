@@ -175,22 +175,14 @@ export default function AdminOffertPage() {
   async function sendToCustomer() {
     if (!rfq) return;
     setSending(true);
-    const publicUrl = `${window.location.origin}/${locale}/offert/${rfqId}`;
+    // Write the quote first — order-status-email re-reads status/amount straight
+    // from this row by id, so it must already reflect what we're about to send.
+    await supabase.from("rfqs").update({ status: "quoted", quote_amount: totalInc, quote_currency: currency }).eq("id", rfqId);
     await fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        order_ref: docRef(rfqId),
-        contact_email: rfq.contact_email,
-        contact_name: rfq.contact_name ?? "",
-        status: "quoted",
-        quote_amount: totalInc,
-        currency,
-        quote_url: publicUrl,
-      }),
+      body: JSON.stringify({ id: rfqId, kind: "rfq", locale }),
     }).catch(console.error);
-    // Also update RFQ status to quoted
-    await supabase.from("rfqs").update({ status: "quoted", quote_amount: totalInc, quote_currency: currency }).eq("id", rfqId);
     setSending(false);
     setSent(true);
   }
