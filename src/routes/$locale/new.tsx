@@ -273,6 +273,10 @@ function VideoCard({ video, t }: { video: VideoItem; t: ReturnType<typeof makeT>
             title={video.title}
             className="absolute inset-0 w-full h-full"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            // YouTube tightened embed validation in late 2025 — without an explicit
+            // referrer, embeds now fail with "Error 153: video player configuration
+            // error" instead of playing. This was working before that change.
+            referrerPolicy="strict-origin-when-cross-origin"
             allowFullScreen
           />
         ) : thumbError ? (
