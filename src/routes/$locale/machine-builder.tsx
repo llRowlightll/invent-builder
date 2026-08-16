@@ -1306,37 +1306,15 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
       setRfqId(orderRef);
       setRfqSent(true);
 
-      // Build item list for emails + order record
-      const notifyItems = activeBom.map((l) => {
-        const product = l.product ?? catalog.find(p => p.sku === l.sku);
-        return {
-          sku: l.sku,
-          name: product?.name ?? l.role,
-          qty: l.quantity,
-          role: l.role,
-        };
-      });
-      const totalExVat = activeBom.reduce((sum, l) => {
-        const price = (l.product ?? catalog.find(p => p.sku === l.sku))?.purchase_price ?? 0;
-        return sum + price * l.quantity;
-      }, 0);
-
-      // Auto-create order record (även för anonyma — user_id är nullable)
-      if (authUser?.id || rfqName.trim()) {
-        supabase.from("orders").insert({
-          user_id: authUser?.id ?? null,
-          rfq_id: rfqRow.id,
-          customer_name: rfqName.trim(),
-          customer_company: rfqCompany.trim() || null,
-          customer_email: rfqEmail.trim(),
-          po_number: rfqPoNumber.trim() || null,
-          status: "new",
-          items: notifyItems,
-          total_ex_vat: totalExVat > 0 ? totalExVat : null,
-          total_inc_vat: totalExVat > 0 ? totalExVat * 1.25 : null,
-          currency: "SEK",
-        }).then(({ error: oErr }) => { if (oErr) console.error("order insert:", oErr); });
-      }
+      // No order is created here — an order only exists once a real quote is
+      // accepted (respond_to_quote(), triggered from the customer's offert
+      // page), same as the shopping-list.tsx flow. This used to also insert an
+      // "orders" row immediately on submission, priced from purchase_price —
+      // internal cost, never a customer-facing price — and before anyone had
+      // even reviewed the request. Removed rather than fixed in place: the
+      // real order-creation path already exists and is the single source of
+      // truth for order totals/lifecycle, so this was redundant as well as
+      // wrong.
 
       // Fire-and-forget: admin notification + customer confirmation email.
       // rfq-notify re-reads the rest from the rfq_id row it's given — see that
