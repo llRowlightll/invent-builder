@@ -49,10 +49,25 @@ function GuidePage() {
     publisher: { "@type": "Organization", name: "Maskinval", url: SITE },
     mainEntityOfPage: `${SITE}/${locale}/guider/${g.slug}`,
   };
+  // FAQPage schema — the structured-data type answer engines (ChatGPT, Perplexity,
+  // Google AI Overviews) preferentially extract for direct-answer citation. Mirrors
+  // the visible Q&A section below, not hidden-only markup.
+  const faqJsonLd = g.faq?.length ? {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: g.faq.map((f) => ({
+      "@type": "Question",
+      name: sv ? f.q.sv : f.q.en,
+      acceptedAnswer: { "@type": "Answer", text: sv ? f.a.sv : f.a.en },
+    })),
+  } : null;
 
   return (
     <div className="container-page py-10 max-w-3xl">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      {faqJsonLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
+      )}
 
       <Link to="/$locale/guider" params={{ locale }} className="text-xs text-muted-foreground hover:text-info">
         ← {sv ? "Alla guider" : "All guides"}
@@ -70,6 +85,22 @@ function GuidePage() {
           </section>
         ))}
       </div>
+
+      {g.faq && g.faq.length > 0 && (
+        <div className="mt-10">
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">
+            {sv ? "Vanliga frågor" : "Frequently asked questions"}
+          </h2>
+          <div className="mt-4 space-y-4">
+            {g.faq.map((f, i) => (
+              <div key={i}>
+                <h3 className="text-sm font-semibold text-foreground">{sv ? f.q.sv : f.q.en}</h3>
+                <p className="mt-1 text-sm text-foreground/80 leading-relaxed">{sv ? f.a.sv : f.a.en}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-10 rounded-xl border border-info/30 bg-info/5 p-5">
         <p className="text-sm text-foreground/90 leading-relaxed">{sv ? g.cta.sv : g.cta.en}</p>
