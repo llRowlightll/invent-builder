@@ -10,7 +10,7 @@ export const Route = createFileRoute("/$locale/guider/")({
       {
         name: "description",
         content:
-          "Köpguider för pneumatik och automation: dimensionera cylinder, välja ventil, beräkna luftförbrukning och välja mellan elektrisk och pneumatisk aktuator.",
+          "Köpguider för pneumatik och automation: dimensionera cylinder för vertikal eller horisontell last, välja ventil och gripdon, beräkna luftförbrukning, IP-klass och ATEX, och välja mellan elektrisk och pneumatisk aktuator.",
       },
     ],
     links: [
