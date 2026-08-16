@@ -5,6 +5,7 @@
  *   "quote"    — Supplier quote → extract prices per line item
  *   "identify" — Component/machine photo → identify + suggest products
  */
+import { withinRateLimit } from "../_shared/rate-limit.ts";
 
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-haiku-4-5"; // Fast + cheap for extraction tasks
@@ -95,6 +96,16 @@ Analyze the image and return ONLY valid JSON (no markdown, no explanation) with 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: cors });
+  }
+
+  // SECURITY: legitimately called by both anonymous customers and admin, no
+  // auth-shaped fix available — was open to unlimited free Claude vision
+  // calls (more expensive per-call than Groq text). 10/min per IP: covers a
+  // real multi-document upload session, tight enough to stop cost abuse.
+  if (!(await withinRateLimit(req, "document-ai", 10, 60))) {
+    return new Response(JSON.stringify({ error: "rate_limited" }), {
+      status: 429, headers: { ...cors, "Content-Type": "application/json" },
+    });
   }
 
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
