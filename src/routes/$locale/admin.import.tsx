@@ -113,9 +113,13 @@ function ImportPage() {
     setPdfLoading(true); setPdfMsg(null); setLog([]); setParseErrors([]);
     try {
       const text = await extractPdfText(file);
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/extract-products", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token ?? ""}`,
+        },
         body: JSON.stringify({ text }),
       });
       const data = await res.json() as { products?: ParsedRow[]; error?: string };

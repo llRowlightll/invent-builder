@@ -10,7 +10,15 @@
  *   2. Sends the text + catalog to Groq (openai/gpt-oss-120b — llama-3.3-70b-versatile
  *      was decommissioned by Groq 2026-08-16).
  *   3. Returns structured price proposals for admin confirmation.
+ *
+ * SECURITY: only ever called from admin.pricing.tsx — an admin-only workflow
+ * (proposals still require manual admin confirmation before anything is
+ * written). Was deployed with verify_jwt:false and no auth check at all, so
+ * anyone on the internet could burn this project's Groq quota on arbitrary
+ * text. requireAdmin() closes that; this doesn't touch what prices are or
+ * how they're set, just who can invoke the extraction tool.
  */
+import { requireAdmin } from "../_shared/admin-auth.ts";
 
 const GROQ_URL  = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_KEY  = Deno.env.get("GROQ_API_KEY") ?? "";
@@ -62,6 +70,9 @@ async function callGroq(messages: { role: string; content: string }[]): Promise<
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+
+  const admin = await requireAdmin(req);
+  if (admin instanceof Response) return admin;
 
   try {
     const body = await req.json() as { text?: string };

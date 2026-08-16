@@ -191,21 +191,12 @@ function ShoppingListPage() {
           })),
         );
 
-        const orderRef = rfqRow.id.slice(0, 8).toUpperCase();
+        // rfq-notify re-reads the rest from the rfq_id row it's given — see that
+        // function's own header comment for why it doesn't trust a client payload.
         fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/rfq-notify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            rfq_id: rfqRow.id,
-            order_ref: orderRef,
-            contact_name: rfqName.trim(),
-            contact_email: rfqEmail.trim(),
-            contact_phone: rfqPhone.trim() || null,
-            company: rfqCompany.trim() || null,
-            message: rfqMessage.trim() || null,
-            title,
-            items: items.map((i) => ({ sku: i.sku, name: i.name, qty: i.qty, role: "ordered" })),
-          }),
+          body: JSON.stringify({ rfq_id: rfqRow.id }),
         }).catch(console.error);
 
         setRfqId(rfqRow.id); // full UUID so the "View RFQ" link resolves correctly

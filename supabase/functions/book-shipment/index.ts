@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAdmin } from "../_shared/admin-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,6 +37,12 @@ async function calcWeight(supabase: any, rfq_id: string): Promise<number> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  // SECURITY: verify_jwt=true only proves the caller is SOME logged-in user —
+  // booking a real, paid shipment for any rfq_id is an admin action, not
+  // something any authenticated customer should be able to trigger.
+  const admin = await requireAdmin(req);
+  if (admin instanceof Response) return admin;
 
   try {
     const supabase = createClient(

@@ -302,10 +302,7 @@ export default function CrmPage() {
     try {
       const res = await fetch(FUNCTION_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-hook-secret": "maskinval-welcome",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: testEmail,
           name: "Alexander",
