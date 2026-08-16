@@ -1338,23 +1338,13 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
         }).then(({ error: oErr }) => { if (oErr) console.error("order insert:", oErr); });
       }
 
-      // Fire-and-forget: admin notification + customer confirmation email
+      // Fire-and-forget: admin notification + customer confirmation email.
+      // rfq-notify re-reads the rest from the rfq_id row it's given — see that
+      // function's own header comment for why it doesn't trust a client payload.
       fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/rfq-notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rfq_id: rfqRow.id,
-          order_ref: orderRef,
-          contact_name: rfqName.trim(),
-          contact_email: rfqEmail.trim(),
-          contact_phone: rfqPhone.trim() || null,
-          company: rfqCompany.trim() || null,
-          po_number: rfqPoNumber.trim() || null,
-          title: title || `Maskinbyggare — ${selected.name}`,
-          message,
-          items: notifyItems,
-          total_ex_vat: totalExVat > 0 ? totalExVat : null,
-        }),
+        body: JSON.stringify({ rfq_id: rfqRow.id }),
       }).catch(console.error);
     } catch (e) {
       console.error(e);

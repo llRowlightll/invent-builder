@@ -8,7 +8,12 @@
  * category_slug/family/description/ip_rating/fieldbus/voltage) for the admin
  * import preview. The valid brand + category slugs are injected into the prompt so
  * the model maps to slugs the importer accepts; invalid ones are dropped here too.
+ *
+ * SECURITY: only ever called from admin.import.tsx — an admin-only catalog
+ * import tool. Was deployed with verify_jwt:false and no auth check at all;
+ * requireAdmin() closes that (same fix, same reasoning, as extract-prices).
  */
+import { requireAdmin } from "../_shared/admin-auth.ts";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_KEY = Deno.env.get("GROQ_API_KEY") ?? "";
@@ -47,6 +52,10 @@ async function callGroq(messages: { role: string; content: string }[]): Promise<
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+
+  const admin = await requireAdmin(req);
+  if (admin instanceof Response) return admin;
+
   try {
     const body = await req.json() as { text?: string };
     const text = (body.text ?? "").trim();

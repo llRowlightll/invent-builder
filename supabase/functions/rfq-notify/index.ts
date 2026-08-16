@@ -4,8 +4,20 @@
  * Skickar TWO mejl via Resend:
  *   1. Admin-notis  → ADMIN_NOTIFY_EMAIL (intern; default alexandrooden@gmail.com)
  *   2. Orderbekräftelse → kunden (professionell HTML)
+ *
+ * SECURITY: this endpoint has no auth (verify_jwt=false) because it's called
+ * right after an anonymous/just-created RFQ — so it must not trust caller-
+ * supplied contact_email/message/items wholesale, or it's an open relay
+ * (anyone could make it email arbitrary content to an arbitrary address).
+ * Only rfq_id is trusted from the request; everything else is re-read from
+ * the rfqs/rfq_items rows that the frontend just inserted, using the
+ * service-role client — a caller can only trigger a notification for a
+ * real RFQ that genuinely exists, with its real, already-stored content.
  */
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API = "https://api.resend.com/emails";
 const RESEND_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const FROM        = "Maskinval <noreply@maskinval.se>";
@@ -23,16 +35,19 @@ interface Item { sku: string; name: string; qty: number; unit_price?: number; ro
 
 interface Payload {
   rfq_id:        string;
-  order_ref:     string;          // Kortform för kunden, t.ex. "A1B2C3D4"
+  order_ref:     string;
   contact_name:  string;
   contact_email: string;
   contact_phone?: string | null;
   company?:      string | null;
   po_number?:    string | null;
-  title:         string;
   message:       string;
   items:         Item[];
   total_ex_vat?: number | null;
+}
+
+function docRef(rfqId: string) {
+  return rfqId.slice(0, 8).toUpperCase();
 }
 
 async function sendEmail(to: string, subject: string, html: string) {
@@ -202,7 +217,56 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   try {
-    const payload: Payload = await req.json();
+    const { rfq_id } = await req.json();
+    if (!rfq_id || typeof rfq_id !== "string") {
+      return new Response(JSON.stringify({ error: "rfq_id required" }), {
+        status: 400, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+
+    // Only rfq_id is trusted from the request — everything else is re-read from
+    // the row the frontend just inserted, so a caller can't make this send
+    // arbitrary content to an arbitrary address (see file header).
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const [{ data: rfq, error: rfqErr }, { data: items }] = await Promise.all([
+      supabase.from("rfqs").select("*").eq("id", rfq_id).single(),
+      supabase.from("rfq_items").select("qty, unit_price, role, products(sku, name)").eq("rfq_id", rfq_id),
+    ]);
+    if (rfqErr || !rfq) {
+      return new Response(JSON.stringify({ error: "rfq not found" }), {
+        status: 404, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+    if (!rfq.contact_email) {
+      return new Response(JSON.stringify({ error: "rfq has no contact_email" }), {
+        status: 400, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+
+    const mappedItems: Item[] = (items ?? []).map((it: Record<string, unknown>) => {
+      const product = it.products as { sku?: string; name?: string } | null;
+      return {
+        sku: product?.sku ?? "—",
+        name: product?.name ?? (it.role as string) ?? "",
+        qty: (it.qty as number) ?? 1,
+        unit_price: it.unit_price as number | undefined,
+        role: it.role as string | undefined,
+      };
+    });
+    const totalExVat = mappedItems.reduce((s, it) => s + (it.unit_price ?? 0) * it.qty, 0) || null;
+
+    const payload: Payload = {
+      rfq_id,
+      order_ref: docRef(rfq_id),
+      contact_name: rfq.contact_name ?? "",
+      contact_email: rfq.contact_email,
+      contact_phone: rfq.contact_phone,
+      company: rfq.company,
+      po_number: rfq.po_number,
+      message: rfq.message ?? "",
+      items: mappedItems,
+      total_ex_vat: totalExVat,
+    };
 
     // Fire both emails in parallel
     await Promise.all([

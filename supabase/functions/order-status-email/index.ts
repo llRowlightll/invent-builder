@@ -1,7 +1,22 @@
 /**
  * order-status-email — skickas av admin när orderstatus ändras.
  * Kunden får ett kortfattat statusmejl med relevant info per status.
+ *
+ * SECURITY: verify_jwt is false and there's no auth check — legitimately
+ * anonymous callers (offert.$rfqId.tsx, rfq.$rfqId.tsx) fire this right after
+ * a customer accepts/declines their own quote, with no session guaranteed at
+ * that point. That means the whole Payload below is caller-supplied and
+ * unverified, not just contact_email/status. Every string field that lands in
+ * the HTML is now escaped, and invoice_url/oc_url are restricted to https —
+ * before this, anyone could POST here and get a genuine "Maskinval" email,
+ * with a fabricated amount and a "📄 Ladda ned faktura" button pointing
+ * anywhere, sent to any address. Closing *that* (who can trigger this, and
+ * for which real order) needs re-deriving the payload from a trusted
+ * order_id/rfq_id server-side instead of trusting the client's copy — same
+ * pattern as rfq-notify — across all 6 call sites; flagged as a follow-up,
+ * not done here.
  */
+import { escapeHtml, safeHref } from "../_shared/html.ts";
 
 const RESEND_API = "https://api.resend.com/emails";
 const RESEND_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
@@ -100,10 +115,20 @@ const emailWrap = (body: string) => `<!DOCTYPE html>
 </body></html>`;
 
 function buildEmail(p: Payload): { subject: string; html: string } {
-  const info = STATUS_SV[p.status];
-  if (!info) return { subject: `Order #${p.order_ref} — uppdatering`, html: emailWrap(`<p>Din order #${p.order_ref} har uppdaterats till: <strong>${p.status}</strong></p>`) };
+  // All caller-supplied strings that land in the HTML go through escapeHtml;
+  // invoice_url/oc_url through safeHref (https-only) — see file header.
+  const orderRef = escapeHtml(p.order_ref ?? "");
+  const poNumber = p.po_number ? escapeHtml(p.po_number) : null;
+  const trackingNumber = p.tracking_number ? escapeHtml(p.tracking_number) : null;
+  const carrier = p.carrier ? escapeHtml(p.carrier) : null;
+  const invoiceNumber = p.invoice_number ? escapeHtml(p.invoice_number) : null;
+  const invoiceUrl = safeHref(p.invoice_url);
+  const ocUrl = safeHref(p.oc_url);
 
-  const firstName = p.contact_name.split(" ")[0];
+  const info = STATUS_SV[p.status];
+  if (!info) return { subject: `Order #${orderRef} — uppdatering`, html: emailWrap(`<p>Din order #${orderRef} har uppdaterats till: <strong>${escapeHtml(p.status ?? "")}</strong></p>`) };
+
+  const firstName = escapeHtml((p.contact_name ?? "").split(" ")[0]);
   const fmtDate = (d: string) => new Date(d).toLocaleDateString("sv-SE", { weekday:"long", month:"long", day:"numeric" });
   const fmtMoney = (n: number) => n.toLocaleString("sv-SE", { style:"currency", currency: p.currency || "SEK", maximumFractionDigits:0 });
 
@@ -122,12 +147,12 @@ function buildEmail(p: Payload): { subject: string; html: string } {
     </div>`;
   }
 
-  if (p.status === "shipped" && (p.tracking_number || p.estimated_delivery)) {
+  if (p.status === "shipped" && (trackingNumber || p.estimated_delivery)) {
     extra = `
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px 20px;margin:20px 0;">
-      ${p.tracking_number ? `
+      ${trackingNumber ? `
         <p style="margin:0 0 4px;font-size:12px;color:#166534;font-weight:600;">SPÅRNINGSNUMMER</p>
-        <p style="margin:0 0 12px;font-size:20px;font-weight:700;font-family:monospace;color:#15803d;">${p.tracking_number}${p.carrier ? ` (${p.carrier})` : ""}</p>` : ""}
+        <p style="margin:0 0 12px;font-size:20px;font-weight:700;font-family:monospace;color:#15803d;">${trackingNumber}${carrier ? ` (${carrier})` : ""}</p>` : ""}
       ${p.estimated_delivery ? `
         <p style="margin:0 0 4px;font-size:12px;color:#166534;font-weight:600;">BERÄKNAD LEVERANS</p>
         <p style="margin:0;font-size:14px;color:#166534;">${fmtDate(p.estimated_delivery)}</p>` : ""}
@@ -138,30 +163,30 @@ function buildEmail(p: Payload): { subject: string; html: string } {
     extra = `
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px 20px;margin:20px 0;">
       <table width="100%" cellpadding="4" cellspacing="0">
-        ${p.po_number ? `<tr><td style="font-size:12px;color:#94a3b8;">Ditt PO-nummer</td><td style="font-size:14px;font-weight:600;font-family:monospace;color:#1e293b;">${p.po_number}</td></tr>` : ""}
-        ${p.invoice_number ? `<tr><td style="font-size:12px;color:#94a3b8;">Fakturanummer</td><td style="font-size:14px;font-weight:600;color:#1e293b;">${p.invoice_number}</td></tr>` : ""}
+        ${poNumber ? `<tr><td style="font-size:12px;color:#94a3b8;">Ditt PO-nummer</td><td style="font-size:14px;font-weight:600;font-family:monospace;color:#1e293b;">${poNumber}</td></tr>` : ""}
+        ${invoiceNumber ? `<tr><td style="font-size:12px;color:#94a3b8;">Fakturanummer</td><td style="font-size:14px;font-weight:600;color:#1e293b;">${invoiceNumber}</td></tr>` : ""}
         ${p.invoice_due_date ? `<tr><td style="font-size:12px;color:#94a3b8;">Förfallodatum</td><td style="font-size:14px;font-weight:600;color:#dc2626;">${fmtDate(p.invoice_due_date)}</td></tr>` : ""}
         ${p.total_inc_vat ? `<tr><td style="font-size:12px;color:#94a3b8;">Att betala (inkl. moms)</td><td style="font-size:16px;font-weight:700;color:#1e293b;">${fmtMoney(p.total_inc_vat)}</td></tr>` : ""}
       </table>
-      ${p.invoice_url ? `
+      ${invoiceUrl ? `
         <div style="margin-top:12px;">
-          <a href="${p.invoice_url}" style="display:inline-block;background:#1e293b;color:#fff;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;">
+          <a href="${invoiceUrl}" style="display:inline-block;background:#1e293b;color:#fff;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;">
             📄 Ladda ned faktura
           </a>
         </div>` : ""}
-      ${p.oc_url && !p.invoice_url ? `
+      ${ocUrl && !invoiceUrl ? `
         <div style="margin-top:12px;">
-          <a href="${p.oc_url}" style="display:inline-block;background:#1e293b;color:#fff;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;">
+          <a href="${ocUrl}" style="display:inline-block;background:#1e293b;color:#fff;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;">
             📄 Visa orderbekräftelse
           </a>
         </div>` : ""}
     </div>`;
   }
 
-  if (p.status === "accepted" && p.oc_url) {
+  if (p.status === "accepted" && ocUrl) {
     extra = `
     <div style="margin:20px 0;">
-      <a href="${p.oc_url}" style="display:inline-block;background:#1e293b;color:#fff;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;">
+      <a href="${ocUrl}" style="display:inline-block;background:#1e293b;color:#fff;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;">
         📄 Visa orderbekräftelse
       </a>
     </div>`;
@@ -178,8 +203,8 @@ function buildEmail(p: Payload): { subject: string; html: string } {
     <!-- Reference -->
     <div style="display:inline-block;background:#f1f5f9;border-radius:6px;padding:6px 14px;margin-bottom:16px;">
       <span style="font-size:12px;color:#94a3b8;">Referens </span>
-      <span style="font-size:14px;font-weight:700;font-family:monospace;color:#1e293b;">#${p.order_ref}</span>
-      ${p.po_number ? `<span style="font-size:12px;color:#94a3b8;margin-left:12px;">PO </span><span style="font-size:13px;font-family:monospace;color:#6366f1;">${p.po_number}</span>` : ""}
+      <span style="font-size:14px;font-weight:700;font-family:monospace;color:#1e293b;">#${orderRef}</span>
+      ${poNumber ? `<span style="font-size:12px;color:#94a3b8;margin-left:12px;">PO </span><span style="font-size:13px;font-family:monospace;color:#6366f1;">${poNumber}</span>` : ""}
     </div>
 
     ${extra}
@@ -191,7 +216,7 @@ function buildEmail(p: Payload): { subject: string; html: string } {
   `);
 
   return {
-    subject: `${info.emoji} Order #${p.order_ref} — ${info.label}`,
+    subject: `${info.emoji} Order #${orderRef} — ${info.label}`,
     html,
   };
 }
