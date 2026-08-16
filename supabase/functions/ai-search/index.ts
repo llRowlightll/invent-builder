@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { withinRateLimit } from "../_shared/rate-limit.ts";
 
 // SECURITY: no hardcoded fallback — a live secret was hardcoded here before and
 // exposed in source. Fail closed (empty string -> Groq call 401s) instead of a key.
@@ -141,6 +142,13 @@ async function rerank(
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+
+  // SECURITY: public search, no auth-shaped fix available — was open to
+  // unlimited free Groq calls. 20/min per IP: generous for real searching,
+  // tight enough to stop scripted abuse.
+  if (!(await withinRateLimit(req, "ai-search", 20, 60))) {
+    return Response.json({ error: "rate_limited" }, { status: 429, headers: CORS });
+  }
 
   try {
     const { query, limit = 10 } = await req.json();
