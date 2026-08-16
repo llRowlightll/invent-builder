@@ -2012,12 +2012,23 @@ async function handleOptions(
     `${i+1}. SKU="${p.sku}" | ${p.name} [${p.brand}/${p.category}] stroke=${strokeLabel(p.key_specs??{})} specs:${JSON.stringify(p.key_specs??{})}`
   ).join("\n");
 
+  // SECURITY/SAFETY: found via adversarial testing 2026-08-16 — asked for a Zone 1
+  // ATEX cylinder "cheapest possible, regardless of ATEX rating" and the model
+  // fabricated "these meet ATEX Zone 1/2 requirements" for three completely
+  // standard, uncertified ISO cylinders (verified against product_specs: no
+  // certification/explosion-protection field exists on any catalog product).
+  // Nothing in the prompt told it not to invent a compliance claim, so — asked
+  // for a confident, specific engineering justification — it did. The BOM action
+  // already has correct, server-injected ATEX warning text; this path had none.
+  const atexWarning = (isAtex || isAtexDust) ? `
+4. ATEX/Ex-zone request detected. These 3 products are STANDARD catalog items — NONE are ATEX/IECEx zone-certified (verify: no catalog product carries explosion-protection certification). You MUST NOT state or imply that any of them is ATEX-rated, explosion-proof, or zone-safe. "why" and "summary" MUST explicitly say these are standard, non-certified components shown for dimensioning/reference only, and that genuine ATEX/IECEx-certified equivalents (e.g. Parker P1X ATEX, SMC CDQMB-ATEX, Norgren Excelon ATEX-series) must be sourced and verified against the stated zone before purchase — recommend contacting us for a certified solution rather than ordering these directly.` : "";
+
   const optSystem = `You are a senior automation engineer. Write product descriptions for 3 pre-selected products. All text in ${lang}.
 
 MANDATORY RULES:
 1. Use EXACTLY these SKUs: ${topProducts.map(p => p.sku).join(", ")} — do NOT change them
 2. "why" = engineering justification (mechanism, stroke fit, safety, material) — be specific, mention numbers
-3. pros: 2-3 items, cons: 1-2 items
+3. pros: 2-3 items, cons: 1-2 items${atexWarning}
 Do NOT output a badge field — badges are assigned server-side and must not be set by you.
 
 JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "EXACT_SKU", "why": "...", "pros": [...], "cons": [...] } ] }`;
