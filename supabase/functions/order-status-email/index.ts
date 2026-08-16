@@ -1,22 +1,31 @@
 /**
- * order-status-email — skickas av admin när orderstatus ändras.
+ * order-status-email — skickas när en RFQ:s eller orders status ändras.
  * Kunden får ett kortfattat statusmejl med relevant info per status.
  *
- * SECURITY: verify_jwt is false and there's no auth check — legitimately
- * anonymous callers (offert.$rfqId.tsx, rfq.$rfqId.tsx) fire this right after
- * a customer accepts/declines their own quote, with no session guaranteed at
- * that point. That means the whole Payload below is caller-supplied and
- * unverified, not just contact_email/status. Every string field that lands in
- * the HTML is now escaped, and invoice_url/oc_url are restricted to https —
- * before this, anyone could POST here and get a genuine "Maskinval" email,
- * with a fabricated amount and a "📄 Ladda ned faktura" button pointing
- * anywhere, sent to any address. Closing *that* (who can trigger this, and
- * for which real order) needs re-deriving the payload from a trusted
- * order_id/rfq_id server-side instead of trusting the client's copy — same
- * pattern as rfq-notify — across all 6 call sites; flagged as a follow-up,
- * not done here.
+ * SECURITY: verify_jwt is false — legitimately anonymous callers
+ * (offert.$rfqId.tsx, rfq.$rfqId.tsx) fire this right after a customer
+ * accepts/declines their own quote, with no session guaranteed at that
+ * point. This used to trust the caller's ENTIRE payload — contact_email,
+ * amounts, tracking numbers, even the invoice_url behind the "download
+ * invoice" button — making it a full open relay (fixed once already, by
+ * escaping/restricting what could land in the HTML; this is the deeper fix
+ * flagged at the time: who can trigger it, and for which real order).
+ *
+ * Now the caller sends only { id, kind, locale? } — an rfq_id or order_id
+ * and which table it belongs to. Everything else (contact info, amounts,
+ * tracking, invoice/oc links) is re-read here from that row using the
+ * service-role client, so a caller can only ever trigger a notification
+ * that reflects a real row's actual current state — never fabricated
+ * content, and never a status transition that didn't really happen (a
+ * bonus fix: some frontend callers used to fire this off a client-side
+ * `decision` variable without checking whether the DB update it depended on
+ * actually succeeded; reading the real row sidesteps that class of bug too).
  */
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { escapeHtml, safeHref } from "../_shared/html.ts";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const RESEND_API = "https://api.resend.com/emails";
 const RESEND_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
@@ -29,6 +38,13 @@ const cors = {
 };
 
 const ADMIN_EMAIL = "info@maskinval.se";
+const LOCALES = ["sv", "en", "de", "es"];
+const RFQ_STATUSES = new Set(["quoted", "accepted", "rejected"]);
+const ORDER_STATUSES = new Set(["confirmed", "picking", "shipped", "delivered", "invoiced", "paid", "cancelled"]);
+
+function docRef(id: string) {
+  return id.slice(0, 8).toUpperCase();
+}
 
 interface Payload {
   order_ref:        string;
@@ -224,7 +240,71 @@ function buildEmail(p: Payload): { subject: string; html: string } {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
-    const payload: Payload = await req.json();
+    const body = await req.json();
+    const id = typeof body.id === "string" ? body.id : "";
+    const kind = body.kind === "rfq" || body.kind === "order" ? body.kind : "";
+    const locale = LOCALES.includes(body.locale) ? body.locale : "sv";
+    if (!id || !kind) {
+      return new Response(JSON.stringify({ error: "id and kind ('rfq'|'order') required" }), {
+        status: 400, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    let payload: Payload;
+
+    if (kind === "rfq") {
+      const { data: rfq, error } = await supabase.from("rfqs").select("*").eq("id", id).single();
+      if (error || !rfq) {
+        return new Response(JSON.stringify({ error: "rfq not found" }), { status: 404, headers: { ...cors, "Content-Type": "application/json" } });
+      }
+      // Only a real, notification-worthy RFQ status sends anything — this also
+      // means a caller can't force a notification for a transition that never
+      // actually happened (e.g. respond_to_quote() rejected the update).
+      if (!RFQ_STATUSES.has(rfq.status) || !rfq.contact_email) {
+        return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...cors, "Content-Type": "application/json" } });
+      }
+      let ocUrl: string | null = null;
+      if (rfq.status === "accepted") {
+        const { data: order } = await supabase.from("orders").select("id").eq("rfq_id", id).maybeSingle();
+        if (order) ocUrl = `${SITE}/${locale}/oc/${order.id}`;
+      }
+      payload = {
+        order_ref: docRef(id),
+        contact_email: rfq.contact_email,
+        contact_name: rfq.contact_name ?? "",
+        status: rfq.status,
+        quote_amount: rfq.quote_amount,
+        po_number: rfq.po_number,
+        currency: rfq.quote_currency ?? "SEK",
+        oc_url: ocUrl,
+      };
+    } else {
+      const { data: order, error } = await supabase.from("orders").select("*").eq("id", id).single();
+      if (error || !order) {
+        return new Response(JSON.stringify({ error: "order not found" }), { status: 404, headers: { ...cors, "Content-Type": "application/json" } });
+      }
+      if (!ORDER_STATUSES.has(order.status) || !order.customer_email) {
+        return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...cors, "Content-Type": "application/json" } });
+      }
+      payload = {
+        order_ref: docRef(id),
+        contact_email: order.customer_email,
+        contact_name: order.customer_name ?? "",
+        status: order.status,
+        po_number: order.po_number,
+        estimated_delivery: order.estimated_delivery,
+        tracking_number: order.tracking_number,
+        carrier: order.carrier,
+        invoice_number: order.invoice_number,
+        invoice_url: order.invoice_url,
+        invoice_due_date: order.invoice_due_date,
+        total_inc_vat: order.total_inc_vat,
+        currency: order.currency ?? "SEK",
+        oc_url: `${SITE}/${locale}/oc/${id}`,
+      };
+    }
+
     const { subject, html } = buildEmail(payload);
 
     // BCC admin on quote + acceptance so they see both sides of the conversation

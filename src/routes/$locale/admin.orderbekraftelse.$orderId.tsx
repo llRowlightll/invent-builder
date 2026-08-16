@@ -147,21 +147,15 @@ export default function AdminOCPage() {
   async function sendToCustomer() {
     if (!order) return;
     setSending(true);
+    // order-status-email re-reads total/delivery/status straight from the orders
+    // row by id — status must be written first, and note this only reflects
+    // totals/delivery already saved via "Spara" above, not unsaved edits here.
+    await supabase.from("orders").update({ status: "confirmed" }).eq("id", orderId);
     await fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        order_ref: docRef(orderId),
-        contact_email: order.customer_email,
-        contact_name: order.customer_name,
-        status: "confirmed",
-        total_inc_vat: totalInc,
-        currency,
-        estimated_delivery: deliveryText,
-        oc_url: publicOcUrl,
-      }),
+      body: JSON.stringify({ id: orderId, kind: "order", locale }),
     }).catch(console.error);
-    await supabase.from("orders").update({ status: "confirmed" }).eq("id", orderId);
     setSending(false);
     setSent(true);
   }

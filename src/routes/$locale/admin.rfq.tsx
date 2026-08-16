@@ -132,22 +132,17 @@ export default function AdminRfqPage() {
       setRfqs((prev) => prev.map((r) => r.id === selected.id ? data as Rfq : r));
       setSelected(data as Rfq);
 
-      // Fire customer email when status transitions to a notification-worthy status
+      // Fire customer email when status transitions to a notification-worthy status.
+      // The rfqs row above is already saved, so order-status-email re-reads status/
+      // amount straight from it by id — it no longer trusts a client payload.
       const statusChanged = editStatus !== previousStatus;
       if (statusChanged && EMAIL_STATUSES.includes(editStatus) && selected.contact_email) {
-        const orderRef = selected.id.slice(0, 8).toUpperCase();
         fetch(
           "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email",
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              order_ref: orderRef,
-              contact_email: selected.contact_email,
-              contact_name: selected.contact_name ?? "",
-              status: editStatus,
-              quote_amount: editQuote ? Number(editQuote) : null,
-            }),
+            body: JSON.stringify({ id: selected.id, kind: "rfq" }),
           }
         )
           .then((r) => { if (r.ok) setEmailSent(editStatus); })
