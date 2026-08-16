@@ -80,7 +80,7 @@ function makeNews(t: ReturnType<typeof makeT>): NewsItem[] {
       categoryKey: "product",
       title: t("newPage.n_smc_zp3_title"),
       summary: t("newPage.n_smc_zp3_summary"),
-      url: "https://www.smc.eu/en-eu/products/vacuum-pads~ZP3-TB",
+      url: "https://www.smc.eu/en-eu/products/featured-products/industrial-vacuum-pad-packaging",
       tags: ["vakuum", "elektrisk automation", "energibesparing"],
     },
     {
@@ -92,7 +92,7 @@ function makeNews(t: ReturnType<typeof makeT>): NewsItem[] {
       categoryKey: "tech",
       title: t("newPage.n_smc_vqc_title"),
       summary: t("newPage.n_smc_vqc_summary"),
-      url: "https://www.smc.eu/en-eu/products/solenoid-valves~VQC",
+      url: "https://www.smc.eu/en-eu/products/valves-all-types~37407~nav",
       tags: ["ventil", "IO-Link", "diagnostik"],
     },
     {
@@ -128,7 +128,7 @@ function makeNews(t: ReturnType<typeof makeT>): NewsItem[] {
       categoryKey: "product",
       title: t("newPage.n_norgren_title"),
       summary: t("newPage.n_norgren_summary"),
-      url: "https://www.norgren.com/en/products/valves/directional-control-valves/v60-series",
+      url: "https://www.norgren.com/en/products/v60p511a-a3000a",
       tags: ["ventil", "IP67", "livsmedel", "fordon"],
     },
     {
@@ -156,7 +156,7 @@ function makeNews(t: ReturnType<typeof makeT>): NewsItem[] {
       tags: ["ventilö", "EtherNet/IP", "Modbus TCP"],
     },
     {
-      id: "camozzi-series9-2025",
+      id: "camozzi-series63-2025",
       brand: "Camozzi",
       brandSlug: "camozzi",
       brandColor: "#E2001A",
@@ -164,8 +164,8 @@ function makeNews(t: ReturnType<typeof makeT>): NewsItem[] {
       categoryKey: "product",
       title: t("newPage.n_camozzi_series_9_title"),
       summary: t("newPage.n_camozzi_series_9_summary"),
-      url: "https://www.camozzi.com/products/series-9-cylinders.html",
-      tags: ["cylinder", "ISO 15552", "IP67"],
+      url: "https://en.automation.camozzi.com/",
+      tags: ["cylinder", "ISO 15552"],
     },
   ];
 }
