@@ -1,0 +1,76 @@
+name: Customer/Admin Flow Tests (report-only)
+
+on:
+  schedule:
+    - cron: '30 2 * * *'   # 02:30 UTC nightly (04:30 svensk tid) — after the AI eval
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  flow-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run customer/admin flow checks
+        id: flows
+        run: |
+          python3 scripts/test-customer-flows.py 2>&1 | tee flow-output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+        env:
+          TEST_CUSTOMER_EMAIL: ${{ secrets.TEST_CUSTOMER_EMAIL }}
+          TEST_CUSTOMER_PASSWORD: ${{ secrets.TEST_CUSTOMER_PASSWORD }}
+          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
+        continue-on-error: true
+
+      - name: Parse results
+        id: results
+        run: |
+          PASSES=$(grep -o '[0-9]* ✅' flow-output.txt | grep -o '[0-9]*' | tail -1 || echo 0)
+          FAILS=$(grep -o '[0-9]* ❌' flow-output.txt | grep -o '[0-9]*' | tail -1 || echo 0)
+          echo "passes=$PASSES" >> "$GITHUB_OUTPUT"
+          echo "fails=$FAILS"   >> "$GITHUB_OUTPUT"
+
+      - name: Write job summary
+        run: |
+          echo "## 🔐 Customer/Admin Flow Eval — $(date '+%Y-%m-%d')" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Resultat | Antal |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ✅ Gröna | ${{ steps.results.outputs.passes }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ❌ Fel   | ${{ steps.results.outputs.fails }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "<details><summary>Fullständig output</summary>" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat flow-output.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open GitHub Issue on failures
+        if: fromJSON(steps.results.outputs.fails || '0') >= 1
+        continue-on-error: true
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fails = '${{ steps.results.outputs.fails }}';
+            const date  = new Date().toISOString().split('T')[0];
+            const fs    = require('fs');
+            const output = fs.readFileSync('flow-output.txt', 'utf8');
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              labels: 'flow-test-failure', state: 'open',
+            });
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title: `🔐 Customer/admin flow test: ${fails} fel (${date})`,
+                body: `## Flow-test misslyckades\n\n${fails} kontroll(er) av inloggat kund-/adminflöde gick fel.\n\n\`\`\`\n${output.slice(0, 3000)}\n\`\`\`\n\nKör lokalt för att reproducera (kräver TEST_CUSTOMER_EMAIL/PASSWORD):\n\`\`\`bash\npython3 scripts/test-customer-flows.py\n\`\`\``,
+                labels: ['flow-test-failure', 'bug'],
+              });
+            }
