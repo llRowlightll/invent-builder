@@ -2018,13 +2018,29 @@ async function handleOptions(
   });
 
   // ── LLM enrichment: text only, SKUs are pre-locked ───────────────
+  // Adversarial-test finding 2026-08-17: oxygen-clean and pharma/GMP requests
+  // got zero relevant guidance because their hazard flags (computed above,
+  // same as the ones already listed here) were never actually included in
+  // this string — only 6 of 14 computed flags reached this call. The BOM
+  // action's specialConstraints array already surfaces all of them; this
+  // brings the options action's requirement summary up to the same coverage.
   const reqSummary = [
     maxRequiredStroke > 0 ? `Stroke: ${maxRequiredStroke} mm` : "",
     precisionMm > 0 ? `Precision: ±${precisionMm} mm` : "",
     isVerticalLoad ? (isSv ? "Vertikal last" : "Vertical load") : "",
     isWashdown ? "Washdown/IP69K" : "",
     isAtex ? "ATEX Zone 1/2" : "",
+    isAtexDust ? "ATEX Zone 20/21/22 (damm)" : "",
     isHighSpeed ? `Hög hastighet ${(speedMs*1000).toFixed(0)} mm/s` : "",
+    isOxygenClean ? "⛔ Syrgasmiljö — endast oljefria komponenter, ingen standard smord pneumatik" : "",
+    isPharmaGmp ? "⚠️ GMP/FDA-krav — 316L/PTFE/EPDM, ej standardaluminium" : "",
+    isBatteryDryroom ? "⛔ Torrumsmiljö (batteri) — absolut Cu/Zn/Ni-förbud" : "",
+    isSilSafety ? "⚠️ SIL/PL säkerhetsfunktion — certifierad ventil krävs" : "",
+    isHydraulic || isVeryHighForce ? "⚠️ Hydraulik/mycket hög kraft — utanför pneumatisk katalog" : "",
+    isHighTemp ? "⚠️ Hög temperatur >80°C — PTFE/FKM-tätning krävs" : "",
+    isLowTemp ? "⚠️ Låg temperatur — kontrollera tätningsmaterial" : "",
+    isOutdoor ? "Utomhus/marin miljö — korrosionsbeständighet" : "",
+    isHighCycle ? "Kontinuerlig drift/högfrekvent — dimensionera för livslängd" : "",
   ].filter(Boolean).join(" | ");
 
   const preselectedStr = topProducts.map((p, i) =>
@@ -2042,12 +2058,23 @@ async function handleOptions(
   const atexWarning = (isAtex || isAtexDust) ? `
 4. ATEX/Ex-zone request detected. These 3 products are STANDARD catalog items — NONE are ATEX/IECEx zone-certified (verify: no catalog product carries explosion-protection certification). You MUST NOT state or imply that any of them is ATEX-rated, explosion-proof, or zone-safe. "why" and "summary" MUST explicitly say these are standard, non-certified components shown for dimensioning/reference only, and that genuine ATEX/IECEx-certified equivalents (e.g. Parker P1X ATEX, SMC CDQMB-ATEX, Norgren Excelon ATEX-series) must be sourced and verified against the stated zone before purchase — recommend contacting us for a certified solution rather than ordering these directly.` : "";
 
+  // SECURITY/CORRECTNESS: adversarial-tested 2026-08-17 — even a completely
+  // ordinary, non-adversarial request ("cylinder for a stop function on a
+  // conveyor") produced "why" text claiming a heat-treated steel body and
+  // built-in pressure relief valves, neither of which exist anywhere in that
+  // product's specs. Root cause: rule 2 below used to say "be specific,
+  // mention numbers" about "material" and "safety" without ever telling the
+  // model those topics are only sometimes present in the actual data — so
+  // when they weren't, it invented plausible-sounding ones instead of just
+  // not mentioning them. Confirmed across 4 independent test calls (SIL,
+  // oxygen-clean, pharma/GMP, and one plain query) before concluding this
+  // was systemic rather than a one-off sampling fluke.
   const optSystem = `You are a senior automation engineer. Write product descriptions for 3 pre-selected products. All text in ${lang}.
 
 MANDATORY RULES:
 1. Use EXACTLY these SKUs: ${topProducts.map(p => p.sku).join(", ")} — do NOT change them
-2. "why" = engineering justification (mechanism, stroke fit, safety, material) — be specific, mention numbers
-3. pros: 2-3 items, cons: 1-2 items${atexWarning}
+2. "why" = engineering justification grounded ONLY in the specs actually given for that product below (its specs:{...} JSON — bore, stroke, force, pressure, temperature, etc). Cite real numbers from there. Do NOT invent material, weight, coatings, heat treatment, integrated safety features (e.g. "built-in pressure relief"), or certifications that aren't listed — if a product's data doesn't cover something, leave it out rather than guessing. A short, fully-grounded "why" is correct; a longer one padded with invented details is not.
+3. pros/cons: same rule — only claims backed by the listed specs. 2-3 pros, 1-2 cons.${atexWarning}
 Do NOT output a badge field — badges are assigned server-side and must not be set by you.
 
 JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "EXACT_SKU", "why": "...", "pros": [...], "cons": [...] } ] }`;
