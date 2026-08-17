@@ -115,6 +115,85 @@ ENVS = {
         "phrasings": ["nära ugn 120 °C", "driftstemperatur 110°C", "het miljö 95 grader"],
         "answers": {"temperatur": "120 °C"},
     },
+    # ── Added 2026-08-17: these 8 hazard classes are all detected and handled
+    # in groq-advisor (each has its own needsX() regex + downstream logic —
+    # see index.ts) but NONE were ever exercised by this eval before today.
+    # That is not a coincidence: it is the reason adversarial manual testing
+    # kept finding fresh bugs in exactly these classes (fabricated specs,
+    # blank why/pros) that months of nightly runs never surfaced — the
+    # generator simply never asked these questions. Phrasings below are
+    # verified word-for-word against groq-advisor's actual needsX() regexes
+    # (not guessed) so they reliably set the flag they claim to.
+    "oxygen": {
+        "phrasings": [
+            "i syrgas miljö, endast oljefria komponenter tillåtna",
+            "oxygen-clean certifiering krävs på alla delar",
+            "medical oxygen-anläggning, komponenterna måste vara rena",
+        ],
+        "answers": {"miljö": "syrgas, oljefritt"},
+    },
+    "pharma": {
+        "phrasings": [
+            "GMP-klassad produktionslinje för läkemedel",
+            "pharma-anläggning med sterilitetskrav",
+            "FDA-godkänd process, validerade material krävs",
+        ],
+        "answers": {"miljö": "GMP/FDA"},
+    },
+    "sil": {
+        "phrasings": [
+            "SIL 2-klassad säkerhetsfunktion på skyddsgrind",
+            "nödstopp måste stoppa cylindern omedelbart",
+            "ISO 13849 performance level PLd krävs",
+        ],
+        "answers": {"säkerhet": "SIL 2 / PLd"},
+    },
+    "dryroom": {
+        "phrasings": [
+            "litiumjonbatterifabrik, torrkammare med låg luftfuktighet",
+            "battericell-montering i produktionslinjen",
+            "hantering av katodmaterial i batteritillverkning",
+        ],
+        "answers": {"miljö": "torrum, batteri"},
+    },
+    "lowtemp": {
+        "phrasings": [
+            "i ett frysrum vid låg temperatur",
+            "kylrum för livsmedelslagring, mycket kallt",
+            "djupfrys för livsmedel, extremt kall miljö",
+        ],
+        "answers": {"temperatur": "-25 °C"},
+    },
+    "outdoor": {
+        "phrasings": [
+            "utomhus installation vid hamnen",
+            "marin miljö med saltvattenexponering",
+            "offshore-plattform, korrosiv miljö",
+        ],
+        "answers": {"miljö": "utomhus/marin"},
+    },
+    "highcycle": {
+        "phrasings": [
+            "80 cykler per min kontinuerlig drift",
+            "hög frekvens drift dygnet runt",
+            "150 slag per timme, snabb takt",
+        ],
+        "answers": {"drift": "högfrekvent"},
+    },
+    # Deliberately its own top-level branch in groq-advisor (an early return
+    # BEFORE the LLM is even called — see "Hydraulic application" in
+    # index.ts): a hydraulic request should get ONLY a CUSTOM-SOLUTION
+    # escalation, never a pneumatic catalog product. Phrasing must avoid
+    # "cylinder" as the base noun since gen_scenario always prepends
+    # "Cylinder " — the hydraulic keyword alone is what matters here.
+    "hydraulic": {
+        "phrasings": [
+            "hydraulisk drift, 200 bar oljetryck",
+            "hydraulic system för tung pressning",
+            "oljecylinder, hydraulapplikation",
+        ],
+        "answers": {"drift": "hydraulisk"},
+    },
 }
 
 
@@ -308,6 +387,43 @@ def check_options(scenario, resp, cat):
         if "atex" in f:
             bad = [o.get("sku") for o in real if sku_cat.get(o.get("sku", ""), "") in ATEX_BANNED_CATS]
             out.append(("INV-atex-no-electric-cat", not bad, f"elektrisk drivlina i ATEX: {bad}"))
+
+    # INV-10 every REAL option must have a non-empty "why" — added 2026-08-17
+    # after finding (live, reproducible) that a truncated/partial LLM response
+    # could leave why="" and pros=[] on real catalog products with no error
+    # surfaced anywhere. groq-advisor now guarantees a grounded server-side
+    # fallback for this, so it should be structurally impossible again — this
+    # invariant exists specifically to catch a regression of that guarantee.
+    bad_why = [o.get("sku") for o in real if not str(o.get("why") or "").strip()]
+    out.append(("INV-options-why-nonempty", not bad_why, f"tom 'why': {bad_why}"))
+
+    # INV-11 HYDRAULIC ⇒ groq-advisor takes an early-return path (before the
+    # LLM is even called) that offers ONLY a CUSTOM-SOLUTION escalation — a
+    # pneumatic catalog product is never pressure-rated for hydraulic oil, so
+    # it must never appear here at all, not even as a secondary option.
+    if "hydraulic" in f:
+        ok = len(opts) == 1 and bsku == "CUSTOM-SOLUTION"
+        out.append(("INV-hydraulic=>custom-only", ok, f"options={[o.get('sku') for o in opts]} (förväntar endast CUSTOM-SOLUTION)"))
+
+    # INV-12 DRYROOM ⇒ every real option's cons carries the Cu/Zn/Ni warning.
+    # This is a deterministic server-side injection (index.ts post-validation,
+    # not LLM prose) whenever isBatteryDryroom is set, so it should never miss.
+    if "dryroom" in f:
+        marker = re.compile(r"cu/zn/ni|dryroom|torrum", re.I)
+        bad = [o.get("sku") for o in real if not marker.search(json.dumps(o.get("cons", []), ensure_ascii=False))]
+        out.append(("INV-dryroom=>cuznni-warning", not bad, f"saknar Cu/Zn/Ni-varning: {bad}"))
+
+    # INV-13 SIL + VERTICAL ⇒ the CUSTOM-SOLUTION entry's "why" (always present
+    # in the options array, server-templated by buildCustomSolutionOption) must
+    # carry the SIL/PLd rod-lock warning. Guarded off when hydraulic ALSO fired:
+    # that early-return path builds its own CUSTOM-SOLUTION with a hardcoded
+    # isSilSafety:false context (a real but separate, narrower gap — combining
+    # it into this invariant would just be noise on an unrealistic scenario).
+    if {"sil", "vertical"} <= f and "hydraulic" not in f:
+        custom = next((o for o in opts if o.get("sku") == "CUSTOM-SOLUTION"), {})
+        marker = re.compile(r"sil|pld|plr|ple|rod.?lock|stångbroms|broms", re.I)
+        ok = bool(marker.search(str(custom.get("why", ""))))
+        out.append(("INV-sil+vertical=>safety-warning", ok, f"CUSTOM why: {custom.get('why', '')[:80]!r}"))
     return out
 
 
@@ -368,6 +484,33 @@ def check_bom(scenario, resp, cat, primary):
     if "washdown" in f:
         ok = bool(re.search(r"ip69|washdown|hygien|316l|food|livs|korrosion", blob))
         out.append(("INV-bom-washdown-note", ok, "saknar washdown-varning"))
+
+    # INV-B10..B16 — added 2026-08-17, same "does the response even MENTION the
+    # hazard anywhere" style as B6-B9 above. Note: "hydraulic" has no BOM
+    # invariant here — the runner never reaches the BOM step for it, since a
+    # hydraulic best_option is always CUSTOM-SOLUTION (see INV-11), which the
+    # runner explicitly skips BOM for.
+    if "oxygen" in f:
+        ok = bool(re.search(r"syrgas|oxygen", blob))
+        out.append(("INV-bom-oxygen-note", ok, "saknar syrgas-varning"))
+    if "pharma" in f:
+        ok = bool(re.search(r"gmp|fda|316l|pharma|läkemedel|steril", blob))
+        out.append(("INV-bom-pharma-note", ok, "saknar GMP/FDA-varning"))
+    if "sil" in f:
+        ok = bool(re.search(r"\bsil\b|pld|plr|ple|säkerhetsfunktion|safety.*function|13849|62061", blob))
+        out.append(("INV-bom-sil-note", ok, "saknar SIL/PL-varning"))
+    if "dryroom" in f:
+        ok = bool(re.search(r"cu/zn/ni|dryroom|torrum|litiumjon|lithium", blob))
+        out.append(("INV-bom-dryroom-note", ok, "saknar Cu/Zn/Ni/dryroom-varning"))
+    if "lowtemp" in f:
+        ok = bool(re.search(r"låg.*temp|low.*temp|frys|kyl|-\d{2}\s*°?c|lt.*tätning|kall", blob))
+        out.append(("INV-bom-lowtemp-note", ok, "saknar lågtemperatur-varning"))
+    if "outdoor" in f:
+        ok = bool(re.search(r"utomhus|outdoor|marin|marine|korrosion|corrosion|uv|saltvatten|salt.spray", blob))
+        out.append(("INV-bom-outdoor-note", ok, "saknar utomhus/korrosionsvarning"))
+    if "highcycle" in f:
+        ok = bool(re.search(r"livsläng|cykel|cycle|frekvens|frequency|kontinuerlig|continuous", blob))
+        out.append(("INV-bom-highcycle-note", ok, "saknar högfrekvens/livslängdsvarning"))
     return out
 
 
