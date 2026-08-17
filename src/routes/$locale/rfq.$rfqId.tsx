@@ -62,6 +62,7 @@ function RfqPage() {
   const [bookingResult, setBookingResult] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
+  const [orderId, setOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/$locale/login", params: { locale } });
@@ -77,6 +78,12 @@ function RfqPage() {
       setCatalog(cat);
       setRfq(r as unknown as RfqRow);
       setItems(it ?? []);
+      // Already accepted from an earlier visit — look up the real order so
+      // the confirmation block below can link to it.
+      if ((r as unknown as RfqRow | null)?.status === "accepted") {
+        const { data: order } = await supabase.from("orders").select("id").eq("rfq_id", rfqId).maybeSingle();
+        if (order) setOrderId(order.id);
+      }
     })();
   }, [rfqId]);
 
@@ -110,11 +117,31 @@ function RfqPage() {
     if (!rfq) return;
     setAccepting(true);
     setAcceptError(null);
-    const { error } = await supabase.from("rfqs").update({ status: decision }).eq("id", rfq.id);
+    // SECURITY/CORRECTNESS: this used to be a raw rfqs.update() — rfqs has no
+    // UPDATE policy for regular users at all (only INSERT/SELECT own rows),
+    // so that call silently failed under RLS for every real customer. Route
+    // through the same SECURITY DEFINER RPC offert.$rfqId.tsx already uses:
+    // it validates the transition, and on acceptance creates the real order
+    // atomically — this page never did that either.
+    const { data, error } = await supabase.rpc("respond_to_quote", {
+      p_id: rfq.id,
+      p_decision: decision,
+    });
     if (error) { setAcceptError(error.message); setAccepting(false); return; }
+    const result = Array.isArray(data) ? data[0] : data;
+    const success = (result as { success?: boolean } | null)?.success ?? false;
+    const newOrderId = (result as { order_id?: string } | null)?.order_id ?? null;
+    if (!success) {
+      setAcceptError(locale === "sv"
+        ? "Kunde inte uppdatera offerten — den kan redan ha besvarats."
+        : "Could not update the quote — it may already have been responded to.");
+      setAccepting(false);
+      return;
+    }
     setRfq({ ...rfq, status: decision });
+    if (newOrderId) setOrderId(newOrderId);
     // Fire confirmation email — order-status-email re-reads status/amount from
-    // the row we just updated, by id, rather than trusting a client payload.
+    // the row respond_to_quote() just updated, by id.
     fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -251,6 +278,15 @@ function RfqPage() {
                 ? "Tack! Vi bekräftar ordern och återkommer med leveransinfo."
                 : "Thank you! We are confirming your order and will be in touch with delivery details."}
             </p>
+            {orderId && (
+              <Link
+                to="/$locale/oc/$orderId"
+                params={{ locale, orderId }}
+                className="inline-block mt-2 text-sm font-medium text-info hover:opacity-80"
+              >
+                {locale === "sv" ? "Visa orderbekräftelse →" : "View order confirmation →"}
+              </Link>
+            )}
           </div>
         </div>
       )}
