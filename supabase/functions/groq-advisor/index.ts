@@ -2003,6 +2003,19 @@ async function handleOptions(
 
   const serverOptions = topProducts.map((p, i) => {
     const ms = parseStrokeFromSpecs(p.key_specs ?? {});
+    const bore = parseFloat(String(p.key_specs?.bore_mm ?? "0")) || null;
+    const force = parseFloat(String(p.key_specs?.force_n ?? "0")) || null;
+    // Adversarial-test finding 2026-08-17: gpt-oss-120b is a reasoning model —
+    // on a 3-item JSON array it sometimes spends its budget on hidden reasoning
+    // and closes the array early, silently omitting the later SKUs from its
+    // response. When that happens below, this is what ships to the customer
+    // instead of a blank "why" — so it must hold up fully on its own: real
+    // numbers only, never invented.
+    const fallbackWhy = [
+      bore ? (isSv ? `Ø${bore} mm borr` : `Ø${bore} mm bore`) : "",
+      ms > 0 ? (isSv ? `${ms} mm slag` : `${ms} mm stroke`) : "",
+      force ? `${force} N` : "",
+    ].filter(Boolean).join(", ");
     return {
       sku: p.sku, name: p.name,
       badge: i === 0 && isSystemScope
@@ -2010,10 +2023,10 @@ async function handleOptions(
         : i === 0 && boreInexact
         ? (isSv ? "Närmaste — överdimensionerad" : "Closest — oversized")
         : (isSv ? ["Bästa valet","Kompakt alternativ","Budgetalternativ"][i] : ["Best choice","Compact option","Budget option"][i]),
-      bore_mm: parseFloat(String(p.key_specs?.bore_mm ?? "0")) || null,
+      bore_mm: bore,
       stroke_mm: ms > 0 ? ms : null,
-      force_n: parseFloat(String(p.key_specs?.force_n ?? "0")) || null,
-      why: "", pros: [] as string[], cons: [] as string[],
+      force_n: force,
+      why: fallbackWhy, pros: [] as string[], cons: [] as string[],
     };
   });
 
@@ -2083,8 +2096,16 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
 
   let rawOptions: string | null = null;
   let optRateLimited = false;
-  try { rawOptions = await callGroq([{ role: "system", content: optSystem }, { role: "user", content: optUser }], 1200, true, 0.3); }
-  catch (e) { if ((e as Error).message === "RATE_LIMITED") optRateLimited = true; }
+  // 1200→2200: gpt-oss-120b is a reasoning model — its hidden reasoning tokens
+  // count against max_tokens before any visible output, and on a tight budget
+  // it was intermittently closing the JSON options array early (confirmed live
+  // 2026-08-17: 2 of 3 real products came back with blank why/pros in the same
+  // response). 2200 gives headroom for reasoning + all 3 full entries.
+  try { rawOptions = await callGroq([{ role: "system", content: optSystem }, { role: "user", content: optUser }], 2200, true, 0.3); }
+  catch (e) {
+    if ((e as Error).message === "RATE_LIMITED") optRateLimited = true;
+    else console.error("options: callGroq threw, falling back to grounded server defaults:", e);
+  }
 
   // Merge: server data (authoritative) + LLM text
   let finalOptions = [...serverOptions] as Array<Record<string, unknown>>;
@@ -2097,7 +2118,10 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
       for (const o of (llm.options ?? [])) if (o?.sku) llmBySkuMap.set(o.sku as string, o);
       finalOptions = finalOptions.map(opt => {
         const llmOpt = llmBySkuMap.get(opt.sku as string);
-        if (!llmOpt) return opt;
+        if (!llmOpt) {
+          console.error("options: LLM omitted SKU from response, using grounded fallback:", opt.sku);
+          return opt;
+        }
         // Badge is server-authoritative — the LLM only writes prose (why/pros/cons).
         // It used to be allowed to override the badge and always re-stamped the top
         // pick 'Bästa valet', even when the server had flagged it as the closest
@@ -2110,7 +2134,7 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
           cons:  (Array.isArray(llmOpt.cons) && llmOpt.cons.length) ? llmOpt.cons  : opt.cons,
         };
       });
-    } catch { /* ignore — use server defaults */ }
+    } catch (e) { console.error("options: failed to parse LLM JSON, using grounded server defaults:", e); }
   }
 
   // ── Server-side post-validation (stroke, washdown, precision, temp) ──
