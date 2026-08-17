@@ -34,8 +34,20 @@ interface RfqRow {
   estimated_delivery: string | null;
 }
 interface ItemRow { role: string | null; qty: number | null; product_id: string | null }
+interface StatusLogRow {
+  id: string;
+  status: string;
+  message: string | null;
+  estimated_next: string | null;
+  triggered_by: string | null;
+  created_at: string;
+}
 
 const STATUS_STEPS = ["new", "processing", "quoted", "accepted", "shipped", "delivered"];
+// "Ask for an update" only makes sense while we're still working on it —
+// once a quote is out (or the RFQ is done/dead) there's a clearer next step
+// already on screen (accept/decline, or the rejection notice).
+const AWAITING_RESPONSE_STATUSES = ["new", "processing"];
 
 function statusLabel(t: ReturnType<typeof makeT>, s: string) {
   const map: Record<string, string> = {
@@ -63,6 +75,56 @@ function RfqPage() {
   const [accepting, setAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [statusLog, setStatusLog] = useState<StatusLogRow[]>([]);
+  const [asking, setAsking] = useState(false);
+  const [askSent, setAskSent] = useState(false);
+  const [askNote, setAskNote] = useState("");
+  const [showAskNote, setShowAskNote] = useState(false);
+  const [replyMessage, setReplyMessage] = useState("");
+  const [replyEstimatedNext, setReplyEstimatedNext] = useState("");
+  const [replySending, setReplySending] = useState(false);
+
+  async function loadStatusLog() {
+    const { data } = await supabase.rpc("get_rfq_status_log", { p_rfq_id: rfqId });
+    setStatusLog((data as unknown as StatusLogRow[]) ?? []);
+  }
+
+  async function askForUpdate() {
+    setAsking(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rfq-status-request`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ rfq_id: rfqId, note: askNote || undefined }),
+      });
+      if (res.ok) {
+        setAskSent(true);
+        setShowAskNote(false);
+        setAskNote("");
+        loadStatusLog();
+      }
+    } catch (e) { console.error(e); }
+    setAsking(false);
+  }
+
+  async function sendAdminReply() {
+    if (!replyMessage.trim() || !rfq) return;
+    setReplySending(true);
+    const { error } = await supabase.from("rfq_status_log").insert({
+      rfq_id: rfq.id,
+      status: rfq.status,
+      message: replyMessage.trim(),
+      estimated_next: replyEstimatedNext.trim() || null,
+      triggered_by: "admin",
+    });
+    if (!error) {
+      setReplyMessage("");
+      setReplyEstimatedNext("");
+      loadStatusLog();
+    }
+    setReplySending(false);
+  }
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/$locale/login", params: { locale } });
@@ -85,6 +147,7 @@ function RfqPage() {
         if (order) setOrderId(order.id);
       }
     })();
+    loadStatusLog();
   }, [rfqId]);
 
   async function bookShipment() {
@@ -221,6 +284,101 @@ function RfqPage() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Status Q&A — customer can ask for an update, admin can reply. Entries
+          are shared between both views (get_rfq_status_log already filters to
+          customer-safe rows only). Admin always sees the reply form; the
+          customer only sees this card if there's something to show or ask. */}
+      {!isRejected && (isAdmin || statusLog.length > 0 || AWAITING_RESPONSE_STATUSES.includes(rfq.status)) && (
+        <div className="mt-4 rounded-xl border border-border bg-card p-4 text-sm">
+          {statusLog.length > 0 && (
+            <div className="space-y-3 mb-1">
+              {statusLog.map((log) => (
+                <div key={log.id} className="flex gap-3">
+                  <span className="mt-0.5 shrink-0 text-xs">{log.triggered_by === "customer" ? "💬" : "🏭"}</span>
+                  <div className="min-w-0">
+                    <p className="text-foreground/90">{log.message}</p>
+                    {log.estimated_next && (
+                      <p className="text-xs text-info mt-0.5">
+                        {locale === "sv" ? "Nästa besked:" : "Next update:"} {log.estimated_next}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {new Date(log.created_at).toLocaleString(locale === "sv" ? "sv-SE" : locale)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Customer: ask for an update */}
+          {!isAdmin && AWAITING_RESPONSE_STATUSES.includes(rfq.status) && (
+            <div className={statusLog.length > 0 ? "pt-3 mt-3 border-t border-border" : ""}>
+              {askSent ? (
+                <p className="text-sm text-[oklch(0.55_0.15_155)]">
+                  ✓ {locale === "sv" ? "Tack! Vi återkommer så snart vi kan." : "Thanks! We'll get back to you as soon as we can."}
+                </p>
+              ) : showAskNote ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={askNote}
+                    onChange={(e) => setAskNote(e.target.value)}
+                    rows={2}
+                    placeholder={locale === "sv" ? "Valfritt: skriv din fråga (t.ex. \"finns ett datum?\")" : "Optional: write your question"}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={askForUpdate} disabled={asking}
+                      className="px-4 py-1.5 rounded-md bg-info text-primary-foreground text-xs font-medium hover:opacity-90 disabled:opacity-50">
+                      {asking ? "…" : locale === "sv" ? "Skicka fråga" : "Send"}
+                    </button>
+                    <button onClick={() => setShowAskNote(false)}
+                      className="px-4 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:text-foreground">
+                      {locale === "sv" ? "Avbryt" : "Cancel"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowAskNote(true)}
+                  className="text-xs px-3 py-1.5 rounded-md border border-border hover:border-info text-muted-foreground hover:text-info transition">
+                  💬 {locale === "sv" ? "Fråga om status" : "Ask for an update"}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Admin: reply */}
+          {isAdmin && (
+            <div className={statusLog.length > 0 ? "pt-3 mt-3 border-t border-border" : ""}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                Svara kunden
+              </p>
+              <div className="space-y-2">
+                <textarea
+                  value={replyMessage}
+                  onChange={(e) => setReplyMessage(e.target.value)}
+                  rows={2}
+                  placeholder="T.ex. varför offerten dröjer, eller ett nytt leveransdatum"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
+                />
+                <div className="flex gap-2">
+                  <input
+                    value={replyEstimatedNext}
+                    onChange={(e) => setReplyEstimatedNext(e.target.value)}
+                    placeholder="Nästa besked (valfritt, t.ex. fredag)"
+                    className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-xs"
+                  />
+                  <button onClick={sendAdminReply} disabled={replySending || !replyMessage.trim()}
+                    className="px-4 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 disabled:opacity-50">
+                    {replySending ? "…" : "Skicka"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -174,14 +174,44 @@ Deno.serve(async (req) => {
     if (shipErr) throw new Error(`Failed to save shipment: ${shipErr.message}`);
 
     // Update RFQ with tracking info
+    const shippedAt = new Date().toISOString();
+    const estimatedDeliveryStr = estimatedDelivery.toISOString().split("T")[0];
     await supabase.from("rfqs").update({
       shipment_status: "shipped",
       carrier: "postnord",
       tracking_number: trackingNumber,
       label_url: labelUrl,
-      shipped_at: new Date().toISOString(),
-      estimated_delivery: estimatedDelivery.toISOString().split("T")[0],
+      shipped_at: shippedAt,
+      estimated_delivery: estimatedDeliveryStr,
     }).eq("id", rfq_id);
+
+    // The customer's "Mina ordrar" page reads tracking info from the SEPARATE
+    // orders row created at RFQ acceptance (respond_to_quote()) — not from
+    // rfqs. Without this, a real booked shipment would update the admin's RFQ
+    // view above but never appear on the customer-facing order page at all.
+    const { data: linkedOrder } = await supabase
+      .from("orders")
+      .select("id, status")
+      .eq("rfq_id", rfq_id)
+      .maybeSingle();
+    if (linkedOrder) {
+      await supabase.from("orders").update({
+        status: "shipped",
+        carrier: "postnord",
+        tracking_number: trackingNumber,
+        shipped_at: shippedAt,
+        estimated_delivery: estimatedDeliveryStr,
+      }).eq("id", linkedOrder.id);
+
+      // Notify the customer their order shipped — order-status-email re-reads
+      // the row we just updated by id, same trusted pattern used everywhere
+      // else this function is called from.
+      fetch(`${Deno.env.get("SUPABASE_URL")!}/functions/v1/order-status-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: linkedOrder.id, kind: "order" }),
+      }).catch((e) => console.error("order-status-email notify failed:", e));
+    }
 
     // Log to integration_logs
     await supabase.from("integration_logs").insert({

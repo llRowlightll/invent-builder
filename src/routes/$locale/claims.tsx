@@ -1,10 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { z } from "zod";
 import { makeT, type Locale } from "@/lib/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 
 export const Route = createFileRoute("/$locale/claims")({
+  validateSearch: z.object({ order: z.string().optional() }),
   head: ({ params }) => {
     const t = makeT(params.locale as Locale);
     return {
@@ -16,6 +18,34 @@ export const Route = createFileRoute("/$locale/claims")({
   },
   component: ClaimsPage,
 });
+
+// Reklamationspolicy: 6 månader från orderdatum, ordervärde minst 2000 kr.
+// Kontrollen är informativ, inte en hård spärr — supporten kan alltid göra
+// undantag, men kunden ska se direkt om ärendet troligen ligger utanför.
+const CLAIM_WINDOW_MONTHS = 6;
+const CLAIM_MIN_VALUE_SEK = 2000;
+
+type OrderItem = { sku: string; name: string; qty: number };
+type OrderForClaim = {
+  id: string;
+  created_at: string;
+  total_inc_vat: number | null;
+  total_ex_vat: number | null;
+  currency: string;
+  items: OrderItem[];
+};
+
+function orderRef(id: string) {
+  return `#${id.slice(0, 8).toUpperCase()}`;
+}
+
+function claimEligibility(order: OrderForClaim): { eligible: boolean; reason: "age" | "value" | null } {
+  const ageMonths = (Date.now() - new Date(order.created_at).getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+  const value = order.total_inc_vat ?? order.total_ex_vat ?? 0;
+  if (ageMonths > CLAIM_WINDOW_MONTHS) return { eligible: false, reason: "age" };
+  if (value < CLAIM_MIN_VALUE_SEK) return { eligible: false, reason: "value" };
+  return { eligible: true, reason: null };
+}
 
 type Claim = {
   id: string;
@@ -63,19 +93,21 @@ const URGENCY_COLORS: Record<string, string> = {
 
 function ClaimsPage() {
   const { locale } = Route.useParams();
+  const { order: preselectOrderId } = Route.useSearch();
   const t = makeT(locale as Locale);
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const [claims, setClaims] = useState<Claim[]>([]);
   const [loadingClaims, setLoadingClaims] = useState(true);
+  const [orders, setOrders] = useState<OrderForClaim[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
 
   // Form state
   const [fTitle, setFTitle] = useState("");
   const [fType, setFType] = useState("");
-  const [fOrderRef, setFOrderRef] = useState("");
+  const [fOrderId, setFOrderId] = useState("");
   const [fSku, setFSku] = useState("");
   const [fDescription, setFDescription] = useState("");
   const [fUrgency, setFUrgency] = useState("normal");
@@ -102,6 +134,29 @@ function ClaimsPage() {
       });
   }, [user, submitSuccess]);
 
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("orders")
+      .select("id, created_at, total_inc_vat, total_ex_vat, currency, items")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => setOrders((data as unknown as OrderForClaim[]) ?? []));
+  }, [user]);
+
+  // Arrived via "Reklamera" on a specific order (orders.tsx) — pre-select it
+  // and open the form straight away instead of making the customer hunt for
+  // their order again in the dropdown.
+  useEffect(() => {
+    if (preselectOrderId && orders.some(o => o.id === preselectOrderId)) {
+      setFOrderId(preselectOrderId);
+      setShowForm(true);
+    }
+  }, [preselectOrderId, orders]);
+
+  const selectedOrder = orders.find(o => o.id === fOrderId) ?? null;
+  const eligibility = selectedOrder ? claimEligibility(selectedOrder) : null;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
@@ -113,7 +168,7 @@ function ClaimsPage() {
       user_id:     user.id,
       title:       fTitle,
       claim_type:  fType || null,
-      order_ref:   fOrderRef || null,
+      order_ref:   selectedOrder ? orderRef(selectedOrder.id) : null,
       sku:         fSku || null,
       description: fDescription,
       urgency:     fUrgency,
@@ -126,7 +181,7 @@ function ClaimsPage() {
     setSubmitSuccess(true);
     setShowForm(false);
     // reset
-    setFTitle(""); setFType(""); setFOrderRef(""); setFSku("");
+    setFTitle(""); setFType(""); setFOrderId(""); setFSku("");
     setFDescription(""); setFUrgency("normal");
   }
 
@@ -237,22 +292,51 @@ function ClaimsPage() {
 
             <div className="grid sm:grid-cols-2 gap-4">
               <Field label={t("claimsPage.fieldOrderRef")}>
-                <input
-                  value={fOrderRef}
-                  onChange={(e) => setFOrderRef(e.target.value)}
-                  placeholder={t("claimsPage.fieldOrderRefPlaceholder")}
+                <select
+                  value={fOrderId}
+                  onChange={(e) => { setFOrderId(e.target.value); setFSku(""); }}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
+                >
+                  <option value="">
+                    {locale === "sv" ? "— Ingen specifik order —" : "— No specific order —"}
+                  </option>
+                  {orders.map((o) => {
+                    const amount = o.total_inc_vat ?? o.total_ex_vat;
+                    return (
+                      <option key={o.id} value={o.id}>
+                        {orderRef(o.id)} · {new Date(o.created_at).toLocaleDateString(locale === "sv" ? "sv-SE" : locale)}
+                        {amount ? ` · ${amount.toLocaleString(locale === "sv" ? "sv-SE" : locale, { style: "currency", currency: o.currency || "SEK", maximumFractionDigits: 0 })}` : ""}
+                      </option>
+                    );
+                  })}
+                </select>
               </Field>
               <Field label={t("claimsPage.fieldSku")}>
-                <input
+                <select
                   value={fSku}
                   onChange={(e) => setFSku(e.target.value)}
-                  placeholder={t("claimsPage.fieldSkuPlaceholder")}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
+                  disabled={!selectedOrder || selectedOrder.items.length === 0}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
+                >
+                  <option value="">{locale === "sv" ? "— Hela ordern —" : "— Whole order —"}</option>
+                  {(selectedOrder?.items ?? []).map((item) => (
+                    <option key={item.sku} value={item.sku}>{item.sku} · {item.name}</option>
+                  ))}
+                </select>
               </Field>
             </div>
+
+            {selectedOrder && eligibility && !eligibility.eligible && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+                {eligibility.reason === "age"
+                  ? (locale === "sv"
+                      ? `⚠️ Den här ordern lades för mer än ${CLAIM_WINDOW_MONTHS} månader sedan — vår reklamationstid är ${CLAIM_WINDOW_MONTHS} månader. Vi går ändå igenom ärendet, men det kan falla utanför policyn.`
+                      : `⚠️ This order was placed more than ${CLAIM_WINDOW_MONTHS} months ago — our claims window is ${CLAIM_WINDOW_MONTHS} months. We'll still review it, but it may fall outside policy.`)
+                  : (locale === "sv"
+                      ? `⚠️ Ordervärdet är under ${CLAIM_MIN_VALUE_SEK.toLocaleString("sv-SE")} kr, vår gräns för reklamation. Vi går ändå igenom ärendet, men det kan falla utanför policyn.`
+                      : `⚠️ This order's value is under ${CLAIM_MIN_VALUE_SEK.toLocaleString("en-US")} kr, our claims threshold. We'll still review it, but it may fall outside policy.`)}
+              </div>
+            )}
 
             <Field label={`${t("claimsPage.fieldDescription")} *`}>
               <textarea

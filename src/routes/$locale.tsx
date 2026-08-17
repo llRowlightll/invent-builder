@@ -232,6 +232,10 @@ function LocaleLayout() {
                       className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
                       CRM
                     </Link>
+                    <Link to={"/$locale/admin/claims" as never} params={{ locale } as never}
+                      className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
+                      Reklam.
+                    </Link>
                   </>
                 )}
                 <Link to={"/$locale/projects" as never} params={{ locale } as never}
@@ -335,6 +339,10 @@ function LocaleLayout() {
                       <Link to={"/$locale/admin/orders" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
                         className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                         Orderhantering
+                      </Link>
+                      <Link to={"/$locale/admin/claims" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
+                        className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
+                        Reklamationer
                       </Link>
                       <Link to={"/$locale/admin/products" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
                         className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">

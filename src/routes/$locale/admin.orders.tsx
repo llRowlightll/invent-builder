@@ -62,6 +62,15 @@ function payColor(s: string) {
   return "bg-yellow-100 text-yellow-700";
 }
 
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+}
+function today(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
 function OrderEditModal({ order, onClose, onSaved }: { order: OrderRow; onClose: () => void; onSaved: (o: OrderRow) => void }) {
   const [form, setForm] = useState({
     status: order.status,
@@ -144,7 +153,17 @@ function OrderEditModal({ order, onClose, onSaved }: { order: OrderRow; onClose:
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1">Orderstatus</label>
-              <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+              <select value={form.status} onChange={e => {
+                const status = e.target.value;
+                setForm(f => {
+                  // Start the 30-day payment clock the moment goods are marked
+                  // delivered, so admin doesn't have to remember to fill this
+                  // in separately. Never overwrites an already-set date.
+                  const invoice_date = status === "delivered" && !f.invoice_date ? today() : f.invoice_date;
+                  const invoice_due_date = invoice_date && !f.invoice_due_date ? addDays(invoice_date, 30) : f.invoice_due_date;
+                  return { ...f, status, invoice_date, invoice_due_date };
+                });
+              }}
                 className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40">
                 {STATUS_OPTIONS.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
               </select>
@@ -167,8 +186,21 @@ function OrderEditModal({ order, onClose, onSaved }: { order: OrderRow; onClose:
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Faktura</p>
           {field("Fakturanummer", "invoice_number")}
           {field("Faktura-URL (PDF-länk)", "invoice_url")}
-          {field("Fakturadatum", "invoice_date", "date")}
-          {field("Förfallodatum", "invoice_due_date", "date")}
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Fakturadatum</label>
+            <input type="date" value={form.invoice_date} onChange={e => {
+              const invoice_date = e.target.value;
+              setForm(f => ({
+                ...f,
+                invoice_date,
+                // 30 dagars betalningsvillkor — föreslå automatiskt, men rör
+                // aldrig ett datum admin redan satt själv.
+                invoice_due_date: invoice_date && !f.invoice_due_date ? addDays(invoice_date, 30) : f.invoice_due_date,
+              }));
+            }}
+              className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40" />
+          </div>
+          {field("Förfallodatum (30 dagar från fakturadatum)", "invoice_due_date", "date")}
           {field("Fortnox faktura-ID", "fortnox_invoice_id")}
 
           <hr className="border-border" />
