@@ -86,7 +86,17 @@ const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? SUPABA
 // replacement — NOT qwen/qwen3.6-27b (Groq's docs mark that one "preview... should
 // not be used in production", which would trade one instability for another).
 const LLM_MODEL = "openai/gpt-oss-120b";
-const LLM_MODEL_FAST = "llama-3.1-8b-instant";
+// Production-log finding 2026-08-17: this was still "llama-3.1-8b-instant",
+// deprecated and gone (every fallback attempt 404'd "model does not exist").
+// The 2026-08-14 migration above fixed the PRIMARY model's deprecation but
+// missed this one, since it only fires once the primary gets rate-limited —
+// which normal testing doesn't reliably trigger. Net effect: the rate-limit
+// safety net had been silently dead — every primary rate-limit (an 8000 TPM
+// cap, hit within ~4 rapid calls) fell all the way through to bare server
+// defaults with zero LLM enrichment, not just a slower fallback model.
+// openai/gpt-oss-20b is Groq's current documented fast/cheap production tier
+// (same family as the primary, so behavior is well understood).
+const LLM_MODEL_FAST = "openai/gpt-oss-20b";
 const LLM_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 const CORS = {
