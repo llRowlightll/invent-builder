@@ -66,6 +66,16 @@ interface OrderRow {
 
 const STATUS_STEPS = ["new","confirmed","picking","shipped","delivered","invoiced","paid"];
 
+// Same carrier-tracking-URL logic already used on rfq.$rfqId.tsx — kept in
+// sync there since the two pages source tracking info from different tables
+// (orders vs rfqs) but should link the same way.
+function trackingUrl(carrier: string | null, trackingNumber: string, locale: string) {
+  if (carrier?.toLowerCase().includes("postnord")) {
+    return `https://tracking.postnord.com/?id=${trackingNumber}&lang=${locale === "sv" ? "sv" : "en"}`;
+  }
+  return `https://www.google.com/search?q=${encodeURIComponent(`${carrier ?? ""} tracking ${trackingNumber}`)}`;
+}
+
 function paymentLabel(status: string, t: (k: string) => string) {
   const map: Record<string,string> = {
     unpaid: t("ordersPage.paymentUnpaid"),
@@ -92,7 +102,7 @@ function StatusBar({ status }: { status: string }) {
   );
 }
 
-function OrderCard({ order, t, locale }: { order: OrderRow; t: (k: string) => string; locale: string }) {
+function OrderCard({ order, t, locale }: { order: OrderRow; t: (k: string) => string; locale: Locale }) {
   const [expanded, setExpanded] = useState(false);
   const items = Array.isArray(order.items) ? order.items : [];
   const locStr = locale === "sv" ? "sv-SE" : locale;
@@ -146,7 +156,15 @@ function OrderCard({ order, t, locale }: { order: OrderRow; t: (k: string) => st
             </strong></span>
           )}
           {order.tracking_number && (
-            <span>🚚 {t("ordersPage.tracking")}: <strong className="text-foreground font-mono">{order.tracking_number}</strong>
+            <span>🚚 {t("ordersPage.tracking")}:{" "}
+              <a
+                href={trackingUrl(order.carrier, order.tracking_number, locale)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono font-semibold text-info hover:opacity-80"
+              >
+                {order.tracking_number}
+              </a>
               {order.carrier ? ` (${order.carrier})` : ""}
             </span>
           )}
@@ -168,6 +186,14 @@ function OrderCard({ order, t, locale }: { order: OrderRow; t: (k: string) => st
             className="text-xs px-3 py-1.5 rounded-md border border-border hover:border-primary text-muted-foreground hover:text-foreground transition">
             {expanded ? "▲ Dölj" : `▼ Artiklar (${items.length})`}
           </button>
+          <Link
+            to="/$locale/claims"
+            params={{ locale }}
+            search={{ order: order.id }}
+            className="text-xs px-3 py-1.5 rounded-md border border-border hover:border-destructive text-muted-foreground hover:text-destructive transition"
+          >
+            ⚠ {locale === "sv" ? "Reklamera" : "File a claim"}
+          </Link>
         </div>
       </div>
 

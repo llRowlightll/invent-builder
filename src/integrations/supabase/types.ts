@@ -1687,6 +1687,24 @@ export type Database = {
           },
         ]
       }
+      rate_limits: {
+        Row: {
+          count: number
+          key: string
+          window_start: string
+        }
+        Insert: {
+          count?: number
+          key: string
+          window_start: string
+        }
+        Update: {
+          count?: number
+          key?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       rfq_items: {
         Row: {
           id: string
@@ -2219,6 +2237,7 @@ export type Database = {
           category_id: string
           category_name: string
           id: string
+          is_family: boolean
           margin: number
           name: string
           purchase_price: number
@@ -2230,6 +2249,10 @@ export type Database = {
           profile: Database["public"]["Tables"]["company_profiles"]["Row"]
         }
         Returns: Json
+      }
+      check_rate_limit: {
+        Args: { p_key: string; p_limit: number; p_window_seconds: number }
+        Returns: boolean
       }
       fetch_products_for_advisor: {
         Args: { p_category_slug?: string; p_limit?: number }
@@ -2334,10 +2357,24 @@ export type Database = {
           unit_price: number
         }[]
       }
+      get_rfq_status_log: {
+        Args: { p_rfq_id: string }
+        Returns: {
+          created_at: string
+          estimated_next: string
+          id: string
+          message: string
+          status: string
+          triggered_by: string
+        }[]
+      }
       has_role: { Args: { check_role: string; uid: string }; Returns: boolean }
       respond_to_quote: {
         Args: { p_decision: string; p_id: string; p_po?: string }
-        Returns: boolean
+        Returns: {
+          order_id: string
+          success: boolean
+        }[]
       }
       rfq_status_counts: {
         Args: never
