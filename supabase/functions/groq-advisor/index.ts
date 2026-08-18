@@ -564,6 +564,22 @@ function needsPharmaGmp(text: string): boolean {
   return /\bgmp\b|\bfda\b|\b21\s*cfr\b|\bläkemedel\b|\bpharma\b|\bpharmaceut\b|\bsterilit\b|\bsteril.*milj\b|\bvalidat\b|\biso\s*14159\b|\behedg\b|\bbioprocess\b|\bapi\b.*\bprodukt\b|\bcip\b|\bsip\b/i.test(text);
 }
 
+/** Brands the site carries, matched against a customer's explicit request
+ *  (e.g. "jag vill ha exempel för festo och smc") so rankActuators() can
+ *  prefer them — see scoring.ts ScoringCtx.preferredBrands. Returns
+ *  lowercased brand names exactly as stored in the brands table. */
+function detectRequestedBrands(text: string): string[] {
+  const found = new Set<string>();
+  if (/\bfesto\b/i.test(text)) found.add("festo");
+  if (/\bsmc\b/i.test(text)) found.add("smc");
+  if (/\bparker\b/i.test(text)) found.add("parker");
+  if (/\bbosch\b|\brexroth\b/i.test(text)) found.add("bosch rexroth");
+  if (/\bnorgren\b/i.test(text)) found.add("norgren");
+  if (/\bmetal\s*work\b/i.test(text)) found.add("metal work");
+  if (/\bcamozzi\b/i.test(text)) found.add("camozzi");
+  return [...found];
+}
+
 /** ATEX Dust (Zone 20/21/22) — combustible dust explosion. Different from gas zones (different group/category). */
 function needsAtexDust(text: string): boolean {
   return /\bzon\s*2[012]\b|\bzone\s*2[012]\b|\bdamm.*explosion\b|\bexplosivt.*damm\b|\bcombustible.*dust\b|\bbrännbart.*damm\b|\bsädes\b.*\bexplos\b|\bmjöl.*explos\b|\bträ.*damm.*explos\b|\bcoal.*dust\b|\bkol.*damm\b|\bii[i]?\s*[23][d]\b|\bdust.*atex\b|\batex.*dust\b/i.test(text);
@@ -1995,7 +2011,7 @@ async function handleOptions(
   // ── v40/v51: Server-side product selection ───────────────────────
   // rankActuators() tiers candidates so a configurable family NEVER outranks a
   // concrete-stroke product that meets the requirement (regression-tested).
-  const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, isHighPrecision, isHighSpeed, isVertical: isVerticalLoad, isWashdown: needsCorrosionResistant, isAtex };
+  const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, isHighPrecision, isHighSpeed, isVertical: isVerticalLoad, isWashdown: needsCorrosionResistant, isAtex, preferredBrands: detectRequestedBrands(combinedText) };
   const topProducts = rankActuators(catalogProducts, scoringCtx).slice(0, 3);
 
   // Build server-side option objects (correct data, LLM fills in text)
