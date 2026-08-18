@@ -30,6 +30,13 @@ export interface ScoringCtx {
   isVertical: boolean;
   isWashdown: boolean;
   isAtex: boolean;
+  // Brand names the customer explicitly asked for (already lowercased), e.g.
+  // ["festo", "smc"] from "jag vill ha exempel för festo och smc". A soft
+  // preference, not a filter — a customer's stated brand is a commercial
+  // choice, not a physical/safety requirement, so it must never be able to
+  // push out the only product that actually fits (unlike e.g. isAtex, which
+  // hard-excludes). Absent/empty = no preference, scoring unaffected.
+  preferredBrands?: string[];
 }
 
 /** Catalog categories whose products ARE primary linear/rotary actuators.
@@ -290,6 +297,18 @@ export function scoreProduct(p: CatalogProduct, ctx: ScoringCtx): number {
     // Ø20–63 — weak enough that any real signal (washdown, stroke) overrides it.
     const boreMm = parseFloat(String(p.key_specs?.bore_mm ?? "0"));
     if (boreMm > 0) score += Math.max(0, 10 - Math.abs(boreMm - 40) * 0.15);
+  }
+
+  // ── Requested brand (+18 points) — soft preference, never a filter ──
+  // Found 2026-08-18: a customer asked the machine-builder for "examples
+  // from Festo and SMC" and got a different brand back — nothing in the
+  // ranking had ever looked at brand at all. +18 is enough to move a
+  // requested-brand product ahead of a same-tier non-requested one on
+  // ordinary stroke/bore ties, but not enough to override a real physical
+  // mismatch (stroke-below-requirement is -30, bore-too-small is -40) —
+  // a requested brand that doesn't fit still loses to one that does.
+  if (ctx.preferredBrands?.length && ctx.preferredBrands.includes(p.brand.toLowerCase())) {
+    score += 18;
   }
 
   // ── Penalties ────────────────────────────────────────────────────

@@ -93,6 +93,27 @@ Deno.test("concrete product that meets the requirement is the top pick (T01-styl
   assertEquals(ranked[0].sku, "0822040200");
 });
 
+// ── Requested brand: soft preference, never overrides a physical mismatch ──────
+// Reported 2026-08-18: customer asked the machine-builder for "examples from
+// Festo and SMC" and got a different brand back — nothing in the ranking had
+// ever looked at brand at all.
+
+Deno.test("requested brand breaks a tie between two otherwise-equal candidates", () => {
+  const festo = prod("DSNU-40-200-P-A", "cylinder", "Festo", { stroke_mm: "200 mm", bore_mm: "40 mm" });
+  const camozzi = prod("KPZ-040-0200-A", "cylinder", "Camozzi", { stroke_mm: "200 mm", bore_mm: "40 mm" });
+  // Identical stroke/bore, neither SKU trips the family-prefix heuristic ⇒ a true tie without a brand preference.
+  assertEquals(scoreProduct(festo, ctx({ requiredStroke: 200 })), scoreProduct(camozzi, ctx({ requiredStroke: 200 })));
+  const withPref = rankActuators([camozzi, festo], ctx({ requiredStroke: 200, preferredBrands: ["festo"] }));
+  assertEquals(withPref[0].sku, "DSNU-40-200-P-A", "requested brand should win the tie");
+});
+
+Deno.test("requested brand does NOT override a real stroke mismatch", () => {
+  const smcTooShort = prod("CDQ2B40-100DZ", "cylinder", "SMC", { stroke_mm: "100 mm", bore_mm: "40 mm" }); // below requirement
+  const festoFits = prod("DSNU-40-200-P-A", "cylinder", "Festo", { stroke_mm: "200 mm", bore_mm: "40 mm" });
+  const ranked = rankActuators([smcTooShort, festoFits], ctx({ requiredStroke: 200, preferredBrands: ["smc"] }));
+  assertEquals(ranked[0].sku, "DSNU-40-200-P-A", "a requested brand that doesn't physically fit must still lose");
+});
+
 // ── Bore adequacy: a family's bore RANGE uses the MAX, not the min ──────────────
 
 Deno.test("bore range/list normalizes to the MAX bore (family can cover high loads)", () => {
