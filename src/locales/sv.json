@@ -715,7 +715,7 @@
   "shoppingList": {
     "title": "Din korg",
     "subtitle": "Lägg till produkter du vill ha, justera antal och skicka som offertförfrågan.",
-    "loginToQuote": "Inloggning krävs för att skicka offert.",
+    "loginToQuote": "Logga in för att spara och följa din förfrågan.",
     "searchPlaceholder": "Sök produkt — namn, artikelnummer eller beskrivning…",
     "add": "Lägg till",
     "empty": "Din inköpslista är tom. Sök efter produkter ovan eller bläddra i katalogen.",
@@ -752,7 +752,8 @@
     "sendQuote": "Skicka offertförfrågan",
     "rfqTitle": "Inköpslista",
     "sentTitle": "Offertförfrågan skickad!",
-    "sentBody": "Vi återkommer med en offert inom 24 timmar. Du kan följa statusen under Mina förfrågningar.",
+    "sentBody": "Vi återkommer med en offert inom 24 timmar.",
+    "sentBodyTrack": "Du kan följa statusen under Mina förfrågningar.",
     "viewRfq": "Visa din förfrågan",
     "viewOrders": "Alla mina förfrågningar"
   },

@@ -752,9 +752,10 @@
     "rfqTitle": "Einkaufsliste",
     "sentTitle": "Angebotsanfrage gesendet!",
     "sentBody": "Wir melden uns innerhalb von 24 Stunden mit einem Angebot.",
+    "sentBodyTrack": "Den Status können Sie unter Meine Anfragen verfolgen.",
     "viewRfq": "Anfrage ansehen",
     "viewOrders": "Alle meine Anfragen",
-    "loginToQuote": "Anmeldung erforderlich, um ein Angebot anzufordern."
+    "loginToQuote": "Melden Sie sich an, um diese Anfrage zu speichern und zu verfolgen."
   },
   "configuratorPage": {
     "title": "EA Linearachse",

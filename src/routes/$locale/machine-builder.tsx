@@ -1200,6 +1200,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
   const [mounted, setMounted] = useState(false);
   const [rfqLoading, setRfqLoading] = useState(false);
   const [rfqError, setRfqError] = useState("");
+  const [rfqHp, setRfqHp] = useState(""); // honeypot — real users never see or fill this
   // Save project
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [projectName, setProjectName] = useState("");
@@ -1267,42 +1268,38 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
         .join(", ");
       const message = `${description}\n\nStycklista: ${bomSummary}`;
 
-      // Insert RFQ — user_id är null för anonyma användare (nullable efter migration)
-      const authUser = (await supabase.auth.getUser()).data.user;
-      const { data: rfqRow, error: rfqErr } = await supabase
-        .from("rfqs")
-        .insert({
-          user_id: authUser?.id ?? null,
-          title: title || `Maskinbyggare — ${selected.name}`,
-          contact_name: rfqName.trim(),
-          contact_email: rfqEmail.trim(),
-          contact_phone: rfqPhone.trim() || null,
-          company: rfqCompany.trim() || null,
-          po_number: rfqPoNumber.trim() || null,
-          org_number: rfqOrgNumber.trim() || null,
-          message,
-          status: "new",
-        })
-        .select("id")
-        .single();
-
-      if (rfqErr || !rfqRow) throw rfqErr ?? new Error("No row returned");
-
-      // Insert BOM items (use activeBom which may include economic alternatives)
-      const itemRows = activeBom
+      // submit_rfq() creates the rfq row + its items atomically, server-side.
+      // user_id is derived from auth.uid() inside the function (null if
+      // anonymous) — never client-supplied. See migration
+      // 20260819163000_submit_rfq_function.sql: rfq_items has no
+      // client-facing INSERT policy (this used to silently drop every BOM
+      // here, undetected — nothing checked the old insert's error), and an
+      // anonymous caller can't satisfy the rfqs SELECT policy to read back a
+      // plain insert's result, which is why every real guest submission has
+      // been failing at this exact step until now.
+      const itemsPayload = activeBom
         .map(l => {
           const product = l.product ?? catalog.find(p => p.sku === l.sku);
-          return product
-            ? { rfq_id: rfqRow.id, product_id: product.id, qty: l.quantity, role: l.role }
-            : null;
+          return product ? { product_id: product.id, qty: l.quantity, role: l.role } : null;
         })
         .filter((x): x is NonNullable<typeof x> => x !== null);
 
-      if (itemRows.length > 0) {
-        await supabase.from("rfq_items").insert(itemRows);
-      }
+      const { data: newRfqId, error: rfqErr } = await supabase.rpc("submit_rfq", {
+        p_title: title || `Maskinbyggare — ${selected.name}`,
+        p_contact_name: rfqName.trim(),
+        p_contact_email: rfqEmail.trim(),
+        p_contact_phone: rfqPhone.trim(),
+        p_company: rfqCompany.trim(),
+        p_org_number: rfqOrgNumber.trim(),
+        p_po_number: rfqPoNumber.trim(),
+        p_message: message,
+        p_items: itemsPayload,
+        p_hp: rfqHp,
+      });
 
-      const orderRef = rfqRow.id.slice(0, 8).toUpperCase();
+      if (rfqErr || !newRfqId) throw rfqErr ?? new Error("No id returned");
+
+      const orderRef = newRfqId.slice(0, 8).toUpperCase();
       setRfqId(orderRef);
       setRfqSent(true);
 
@@ -1322,7 +1319,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
       fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/rfq-notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rfq_id: rfqRow.id }),
+        body: JSON.stringify({ rfq_id: newRfqId }),
       }).catch(console.error);
     } catch (e) {
       console.error(e);
@@ -1617,6 +1614,17 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
                 className="px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50 font-mono"
               />
             </div>
+            {/* Honeypot — hidden from real users via CSS, not `type="hidden"`,
+                so form-filling bots that read layout still find and fill it. */}
+            <input
+              type="text"
+              tabIndex={-1}
+              autoComplete="off"
+              value={rfqHp}
+              onChange={(e) => setRfqHp(e.target.value)}
+              className="absolute -left-[9999px] w-px h-px opacity-0"
+              aria-hidden="true"
+            />
             {rfqError && <p className="text-xs text-destructive">{rfqError}</p>}
             <button
               onClick={submitRfq}

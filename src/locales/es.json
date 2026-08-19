@@ -752,9 +752,10 @@
     "rfqTitle": "Lista de compras",
     "sentTitle": "¡Solicitud de oferta enviada!",
     "sentBody": "Le responderemos con una oferta en 24 horas.",
+    "sentBodyTrack": "Puede seguir el estado en Mis solicitudes.",
     "viewRfq": "Ver su solicitud",
     "viewOrders": "Todas mis solicitudes",
-    "loginToQuote": "Se requiere iniciar sesión para enviar una solicitud."
+    "loginToQuote": "Inicia sesión para guardar y seguir esta solicitud."
   },
   "configuratorPage": {
     "title": "EA Eje lineal",
