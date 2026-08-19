@@ -252,7 +252,7 @@ function AddCustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
               </div>
               <ModalField label="Kundnummer (valfritt — lämna tomt för auto)">
                 <input value={form.customer_number} onChange={(e) => set("customer_number", e.target.value)}
-                  placeholder="MV-2026-0042"
+                  placeholder="12043"
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
               </ModalField>
             </div>
@@ -306,7 +306,7 @@ export default function CrmPage() {
         body: JSON.stringify({
           email: testEmail,
           name: "Alexander",
-          customer_number: "MV-2026-0001",
+          customer_number: "12001",
           locale,
         }),
       });
