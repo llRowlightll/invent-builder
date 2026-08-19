@@ -70,7 +70,7 @@ function BomPage() {
         .select("id")
         .single();
       if (error || !rfq) throw error;
-      await supabase.from("rfq_items").insert(
+      const { error: itemsError } = await supabase.from("rfq_items").insert(
         result.items.map((i) => ({
           rfq_id: rfq.id,
           product_id: i.product.id,
@@ -78,6 +78,7 @@ function BomPage() {
           qty: i.qty,
         })),
       );
+      if (itemsError) throw itemsError;
       // webhook stub
       try {
         await fetch("/api/public/notify/rfq", {
