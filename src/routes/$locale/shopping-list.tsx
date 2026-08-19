@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { analyzeDocument, type PoExtraction } from "@/lib/document-ai";
 import { makeT, type Locale } from "@/lib/i18n";
@@ -24,7 +24,6 @@ export const Route = createFileRoute("/$locale/shopping-list")({
 function ShoppingListPage() {
   const { locale } = Route.useParams();
   const t = makeT(locale as Locale);
-  const navigate = useNavigate();
   const { user } = useAuth();
 
   const [catalog, setCatalog] = useState<ProductRow[]>([]);
@@ -44,8 +43,11 @@ function ShoppingListPage() {
   const [rfqOrgNumber, setRfqOrgNumber] = useState("");
   const [rfqPoNumber, setRfqPoNumber] = useState("");
   const [rfqMessage, setRfqMessage] = useState("");
+  const [rfqHp, setRfqHp] = useState(""); // honeypot — real users never see or fill this
   const [rfqSending, setRfqSending] = useState(false);
   const [rfqSent, setRfqSent] = useState(false);
+  const [rfqSentAnon, setRfqSentAnon] = useState(false);
+  const [rfqError, setRfqError] = useState("");
   const [poReading, setPoReading] = useState(false);
   const [poReadError, setPoReadError] = useState<string | null>(null);
   const poInputRef = useRef<HTMLInputElement>(null);
@@ -146,66 +148,56 @@ function ShoppingListPage() {
     window.open(`/${locale}/compare`, "_blank");
   }
 
-  // When user clicks "Request quote" — require login first
+  // Guests may request a quote without an account — same as machine-builder.tsx.
+  // submitRfq() derives user_id server-side (auth.uid(), null if anonymous).
   function handleRequestQuote() {
-    if (!user) {
-      navigate({
-        to: "/$locale/login",
-        params: { locale },
-        search: { redirect: `/${locale}/shopping-list` } as never,
-      });
-      return;
-    }
     setRfqStep("compare");
   }
 
   async function submitRfq() {
-    if (!user) return;
     setRfqSending(true);
+    setRfqError("");
     try {
       const title = `${t("shoppingList.rfqTitle")} — ${rfqCompany || rfqName}`;
-      const { data: rfqRow } = await supabase
-        .from("rfqs")
-        .insert({
-          user_id: user.id,
-          status: "new",
-          title,
-          contact_name: rfqName.trim(),
-          contact_email: rfqEmail.trim(),
-          contact_phone: rfqPhone.trim() || null,
-          company: rfqCompany.trim() || null,
-          org_number: rfqOrgNumber.trim() || null,
-          po_number: rfqPoNumber.trim() || null,
-          message: rfqMessage.trim() || null,
-        })
-        .select("id")
-        .single();
+      // submit_rfq() creates the rfq row + its items atomically, server-side.
+      // user_id is derived from auth.uid() inside the function (null if
+      // anonymous) — never client-supplied. See migration
+      // 20260819163000_submit_rfq_function.sql for why: rfq_items has no
+      // client-facing INSERT policy (an earlier direct-insert here was
+      // silently dropping every product list), and anonymous callers can't
+      // satisfy the rfqs SELECT policy to read back a plain insert's result.
+      const { data: newRfqId, error: rfqErr } = await supabase.rpc("submit_rfq", {
+        p_title: title,
+        p_contact_name: rfqName.trim(),
+        p_contact_email: rfqEmail.trim(),
+        p_contact_phone: rfqPhone.trim(),
+        p_company: rfqCompany.trim(),
+        p_org_number: rfqOrgNumber.trim(),
+        p_po_number: rfqPoNumber.trim(),
+        p_message: rfqMessage.trim(),
+        p_items: items.map((item) => ({ product_id: item.product_id, qty: item.qty, role: "ordered" })),
+        p_hp: rfqHp,
+      });
 
-      if (rfqRow?.id) {
-        await supabase.from("rfq_items").insert(
-          items.map((item) => ({
-            rfq_id: rfqRow.id,
-            product_id: item.product_id,
-            qty: item.qty,
-            role: "ordered",
-          })),
-        );
+      if (rfqErr || !newRfqId) throw rfqErr ?? new Error("No id returned");
 
-        // rfq-notify re-reads the rest from the rfq_id row it's given — see that
-        // function's own header comment for why it doesn't trust a client payload.
-        fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/rfq-notify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rfq_id: rfqRow.id }),
-        }).catch(console.error);
+      // rfq-notify re-reads the rest from the rfq_id row it's given — see that
+      // function's own header comment for why it doesn't trust a client payload.
+      fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/rfq-notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rfq_id: newRfqId }),
+      }).catch(console.error);
 
-        setRfqId(rfqRow.id); // full UUID so the "View RFQ" link resolves correctly
-      }
-
+      setRfqId(newRfqId);
+      setRfqSentAnon(!user);
       setRfqSent(true);
       setItems([]);
     } catch (err) {
       console.error(err);
+      setRfqError(locale === "sv"
+        ? "Kunde inte skicka förfrågan. Försök igen."
+        : "Could not submit request. Please try again.");
     }
     setRfqSending(false);
   }
@@ -624,6 +616,18 @@ function ShoppingListPage() {
                   />
                 </div>
 
+                {/* Honeypot — hidden from real users via CSS, not `type="hidden"`,
+                    so form-filling bots that read layout still find and fill it. */}
+                <input
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={rfqHp}
+                  onChange={(e) => setRfqHp(e.target.value)}
+                  className="absolute -left-[9999px] w-px h-px opacity-0"
+                  aria-hidden="true"
+                />
+
                 {/* Summary */}
                 <div className="mt-3 rounded-lg border border-border bg-surface-alt/50 p-3">
                   <p className="text-xs font-medium text-muted-foreground mb-1.5">
@@ -638,6 +642,8 @@ function ShoppingListPage() {
                     ))}
                   </ul>
                 </div>
+
+                {rfqError && <p className="mt-3 text-sm text-destructive">{rfqError}</p>}
 
                 <div className="mt-4 flex gap-2.5">
                   <button
@@ -675,25 +681,38 @@ function ShoppingListPage() {
               ✓
             </div>
             <h2 className="text-xl font-semibold">{t("shoppingList.sentTitle")}</h2>
-            <p className="text-sm text-muted-foreground mt-2">{t("shoppingList.sentBody")}</p>
-            <div className="mt-5 flex flex-col gap-2">
-              {rfqId && (
+            <p className="text-sm text-muted-foreground mt-2">
+              {t("shoppingList.sentBody")}{!rfqSentAnon && ` ${t("shoppingList.sentBodyTrack")}`}
+            </p>
+            {rfqSentAnon ? (
+              // Anonymous submission — no account, so no "my RFQs"/"my orders" to
+              // link to (both require login and ownership). Same reference-only
+              // confirmation pattern as machine-builder.tsx's guest flow.
+              rfqId && (
+                <p className="mt-4 text-xs text-muted-foreground">
+                  {locale === "sv" ? "Referens" : "Reference"}: <span className="font-mono font-semibold text-foreground">{rfqId.slice(0, 8).toUpperCase()}</span>
+                </p>
+              )
+            ) : (
+              <div className="mt-5 flex flex-col gap-2">
+                {rfqId && (
+                  <Link
+                    to="/$locale/rfq/$rfqId"
+                    params={{ locale, rfqId }}
+                    className="inline-block px-5 py-2.5 rounded-lg bg-info text-primary-foreground text-sm font-semibold hover:opacity-90 transition"
+                  >
+                    {t("shoppingList.viewRfq")} →
+                  </Link>
+                )}
                 <Link
-                  to="/$locale/rfq/$rfqId"
-                  params={{ locale, rfqId }}
-                  className="inline-block px-5 py-2.5 rounded-lg bg-info text-primary-foreground text-sm font-semibold hover:opacity-90 transition"
+                  to="/$locale/orders"
+                  params={{ locale }}
+                  className="inline-block px-5 py-2.5 rounded-lg border border-border text-sm hover:bg-surface-alt transition"
                 >
-                  {t("shoppingList.viewRfq")} →
+                  {t("shoppingList.viewOrders")}
                 </Link>
-              )}
-              <Link
-                to="/$locale/orders"
-                params={{ locale }}
-                className="inline-block px-5 py-2.5 rounded-lg border border-border text-sm hover:bg-surface-alt transition"
-              >
-                {t("shoppingList.viewOrders")}
-              </Link>
-            </div>
+              </div>
+            )}
           </div>
         </div>
       )}

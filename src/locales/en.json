@@ -751,10 +751,11 @@
     "sendQuote": "Submit quote request",
     "rfqTitle": "Purchase list",
     "sentTitle": "Quote request sent!",
-    "sentBody": "We will get back to you with a quote within 24 hours. Track status under My RFQs.",
+    "sentBody": "We will get back to you with a quote within 24 hours.",
+    "sentBodyTrack": "Track status under My RFQs.",
     "viewRfq": "View your request",
     "viewOrders": "All my requests",
-    "loginToQuote": "Login required to submit a quote."
+    "loginToQuote": "Log in to save and track this request."
   },
   "configuratorPage": {
     "title": "EA Linear Axis",

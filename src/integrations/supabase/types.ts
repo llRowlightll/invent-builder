@@ -2444,6 +2444,21 @@ export type Database = {
           source_file: string
         }[]
       }
+      submit_rfq: {
+        Args: {
+          p_company: string
+          p_contact_email: string
+          p_contact_name: string
+          p_contact_phone: string
+          p_hp?: string
+          p_items: Json
+          p_message: string
+          p_org_number: string
+          p_po_number: string
+          p_title: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       app_role: "admin" | "editor" | "user"
