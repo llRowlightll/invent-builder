@@ -1531,9 +1531,15 @@ async function handleQuestions(description: string, locale: string): Promise<Res
     `- Do NOT ask hypothetical questions. Only ask what is needed to select the right product.`,
     `- If programmable stops: ask about number of positions and accuracy.`,
     `- CRITICAL: Every question MUST have a completely unique id AND unique label. NEVER repeat the same question twice. No duplicates allowed.`,
+    // Found 2026-08-18 (user feedback): most people using this tool are NOT
+    // automation engineers — the hint field existed but nothing told the
+    // model to actually explain anything in it, so a beginner would face
+    // e.g. "SIL 1 / SIL 2 / SIL 3 (IEC 62061) or PL c / PL d / PL e
+    // (ISO 13849)?" with no idea what any of that means or how to choose.
+    `- PLAIN-LANGUAGE HINTS (mandatory): assume the person answering is NOT an automation engineer. Whenever a question's label contains a technical term, standard, or code a non-specialist wouldn't know (SIL/PL, IP rating, ball screw vs belt, repeatability, ATEX zone, EHEDG, etc.), the "hint" field MUST explain in one plain, jargon-free sentence what it means in practice and how to decide — not just restate why it "matters" in other technical words. Example — label "Krävd säkerhetsnivå: SIL 2 eller PL d?" needs a hint like "${isSv ? "Handlar om hur pålitligt systemet måste stoppa vid fara — vid osäkerhet, fråga er säkerhetsansvarige eller välj det lägre alternativet och justera senare." : "This is about how reliably the system must stop in a hazard — if unsure, ask your safety officer or pick the lower option and adjust later."}", NOT "${isSv ? "Krävs för säkerhetscertifiering." : "Required for safety certification."}" (that just repeats the term). A hint with no real explanation is a failed question, not an optional field.`,
   ].filter(Boolean).join("\n");
 
-  const system = `You are a senior automation engineer. Generate 4-6 precise technical questions. All text in ${lang}.\n\nRULES:\n${contextRules}\n\nJSON:\n{ "summary": "one precise sentence in ${lang}", "questions": [ { "id": "snake_case", "label": "question in ${lang}", "hint": "why this matters", "type": "choice", "options": ["opt1","opt2"] } ] }\ntype = 'choice' (with options) or 'number' (with unit).${pdfCtx ? "\n\nDocs:\n" + pdfCtx : ""}`;
+  const system = `You are a senior automation engineer helping a customer who is very likely NOT an automation engineer. Generate 4-6 precise technical questions. All text in ${lang}.\n\nRULES:\n${contextRules}\n\nJSON:\n{ "summary": "one precise sentence in ${lang}", "questions": [ { "id": "snake_case", "label": "question in ${lang}", "hint": "plain-language explanation of the term and how to decide — see PLAIN-LANGUAGE HINTS rule", "type": "choice", "options": ["opt1","opt2"] } ] }\ntype = 'choice' (with options) or 'number' (with unit).${pdfCtx ? "\n\nDocs:\n" + pdfCtx : ""}`;
 
   try {
     const raw = await callGroq([
