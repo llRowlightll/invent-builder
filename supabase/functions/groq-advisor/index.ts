@@ -105,6 +105,16 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// Found 2026-08-19: every LLM-facing "write your answer in ${lang}" instruction
+// derived its language name from `isSv` (locale === "sv" ? "svenska" : "English"),
+// which silently collapsed de/es into English — the site's de/es UI is fully
+// translated, but the AI questions/options/BOM text was English-only for those
+// two locales. This is the single source of truth for that instruction now.
+const LLM_LANG_NAME: Record<string, string> = { sv: "svenska", en: "English", de: "Deutsch", es: "español" };
+function langName(locale: string): string {
+  return LLM_LANG_NAME[locale] ?? LLM_LANG_NAME.en;
+}
+
 /** Fire-and-forget telemetry — never throws, never delays the response. */
 function logAdvisorEvent(
   event: string,
@@ -1487,7 +1497,7 @@ async function handleQuestions(description: string, locale: string): Promise<Res
   // Skip PDF context for questions step — questions are short and context bloats tokens.
   // PDF context is more valuable in the options step where catalog matching matters.
   const pdfCtx = "";
-  const lang = isSv ? "svenska" : "English";
+  const lang = langName(locale);
   const isMulti = needsMultiAxis(description);
   const isVac = needsVacuumGrip(description);
   const isWashdown = needsWashdown(description);
@@ -2021,7 +2031,7 @@ async function handleOptions(
   const topProducts = rankActuators(catalogProducts, scoringCtx).slice(0, 3);
 
   // Build server-side option objects (correct data, LLM fills in text)
-  const lang = isSv ? "svenska" : "English";
+  const lang = langName(locale);
 
   // No exact-size stock match → the top pick is the closest (oversized) one. Per
   // policy we RECOMMEND it but don't present it as the definitive choice; the
@@ -2406,7 +2416,7 @@ async function handleBom(
   console.log(`[bom v49] primary=${primarySku} electric=${isElectric} vertical=${isVerticalLoad} highSpeed=${isHighSpeed} multiAxis=${isMultiAxis} mounting=${isMounting} mandatoryRows=${mandatoryBom.length}`);
 
   // ── LLM enrichment: title + explanation + optional extras ─────────────────
-  const lang = isSv ? "svenska" : "English";
+  const lang = langName(locale);
   const axisStrokeNote = isMultiAxis && perAxisStrokes.length > 0
     ? `Per-axis strokes: ${perAxisStrokes.map(a => `${a.axis}=${a.stroke}mm`).join(", ")}.`
     : "";
