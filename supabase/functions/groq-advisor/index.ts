@@ -2124,8 +2124,48 @@ async function handleOptions(
     // honest recommendation, flagged inexact — never silently undersized.
     const torqueInexact = requiredTorque > 0 && adequate.length === 0;
     const picks = (adequate.length ? adequate : sorted.slice(-3)).slice(0, 3);
+    // Found 2026-08-21: this branch never called the LLM (deliberately, same
+    // "no hallucination risk" reasoning as buildMandatoryBomRows) but that left
+    // pros/cons as permanently empty arrays instead of deterministic text like
+    // every other field here already has. Ground them in each product's own
+    // key_specs (mode_of_operation, position_sensing, temp_range) rather than
+    // generic claims that might not hold for every SKU in the catalog.
     const options = picks.map((p, i) => {
       const torque = parseTorqueFromSpecs(p.key_specs ?? {});
+      const mode = p.key_specs?.mode_of_operation ? String(p.key_specs.mode_of_operation) : "";
+      const posSensing = p.key_specs?.position_sensing ? String(p.key_specs.position_sensing) : "";
+      const tempRange = p.key_specs?.temp_range ? String(p.key_specs.temp_range) : "";
+      const pros = [
+        mode ? pick(locale, {
+          sv: `Drivmekanism: ${mode}.`, en: `Drive mechanism: ${mode}.`,
+          de: `Antriebsmechanismus: ${mode}.`, es: `Mecanismo de accionamiento: ${mode}.`,
+        }) : "",
+        posSensing
+          ? pick(locale, {
+              sv: `Lägesåterkoppling: ${posSensing}.`, en: `Position feedback: ${posSensing}.`,
+              de: `Positionsrückmeldung: ${posSensing}.`, es: `Retroalimentación de posición: ${posSensing}.`,
+            })
+          : pick(locale, {
+              sv: `Pneumatisk drift — enkel styrning via standardventil.`, en: `Pneumatic operation — simple control via standard valve.`,
+              de: `Pneumatischer Betrieb — einfache Steuerung über Standardventil.`, es: `Accionamiento neumático — control sencillo mediante válvula estándar.`,
+            }),
+      ].filter(Boolean) as string[];
+      const cons = [
+        i === 0 && torqueInexact ? pick(locale, {
+          sv: `Klarar INTE de begärda ${requiredTorque} Nm — se den som utgångspunkt, inte en bekräftad match.`,
+          en: `Does NOT meet the requested ${requiredTorque} Nm — treat as a starting point, not a confirmed match.`,
+          de: `Erfüllt die angeforderten ${requiredTorque} Nm NICHT — als Ausgangspunkt betrachten, keine bestätigte Übereinstimmung.`,
+          es: `NO cumple los ${requiredTorque} Nm solicitados — considérela un punto de partida, no una coincidencia confirmada.`,
+        }) : "",
+        tempRange ? pick(locale, {
+          sv: `Drifttemperatur ${tempRange}°C — verifiera mot er miljö.`, en: `Operating temperature ${tempRange}°C — verify against your environment.`,
+          de: `Betriebstemperatur ${tempRange}°C — mit Ihrer Umgebung abgleichen.`, es: `Temperatura de funcionamiento ${tempRange}°C — verifique frente a su entorno.`,
+        }) : "",
+        pick(locale, {
+          sv: `Kontrollera axelinterface/montering mot er applikation.`, en: `Verify shaft interface/mounting against your application.`,
+          de: `Wellenschnittstelle/Befestigung mit Ihrer Anwendung abgleichen.`, es: `Verifique la interfaz del eje/montaje frente a su aplicación.`,
+        }),
+      ].filter(Boolean) as string[];
       return {
         sku: p.sku, name: p.name,
         badge: i === 0 && torqueInexact
@@ -2149,7 +2189,7 @@ async function handleOptions(
               de: `${p.name} — ${torque} Nm Drehmoment${requiredDeg > 0 ? `, ${requiredDeg}° Drehbereich` : ""}.`,
               es: `${p.name} — ${torque} Nm de par${requiredDeg > 0 ? `, rango de rotación de ${requiredDeg}°` : ""}.`,
             }),
-        pros: [] as string[], cons: [] as string[],
+        pros, cons,
       };
     });
     const customCtx: CustomSolutionContext = {
