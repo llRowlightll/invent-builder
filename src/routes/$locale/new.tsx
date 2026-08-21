@@ -56,7 +56,7 @@ function makeNews(t: ReturnType<typeof makeT>): NewsItem[] {
       categoryKey: "product",
       title: t("newPage.n_festo_emmt_title"),
       summary: t("newPage.n_festo_emmt_summary"),
-      url: "https://www.festo.com/se/sv/e/produkter/elektrisk-automation/elektriska-axlar/",
+      url: "https://www.festo.com/se/en/p/servo-motor-id_EMMT",
       tags: ["elektrisk axel", "servomotor", "pick-and-place"],
     },
     {
@@ -68,7 +68,7 @@ function makeNews(t: ReturnType<typeof makeT>): NewsItem[] {
       categoryKey: "product",
       title: t("newPage.n_festo_vtux_title"),
       summary: t("newPage.n_festo_vtux_summary"),
-      url: "https://www.festo.com/se/sv/e/produkter/ventilar-och-ventilterminaler/ventilterminaler/",
+      url: "https://www.festo.com/se/en/p/valve-terminal-id_VTUX",
       tags: ["ventilterminal", "EtherNet/IP", "PROFINET", "IO-Link"],
     },
     {
