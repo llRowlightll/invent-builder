@@ -115,6 +115,16 @@ function langName(locale: string): string {
   return LLM_LANG_NAME[locale] ?? LLM_LANG_NAME.en;
 }
 
+// Found 2026-08-21: task tracked as "translate the remaining ~75 hardcoded
+// isSv ? svenska : English strings" (BOM role/reason text, option pros/cons,
+// badges) — everything the langName() fix above doesn't reach because it's
+// not LLM-generated, it's fixed text the server writes directly. Closing it
+// now: same single-lookup pattern as langName(), just for a whole string set
+// per call site instead of one language name.
+function pick<T>(locale: string, t: { sv: T; en: T; de: T; es: T }): T {
+  return t[locale as keyof typeof t] ?? t.en;
+}
+
 /** Fire-and-forget telemetry — never throws, never delays the response. */
 function logAdvisorEvent(
   event: string,
@@ -722,7 +732,7 @@ interface CustomSolutionContext {
 }
 
 function buildCustomSolutionOption(
-  minStroke: number, isSv: boolean, maxCatalogStroke: number, catalogCanHandle: boolean,
+  minStroke: number, locale: string, maxCatalogStroke: number, catalogCanHandle: boolean,
   ctx: CustomSolutionContext = {}
 ) {
   const { isWashdown, isVertical, isFoodGrade, isBatteryDryroom, isHydraulic, isAtex, isSilSafety } = ctx;
@@ -731,76 +741,116 @@ function buildCustomSolutionOption(
   let whyLines: string[] = [];
 
   if (!catalogCanHandle && maxCatalogStroke > 0 && minStroke > 0) {
-    whyLines.push(isSv
-      ? `Längsta katalogprodukten når ${maxCatalogStroke} mm — kravet är ${minStroke} mm.`
-      : `Longest catalog product reaches ${maxCatalogStroke} mm — requirement is ${minStroke} mm.`);
+    whyLines.push(pick(locale, {
+      sv: `Längsta katalogprodukten når ${maxCatalogStroke} mm — kravet är ${minStroke} mm.`,
+      en: `Longest catalog product reaches ${maxCatalogStroke} mm — requirement is ${minStroke} mm.`,
+      de: `Das längste Katalogprodukt erreicht ${maxCatalogStroke} mm — die Anforderung beträgt ${minStroke} mm.`,
+      es: `El producto de catálogo más largo alcanza ${maxCatalogStroke} mm — el requisito es ${minStroke} mm.`,
+    }));
   }
 
   // Washdown + vertical + food = most demanding scenario — give two explicit architectural paths
   if (isWashdown && isVertical && isFoodGrade) {
-    whyLines.push(isSv
-      ? `⚙️ Rekommenderade arkitekturval för slakteri/IP69K-miljö:\n` +
+    whyLines.push(pick(locale, {
+      sv: `⚙️ Rekommenderade arkitekturval för slakteri/IP69K-miljö:\n` +
         `▸ ALT A – Pneumatisk rostfri cylinder (316L): SMC HY-serien (IP69K, NSF-H1-smörjning, EHEDG-hygienisk design) eller Parker P1S Stainless Washdown Cylinder. Komplettera med pneumatisk stångbroms (rod lock) för säker hållning vid strömavbrott.\n` +
-        `▸ ALT B – Kapslad el-cylinder IP69K: Bosch Rexroth EMC-HD-XC (IP69K rostfritt, PROFINET-nativ) eller Parker ETH-serie Washdown. Kräver integrerad motorbroms + säkerhetsventil för SIL 2/PLd.`
-      : `⚙️ Recommended architectural paths for slaughterhouse/IP69K:\n` +
+        `▸ ALT B – Kapslad el-cylinder IP69K: Bosch Rexroth EMC-HD-XC (IP69K rostfritt, PROFINET-nativ) eller Parker ETH-serie Washdown. Kräver integrerad motorbroms + säkerhetsventil för SIL 2/PLd.`,
+      en: `⚙️ Recommended architectural paths for slaughterhouse/IP69K:\n` +
         `▸ ALT A – Stainless pneumatic cylinder (316L): SMC HY-Series (IP69K, NSF-H1 lube, EHEDG hygienic design) or Parker P1S Stainless Washdown. Add pneumatic rod lock for safe holding on power loss.\n` +
-        `▸ ALT B – Enclosed IP69K electric cylinder: Bosch Rexroth EMC-HD-XC (IP69K stainless, native PROFINET) or Parker ETH Washdown series. Requires integrated motor brake + safety valve for SIL 2/PLd.`);
+        `▸ ALT B – Enclosed IP69K electric cylinder: Bosch Rexroth EMC-HD-XC (IP69K stainless, native PROFINET) or Parker ETH Washdown series. Requires integrated motor brake + safety valve for SIL 2/PLd.`,
+      de: `⚙️ Empfohlene Architekturansätze für Schlachthof-/IP69K-Umgebung:\n` +
+        `▸ VARIANTE A – Pneumatischer Edelstahlzylinder (316L): SMC HY-Serie (IP69K, NSF-H1-Schmierung, EHEDG-hygienisches Design) oder Parker P1S Stainless Washdown Cylinder. Ergänzen mit pneumatischer Kolbenstangenbremse (Rod Lock) für sicheres Halten bei Stromausfall.\n` +
+        `▸ VARIANTE B – Gekapselter Elektrozylinder IP69K: Bosch Rexroth EMC-HD-XC (IP69K Edelstahl, natives PROFINET) oder Parker ETH-Serie Washdown. Erfordert integrierte Motorbremse + Sicherheitsventil für SIL 2/PLd.`,
+      es: `⚙️ Rutas de arquitectura recomendadas para entorno de matadero/IP69K:\n` +
+        `▸ OPCIÓN A – Cilindro neumático de acero inoxidable (316L): serie SMC HY (IP69K, lubricación NSF-H1, diseño higiénico EHEDG) o Parker P1S Stainless Washdown. Añadir bloqueo de vástago neumático (rod lock) para sujeción segura ante fallo de alimentación.\n` +
+        `▸ OPCIÓN B – Cilindro eléctrico encapsulado IP69K: Bosch Rexroth EMC-HD-XC (IP69K inoxidable, PROFINET nativo) o serie Parker ETH Washdown. Requiere freno de motor integrado + válvula de seguridad para SIL 2/PLd.`,
+    }));
   } else if (isWashdown && isFoodGrade) {
-    whyLines.push(isSv
-      ? `Miljökrav IP69K + livsmedel kräver: SMC HY-serien (316L, NSF-H1) eller Parker P1S Washdown. Verifierat EHEDG-utförande rekommenderas.`
-      : `IP69K + food-grade requires: SMC HY-Series (316L, NSF-H1) or Parker P1S Washdown. EHEDG-certified design recommended.`);
+    whyLines.push(pick(locale, {
+      sv: `Miljökrav IP69K + livsmedel kräver: SMC HY-serien (316L, NSF-H1) eller Parker P1S Washdown. Verifierat EHEDG-utförande rekommenderas.`,
+      en: `IP69K + food-grade requires: SMC HY-Series (316L, NSF-H1) or Parker P1S Washdown. EHEDG-certified design recommended.`,
+      de: `Umgebungsanforderung IP69K + Lebensmittelqualität erfordert: SMC HY-Serie (316L, NSF-H1) oder Parker P1S Washdown. EHEDG-zertifizierte Ausführung empfohlen.`,
+      es: `El requisito de entorno IP69K + grado alimenticio exige: serie SMC HY (316L, NSF-H1) o Parker P1S Washdown. Se recomienda diseño certificado EHEDG.`,
+    }));
   } else if (isWashdown) {
-    whyLines.push(isSv
-      ? `IP69K-krav: Festo CRDSNU (rostfri), Camozzi Serie 90 (IP67+), SMC CDQ2-serien (IP67) eller Parker P1S. Inga standardaluminiumcylindrar.`
-      : `IP69K requirement: Festo CRDSNU (stainless), Camozzi Serie 90 (IP67+), SMC CDQ2-series (IP67) or Parker P1S. No standard aluminum.`);
+    whyLines.push(pick(locale, {
+      sv: `IP69K-krav: Festo CRDSNU (rostfri), Camozzi Serie 90 (IP67+), SMC CDQ2-serien (IP67) eller Parker P1S. Inga standardaluminiumcylindrar.`,
+      en: `IP69K requirement: Festo CRDSNU (stainless), Camozzi Serie 90 (IP67+), SMC CDQ2-series (IP67) or Parker P1S. No standard aluminum.`,
+      de: `IP69K-Anforderung: Festo CRDSNU (Edelstahl), Camozzi Serie 90 (IP67+), SMC CDQ2-Serie (IP67) oder Parker P1S. Keine Standard-Aluminiumzylinder.`,
+      es: `Requisito IP69K: Festo CRDSNU (inoxidable), Camozzi Serie 90 (IP67+), serie SMC CDQ2 (IP67) o Parker P1S. Sin cilindros de aluminio estándar.`,
+    }));
   }
 
   if (isVertical && isSilSafety) {
-    whyLines.push(isSv
-      ? `⚠️ Vertikal last + säkerhetsfunktion: Mekanisk stångbroms (t.ex. SMC MHF2 rod lock) eller integrerad motorbroms OBLIGATORISK. Säkerhetsventil SIL 2-certifierad krävs per ISO 13849 PLd.`
-      : `⚠️ Vertical load + safety function: Mechanical rod lock (e.g. SMC MHF2) or integrated motor brake MANDATORY. SIL 2-certified safety valve required per ISO 13849 PLd.`);
+    whyLines.push(pick(locale, {
+      sv: `⚠️ Vertikal last + säkerhetsfunktion: Mekanisk stångbroms (t.ex. SMC MHF2 rod lock) eller integrerad motorbroms OBLIGATORISK. Säkerhetsventil SIL 2-certifierad krävs per ISO 13849 PLd.`,
+      en: `⚠️ Vertical load + safety function: Mechanical rod lock (e.g. SMC MHF2) or integrated motor brake MANDATORY. SIL 2-certified safety valve required per ISO 13849 PLd.`,
+      de: `⚠️ Vertikale Last + Sicherheitsfunktion: Mechanische Kolbenstangenbremse (z. B. SMC MHF2 Rod Lock) oder integrierte Motorbremse ZWINGEND ERFORDERLICH. SIL 2-zertifiziertes Sicherheitsventil gemäß ISO 13849 PLd erforderlich.`,
+      es: `⚠️ Carga vertical + función de seguridad: Bloqueo de vástago mecánico (p. ej. SMC MHF2 rod lock) o freno de motor integrado OBLIGATORIO. Se requiere válvula de seguridad certificada SIL 2 según ISO 13849 PLd.`,
+    }));
   } else if (isVertical) {
-    whyLines.push(isSv
-      ? `⚠️ Vertikal rörelse: Pilotmanövrerad backslagsventil eller stångbroms OBLIGATORISK för att förhindra fall vid lufttrycksfall.`
-      : `⚠️ Vertical movement: Pilot-operated check valve or rod lock MANDATORY to prevent drop on air loss.`);
+    whyLines.push(pick(locale, {
+      sv: `⚠️ Vertikal rörelse: Pilotmanövrerad backslagsventil eller stångbroms OBLIGATORISK för att förhindra fall vid lufttrycksfall.`,
+      en: `⚠️ Vertical movement: Pilot-operated check valve or rod lock MANDATORY to prevent drop on air loss.`,
+      de: `⚠️ Vertikale Bewegung: Pilotgesteuertes Rückschlagventil oder Kolbenstangenbremse ZWINGEND ERFORDERLICH, um ein Absinken bei Luftdruckverlust zu verhindern.`,
+      es: `⚠️ Movimiento vertical: Válvula antirretorno pilotada o bloqueo de vástago OBLIGATORIO para evitar la caída ante pérdida de presión de aire.`,
+    }));
   }
 
   if (isBatteryDryroom) {
-    whyLines.push(isSv
-      ? `⛔ Dryroom Cu/Zn/Ni-fritt: SMC 25-serien (Cu/Zn/Ni-fri, PFPE-smörjd). Begär materialdeklerationsintyg.`
-      : `⛔ Dryroom Cu/Zn/Ni-free: SMC 25-Series (Cu/Zn/Ni-free, PFPE-lubricated). Request material declaration.`);
+    whyLines.push(pick(locale, {
+      sv: `⛔ Dryroom Cu/Zn/Ni-fritt: SMC 25-serien (Cu/Zn/Ni-fri, PFPE-smörjd). Begär materialdeklerationsintyg.`,
+      en: `⛔ Dryroom Cu/Zn/Ni-free: SMC 25-Series (Cu/Zn/Ni-free, PFPE-lubricated). Request material declaration.`,
+      de: `⛔ Trockenraum Cu/Zn/Ni-frei: SMC 25-Serie (Cu/Zn/Ni-frei, PFPE-geschmiert). Materialdeklaration anfordern.`,
+      es: `⛔ Sala seca sin Cu/Zn/Ni: serie SMC 25 (sin Cu/Zn/Ni, lubricado con PFPE). Solicitar certificado de declaración de materiales.`,
+    }));
   }
 
   if (isHydraulic) {
-    whyLines.push(isSv
-      ? `Hydraulisk applikation (100-350 bar): Parker HMI/HYD-serien, Bosch Rexroth CDL1 eller SMC CH-serien. Utanför pneumatisk standardkatalog.`
-      : `Hydraulic application (100-350 bar): Parker HMI/HYD-series, Bosch Rexroth CDL1 or SMC CH-series. Outside pneumatic standard catalog.`);
+    whyLines.push(pick(locale, {
+      sv: `Hydraulisk applikation (100-350 bar): Parker HMI/HYD-serien, Bosch Rexroth CDL1 eller SMC CH-serien. Utanför pneumatisk standardkatalog.`,
+      en: `Hydraulic application (100-350 bar): Parker HMI/HYD-series, Bosch Rexroth CDL1 or SMC CH-series. Outside pneumatic standard catalog.`,
+      de: `Hydraulische Anwendung (100–350 bar): Parker HMI/HYD-Serie, Bosch Rexroth CDL1 oder SMC CH-Serie. Außerhalb des pneumatischen Standardkatalogs.`,
+      es: `Aplicación hidráulica (100-350 bar): serie Parker HMI/HYD, Bosch Rexroth CDL1 o serie SMC CH. Fuera del catálogo neumático estándar.`,
+    }));
   }
 
   if (isAtex) {
-    whyLines.push(isSv
-      ? `ATEX-zon: Alla komponenter måste vara NAMUR/IECEx-certifierade. Parker P1X ATEX, SMC CDQMB-ATEX eller Norgren Excelon ATEX-serien.`
-      : `ATEX zone: All components must be NAMUR/IECEx-certified. Parker P1X ATEX, SMC CDQMB-ATEX or Norgren Excelon ATEX-series.`);
+    whyLines.push(pick(locale, {
+      sv: `ATEX-zon: Alla komponenter måste vara NAMUR/IECEx-certifierade. Parker P1X ATEX, SMC CDQMB-ATEX eller Norgren Excelon ATEX-serien.`,
+      en: `ATEX zone: All components must be NAMUR/IECEx-certified. Parker P1X ATEX, SMC CDQMB-ATEX or Norgren Excelon ATEX-series.`,
+      de: `ATEX-Zone: Alle Komponenten müssen NAMUR/IECEx-zertifiziert sein. Parker P1X ATEX, SMC CDQMB-ATEX oder Norgren Excelon ATEX-Serie.`,
+      es: `Zona ATEX: Todos los componentes deben estar certificados NAMUR/IECEx. Parker P1X ATEX, SMC CDQMB-ATEX o serie Norgren Excelon ATEX.`,
+    }));
   }
 
   if (whyLines.length === 0) {
-    whyLines.push(isSv
-      ? `Vill du ha en lösning helt anpassad efter era exakta krav? Vi sköter leverantörsdialogen och levererar en komplett offert med exakt pris och leveranstid.`
-      : `Want a solution fully tailored to your exact requirements? We manage the supplier dialogue and deliver a complete quote with exact pricing and lead time.`);
+    whyLines.push(pick(locale, {
+      sv: `Vill du ha en lösning helt anpassad efter era exakta krav? Vi sköter leverantörsdialogen och levererar en komplett offert med exakt pris och leveranstid.`,
+      en: `Want a solution fully tailored to your exact requirements? We manage the supplier dialogue and deliver a complete quote with exact pricing and lead time.`,
+      de: `Möchten Sie eine Lösung, die exakt auf Ihre Anforderungen zugeschnitten ist? Wir übernehmen den Dialog mit dem Lieferanten und liefern ein vollständiges Angebot mit genauem Preis und Lieferzeit.`,
+      es: `¿Desea una solución totalmente adaptada a sus requisitos exactos? Nos encargamos del diálogo con el proveedor y entregamos una oferta completa con precio y plazo de entrega exactos.`,
+    }));
   }
 
   return {
     sku: "CUSTOM-SOLUTION",
-    name: isSv ? "Kundspecifik lösning" : "Custom engineered solution",
-    badge: isSv ? "Kundlösning" : "Custom solution",
+    name: pick(locale, { sv: "Kundspecifik lösning", en: "Custom engineered solution", de: "Kundenspezifische Lösung", es: "Solución personalizada" }),
+    badge: pick(locale, { sv: "Kundlösning", en: "Custom solution", de: "Kundenlösung", es: "Solución a medida" }),
     bore_mm: null, stroke_mm: minStroke > 0 ? minStroke : null, force_n: null,
     why: whyLines.join(" "),
-    pros: isSv
-      ? ["Exakt anpassad till era krav", "Vi kör dialogen med leverantören", "Offert med pris och leveranstid"]
-      : ["Exactly matched to your requirements", "We manage the supplier dialogue", "Quote with pricing and lead time"],
-    cons: isSv
-      ? ["Längre ledtid än lagerprodukt", "Kräver offertförfrågan"]
-      : ["Longer lead time than stock items", "Requires a quote request"],
+    pros: pick(locale, {
+      sv: ["Exakt anpassad till era krav", "Vi kör dialogen med leverantören", "Offert med pris och leveranstid"],
+      en: ["Exactly matched to your requirements", "We manage the supplier dialogue", "Quote with pricing and lead time"],
+      de: ["Exakt auf Ihre Anforderungen abgestimmt", "Wir führen den Lieferantendialog", "Angebot mit Preis und Lieferzeit"],
+      es: ["Exactamente adaptado a sus requisitos", "Gestionamos el diálogo con el proveedor", "Oferta con precio y plazo de entrega"],
+    }),
+    cons: pick(locale, {
+      sv: ["Längre ledtid än lagerprodukt", "Kräver offertförfrågan"],
+      en: ["Longer lead time than stock items", "Requires a quote request"],
+      de: ["Längere Lieferzeit als Lagerware", "Erfordert eine Angebotsanfrage"],
+      es: ["Plazo de entrega más largo que los artículos en stock", "Requiere solicitud de oferta"],
+    }),
   };
 }
 
@@ -1013,27 +1063,39 @@ function computeDynamics(massKg: number, strokeMm: number, cycleTimeS: number, i
 
 /** Flag conflicting / unrealistic requirement combinations — what a real engineer says. */
 function detectConflicts(f: {
-  isSv: boolean; precisionMm: number; isHighPrecision: boolean; speedMs: number;
+  locale: string; precisionMm: number; isHighPrecision: boolean; speedMs: number;
   isDirtyEnv: boolean; isWashdown: boolean; isAtexDust: boolean; isLowCost: boolean;
   is24x7: boolean; dyn: { vPeak: number; accel: number; forceN: number } | null;
 }): string[] {
-  const { isSv } = f; const out: string[] = [];
+  const { locale } = f; const out: string[] = [];
   if (f.isHighPrecision && (f.isDirtyEnv || f.isWashdown || f.isAtexDust))
-    out.push(isSv
-      ? `±${f.precisionMm} mm i smutsig/våt miljö krockar — kulskruv kräver tätning/bälg och skydd mot damm/olja, annars degraderar precisionen. Kräver IP-klassad/skyddad axel (fördyrar).`
-      : `±${f.precisionMm} mm in a dusty/wet environment conflicts — a ball screw needs sealing/bellows and protection or precision degrades. Requires an IP-rated/protected axis (adds cost).`);
+    out.push(pick(locale, {
+      sv: `±${f.precisionMm} mm i smutsig/våt miljö krockar — kulskruv kräver tätning/bälg och skydd mot damm/olja, annars degraderar precisionen. Kräver IP-klassad/skyddad axel (fördyrar).`,
+      en: `±${f.precisionMm} mm in a dusty/wet environment conflicts — a ball screw needs sealing/bellows and protection or precision degrades. Requires an IP-rated/protected axis (adds cost).`,
+      de: `±${f.precisionMm} mm in staubiger/feuchter Umgebung ist ein Widerspruch — eine Kugelumlaufspindel benötigt Abdichtung/Faltenbalg und Schutz, sonst verschlechtert sich die Präzision. Erfordert eine IP-geschützte Achse (verursacht Mehrkosten).`,
+      es: `±${f.precisionMm} mm en un entorno sucio/húmedo genera un conflicto — un husillo de bolas necesita sellado/fuelle y protección, o la precisión se degrada. Requiere un eje con protección IP (encarece el coste).`,
+    }));
   if (f.isHighPrecision && f.isLowCost)
-    out.push(isSv
-      ? `Hög precision (±${f.precisionMm} mm) och låg kostnad krockar — kulskruvsservo + styrning är dyrare än pneumatik. Prioritera ett av kraven.`
-      : `High precision (±${f.precisionMm} mm) and low cost conflict — ball-screw servo + control costs more than pneumatics. Prioritise one.`);
+    out.push(pick(locale, {
+      sv: `Hög precision (±${f.precisionMm} mm) och låg kostnad krockar — kulskruvsservo + styrning är dyrare än pneumatik. Prioritera ett av kraven.`,
+      en: `High precision (±${f.precisionMm} mm) and low cost conflict — ball-screw servo + control costs more than pneumatics. Prioritise one.`,
+      de: `Hohe Präzision (±${f.precisionMm} mm) und niedrige Kosten stehen im Widerspruch — Kugelumlaufspindel-Servo + Steuerung kostet mehr als Pneumatik. Priorisieren Sie eine der beiden Anforderungen.`,
+      es: `Alta precisión (±${f.precisionMm} mm) y bajo coste entran en conflicto — el servo de husillo de bolas + control cuesta más que la neumática. Priorice uno de los dos requisitos.`,
+    }));
   if (f.isHighPrecision && f.speedMs > 0.8)
-    out.push(isSv
-      ? `Hög hastighet (${f.speedMs} m/s) + ±${f.precisionMm} mm — kulskruv begränsas av varvtal/resonans, kuggrem av backlash. Verifiera axeln; ev. kuggrem + linjärgivare (sluten loop).`
-      : `High speed (${f.speedMs} m/s) + ±${f.precisionMm} mm — ball screws are rpm/resonance-limited, belts have backlash. Verify the axis; possibly belt + linear encoder (closed loop).`);
+    out.push(pick(locale, {
+      sv: `Hög hastighet (${f.speedMs} m/s) + ±${f.precisionMm} mm — kulskruv begränsas av varvtal/resonans, kuggrem av backlash. Verifiera axeln; ev. kuggrem + linjärgivare (sluten loop).`,
+      en: `High speed (${f.speedMs} m/s) + ±${f.precisionMm} mm — ball screws are rpm/resonance-limited, belts have backlash. Verify the axis; possibly belt + linear encoder (closed loop).`,
+      de: `Hohe Geschwindigkeit (${f.speedMs} m/s) + ±${f.precisionMm} mm — Kugelumlaufspindeln sind drehzahl-/resonanzbegrenzt, Zahnriemen haben Spiel (Backlash). Achse prüfen; ggf. Zahnriemen + Linearencoder (geschlossener Regelkreis).`,
+      es: `Alta velocidad (${f.speedMs} m/s) + ±${f.precisionMm} mm — los husillos de bolas están limitados por RPM/resonancia, las correas dentadas tienen holgura. Verifique el eje; posiblemente correa + encoder lineal (bucle cerrado).`,
+    }));
   if (f.is24x7 && f.dyn)
-    out.push(isSv
-      ? `Kontinuerlig drift (24/7) vid ~${Math.round(f.dyn.forceN)} N — dimensionera för livslängd/duty cycle (L10); kulskruv och lager slits vid hög acceleration.`
-      : `Continuous duty (24/7) at ~${Math.round(f.dyn.forceN)} N — size for service life/duty cycle (L10); ball screw and bearings wear under high acceleration.`);
+    out.push(pick(locale, {
+      sv: `Kontinuerlig drift (24/7) vid ~${Math.round(f.dyn.forceN)} N — dimensionera för livslängd/duty cycle (L10); kulskruv och lager slits vid hög acceleration.`,
+      en: `Continuous duty (24/7) at ~${Math.round(f.dyn.forceN)} N — size for service life/duty cycle (L10); ball screw and bearings wear under high acceleration.`,
+      de: `Dauerbetrieb (24/7) bei ~${Math.round(f.dyn.forceN)} N — für Lebensdauer/Duty-Cycle (L10) dimensionieren; Kugelumlaufspindel und Lager verschleißen bei hoher Beschleunigung.`,
+      es: `Servicio continuo (24/7) a ~${Math.round(f.dyn.forceN)} N — dimensione para vida útil/ciclo de trabajo (L10); el husillo de bolas y los rodamientos se desgastan con alta aceleración.`,
+    }));
   return out;
 }
 
@@ -1048,7 +1110,7 @@ interface BomCtx {
   valveTerminal: boolean;
   isEndPosDetect: boolean;
   isVacuum: boolean;
-  isSv: boolean;
+  locale: string;
   products: CatalogProduct[];
   // Accessory flags — drive deterministic accessory rows
   isMounting: boolean;
@@ -1073,7 +1135,7 @@ interface BomCtx {
  */
 function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: number; role: string; reason: string }> {
   const { primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
-          isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isSv, products,
+          isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, locale, products,
           isMounting, isArticulated, isRodLock, primaryBoreMm, isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
           isMultiAxis, perAxisStrokes } = ctx;
   const isPneumatic = !isElectric && !isAtex && !isAtexDust;
@@ -1086,15 +1148,17 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     ? perAxisStrokes.reduce((best, a, i, arr) => (a.stroke > arr[best].stroke ? i : best), 0)
     : -1;
   const primaryAxisLabel = (isMultiAxis && primaryAxisIdx >= 0) ? perAxisStrokes[primaryAxisIdx].axis.toUpperCase() : "";
-  const famNote = primaryIsFamilyProd ? (isSv
-    ? " ⚠️ Produktfamilj — ange komplett beställningskod (bore + stroke + varianter) vid order."
-    : " ⚠️ Product family — specify full ordering code (bore + stroke + variants) when ordering.")
-    : "";
+  const famNote = primaryIsFamilyProd ? pick(locale, {
+    sv: " ⚠️ Produktfamilj — ange komplett beställningskod (bore + stroke + varianter) vid order.",
+    en: " ⚠️ Product family — specify full ordering code (bore + stroke + variants) when ordering.",
+    de: " ⚠️ Produktfamilie — vollständigen Bestellcode (Bohrung + Hub + Varianten) bei der Bestellung angeben.",
+    es: " ⚠️ Familia de productos — indique el código de pedido completo (diámetro + carrera + variantes) al realizar el pedido.",
+  }) : "";
   rows.push({
     sku: primarySku, quantity: 1,
-    role: (isSv ? "Primär aktuator" : "Primary actuator")
-      + (primaryAxisLabel ? (isSv ? ` — ${primaryAxisLabel}-axel` : ` — ${primaryAxisLabel}-axis`) : ""),
-    reason: (isSv ? "Vald primär aktuator" : "Selected primary actuator") + famNote,
+    role: pick(locale, { sv: "Primär aktuator", en: "Primary actuator", de: "Primäraktuator", es: "Actuador primario" })
+      + (primaryAxisLabel ? pick(locale, { sv: ` — ${primaryAxisLabel}-axel`, en: ` — ${primaryAxisLabel}-axis`, de: ` — ${primaryAxisLabel}-Achse`, es: ` — eje ${primaryAxisLabel}` }) : ""),
+    reason: pick(locale, { sv: "Vald primär aktuator", en: "Selected primary actuator", de: "Ausgewählter Primäraktuator", es: "Actuador primario seleccionado" }) + famNote,
   });
 
   // Prefer the primary's brand when picking motor/drive/secondary axis, so e.g. an
@@ -1117,22 +1181,33 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
       rows.push({
         sku: motorMatch!.sku, quantity: 1,
         role: isVerticalLoad
-          ? (isSv ? "Bromsmotor (vertikal säkerhet)" : "Brake motor (vertical safety)")
-          : (isSv ? (stepperMotor ? "Stegmotor" : "Servomotor") : (stepperMotor ? "Stepper motor" : "Servo motor")),
+          ? pick(locale, { sv: "Bromsmotor (vertikal säkerhet)", en: "Brake motor (vertical safety)", de: "Bremsmotor (vertikale Sicherheit)", es: "Motor con freno (seguridad vertical)" })
+          : pick(locale, stepperMotor
+              ? { sv: "Stegmotor", en: "Stepper motor", de: "Schrittmotor", es: "Motor paso a paso" }
+              : { sv: "Servomotor", en: "Servo motor", de: "Servomotor", es: "Servomotor" }),
         reason: `${motorMatch!.name} (${motorMatch!.brand}) — ` + (isVerticalLoad
-          ? (isSv
-              ? "OBLIGATORISK för vertikal elektrisk axel — beställ med integrerad hållbroms som håller lasten vid strömavbrott/nödstopp."
-              : "MANDATORY for a vertical electric axis — order with integrated holding brake to keep the load on power loss/E-stop.")
-          : (isSv
-              ? "Driver axeln — matcha moment/varvtal mot lasten; samma märke som axel och drivare."
-              : "Drives the axis — match torque/speed to the load; same brand as the axis and drive.")),
+          ? pick(locale, {
+              sv: "OBLIGATORISK för vertikal elektrisk axel — beställ med integrerad hållbroms som håller lasten vid strömavbrott/nödstopp.",
+              en: "MANDATORY for a vertical electric axis — order with integrated holding brake to keep the load on power loss/E-stop.",
+              de: "ZWINGEND ERFORDERLICH für eine vertikale elektrische Achse — mit integrierter Haltebremse bestellen, die die Last bei Stromausfall/Not-Halt hält.",
+              es: "OBLIGATORIO para un eje eléctrico vertical — pedir con freno de retención integrado que sujete la carga ante fallo de alimentación/parada de emergencia.",
+            })
+          : pick(locale, {
+              sv: "Driver axeln — matcha moment/varvtal mot lasten; samma märke som axel och drivare.",
+              en: "Drives the axis — match torque/speed to the load; same brand as the axis and drive.",
+              de: "Treibt die Achse an — Drehmoment/Drehzahl auf die Last abstimmen; gleiche Marke wie Achse und Antrieb.",
+              es: "Impulsa el eje — ajuste el par/velocidad a la carga; misma marca que el eje y el accionamiento.",
+            })),
       });
     } else if (isVerticalLoad) {
       // Integrated-motor actuator (e.g. SMC LE-series) — the holding brake is an
       // ORDER OPTION on the actuator, not a separate (foreign-brand) motor.
-      rows[0].reason += isSv
-        ? " Beställ med integrerad hållbroms (bromsoption) för vertikal säkerhet — håller lasten vid strömavbrott."
-        : " Order with the integrated holding-brake option for vertical safety — holds the load on power loss.";
+      rows[0].reason += pick(locale, {
+        sv: " Beställ med integrerad hållbroms (bromsoption) för vertikal säkerhet — håller lasten vid strömavbrott.",
+        en: " Order with the integrated holding-brake option for vertical safety — holds the load on power loss.",
+        de: " Mit der Option integrierte Haltebremse für vertikale Sicherheit bestellen — hält die Last bei Stromausfall.",
+        es: " Pedir con la opción de freno de retención integrado para seguridad vertical — sujeta la carga ante fallo de alimentación.",
+      });
     }
   }
 
@@ -1144,15 +1219,22 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     const stepperDrive = !!driveMatch && /steg|stepper/i.test(`${driveMatch.name} ${driveMatch.sku}`);
     rows.push({
       sku: sameBrandDrive ? driveMatch!.sku : "SPECIFY", quantity: 1,
-      role: isSv ? (stepperDrive ? "Stegmotordrivare (drivsteg)" : "Servodrivare (drivsteg)")
-                 : (stepperDrive ? "Stepper drive (driver)" : "Servo drive (amplifier)"),
+      role: pick(locale, stepperDrive
+        ? { sv: "Stegmotordrivare (drivsteg)", en: "Stepper drive (driver)", de: "Schrittmotortreiber (Endstufe)", es: "Controlador de motor paso a paso" }
+        : { sv: "Servodrivare (drivsteg)", en: "Servo drive (amplifier)", de: "Servoantrieb (Endstufe)", es: "Accionamiento servo (amplificador)" }),
       reason: sameBrandDrive
-        ? `${driveMatch!.name} (${driveMatch!.brand}). ` + (isSv
-            ? "Driver och styr motorn — matcha effekt/spänning mot axeln; ange styrgränssnitt (step/dir eller fältbuss)."
-            : "Drives and controls the motor — match power/voltage to the axis; specify control interface (step/dir or fieldbus).")
-        : (isSv
-            ? `Specificera kompatibel drivare för ${bU ? bU + "-" : ""}axeln — vi har ingen ${bU}-drivare i katalogen ännu, begär offert.`
-            : `Specify a compatible drive for the ${bU ? bU + " " : ""}axis — no ${bU} drive in the catalogue yet, request a quote.`),
+        ? `${driveMatch!.name} (${driveMatch!.brand}). ` + pick(locale, {
+            sv: "Driver och styr motorn — matcha effekt/spänning mot axeln; ange styrgränssnitt (step/dir eller fältbuss).",
+            en: "Drives and controls the motor — match power/voltage to the axis; specify control interface (step/dir or fieldbus).",
+            de: "Treibt und steuert den Motor — Leistung/Spannung auf die Achse abstimmen; Steuerschnittstelle angeben (Step/Dir oder Feldbus).",
+            es: "Impulsa y controla el motor — ajuste la potencia/tensión al eje; indique la interfaz de control (paso/dirección o bus de campo).",
+          })
+        : pick(locale, {
+            sv: `Specificera kompatibel drivare för ${bU ? bU + "-" : ""}axeln — vi har ingen ${bU}-drivare i katalogen ännu, begär offert.`,
+            en: `Specify a compatible drive for the ${bU ? bU + " " : ""}axis — no ${bU} drive in the catalogue yet, request a quote.`,
+            de: `Kompatiblen Antrieb für die ${bU ? bU + "-" : ""}Achse angeben — wir haben noch keinen ${bU}-Antrieb im Katalog, bitte Angebot anfordern.`,
+            es: `Especifique un accionamiento compatible para el eje ${bU ? bU + " " : ""}— todavía no tenemos un accionamiento ${bU} en el catálogo, solicite una oferta.`,
+          }),
     });
   }
 
@@ -1161,10 +1243,13 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     const cvMatch = findCatalogProductByType("check-valve", products);
     rows.push({
       sku: cvMatch?.sku ?? "SPECIFY", quantity: 1,
-      role: isSv ? "Pilotmanövrerad backslagsventil" : "Pilot-operated check valve",
-      reason: isSv
-        ? "OBLIGATORISK vid pneumatisk vertikal last — förhindrar att lasten faller vid lufttrycksförlust (IEC 60947-5-1)"
-        : "MANDATORY for pneumatic vertical load — prevents load drop on air pressure loss (IEC 60947-5-1)",
+      role: pick(locale, { sv: "Pilotmanövrerad backslagsventil", en: "Pilot-operated check valve", de: "Pilotgesteuertes Rückschlagventil", es: "Válvula antirretorno pilotada" }),
+      reason: pick(locale, {
+        sv: "OBLIGATORISK vid pneumatisk vertikal last — förhindrar att lasten faller vid lufttrycksförlust (IEC 60947-5-1)",
+        en: "MANDATORY for pneumatic vertical load — prevents load drop on air pressure loss (IEC 60947-5-1)",
+        de: "ZWINGEND ERFORDERLICH bei pneumatischer vertikaler Last — verhindert ein Absinken der Last bei Luftdruckverlust (IEC 60947-5-1)",
+        es: "OBLIGATORIO para carga vertical neumática — evita la caída de la carga ante pérdida de presión de aire (IEC 60947-5-1)",
+      }),
     });
   }
 
@@ -1179,20 +1264,26 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     const pBore = primaryBoreMm ||
                   firstNumAbs(primary?.key_specs?.bore_mm) ||
                   firstNumAbs((primary?.name ?? "").match(/Ø\s?(\d+)/)?.[1]);
-    const boreTxt = pBore > 0 ? `Ø${pBore}` : (isSv ? "cylinderns borrning" : "the cylinder's bore");
+    const boreTxt = pBore > 0 ? `Ø${pBore}` : pick(locale, { sv: "cylinderns borrning", en: "the cylinder's bore", de: "die Zylinderbohrung", es: "el diámetro del cilindro" });
     const lock = products.find(p =>
       p.category === "rod-lock" && pBore > 0 &&
       (firstNumAbs(p.key_specs?.bore_mm) === pBore || firstNumAbs(p.name.match(/Ø\s?(\d+)/)?.[1]) === pBore));
     rows.push({
       sku: lock?.sku ?? "SPECIFY", quantity: 1,
-      role: isSv ? "Stångbroms/mekaniskt lås (fail-safe)" : "Rod lock / mechanical brake (fail-safe)",
+      role: pick(locale, { sv: "Stångbroms/mekaniskt lås (fail-safe)", en: "Rod lock / mechanical brake (fail-safe)", de: "Kolbenstangenbremse/mechanische Verriegelung (fail-safe)", es: "Bloqueo de vástago/freno mecánico (fail-safe)" }),
       reason: lock
-        ? (isSv
-            ? `${lock.name} — fjäderbelastat lås som låser kolvstången vid luftbortfall, ${boreTxt}-matchad mot cylindern. Backventilen håller trycket; låset håller lasten även vid slangbrott eller nödstoppsavluftning.`
-            : `${lock.name} — spring-applied lock that clamps the rod on air loss, ${boreTxt}-matched to the cylinder. The check valve holds pressure; the lock holds the load even through hose rupture or e-stop venting.`)
-        : (isSv
-            ? `Ange stångbroms/mekaniskt lås i ${boreTxt} — fjäderbelastat, låser vid luft-/strömbortfall. MÅSTE matcha cylinderns borrning; ${boreTxt}-variant saknas i lager (kundspecifik/offert).`
-            : `Specify a rod lock / mechanical brake in ${boreTxt} — spring-applied, locks on air/power loss. MUST match the cylinder bore; no ${boreTxt} variant in stock (custom/quote).`),
+        ? pick(locale, {
+            sv: `${lock.name} — fjäderbelastat lås som låser kolvstången vid luftbortfall, ${boreTxt}-matchad mot cylindern. Backventilen håller trycket; låset håller lasten även vid slangbrott eller nödstoppsavluftning.`,
+            en: `${lock.name} — spring-applied lock that clamps the rod on air loss, ${boreTxt}-matched to the cylinder. The check valve holds pressure; the lock holds the load even through hose rupture or e-stop venting.`,
+            de: `${lock.name} — federbetätigte Verriegelung, die die Kolbenstange bei Luftverlust festklemmt, ${boreTxt}-passend zum Zylinder. Das Rückschlagventil hält den Druck; die Verriegelung hält die Last auch bei Schlauchbruch oder Not-Halt-Entlüftung.`,
+            es: `${lock.name} — bloqueo accionado por resorte que sujeta el vástago ante pérdida de aire, ajustado a ${boreTxt} del cilindro. La válvula antirretorno mantiene la presión; el bloqueo sujeta la carga incluso ante rotura de manguera o purga por parada de emergencia.`,
+          })
+        : pick(locale, {
+            sv: `Ange stångbroms/mekaniskt lås i ${boreTxt} — fjäderbelastat, låser vid luft-/strömbortfall. MÅSTE matcha cylinderns borrning; ${boreTxt}-variant saknas i lager (kundspecifik/offert).`,
+            en: `Specify a rod lock / mechanical brake in ${boreTxt} — spring-applied, locks on air/power loss. MUST match the cylinder bore; no ${boreTxt} variant in stock (custom/quote).`,
+            de: `Kolbenstangenbremse/mechanische Verriegelung in ${boreTxt} angeben — federbetätigt, verriegelt bei Luft-/Stromausfall. MUSS zur Zylinderbohrung passen; ${boreTxt}-Variante nicht auf Lager (kundenspezifisch/Angebot).`,
+            es: `Indique un bloqueo de vástago/freno mecánico en ${boreTxt} — accionado por resorte, bloquea ante fallo de aire/alimentación. DEBE coincidir con el diámetro del cilindro; no hay variante ${boreTxt} en stock (a medida/oferta).`,
+          }),
     });
   }
 
@@ -1201,19 +1292,25 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     const vtMatch = findCatalogProductByType("valve-terminal", products);
     rows.push({
       sku: vtMatch?.sku ?? "SPECIFY", quantity: 1,
-      role: isSv ? "Ventilramp (ventilterminal)" : "Valve terminal (manifold)",
-      reason: isSv
-        ? "OBLIGATORISK för fältbussanslutning (PROFINET/EtherCAT) — ventilramp (CPV, VTSA, MPA) samlar alla ventiler i en enhet och reducerar kabelkostnad. Specificera bussmodul och ventilantal."
-        : "MANDATORY for fieldbus (PROFINET/EtherCAT) — valve terminal (CPV, VTSA, MPA) consolidates all valves, reduces wiring. Specify bus module and valve count.",
+      role: pick(locale, { sv: "Ventilramp (ventilterminal)", en: "Valve terminal (manifold)", de: "Ventilinsel (Ventilterminal)", es: "Terminal de válvulas (colector)" }),
+      reason: pick(locale, {
+        sv: "OBLIGATORISK för fältbussanslutning (PROFINET/EtherCAT) — ventilramp (CPV, VTSA, MPA) samlar alla ventiler i en enhet och reducerar kabelkostnad. Specificera bussmodul och ventilantal.",
+        en: "MANDATORY for fieldbus (PROFINET/EtherCAT) — valve terminal (CPV, VTSA, MPA) consolidates all valves, reduces wiring. Specify bus module and valve count.",
+        de: "ZWINGEND ERFORDERLICH für Feldbusanbindung (PROFINET/EtherCAT) — die Ventilinsel (CPV, VTSA, MPA) fasst alle Ventile in einer Einheit zusammen und reduziert den Verkabelungsaufwand. Busmodul und Ventilanzahl angeben.",
+        es: "OBLIGATORIO para conexión de bus de campo (PROFINET/EtherCAT) — el terminal de válvulas (CPV, VTSA, MPA) agrupa todas las válvulas en una unidad y reduce el cableado. Especifique el módulo de bus y el número de válvulas.",
+      }),
     });
   } else if (isPneumatic) {
     const valveMatch = findCatalogProductByType("valve", products);
     rows.push({
       sku: valveMatch?.sku ?? "SPECIFY", quantity: 1,
-      role: isSv ? "Magnetventil (5/2-vägs styrventil)" : "Solenoid valve (5/2-way directional)",
-      reason: isSv
-        ? "OBLIGATORISK för pneumatisk cylinder — 5/2-vägs magnetventil styr cylinderns riktning (fram/åter). Välj spänning 24 V DC och anslutning G1/4."
-        : "MANDATORY for pneumatic cylinder — 5/2-way solenoid valve controls cylinder direction (extend/retract). Select 24 V DC coil and G1/4 port.",
+      role: pick(locale, { sv: "Magnetventil (5/2-vägs styrventil)", en: "Solenoid valve (5/2-way directional)", de: "Magnetventil (5/2-Wege-Steuerventil)", es: "Electroválvula (5/2 vías)" }),
+      reason: pick(locale, {
+        sv: "OBLIGATORISK för pneumatisk cylinder — 5/2-vägs magnetventil styr cylinderns riktning (fram/åter). Välj spänning 24 V DC och anslutning G1/4.",
+        en: "MANDATORY for pneumatic cylinder — 5/2-way solenoid valve controls cylinder direction (extend/retract). Select 24 V DC coil and G1/4 port.",
+        de: "ZWINGEND ERFORDERLICH für Pneumatikzylinder — das 5/2-Wege-Magnetventil steuert die Zylinderrichtung (Aus-/Einfahren). 24-V-DC-Spule und G1/4-Anschluss wählen.",
+        es: "OBLIGATORIO para cilindro neumático — la electroválvula 5/2 controla la dirección del cilindro (avance/retroceso). Seleccione bobina de 24 V CC y conexión G1/4.",
+      }),
     });
   }
 
@@ -1222,18 +1319,24 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     const silMatch = findCatalogProductByType("silencer", products);
     rows.push({
       sku: silMatch?.sku ?? "SPECIFY", quantity: valveTerminal ? 1 : 2,
-      role: isSv ? "Ljuddämpare (avluftning)" : "Silencer (exhaust)",
-      reason: isSv
-        ? "OBLIGATORISK på ventilens avluftningsportar (3/5) — sänker ljudnivån och skyddar mot smuts. En per avluftningsport (2 st för en 5/2-ventil); vid ventilramp räcker en central enhet."
-        : "MANDATORY on the valve exhaust ports (3/5) — cuts noise and keeps dirt out. One per exhaust port (2 for a 5/2 valve); one central unit suffices on a manifold.",
+      role: pick(locale, { sv: "Ljuddämpare (avluftning)", en: "Silencer (exhaust)", de: "Schalldämpfer (Entlüftung)", es: "Silenciador (escape)" }),
+      reason: pick(locale, {
+        sv: "OBLIGATORISK på ventilens avluftningsportar (3/5) — sänker ljudnivån och skyddar mot smuts. En per avluftningsport (2 st för en 5/2-ventil); vid ventilramp räcker en central enhet.",
+        en: "MANDATORY on the valve exhaust ports (3/5) — cuts noise and keeps dirt out. One per exhaust port (2 for a 5/2 valve); one central unit suffices on a manifold.",
+        de: "ZWINGEND ERFORDERLICH an den Entlüftungsanschlüssen des Ventils (3/5) — reduziert den Geräuschpegel und hält Schmutz fern. Einer je Entlüftungsanschluss (2 Stück bei einem 5/2-Ventil); bei einer Ventilinsel genügt eine zentrale Einheit.",
+        es: "OBLIGATORIO en los puertos de escape de la válvula (3/5) — reduce el nivel de ruido y evita la entrada de suciedad. Uno por puerto de escape (2 para una válvula 5/2); en un terminal de válvulas basta una unidad central.",
+      }),
     });
     const fcMatch = findCatalogProductByType("flow-control", products);
     rows.push({
       sku: fcMatch?.sku ?? "SPECIFY", quantity: 2,
-      role: isSv ? "Strypbackventil (hastighetsreglering)" : "One-way flow control (speed)",
-      reason: isSv
-        ? "OBLIGATORISK för att ställa cylinderns hastighet — 2 st strypbackventiler (meter-out) på cylinderns portar ger jämn, kontrollerad rörelse fram och åter."
-        : "MANDATORY to set cylinder speed — 2 one-way flow-control valves (meter-out) on the cylinder ports give smooth, controlled extend/retract.",
+      role: pick(locale, { sv: "Strypbackventil (hastighetsreglering)", en: "One-way flow control (speed)", de: "Drosselrückschlagventil (Geschwindigkeitsregelung)", es: "Regulador de caudal unidireccional (velocidad)" }),
+      reason: pick(locale, {
+        sv: "OBLIGATORISK för att ställa cylinderns hastighet — 2 st strypbackventiler (meter-out) på cylinderns portar ger jämn, kontrollerad rörelse fram och åter.",
+        en: "MANDATORY to set cylinder speed — 2 one-way flow-control valves (meter-out) on the cylinder ports give smooth, controlled extend/retract.",
+        de: "ZWINGEND ERFORDERLICH zur Einstellung der Zylindergeschwindigkeit — 2 Drosselrückschlagventile (Abluftdrosselung) an den Zylinderanschlüssen sorgen für eine gleichmäßige, kontrollierte Aus-/Einfahrbewegung.",
+        es: "OBLIGATORIO para ajustar la velocidad del cilindro — 2 reguladores de caudal unidireccionales (regulación de escape) en los puertos del cilindro proporcionan un movimiento de avance/retroceso suave y controlado.",
+      }),
     });
   }
 
@@ -1242,10 +1345,13 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     const frlMatch = findCatalogProductByType("frl", products);
     rows.push({
       sku: frlMatch?.sku ?? "SPECIFY", quantity: 1,
-      role: isSv ? "FRL-enhet (Filter-Regulator-Smörjare)" : "FRL unit (Filter-Regulator-Lubricator)",
-      reason: isSv
-        ? "OBLIGATORISK för pneumatiskt system — luftberedning säkerställer rätt arbetstryck, filtrerad luft (≥40 µm) och smörjning av cylindertätningar. Välj regulator med manometer 0–10 bar."
-        : "MANDATORY for pneumatic system — air preparation ensures correct working pressure, filtered air (≥40 µm) and seal lubrication. Select regulator with pressure gauge 0–10 bar.",
+      role: pick(locale, { sv: "FRL-enhet (Filter-Regulator-Smörjare)", en: "FRL unit (Filter-Regulator-Lubricator)", de: "FRL-Einheit (Filter-Regler-Öler)", es: "Unidad FRL (Filtro-Regulador-Lubricador)" }),
+      reason: pick(locale, {
+        sv: "OBLIGATORISK för pneumatiskt system — luftberedning säkerställer rätt arbetstryck, filtrerad luft (≥40 µm) och smörjning av cylindertätningar. Välj regulator med manometer 0–10 bar.",
+        en: "MANDATORY for pneumatic system — air preparation ensures correct working pressure, filtered air (≥40 µm) and seal lubrication. Select regulator with pressure gauge 0–10 bar.",
+        de: "ZWINGEND ERFORDERLICH für pneumatische Systeme — die Luftaufbereitung stellt den richtigen Arbeitsdruck, gefilterte Luft (≥40 µm) und die Schmierung der Zylinderdichtungen sicher. Regler mit Manometer 0–10 bar wählen.",
+        es: "OBLIGATORIO para sistemas neumáticos — el tratamiento de aire garantiza la presión de trabajo correcta, aire filtrado (≥40 µm) y lubricación de las juntas del cilindro. Seleccione un regulador con manómetro de 0-10 bar.",
+      }),
     });
   }
 
@@ -1254,10 +1360,13 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     const saMatch = findCatalogProductByType("shock-absorber", products);
     rows.push({
       sku: saMatch?.sku ?? "SPECIFY", quantity: 2,
-      role: isSv ? "Hydraulisk stötdämpare" : "Hydraulic shock absorber",
-      reason: isSv
-        ? "OBLIGATORISK vid slaghastighet >1 m/s — förhindrar skador på cylinderände och maskinkonstruktion. Välj justerbar hydraulisk stötdämpare dimensionerad för cylinderkraft och massa."
-        : "MANDATORY at stroke speed >1 m/s — prevents end-stop damage to cylinder and machine frame. Select adjustable hydraulic shock absorber sized for cylinder force and mass.",
+      role: pick(locale, { sv: "Hydraulisk stötdämpare", en: "Hydraulic shock absorber", de: "Hydraulischer Stoßdämpfer", es: "Amortiguador hidráulico" }),
+      reason: pick(locale, {
+        sv: "OBLIGATORISK vid slaghastighet >1 m/s — förhindrar skador på cylinderände och maskinkonstruktion. Välj justerbar hydraulisk stötdämpare dimensionerad för cylinderkraft och massa.",
+        en: "MANDATORY at stroke speed >1 m/s — prevents end-stop damage to cylinder and machine frame. Select adjustable hydraulic shock absorber sized for cylinder force and mass.",
+        de: "ZWINGEND ERFORDERLICH bei einer Hubgeschwindigkeit >1 m/s — verhindert Endlagenschäden am Zylinder und am Maschinenrahmen. Einstellbaren hydraulischen Stoßdämpfer wählen, dimensioniert für Zylinderkraft und Masse.",
+        es: "OBLIGATORIO a velocidad de carrera >1 m/s — evita daños en el tope final del cilindro y en la estructura de la máquina. Seleccione un amortiguador hidráulico ajustable dimensionado para la fuerza y la masa del cilindro.",
+      }),
     });
   }
 
@@ -1266,10 +1375,13 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     const sensorMatch = findCatalogProductByType("sensor", products);
     rows.push({
       sku: sensorMatch?.sku ?? "SPECIFY", quantity: 2,
-      role: isSv ? "Ändlägesgivare (hemläge + utsträckt läge)" : "End-position sensor (home + extended)",
-      reason: isSv
-        ? "OBLIGATORISK — 2 st magnetgivare för T-spår (en per ändläge) krävs för PLC-feedback. Välj givare kompatibel med cylinderprofil och styrsystem (24 V DC NPN/PNP)."
-        : "MANDATORY — 2 T-slot magnetic sensors (one per end position) required for PLC feedback. Select sensor matching cylinder profile and control voltage (24 V DC NPN/PNP).",
+      role: pick(locale, { sv: "Ändlägesgivare (hemläge + utsträckt läge)", en: "End-position sensor (home + extended)", de: "Endlagensensor (Grundstellung + ausgefahren)", es: "Sensor de fin de carrera (posición inicial + extendida)" }),
+      reason: pick(locale, {
+        sv: "OBLIGATORISK — 2 st magnetgivare för T-spår (en per ändläge) krävs för PLC-feedback. Välj givare kompatibel med cylinderprofil och styrsystem (24 V DC NPN/PNP).",
+        en: "MANDATORY — 2 T-slot magnetic sensors (one per end position) required for PLC feedback. Select sensor matching cylinder profile and control voltage (24 V DC NPN/PNP).",
+        de: "ZWINGEND ERFORDERLICH — 2 T-Nuten-Magnetsensoren (einer je Endlage) für die SPS-Rückmeldung erforderlich. Sensor passend zum Zylinderprofil und zur Steuerspannung wählen (24 V DC NPN/PNP).",
+        es: "OBLIGATORIO — se requieren 2 sensores magnéticos de ranura en T (uno por posición final) para la retroalimentación al PLC. Seleccione un sensor compatible con el perfil del cilindro y la tensión de control (24 V CC NPN/PNP).",
+      }),
     });
   }
 
@@ -1279,10 +1391,13 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     if (fittingMatch) {
       rows.push({
         sku: fittingMatch.sku, quantity: 4,
-        role: isSv ? "Snabbkoppling (push-in fitting)" : "Push-in fitting",
-        reason: isSv
-          ? "Ansluter cylinder och ventil till luftslang — välj diameter (6/8/10 mm) för rätt slanganslutning till cylinderns G-port."
-          : "Connects cylinder and valve to air tubing — select diameter (6/8/10 mm) matching cylinder G-port.",
+        role: pick(locale, { sv: "Snabbkoppling (push-in fitting)", en: "Push-in fitting", de: "Steckverschraubung (Push-in-Fitting)", es: "Racor instantáneo (push-in)" }),
+        reason: pick(locale, {
+          sv: "Ansluter cylinder och ventil till luftslang — välj diameter (6/8/10 mm) för rätt slanganslutning till cylinderns G-port.",
+          en: "Connects cylinder and valve to air tubing — select diameter (6/8/10 mm) matching cylinder G-port.",
+          de: "Verbindet Zylinder und Ventil mit dem Luftschlauch — Durchmesser (6/8/10 mm) passend zum G-Anschluss des Zylinders wählen.",
+          es: "Conecta el cilindro y la válvula al tubo de aire — seleccione el diámetro (6/8/10 mm) adecuado para el puerto G del cilindro.",
+        }),
       });
     }
   }
@@ -1293,10 +1408,13 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     if (tubeMatch) {
       rows.push({
         sku: tubeMatch.sku, quantity: 1,
-        role: isSv ? "Tryckluftsslang (per meter)" : "Pneumatic tubing (per metre)",
-        reason: isSv
-          ? "Förbinder ventil, FRL och cylinder — välj ytterdiameter (6/8/10 mm) och längd efter installationen. Anges per meter."
-          : "Connects valve, FRL and cylinder — select outer diameter (6/8/10 mm) and length per the installation. Sold per metre.",
+        role: pick(locale, { sv: "Tryckluftsslang (per meter)", en: "Pneumatic tubing (per metre)", de: "Druckluftschlauch (pro Meter)", es: "Tubo neumático (por metro)" }),
+        reason: pick(locale, {
+          sv: "Förbinder ventil, FRL och cylinder — välj ytterdiameter (6/8/10 mm) och längd efter installationen. Anges per meter.",
+          en: "Connects valve, FRL and cylinder — select outer diameter (6/8/10 mm) and length per the installation. Sold per metre.",
+          de: "Verbindet Ventil, FRL-Einheit und Zylinder — Außendurchmesser (6/8/10 mm) und Länge passend zur Installation wählen. Wird pro Meter angegeben.",
+          es: "Conecta la válvula, la unidad FRL y el cilindro — seleccione el diámetro exterior (6/8/10 mm) y la longitud según la instalación. Se indica por metro.",
+        }),
       });
     }
   }
@@ -1307,10 +1425,13 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     if (cableMatch) {
       rows.push({
         sku: cableMatch.sku, quantity: 1,
-        role: isSv ? "Motorkabel" : "Motor cable",
-        reason: isSv
-          ? "Anslutningskabel till drivenheten — välj längd och kontakttyp kompatibel med vald motor och drivare."
-          : "Connection cable to the drive — select length and connector type compatible with the chosen motor and drive.",
+        role: pick(locale, { sv: "Motorkabel", en: "Motor cable", de: "Motorkabel", es: "Cable de motor" }),
+        reason: pick(locale, {
+          sv: "Anslutningskabel till drivenheten — välj längd och kontakttyp kompatibel med vald motor och drivare.",
+          en: "Connection cable to the drive — select length and connector type compatible with the chosen motor and drive.",
+          de: "Anschlusskabel zum Antrieb — Länge und Steckertyp passend zum gewählten Motor und Antrieb wählen.",
+          es: "Cable de conexión al accionamiento — seleccione la longitud y el tipo de conector compatibles con el motor y el accionamiento elegidos.",
+        }),
       });
     }
   }
@@ -1324,7 +1445,7 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     const pBore = primaryBoreMm ||
                   firstNumAbs(primary?.key_specs?.bore_mm) ||
                   firstNumAbs((primary?.name ?? "").match(/Ø\s?(\d+)/)?.[1]);
-    const boreTxt = pBore > 0 ? `Ø${pBore}` : (isSv ? "cylinderns borrning" : "the cylinder's bore");
+    const boreTxt = pBore > 0 ? `Ø${pBore}` : pick(locale, { sv: "cylinderns borrning", en: "the cylinder's bore", de: "die Zylinderbohrung", es: "el diámetro del cilindro" });
     const mounts = products.filter(p =>
       p.category === "mounting" ||
       /fotfäste|foot.?mount|flansfäste|flänsfäste|flange|monteringsfäste|bracket|trunnion|svängfläns|gaffel|clevis|swivel|ledlager/i.test(`${p.name} ${p.sku}`));
@@ -1338,25 +1459,37 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
       const clevis = mounts.find(p => boreOk(p) && /gaffel|clevis/i.test(p.name));
       rows.push({
         sku: swivel?.sku ?? "SPECIFY", quantity: 1,
-        role: isSv ? "Svängfläns/ledlager (bakgavel)" : "Rear swivel/pivot flange",
+        role: pick(locale, { sv: "Svängfläns/ledlager (bakgavel)", en: "Rear swivel/pivot flange", de: "Schwenkflansch/Gelenklager (Hinterseite)", es: "Brida giratoria/rótula (parte trasera)" }),
         reason: swivel
-          ? (isSv
-              ? `${swivel.name} — matchar cylinderns borrning (${boreTxt}). Tillåter cylindern att vinkla sig under slaget; ISO 15552-fäste.`
-              : `${swivel.name} — matches the cylinder bore (${boreTxt}). Lets the cylinder pivot during the stroke; ISO 15552 mount.`)
-          : (isSv
-              ? `Ange svängfläns/ledlager i ${boreTxt} — vi saknar ${boreTxt}-varianten i lager; fästet MÅSTE matcha cylinderns borrning.`
-              : `Specify a rear swivel/pivot flange in ${boreTxt} — no ${boreTxt} variant in stock; the mount MUST match the cylinder bore.`),
+          ? pick(locale, {
+              sv: `${swivel.name} — matchar cylinderns borrning (${boreTxt}). Tillåter cylindern att vinkla sig under slaget; ISO 15552-fäste.`,
+              en: `${swivel.name} — matches the cylinder bore (${boreTxt}). Lets the cylinder pivot during the stroke; ISO 15552 mount.`,
+              de: `${swivel.name} — passt zur Zylinderbohrung (${boreTxt}). Ermöglicht dem Zylinder, sich während des Hubs zu neigen; ISO-15552-Befestigung.`,
+              es: `${swivel.name} — coincide con el diámetro del cilindro (${boreTxt}). Permite que el cilindro se incline durante la carrera; fijación ISO 15552.`,
+            })
+          : pick(locale, {
+              sv: `Ange svängfläns/ledlager i ${boreTxt} — vi saknar ${boreTxt}-varianten i lager; fästet MÅSTE matcha cylinderns borrning.`,
+              en: `Specify a rear swivel/pivot flange in ${boreTxt} — no ${boreTxt} variant in stock; the mount MUST match the cylinder bore.`,
+              de: `Schwenkflansch/Gelenklager in ${boreTxt} angeben — die ${boreTxt}-Variante ist nicht auf Lager; die Befestigung MUSS zur Zylinderbohrung passen.`,
+              es: `Indique una brida giratoria/rótula en ${boreTxt} — no hay variante ${boreTxt} en stock; la fijación DEBE coincidir con el diámetro del cilindro.`,
+            }),
       });
       rows.push({
         sku: clevis?.sku ?? "SPECIFY", quantity: 1,
-        role: isSv ? "Gaffelfäste (kolvstångsände)" : "Rod clevis (rod end)",
+        role: pick(locale, { sv: "Gaffelfäste (kolvstångsände)", en: "Rod clevis (rod end)", de: "Gabelkopf (Kolbenstangenende)", es: "Horquilla (extremo del vástago)" }),
         reason: clevis
-          ? (isSv
-              ? `${clevis.name} — matchar kolvstångsgängan för ${boreTxt}-cylindern. Bildar ledad infästning tillsammans med svängflänsen.`
-              : `${clevis.name} — matches the rod thread of the ${boreTxt} cylinder. Forms the articulated linkage together with the swivel flange.`)
-          : (isSv
-              ? `Ange gaffelfäste i ${boreTxt} — vi saknar ${boreTxt}-varianten i lager; gaffeln MÅSTE matcha kolvstångsgängan.`
-              : `Specify a rod clevis in ${boreTxt} — no ${boreTxt} variant in stock; the clevis MUST match the rod thread.`),
+          ? pick(locale, {
+              sv: `${clevis.name} — matchar kolvstångsgängan för ${boreTxt}-cylindern. Bildar ledad infästning tillsammans med svängflänsen.`,
+              en: `${clevis.name} — matches the rod thread of the ${boreTxt} cylinder. Forms the articulated linkage together with the swivel flange.`,
+              de: `${clevis.name} — passt zum Kolbenstangengewinde des ${boreTxt}-Zylinders. Bildet zusammen mit dem Schwenkflansch die gelenkige Verbindung.`,
+              es: `${clevis.name} — coincide con la rosca del vástago del cilindro ${boreTxt}. Forma la unión articulada junto con la brida giratoria.`,
+            })
+          : pick(locale, {
+              sv: `Ange gaffelfäste i ${boreTxt} — vi saknar ${boreTxt}-varianten i lager; gaffeln MÅSTE matcha kolvstångsgängan.`,
+              en: `Specify a rod clevis in ${boreTxt} — no ${boreTxt} variant in stock; the clevis MUST match the rod thread.`,
+              de: `Gabelkopf in ${boreTxt} angeben — die ${boreTxt}-Variante ist nicht auf Lager; der Gabelkopf MUSS zum Kolbenstangengewinde passen.`,
+              es: `Indique una horquilla en ${boreTxt} — no hay variante ${boreTxt} en stock; la horquilla DEBE coincidir con la rosca del vástago.`,
+            }),
       });
     } else {
       // A foot/flange request must never fall back to a different mounting TYPE —
@@ -1367,14 +1500,20 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
       const mount = footish.find(p => boreOk(p) && /fotfäste|foot/i.test(p.name)) ?? footish.find(boreOk) ?? null;
       rows.push({
         sku: mount?.sku ?? "SPECIFY", quantity: 1,
-        role: isSv ? "Monteringsfäste (fotfäste/flänsfäste)" : "Mounting bracket (foot/flange mount)",
+        role: pick(locale, { sv: "Monteringsfäste (fotfäste/flänsfäste)", en: "Mounting bracket (foot/flange mount)", de: "Befestigungswinkel (Fuß-/Flanschbefestigung)", es: "Soporte de montaje (pie/brida)" }),
         reason: mount
-          ? (isSv
-              ? `${mount.name} — matchar cylinderns borrning (${boreTxt}). Kontrollera hålavstånd mot ritning.`
-              : `${mount.name} — matches the cylinder bore (${boreTxt}). Verify hole pattern against drawing.`)
-          : (isSv
-              ? `Ange fotfäste/flänsfäste i ${boreTxt} — vi saknar ${boreTxt}-varianten i lager; fästet MÅSTE matcha cylinderns borrning och serie.`
-              : `Specify a foot/flange mount in ${boreTxt} — no ${boreTxt} variant in stock; the mount MUST match the cylinder bore and series.`),
+          ? pick(locale, {
+              sv: `${mount.name} — matchar cylinderns borrning (${boreTxt}). Kontrollera hålavstånd mot ritning.`,
+              en: `${mount.name} — matches the cylinder bore (${boreTxt}). Verify hole pattern against drawing.`,
+              de: `${mount.name} — passt zur Zylinderbohrung (${boreTxt}). Lochbild anhand der Zeichnung prüfen.`,
+              es: `${mount.name} — coincide con el diámetro del cilindro (${boreTxt}). Verifique el patrón de orificios según el plano.`,
+            })
+          : pick(locale, {
+              sv: `Ange fotfäste/flänsfäste i ${boreTxt} — vi saknar ${boreTxt}-varianten i lager; fästet MÅSTE matcha cylinderns borrning och serie.`,
+              en: `Specify a foot/flange mount in ${boreTxt} — no ${boreTxt} variant in stock; the mount MUST match the cylinder bore and series.`,
+              de: `Fuß-/Flanschbefestigung in ${boreTxt} angeben — die ${boreTxt}-Variante ist nicht auf Lager; die Befestigung MUSS zu Bohrung und Serie des Zylinders passen.`,
+              es: `Indique un soporte de pie/brida en ${boreTxt} — no hay variante ${boreTxt} en stock; el soporte DEBE coincidir con el diámetro y la serie del cilindro.`,
+            }),
       });
     }
   }
@@ -1390,14 +1529,20 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
       const axMatch = findAxisActuator(brandSorted, ax.stroke, isElectric);
       rows.push({
         sku: axMatch?.sku ?? "SPECIFY", quantity: 1,
-        role: isSv ? `Aktuator — ${axLabel}-axel` : `Actuator — ${axLabel}-axis`,
+        role: pick(locale, { sv: `Aktuator — ${axLabel}-axel`, en: `Actuator — ${axLabel}-axis`, de: `Aktuator — ${axLabel}-Achse`, es: `Actuador — eje ${axLabel}` }),
         reason: axMatch
-          ? (isSv
-              ? `${ax.stroke > 0 ? ax.stroke + " mm slag — " : ""}${axMatch.name} (${axMatch.brand}). Samma drivtyp/spänning som primäraxeln; konfigurera slaglängd och fäste för ${axLabel}-axeln.`
-              : `${ax.stroke > 0 ? ax.stroke + " mm stroke — " : ""}${axMatch.name} (${axMatch.brand}). Same drive type/voltage as the primary axis; configure stroke and mounting for the ${axLabel}-axis.`)
-          : (isSv
-              ? `Ingen exakt katalogmatch för ${axLabel}-axeln (${ax.stroke > 0 ? ax.stroke + " mm" : "okänt slag"}) — begär offert så specar vi rätt ${isElectric ? "elektrisk axel" : "cylinder"} (gissa inte ihop en lösning).`
-              : `No exact catalog match for the ${axLabel}-axis (${ax.stroke > 0 ? ax.stroke + " mm" : "unknown stroke"}) — request a quote and we'll spec the right ${isElectric ? "electric axis" : "cylinder"} (do not guess a solution).`),
+          ? pick(locale, {
+              sv: `${ax.stroke > 0 ? ax.stroke + " mm slag — " : ""}${axMatch.name} (${axMatch.brand}). Samma drivtyp/spänning som primäraxeln; konfigurera slaglängd och fäste för ${axLabel}-axeln.`,
+              en: `${ax.stroke > 0 ? ax.stroke + " mm stroke — " : ""}${axMatch.name} (${axMatch.brand}). Same drive type/voltage as the primary axis; configure stroke and mounting for the ${axLabel}-axis.`,
+              de: `${ax.stroke > 0 ? ax.stroke + " mm Hub — " : ""}${axMatch.name} (${axMatch.brand}). Gleicher Antriebstyp/Spannung wie die Primärachse; Hub und Befestigung für die ${axLabel}-Achse konfigurieren.`,
+              es: `${ax.stroke > 0 ? ax.stroke + " mm de carrera — " : ""}${axMatch.name} (${axMatch.brand}). Mismo tipo de accionamiento/tensión que el eje primario; configure la carrera y el montaje para el eje ${axLabel}.`,
+            })
+          : pick(locale, {
+              sv: `Ingen exakt katalogmatch för ${axLabel}-axeln (${ax.stroke > 0 ? ax.stroke + " mm" : "okänt slag"}) — begär offert så specar vi rätt ${isElectric ? "elektrisk axel" : "cylinder"} (gissa inte ihop en lösning).`,
+              en: `No exact catalog match for the ${axLabel}-axis (${ax.stroke > 0 ? ax.stroke + " mm" : "unknown stroke"}) — request a quote and we'll spec the right ${isElectric ? "electric axis" : "cylinder"} (do not guess a solution).`,
+              de: `Keine exakte Katalogübereinstimmung für die ${axLabel}-Achse (${ax.stroke > 0 ? ax.stroke + " mm" : "unbekannter Hub"}) — bitte Angebot anfordern, damit wir ${isElectric ? "die richtige elektrische Achse" : "den richtigen Zylinder"} spezifizieren (keine Lösung erraten).`,
+              es: `No hay coincidencia exacta en el catálogo para el eje ${axLabel} (${ax.stroke > 0 ? ax.stroke + " mm" : "carrera desconocida"}) — solicite una oferta y especificaremos ${isElectric ? "el eje eléctrico" : "el cilindro"} correcto (no adivinar una solución).`,
+            }),
       });
     }
   }
@@ -1406,10 +1551,13 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
   if (isWashdown) {
     rows.push({
       sku: "SPECIFY", quantity: 1,
-      role: isSv ? "⚠️ Washdown IP69K — korrosionsbeständigt material" : "⚠️ Washdown IP69K — corrosion-resistant materials",
-      reason: isSv
-        ? "KRAV IP69K: Cylinder, ventil och givare måste ha IP69K-klassning och korrosionsbeständigt material (316L rostfritt stål eller ytbehandlad aluminium). Specificera variant -H1 (food-grade smörjning) vid livsmedelsproduktion."
-        : "REQUIRED IP69K: Cylinder, valve and sensor must be IP69K-rated with corrosion-resistant materials (316L stainless or coated aluminium). Specify -H1 variant (food-grade lubrication) for food production.",
+      role: pick(locale, { sv: "⚠️ Washdown IP69K — korrosionsbeständigt material", en: "⚠️ Washdown IP69K — corrosion-resistant materials", de: "⚠️ Washdown IP69K — korrosionsbeständiges Material", es: "⚠️ Washdown IP69K — material resistente a la corrosión" }),
+      reason: pick(locale, {
+        sv: "KRAV IP69K: Cylinder, ventil och givare måste ha IP69K-klassning och korrosionsbeständigt material (316L rostfritt stål eller ytbehandlad aluminium). Specificera variant -H1 (food-grade smörjning) vid livsmedelsproduktion.",
+        en: "REQUIRED IP69K: Cylinder, valve and sensor must be IP69K-rated with corrosion-resistant materials (316L stainless or coated aluminium). Specify -H1 variant (food-grade lubrication) for food production.",
+        de: "ANFORDERUNG IP69K: Zylinder, Ventil und Sensor müssen IP69K-klassifiziert sein und aus korrosionsbeständigem Material bestehen (316L Edelstahl oder beschichtetes Aluminium). Bei Lebensmittelproduktion die Variante -H1 (lebensmittelechte Schmierung) angeben.",
+        es: "REQUISITO IP69K: el cilindro, la válvula y el sensor deben tener clasificación IP69K y material resistente a la corrosión (acero inoxidable 316L o aluminio recubierto). Especifique la variante -H1 (lubricación de grado alimenticio) para producción alimentaria.",
+      }),
     });
   }
 
@@ -1417,10 +1565,13 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
   if (isHighTemp) {
     rows.push({
       sku: "SPECIFY", quantity: 1,
-      role: isSv ? "⚠️ Tätningsmaterial — hög temperatur >80°C" : "⚠️ Sealing material — high temperature >80°C",
-      reason: isSv
-        ? "KRAV: PTFE- eller FKM-tätningar obligatoriska vid >80°C — standard-NBR-tätningar degraderar och läcker. Beställ cylinder med high-temp tätningssats eller PTFE-variant."
-        : "MANDATORY: PTFE or FKM seals required above 80°C — standard NBR seals degrade and leak. Order cylinder with high-temp seal kit or PTFE variant.",
+      role: pick(locale, { sv: "⚠️ Tätningsmaterial — hög temperatur >80°C", en: "⚠️ Sealing material — high temperature >80°C", de: "⚠️ Dichtungsmaterial — hohe Temperatur >80 °C", es: "⚠️ Material de sellado — alta temperatura >80 °C" }),
+      reason: pick(locale, {
+        sv: "KRAV: PTFE- eller FKM-tätningar obligatoriska vid >80°C — standard-NBR-tätningar degraderar och läcker. Beställ cylinder med high-temp tätningssats eller PTFE-variant.",
+        en: "MANDATORY: PTFE or FKM seals required above 80°C — standard NBR seals degrade and leak. Order cylinder with high-temp seal kit or PTFE variant.",
+        de: "ANFORDERUNG: PTFE- oder FKM-Dichtungen oberhalb von 80 °C zwingend erforderlich — Standard-NBR-Dichtungen verschleißen und lecken. Zylinder mit Hochtemperatur-Dichtungssatz oder PTFE-Variante bestellen.",
+        es: "REQUISITO: juntas de PTFE o FKM obligatorias por encima de 80 °C — las juntas NBR estándar se degradan y presentan fugas. Pida el cilindro con kit de juntas de alta temperatura o variante PTFE.",
+      }),
     });
   }
 
@@ -1428,10 +1579,13 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
   if (isSilSafety) {
     rows.push({
       sku: "SPECIFY", quantity: 1,
-      role: isSv ? "⚠️ Säkerhetscertifierad magnetventil SIL/PLd" : "⚠️ Safety-certified solenoid valve SIL/PLd",
-      reason: isSv
-        ? "KRAV SIL 2 / PLd (ISO 13849): säkerhetscertifierad magnetventil med redundant styrsignal och diagnosfunktion krävs (t.ex. Festo VOFD-DT, SMC VFS). Standard-ventil är EJ tillräcklig."
-        : "REQUIRED SIL 2 / PLd (ISO 13849): safety-certified solenoid valve with redundant control and diagnostic function (e.g. Festo VOFD-DT, SMC VFS). Standard valve is NOT sufficient.",
+      role: pick(locale, { sv: "⚠️ Säkerhetscertifierad magnetventil SIL/PLd", en: "⚠️ Safety-certified solenoid valve SIL/PLd", de: "⚠️ Sicherheitszertifiziertes Magnetventil SIL/PLd", es: "⚠️ Electroválvula certificada de seguridad SIL/PLd" }),
+      reason: pick(locale, {
+        sv: "KRAV SIL 2 / PLd (ISO 13849): säkerhetscertifierad magnetventil med redundant styrsignal och diagnosfunktion krävs (t.ex. Festo VOFD-DT, SMC VFS). Standard-ventil är EJ tillräcklig.",
+        en: "REQUIRED SIL 2 / PLd (ISO 13849): safety-certified solenoid valve with redundant control and diagnostic function (e.g. Festo VOFD-DT, SMC VFS). Standard valve is NOT sufficient.",
+        de: "ERFORDERLICH SIL 2 / PLd (ISO 13849): sicherheitszertifiziertes Magnetventil mit redundantem Steuersignal und Diagnosefunktion erforderlich (z. B. Festo VOFD-DT, SMC VFS). Ein Standardventil ist NICHT ausreichend.",
+        es: "REQUERIDO SIL 2 / PLd (ISO 13849): se requiere una electroválvula certificada de seguridad con señal de control redundante y función de diagnóstico (p. ej. Festo VOFD-DT, SMC VFS). Una válvula estándar NO es suficiente.",
+      }),
     });
   }
 
@@ -1439,10 +1593,13 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
   if (isHydraulic || isVeryHighForce) {
     rows.push({
       sku: "SPECIFY", quantity: 1,
-      role: isSv ? "⚠️ Varning: utanför pneumatisk katalog" : "⚠️ Warning: outside pneumatic catalog",
-      reason: isSv
-        ? "UTANFÖR KATALOG: Hydrauliska cylindrar och kraft >5 kN hanteras ej av pneumatisk katalog. Kontakta hydraulikspecialist (Parker, Bosch Rexroth, Enerpac). Pneumatisk katalog täcker max ~2 kN vid 6 bar."
-        : "OUT OF SCOPE: Hydraulic cylinders and force >5 kN are outside the pneumatic catalog. Contact hydraulic specialist (Parker, Bosch Rexroth, Enerpac). Pneumatic catalog covers max ~2 kN at 6 bar.",
+      role: pick(locale, { sv: "⚠️ Varning: utanför pneumatisk katalog", en: "⚠️ Warning: outside pneumatic catalog", de: "⚠️ Warnung: außerhalb des pneumatischen Katalogs", es: "⚠️ Aviso: fuera del catálogo neumático" }),
+      reason: pick(locale, {
+        sv: "UTANFÖR KATALOG: Hydrauliska cylindrar och kraft >5 kN hanteras ej av pneumatisk katalog. Kontakta hydraulikspecialist (Parker, Bosch Rexroth, Enerpac). Pneumatisk katalog täcker max ~2 kN vid 6 bar.",
+        en: "OUT OF SCOPE: Hydraulic cylinders and force >5 kN are outside the pneumatic catalog. Contact hydraulic specialist (Parker, Bosch Rexroth, Enerpac). Pneumatic catalog covers max ~2 kN at 6 bar.",
+        de: "AUSSERHALB DES KATALOGS: Hydraulikzylinder und Kräfte >5 kN werden vom pneumatischen Katalog nicht abgedeckt. Hydraulikspezialisten kontaktieren (Parker, Bosch Rexroth, Enerpac). Der pneumatische Katalog deckt max. ~2 kN bei 6 bar ab.",
+        es: "FUERA DE CATÁLOGO: los cilindros hidráulicos y fuerzas >5 kN quedan fuera del catálogo neumático. Contacte con un especialista en hidráulica (Parker, Bosch Rexroth, Enerpac). El catálogo neumático cubre un máximo de ~2 kN a 6 bar.",
+      }),
     });
   }
 
@@ -1454,17 +1611,23 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
   if ((isAtex || isAtexDust) && !isElectric) {
     rows.push({
       sku: "SPECIFY", quantity: 1,
-      role: isSv ? "ATEX-magnetventil (zon-certifierad)" : "ATEX solenoid valve (zone-certified)",
-      reason: isSv
-        ? "OBLIGATORISK styrventil för ATEX-zon — använd ATEX/IECEx-certifierad ventil (t.ex. Festo VOFC/tryckluftsstyrd) eller montera standardventil UTANFÖR zonen och dra slang in. Standardkatalogventiler är EJ zon-godkända."
-        : "MANDATORY control valve for ATEX zone — use an ATEX/IECEx-certified valve (e.g. Festo VOFC / air-piloted) or mount a standard valve OUTSIDE the zone with tubing in. Standard catalog valves are NOT zone-rated.",
+      role: pick(locale, { sv: "ATEX-magnetventil (zon-certifierad)", en: "ATEX solenoid valve (zone-certified)", de: "ATEX-Magnetventil (zonzertifiziert)", es: "Electroválvula ATEX (certificada para la zona)" }),
+      reason: pick(locale, {
+        sv: "OBLIGATORISK styrventil för ATEX-zon — använd ATEX/IECEx-certifierad ventil (t.ex. Festo VOFC/tryckluftsstyrd) eller montera standardventil UTANFÖR zonen och dra slang in. Standardkatalogventiler är EJ zon-godkända.",
+        en: "MANDATORY control valve for ATEX zone — use an ATEX/IECEx-certified valve (e.g. Festo VOFC / air-piloted) or mount a standard valve OUTSIDE the zone with tubing in. Standard catalog valves are NOT zone-rated.",
+        de: "ZWINGEND ERFORDERLICHES Steuerventil für die ATEX-Zone — ein ATEX/IECEx-zertifiziertes Ventil verwenden (z. B. Festo VOFC/luftpilotiert) oder ein Standardventil AUSSERHALB der Zone montieren und die Leitung hineinführen. Standard-Katalogventile sind NICHT zonenzertifiziert.",
+        es: "Válvula de control OBLIGATORIA para zona ATEX — utilice una válvula certificada ATEX/IECEx (p. ej. Festo VOFC/pilotada por aire) o monte una válvula estándar FUERA de la zona con el tubo hacia el interior. Las válvulas estándar del catálogo NO están certificadas para la zona.",
+      }),
     });
     rows.push({
       sku: "SPECIFY", quantity: 1,
-      role: isSv ? "ATEX-luftberedning (FRL utanför zon)" : "ATEX air preparation (FRL outside zone)",
-      reason: isSv
-        ? "OBLIGATORISK luftberedning — placera FRL-enheten utanför den klassade zonen. Använd antistatisk slang och jordning av cylinder/rör per EN 80079-36."
-        : "MANDATORY air preparation — locate the FRL outside the classified zone. Use antistatic tubing and ground the cylinder/piping per EN 80079-36.",
+      role: pick(locale, { sv: "ATEX-luftberedning (FRL utanför zon)", en: "ATEX air preparation (FRL outside zone)", de: "ATEX-Luftaufbereitung (FRL außerhalb der Zone)", es: "Tratamiento de aire ATEX (FRL fuera de la zona)" }),
+      reason: pick(locale, {
+        sv: "OBLIGATORISK luftberedning — placera FRL-enheten utanför den klassade zonen. Använd antistatisk slang och jordning av cylinder/rör per EN 80079-36.",
+        en: "MANDATORY air preparation — locate the FRL outside the classified zone. Use antistatic tubing and ground the cylinder/piping per EN 80079-36.",
+        de: "ZWINGEND ERFORDERLICHE Luftaufbereitung — die FRL-Einheit außerhalb der klassifizierten Zone platzieren. Antistatische Schläuche verwenden und Zylinder/Rohrleitung gemäß EN 80079-36 erden.",
+        es: "Tratamiento de aire OBLIGATORIO — coloque la unidad FRL fuera de la zona clasificada. Utilice tubos antiestáticos y conecte a tierra el cilindro/tubería según EN 80079-36.",
+      }),
     });
     // Vertical ATEX still needs an anti-drop device. It can't be electric (forbidden
     // in the zone) and the standard check-valve row is gated on isPneumatic (which
@@ -1472,18 +1635,24 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     if (isVerticalLoad) {
       rows.push({
         sku: "SPECIFY", quantity: 1,
-        role: isSv ? "ATEX-fallspärr (pilotbackventil / mekanisk stångbroms)" : "ATEX anti-drop (pilot check valve / mechanical rod lock)",
-        reason: isSv
-          ? "OBLIGATORISK vid vertikal last i ATEX-zon — förhindrar lastfall vid lufttrycksförlust. Använd ATEX/IECEx-klassad pilotmanövrerad backslagsventil eller mekanisk stångbroms. Elektrisk bromsmotor är EJ tillåten i zonen."
-          : "MANDATORY for vertical load in an ATEX zone — prevents load drop on air loss. Use an ATEX/IECEx-rated pilot-operated check valve or mechanical rod lock. An electric brake motor is NOT permitted in the zone.",
+        role: pick(locale, { sv: "ATEX-fallspärr (pilotbackventil / mekanisk stångbroms)", en: "ATEX anti-drop (pilot check valve / mechanical rod lock)", de: "ATEX-Fallsicherung (pilotgesteuertes Rückschlagventil / mechanische Kolbenstangenbremse)", es: "Antirretorno ATEX (válvula antirretorno pilotada / bloqueo mecánico de vástago)" }),
+        reason: pick(locale, {
+          sv: "OBLIGATORISK vid vertikal last i ATEX-zon — förhindrar lastfall vid lufttrycksförlust. Använd ATEX/IECEx-klassad pilotmanövrerad backslagsventil eller mekanisk stångbroms. Elektrisk bromsmotor är EJ tillåten i zonen.",
+          en: "MANDATORY for vertical load in an ATEX zone — prevents load drop on air loss. Use an ATEX/IECEx-rated pilot-operated check valve or mechanical rod lock. An electric brake motor is NOT permitted in the zone.",
+          de: "ZWINGEND ERFORDERLICH bei vertikaler Last in der ATEX-Zone — verhindert ein Absinken der Last bei Luftverlust. ATEX/IECEx-zertifiziertes pilotgesteuertes Rückschlagventil oder mechanische Kolbenstangenbremse verwenden. Ein elektrischer Bremsmotor ist in der Zone NICHT zulässig.",
+          es: "OBLIGATORIO para carga vertical en zona ATEX — evita la caída de la carga ante pérdida de aire. Utilice una válvula antirretorno pilotada certificada ATEX/IECEx o un bloqueo mecánico de vástago. Un motor con freno eléctrico NO está permitido en la zona.",
+        }),
       });
     }
     rows.push({
       sku: "SPECIFY", quantity: 1,
-      role: isSv ? "⚠️ ATEX: alla komponenter zon-certifierade + jordade" : "⚠️ ATEX: all components zone-certified + grounded",
-      reason: isSv
-        ? "KRAV ATEX/IECEx: cylinder, givare, ventil och tillbehör måste vara märkta för aktuell zon/gasgrupp/temperaturklass. Inga standard-24V-givare utan ATEX-godkännande. Verifiera ekvipotential jordning och dokumentera enligt direktiv 2014/34/EU."
-        : "ATEX/IECEx REQUIREMENT: cylinder, sensors, valve and accessories must be marked for the zone/gas group/temperature class. No standard 24 V sensors without ATEX approval. Verify equipotential grounding and document per Directive 2014/34/EU.",
+      role: pick(locale, { sv: "⚠️ ATEX: alla komponenter zon-certifierade + jordade", en: "⚠️ ATEX: all components zone-certified + grounded", de: "⚠️ ATEX: alle Komponenten zonenzertifiziert + geerdet", es: "⚠️ ATEX: todos los componentes certificados para la zona + conectados a tierra" }),
+      reason: pick(locale, {
+        sv: "KRAV ATEX/IECEx: cylinder, givare, ventil och tillbehör måste vara märkta för aktuell zon/gasgrupp/temperaturklass. Inga standard-24V-givare utan ATEX-godkännande. Verifiera ekvipotential jordning och dokumentera enligt direktiv 2014/34/EU.",
+        en: "ATEX/IECEx REQUIREMENT: cylinder, sensors, valve and accessories must be marked for the zone/gas group/temperature class. No standard 24 V sensors without ATEX approval. Verify equipotential grounding and document per Directive 2014/34/EU.",
+        de: "ATEX/IECEx-ANFORDERUNG: Zylinder, Sensoren, Ventil und Zubehör müssen für die jeweilige Zone/Gasgruppe/Temperaturklasse gekennzeichnet sein. Keine Standard-24-V-Sensoren ohne ATEX-Zulassung. Potentialausgleichserdung prüfen und gemäß Richtlinie 2014/34/EU dokumentieren.",
+        es: "REQUISITO ATEX/IECEx: el cilindro, los sensores, la válvula y los accesorios deben estar marcados para la zona/grupo de gas/clase de temperatura correspondiente. Ningún sensor estándar de 24 V sin homologación ATEX. Verifique la conexión equipotencial a tierra y documente conforme a la Directiva 2014/34/UE.",
+      }),
     });
   }
 
@@ -1493,7 +1662,6 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
 // ── ACTION: questions ─────────────────────────────────────────────────────────
 async function handleQuestions(description: string, locale: string): Promise<Response> {
   const t0 = Date.now();
-  const isSv = locale === "sv";
   // Skip PDF context for questions step — questions are short and context bloats tokens.
   // PDF context is more valuable in the options step where catalog matching matters.
   const pdfCtx = "";
@@ -1546,7 +1714,18 @@ async function handleQuestions(description: string, locale: string): Promise<Res
     // model to actually explain anything in it, so a beginner would face
     // e.g. "SIL 1 / SIL 2 / SIL 3 (IEC 62061) or PL c / PL d / PL e
     // (ISO 13849)?" with no idea what any of that means or how to choose.
-    `- PLAIN-LANGUAGE HINTS (mandatory): assume the person answering is NOT an automation engineer. Whenever a question's label contains a technical term, standard, or code a non-specialist wouldn't know (SIL/PL, IP rating, ball screw vs belt, repeatability, ATEX zone, EHEDG, etc.), the "hint" field MUST explain in one plain, jargon-free sentence what it means in practice and how to decide — not just restate why it "matters" in other technical words. Example — label "Krävd säkerhetsnivå: SIL 2 eller PL d?" needs a hint like "${isSv ? "Handlar om hur pålitligt systemet måste stoppa vid fara — vid osäkerhet, fråga er säkerhetsansvarige eller välj det lägre alternativet och justera senare." : "This is about how reliably the system must stop in a hazard — if unsure, ask your safety officer or pick the lower option and adjust later."}", NOT "${isSv ? "Krävs för säkerhetscertifiering." : "Required for safety certification."}" (that just repeats the term). A hint with no real explanation is a failed question, not an optional field.`,
+    `- PLAIN-LANGUAGE HINTS (mandatory): assume the person answering is NOT an automation engineer. Whenever a question's label contains a technical term, standard, or code a non-specialist wouldn't know (SIL/PL, IP rating, ball screw vs belt, repeatability, ATEX zone, EHEDG, etc.), the "hint" field MUST explain in one plain, jargon-free sentence what it means in practice and how to decide — not just restate why it "matters" in other technical words. Example — label "${pick(locale, {
+      sv: "Krävd säkerhetsnivå: SIL 2 eller PL d?", en: "Required safety level: SIL 2 or PL d?",
+      de: "Erforderliches Sicherheitsniveau: SIL 2 oder PL d?", es: "Nivel de seguridad requerido: ¿SIL 2 o PL d?",
+    })}" needs a hint like "${pick(locale, {
+      sv: "Handlar om hur pålitligt systemet måste stoppa vid fara — vid osäkerhet, fråga er säkerhetsansvarige eller välj det lägre alternativet och justera senare.",
+      en: "This is about how reliably the system must stop in a hazard — if unsure, ask your safety officer or pick the lower option and adjust later.",
+      de: "Es geht darum, wie zuverlässig das System bei Gefahr stoppen muss — bei Unsicherheit die verantwortliche Sicherheitsperson fragen oder die niedrigere Option wählen und später anpassen.",
+      es: "Se trata de con qué fiabilidad debe detenerse el sistema ante un peligro — si no está seguro, consulte a su responsable de seguridad o elija la opción más baja y ajústela más adelante.",
+    })}", NOT "${pick(locale, {
+      sv: "Krävs för säkerhetscertifiering.", en: "Required for safety certification.",
+      de: "Erforderlich für die Sicherheitszertifizierung.", es: "Requerido para la certificación de seguridad.",
+    })}" (that just repeats the term). A hint with no real explanation is a failed question, not an optional field.`,
   ].filter(Boolean).join("\n");
 
   const system = `You are a senior automation engineer helping a customer who is very likely NOT an automation engineer. Generate 4-6 precise technical questions. All text in ${lang}.\n\nRULES:\n${contextRules}\n\nJSON:\n{ "summary": "one precise sentence in ${lang}", "questions": [ { "id": "snake_case", "label": "question in ${lang}", "hint": "plain-language explanation of the term and how to decide — see PLAIN-LANGUAGE HINTS rule", "type": "choice", "options": ["opt1","opt2"] } ] }\ntype = 'choice' (with options) or 'number' (with unit).${pdfCtx ? "\n\nDocs:\n" + pdfCtx : ""}`;
@@ -1621,7 +1800,7 @@ const isGripperFamily = (p: CatalogProduct) => /,/.test(String(p.key_specs?.size
 
 async function handleEndEffectorOptions(
   intent: "gripper" | "vacuum", text: string, loadKg: number,
-  isSv: boolean, locale: string, t0: number,
+  locale: string, t0: number,
 ): Promise<Response> {
   const t = text.toLowerCase();
   const customCtx: CustomSolutionContext = {
@@ -1642,26 +1821,50 @@ async function handleEndEffectorOptions(
       const mat = p.key_specs?.material ? `Material: ${p.key_specs.material}. ` : "";
       return {
         sku: p.sku, name: p.name,
-        badge: (isSv ? ["Liten kopp", "Mellan", "Stor kopp"] : ["Small cup", "Medium", "Large cup"])[i] ?? "",
+        badge: pick(locale, {
+          sv: ["Liten kopp", "Mellan", "Stor kopp"], en: ["Small cup", "Medium", "Large cup"],
+          de: ["Kleiner Sauger", "Mittel", "Großer Sauger"], es: ["Ventosa pequeña", "Media", "Ventosa grande"],
+        })[i] ?? "",
         bore_mm: null, stroke_mm: null, force_n: holdN || null,
-        why: isSv
-          ? `Sugkopp Ø${d} mm, uppskattad håll-kraft ≈ ${holdN} N/kopp vid ~-0,6 bar. ${mat}Verifiera mot ytans täthet och säkerhetsfaktor.`
-          : `Suction cup Ø${d} mm, est. holding force ≈ ${holdN} N/cup at ~-0.6 bar. ${mat}Verify against surface tightness and safety factor.`,
-        pros: isSv ? ["Skonsam mot känsliga/plana ytor", "Snabb on/off via ejektor"] : ["Gentle on delicate/flat surfaces", "Fast on/off via ejector"],
-        cons: isSv ? ["Kräver tät, plan yta", "Lägg till ejektor + vakuumvakt"] : ["Needs a tight, flat surface", "Add an ejector + vacuum switch"],
+        why: pick(locale, {
+          sv: `Sugkopp Ø${d} mm, uppskattad håll-kraft ≈ ${holdN} N/kopp vid ~-0,6 bar. ${mat}Verifiera mot ytans täthet och säkerhetsfaktor.`,
+          en: `Suction cup Ø${d} mm, est. holding force ≈ ${holdN} N/cup at ~-0.6 bar. ${mat}Verify against surface tightness and safety factor.`,
+          de: `Saugnapf Ø${d} mm, geschätzte Haltekraft ≈ ${holdN} N/Napf bei ~-0,6 bar. ${mat}Gegen Oberflächendichtheit und Sicherheitsfaktor prüfen.`,
+          es: `Ventosa Ø${d} mm, fuerza de sujeción estimada ≈ ${holdN} N/ventosa a ~-0,6 bar. ${mat}Verifique la estanqueidad de la superficie y el factor de seguridad.`,
+        }),
+        pros: pick(locale, {
+          sv: ["Skonsam mot känsliga/plana ytor", "Snabb on/off via ejektor"], en: ["Gentle on delicate/flat surfaces", "Fast on/off via ejector"],
+          de: ["Schonend zu empfindlichen/ebenen Oberflächen", "Schnelles Ein-/Ausschalten über Ejektor"], es: ["Suave con superficies delicadas/planas", "Encendido/apagado rápido mediante eyector"],
+        }),
+        cons: pick(locale, {
+          sv: ["Kräver tät, plan yta", "Lägg till ejektor + vakuumvakt"], en: ["Needs a tight, flat surface", "Add an ejector + vacuum switch"],
+          de: ["Erfordert eine dichte, ebene Oberfläche", "Ejektor + Vakuumschalter ergänzen"], es: ["Requiere una superficie plana y estanca", "Añadir eyector + presostato de vacío"],
+        }),
       };
     });
     const need = reqN > 0
-      ? (isSv ? ` För ~${loadKg} kg krävs ≈ ${Math.round(reqN)} N håll-kraft (2× säkerhet) — fördela på en eller flera koppar.`
-              : ` For ~${loadKg} kg you need ≈ ${Math.round(reqN)} N holding force (2× safety) — across one or more cups.`)
+      ? pick(locale, {
+          sv: ` För ~${loadKg} kg krävs ≈ ${Math.round(reqN)} N håll-kraft (2× säkerhet) — fördela på en eller flera koppar.`,
+          en: ` For ~${loadKg} kg you need ≈ ${Math.round(reqN)} N holding force (2× safety) — across one or more cups.`,
+          de: ` Für ~${loadKg} kg werden ≈ ${Math.round(reqN)} N Haltekraft benötigt (2-fache Sicherheit) — verteilt auf einen oder mehrere Saugnäpfe.`,
+          es: ` Para ~${loadKg} kg se necesitan ≈ ${Math.round(reqN)} N de fuerza de sujeción (seguridad 2×) — repartidos entre una o más ventosas.`,
+        })
       : "";
     const ejNote = ejector
-      ? (isSv ? ` Lägg till en Venturi-ejektor (t.ex. ${ejector.name}) för att skapa vakuumet.` : ` Add a Venturi ejector (e.g. ${ejector.name}) to generate the vacuum.`)
+      ? pick(locale, {
+          sv: ` Lägg till en Venturi-ejektor (t.ex. ${ejector.name}) för att skapa vakuumet.`,
+          en: ` Add a Venturi ejector (e.g. ${ejector.name}) to generate the vacuum.`,
+          de: ` Einen Venturi-Ejektor (z. B. ${ejector.name}) hinzufügen, um das Vakuum zu erzeugen.`,
+          es: ` Añada un eyector Venturi (p. ej. ${ejector.name}) para generar el vacío.`,
+        })
       : "";
-    const summary = isSv
-      ? `Det här är ett vakuumgrepp — välj sugkopp efter håll-kraft (kopparea × vakuum), inte cylinderslag.${need}${ejNote}`
-      : `This is a vacuum-gripping application — choose the suction cup by holding force (cup area × vacuum), not cylinder stroke.${need}${ejNote}`;
-    if (!options.length) options.push(buildCustomSolutionOption(0, isSv, 0, false, customCtx) as Record<string, unknown>);
+    const summary = pick(locale, {
+      sv: `Det här är ett vakuumgrepp — välj sugkopp efter håll-kraft (kopparea × vakuum), inte cylinderslag.${need}${ejNote}`,
+      en: `This is a vacuum-gripping application — choose the suction cup by holding force (cup area × vacuum), not cylinder stroke.${need}${ejNote}`,
+      de: `Dies ist eine Vakuumgreif-Anwendung — den Saugnapf nach Haltekraft (Napffläche × Vakuum) wählen, nicht nach Zylinderhub.${need}${ejNote}`,
+      es: `Esta es una aplicación de agarre por vacío — elija la ventosa según la fuerza de sujeción (área de la ventosa × vacío), no según la carrera del cilindro.${need}${ejNote}`,
+    });
+    if (!options.length) options.push(buildCustomSolutionOption(0, locale, 0, false, customCtx) as Record<string, unknown>);
     logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: options[0]?.sku ?? null, option_count: options.length }, true);
     return Response.json({ summary, options }, { headers: CORS });
   }
@@ -1687,31 +1890,54 @@ async function handleEndEffectorOptions(
   const options: Array<Record<string, unknown>> = picks.map((p, i) => {
     const fN = Math.round(gripperForceN(p.key_specs ?? {}));
     const jaw = p.key_specs?.jaw_stroke_per_side ?? p.key_specs?.stroke_per_jaw;
-    const gt = p.key_specs?.gripper_type ?? (isSv ? "Gripdon" : "Gripper");
+    const gt = p.key_specs?.gripper_type ?? pick(locale, { sv: "Gripdon", en: "Gripper", de: "Greifer", es: "Pinza" });
     return {
       sku: p.sku, name: p.name,
-      badge: (isSv ? ["Rätt storlek", "Marginal", "Reserv (mer kraft)"] : ["Right size", "Tighter", "Reserve (more force)"])[i] ?? "",
+      badge: pick(locale, {
+        sv: ["Rätt storlek", "Marginal", "Reserv (mer kraft)"], en: ["Right size", "Tighter", "Reserve (more force)"],
+        de: ["Passende Größe", "Knapper", "Reserve (mehr Kraft)"], es: ["Tamaño adecuado", "Ajustado", "Reserva (más fuerza)"],
+      })[i] ?? "",
       bore_mm: firstNumAbs(p.key_specs?.bore_mm) || null,
       stroke_mm: null,
       force_n: fN || null,
-      why: isSv
-        ? `${gt}${fN ? `, gripkraft ≈ ${fN} N` : ""}${jaw ? `, backslag ${jaw} mm/sida` : ""}. Dimensioneras på gripkraft mot detaljens vikt och friktion.`
-        : `${gt}${fN ? `, grip force ≈ ${fN} N` : ""}${jaw ? `, jaw stroke ${jaw} mm/side` : ""}. Sized by grip force vs. part weight and friction.`,
-      pros: isSv ? ["Pneumatiskt, enkel styrning", "Lägesgivare för grepp-kontroll"] : ["Pneumatic, simple control", "Position sensing for grip confirmation"],
-      cons: isSv ? ["Verifiera gripkraft mot friktionskoefficient", "Backar/fingrar specas separat"] : ["Verify grip force vs. friction", "Jaws/fingers specified separately"],
+      why: pick(locale, {
+        sv: `${gt}${fN ? `, gripkraft ≈ ${fN} N` : ""}${jaw ? `, backslag ${jaw} mm/sida` : ""}. Dimensioneras på gripkraft mot detaljens vikt och friktion.`,
+        en: `${gt}${fN ? `, grip force ≈ ${fN} N` : ""}${jaw ? `, jaw stroke ${jaw} mm/side` : ""}. Sized by grip force vs. part weight and friction.`,
+        de: `${gt}${fN ? `, Greifkraft ≈ ${fN} N` : ""}${jaw ? `, Backenhub ${jaw} mm/Seite` : ""}. Dimensionierung nach Greifkraft im Verhältnis zu Gewicht und Reibung des Teils.`,
+        es: `${gt}${fN ? `, fuerza de agarre ≈ ${fN} N` : ""}${jaw ? `, carrera de mordaza ${jaw} mm/lado` : ""}. Dimensionado según la fuerza de agarre frente al peso y la fricción de la pieza.`,
+      }),
+      pros: pick(locale, {
+        sv: ["Pneumatiskt, enkel styrning", "Lägesgivare för grepp-kontroll"], en: ["Pneumatic, simple control", "Position sensing for grip confirmation"],
+        de: ["Pneumatisch, einfache Steuerung", "Positionssensor zur Griffbestätigung"], es: ["Neumático, control sencillo", "Sensor de posición para confirmación de agarre"],
+      }),
+      cons: pick(locale, {
+        sv: ["Verifiera gripkraft mot friktionskoefficient", "Backar/fingrar specas separat"], en: ["Verify grip force vs. friction", "Jaws/fingers specified separately"],
+        de: ["Greifkraft gegen Reibungskoeffizient prüfen", "Backen/Finger werden separat spezifiziert"], es: ["Verifique la fuerza de agarre frente al coeficiente de fricción", "Mordazas/dedos se especifican por separado"],
+      }),
     };
   });
-  const typeLabel = isSv
-    ? ({ parallel: "parallellgripdon", angular: "vinkelgripdon", radial: "radial-/3-backsgripdon" } as Record<string, string>)[wantType]
-    : ({ parallel: "parallel grippers", angular: "angle grippers", radial: "radial / 3-jaw grippers" } as Record<string, string>)[wantType];
+  const typeLabels: Record<string, Record<string, string>> = {
+    sv: { parallel: "parallellgripdon", angular: "vinkelgripdon", radial: "radial-/3-backsgripdon" },
+    en: { parallel: "parallel grippers", angular: "angle grippers", radial: "radial / 3-jaw grippers" },
+    de: { parallel: "Parallelgreifer", angular: "Winkelgreifer", radial: "Radial-/3-Backen-Greifer" },
+    es: { parallel: "pinzas paralelas", angular: "pinzas angulares", radial: "pinzas radiales/de 3 mordazas" },
+  };
+  const typeLabel = (typeLabels[locale] ?? typeLabels.en)[wantType];
   const need = reqN > 0
-    ? (isSv ? ` För ~${loadKg} kg är en rimlig tumregel ≈ ${Math.round(reqN)} N gripkraft (≈ vikt × 100; justera för friktion och acceleration).`
-            : ` For ~${loadKg} kg a reasonable rule of thumb is ≈ ${Math.round(reqN)} N grip force (≈ weight × 100; adjust for friction and acceleration).`)
+    ? pick(locale, {
+        sv: ` För ~${loadKg} kg är en rimlig tumregel ≈ ${Math.round(reqN)} N gripkraft (≈ vikt × 100; justera för friktion och acceleration).`,
+        en: ` For ~${loadKg} kg a reasonable rule of thumb is ≈ ${Math.round(reqN)} N grip force (≈ weight × 100; adjust for friction and acceleration).`,
+        de: ` Für ~${loadKg} kg ist eine brauchbare Faustregel ≈ ${Math.round(reqN)} N Greifkraft (≈ Gewicht × 100; anpassen für Reibung und Beschleunigung).`,
+        es: ` Para ~${loadKg} kg, una regla práctica razonable es ≈ ${Math.round(reqN)} N de fuerza de agarre (≈ peso × 100; ajustar según fricción y aceleración).`,
+      })
     : "";
-  const summary = isSv
-    ? `Det här är en gripapplikation — gripdon dimensioneras på gripkraft, inte cylinderslag.${need} Förslagen är ${typeLabel}.`
-    : `This is a gripping application — grippers are sized by grip force, not cylinder stroke.${need} The options are ${typeLabel}.`;
-  if (!options.length) options.push(buildCustomSolutionOption(0, isSv, 0, false, customCtx) as Record<string, unknown>);
+  const summary = pick(locale, {
+    sv: `Det här är en gripapplikation — gripdon dimensioneras på gripkraft, inte cylinderslag.${need} Förslagen är ${typeLabel}.`,
+    en: `This is a gripping application — grippers are sized by grip force, not cylinder stroke.${need} The options are ${typeLabel}.`,
+    de: `Dies ist eine Greifanwendung — Greifer werden nach Greifkraft dimensioniert, nicht nach Zylinderhub.${need} Die Vorschläge sind ${typeLabel}.`,
+    es: `Esta es una aplicación de agarre — las pinzas se dimensionan según la fuerza de agarre, no la carrera del cilindro.${need} Las opciones son ${typeLabel}.`,
+  });
+  if (!options.length) options.push(buildCustomSolutionOption(0, locale, 0, false, customCtx) as Record<string, unknown>);
   logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: options[0]?.sku ?? null, option_count: options.length }, true);
   return Response.json({ summary, options }, { headers: CORS });
 }
@@ -1723,7 +1949,6 @@ async function handleOptions(
   description: string, answers: Record<string, string>, locale: string
 ): Promise<Response> {
   const t0 = Date.now();
-  const isSv = locale === "sv";
   const combinedText = description + " " + Object.values(answers).join(" ");
   const categories = detectCategories(combinedText);
   const minStroke = extractMinStroke(answers, description);
@@ -1813,26 +2038,44 @@ async function handleOptions(
     const options = picks.map((p, i) => ({
       sku: p.sku,
       name: p.name,
-      badge: i === 0 ? (isSv ? "Minsta" : "Smallest")
-        : i === picks.length - 1 ? (isSv ? "Störst kapacitet" : "Highest capacity") : "",
+      badge: i === 0 ? pick(locale, { sv: "Minsta", en: "Smallest", de: "Kleinste", es: "Más pequeño" })
+        : i === picks.length - 1 ? pick(locale, { sv: "Störst kapacitet", en: "Highest capacity", de: "Höchste Kapazität", es: "Mayor capacidad" }) : "",
       bore_mm: null,
       stroke_mm: Number(String(p.key_specs?.stroke_mm ?? "").replace(/[^\d.]/g, "")) || null,
       force_n: null,
-      why: isSv
-        ? `Justerbar hydraulisk stötdämpare ${String(p.key_specs?.sizes ?? "")}. Dimensioneras efter energi per slag — verifiera mot databladets energikapacitet.`
-        : `Adjustable hydraulic shock absorber ${String(p.key_specs?.sizes ?? "")}. Sized by energy per cycle — verify against the datasheet's energy capacity.`,
-      pros: isSv ? ["Justerbar dämpning", "Mjuk inbromsning som skyddar mekaniken"]
-        : ["Adjustable damping", "Smooth deceleration that protects the mechanics"],
-      cons: isSv ? ["Välj storlek efter energikapacitet (Nm/slag) i databladet"]
-        : ["Choose size by the energy capacity (Nm/cycle) in the datasheet"],
+      why: pick(locale, {
+        sv: `Justerbar hydraulisk stötdämpare ${String(p.key_specs?.sizes ?? "")}. Dimensioneras efter energi per slag — verifiera mot databladets energikapacitet.`,
+        en: `Adjustable hydraulic shock absorber ${String(p.key_specs?.sizes ?? "")}. Sized by energy per cycle — verify against the datasheet's energy capacity.`,
+        de: `Einstellbarer hydraulischer Stoßdämpfer ${String(p.key_specs?.sizes ?? "")}. Dimensionierung nach Energie pro Hub — anhand der Energiekapazität im Datenblatt prüfen.`,
+        es: `Amortiguador hidráulico ajustable ${String(p.key_specs?.sizes ?? "")}. Dimensionado según la energía por ciclo — verifique la capacidad energética en la hoja de datos.`,
+      }),
+      pros: pick(locale, {
+        sv: ["Justerbar dämpning", "Mjuk inbromsning som skyddar mekaniken"],
+        en: ["Adjustable damping", "Smooth deceleration that protects the mechanics"],
+        de: ["Einstellbare Dämpfung", "Sanfte Abbremsung, die die Mechanik schont"],
+        es: ["Amortiguación ajustable", "Deceleración suave que protege la mecánica"],
+      }),
+      cons: pick(locale, {
+        sv: ["Välj storlek efter energikapacitet (Nm/slag) i databladet"],
+        en: ["Choose size by the energy capacity (Nm/cycle) in the datasheet"],
+        de: ["Größe nach Energiekapazität (Nm/Hub) im Datenblatt wählen"],
+        es: ["Elija el tamaño según la capacidad energética (Nm/ciclo) en la hoja de datos"],
+      }),
     }));
     const eNote = energyJ > 0
-      ? (isSv ? ` Beräknad rörelseenergi ≈ ${energyJ.toFixed(1)} J/slag (½·${loadKg} kg·(${speedMs} m/s)²).`
-              : ` Estimated kinetic energy ≈ ${energyJ.toFixed(1)} J/cycle (½·${loadKg} kg·(${speedMs} m/s)²).`)
+      ? pick(locale, {
+          sv: ` Beräknad rörelseenergi ≈ ${energyJ.toFixed(1)} J/slag (½·${loadKg} kg·(${speedMs} m/s)²).`,
+          en: ` Estimated kinetic energy ≈ ${energyJ.toFixed(1)} J/cycle (½·${loadKg} kg·(${speedMs} m/s)²).`,
+          de: ` Berechnete Bewegungsenergie ≈ ${energyJ.toFixed(1)} J/Hub (½·${loadKg} kg·(${speedMs} m/s)²).`,
+          es: ` Energía cinética estimada ≈ ${energyJ.toFixed(1)} J/ciclo (½·${loadKg} kg·(${speedMs} m/s)²).`,
+        })
       : "";
-    const summary = isSv
-      ? `Det här är en stötdämpar-applikation — en cylinder bromsar inte en rullande massa, det gör en stötdämpare.${eNote} Välj storlek (M8–M20) efter dämparens energikapacitet per slag (se datablad).`
-      : `This is a shock-absorber application — a cylinder won't stop a rolling mass, a shock absorber does.${eNote} Pick a size (M8–M20) by the absorber's energy capacity per cycle (see datasheet).`;
+    const summary = pick(locale, {
+      sv: `Det här är en stötdämpar-applikation — en cylinder bromsar inte en rullande massa, det gör en stötdämpare.${eNote} Välj storlek (M8–M20) efter dämparens energikapacitet per slag (se datablad).`,
+      en: `This is a shock-absorber application — a cylinder won't stop a rolling mass, a shock absorber does.${eNote} Pick a size (M8–M20) by the absorber's energy capacity per cycle (see datasheet).`,
+      de: `Dies ist eine Stoßdämpfer-Anwendung — ein Zylinder bremst keine rollende Masse ab, das übernimmt ein Stoßdämpfer.${eNote} Größe (M8–M20) nach der Energiekapazität des Dämpfers pro Hub wählen (siehe Datenblatt).`,
+      es: `Esta es una aplicación de amortiguador — un cilindro no detiene una masa rodante, un amortiguador sí.${eNote} Elija el tamaño (M8-M20) según la capacidad energética del amortiguador por ciclo (véase la hoja de datos).`,
+    });
     logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: options[0]?.sku ?? null, option_count: options.length }, true);
     return Response.json({ summary, options }, { headers: CORS });
   }
@@ -1849,10 +2092,13 @@ async function handleOptions(
       isWashdown: false, isVertical: false, isFoodGrade: false,
       isBatteryDryroom: false, isHydraulic: true, isAtex: false, isSilSafety: false,
     };
-    const options = [buildCustomSolutionOption(0, isSv, 0, false, customCtx)];
-    const summary = isSv
-      ? "Det här är en hydraulisk applikation (oljedrift, högt tryck) — helt utanför vårt pneumatiska/elektriska sortiment. Att föreslå en pneumatisk katalogcylinder här vore direkt farligt (den är inte tryckklassad för hydraulolja). Vi tar fram en kundspecifik hydrauliklösning."
-      : "This is a hydraulic application (oil-driven, high pressure) — entirely outside our pneumatic/electric range. Recommending a pneumatic catalog cylinder here would be unsafe (it isn't pressure-rated for hydraulic oil). We'll work out a custom hydraulic solution.";
+    const options = [buildCustomSolutionOption(0, locale, 0, false, customCtx)];
+    const summary = pick(locale, {
+      sv: "Det här är en hydraulisk applikation (oljedrift, högt tryck) — helt utanför vårt pneumatiska/elektriska sortiment. Att föreslå en pneumatisk katalogcylinder här vore direkt farligt (den är inte tryckklassad för hydraulolja). Vi tar fram en kundspecifik hydrauliklösning.",
+      en: "This is a hydraulic application (oil-driven, high pressure) — entirely outside our pneumatic/electric range. Recommending a pneumatic catalog cylinder here would be unsafe (it isn't pressure-rated for hydraulic oil). We'll work out a custom hydraulic solution.",
+      de: "Dies ist eine hydraulische Anwendung (ölbetrieben, hoher Druck) — vollständig außerhalb unseres pneumatischen/elektrischen Sortiments. Einen pneumatischen Katalogzylinder hier vorzuschlagen wäre unsicher (er ist nicht druckklassifiziert für Hydrauliköl). Wir erarbeiten eine kundenspezifische Hydrauliklösung.",
+      es: "Esta es una aplicación hidráulica (accionada por aceite, alta presión) — completamente fuera de nuestra gama neumática/eléctrica. Recomendar aquí un cilindro neumático de catálogo sería inseguro (no está clasificado para la presión del aceite hidráulico). Desarrollaremos una solución hidráulica a medida.",
+    });
     logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: "CUSTOM-SOLUTION", option_count: 1 }, true);
     return Response.json({ summary, options }, { headers: CORS });
   }
@@ -1883,17 +2129,26 @@ async function handleOptions(
       return {
         sku: p.sku, name: p.name,
         badge: i === 0 && torqueInexact
-          ? (isSv ? "Närmaste — otillräckligt vridmoment" : "Closest — insufficient torque")
-          : (isSv ? ["Bästa valet", "Kompakt alternativ", "Budgetalternativ"][i] : ["Best choice", "Compact option", "Budget option"][i]),
+          ? pick(locale, { sv: "Närmaste — otillräckligt vridmoment", en: "Closest — insufficient torque", de: "Nächstgelegen — unzureichendes Drehmoment", es: "Más cercano — par insuficiente" })
+          : pick(locale, {
+              sv: ["Bästa valet", "Kompakt alternativ", "Budgetalternativ"], en: ["Best choice", "Compact option", "Budget option"],
+              de: ["Beste Wahl", "Kompakte Option", "Budget-Option"], es: ["Mejor opción", "Opción compacta", "Opción económica"],
+            })[i],
         bore_mm: null, stroke_mm: null,
         force_n: torque || null,
         why: torqueInexact
-          ? (isSv
-              ? `${p.name} — ${torque} Nm är det högsta vridmoment vi har i lager, men klarar INTE de begärda ${requiredTorque} Nm. Rekommendation, inte en bekräftad match — för ${requiredTorque} Nm krävs kundspecifik lösning.`
-              : `${p.name} — ${torque} Nm is the highest torque we stock, but does NOT meet the requested ${requiredTorque} Nm. A recommendation, not a confirmed match — ${requiredTorque} Nm needs a custom solution.`)
-          : (isSv
-              ? `${p.name} — ${torque} Nm vridmoment${requiredDeg > 0 ? `, ${requiredDeg}° rörelseomfång` : ""}.`
-              : `${p.name} — ${torque} Nm torque${requiredDeg > 0 ? `, ${requiredDeg}° rotation range` : ""}.`),
+          ? pick(locale, {
+              sv: `${p.name} — ${torque} Nm är det högsta vridmoment vi har i lager, men klarar INTE de begärda ${requiredTorque} Nm. Rekommendation, inte en bekräftad match — för ${requiredTorque} Nm krävs kundspecifik lösning.`,
+              en: `${p.name} — ${torque} Nm is the highest torque we stock, but does NOT meet the requested ${requiredTorque} Nm. A recommendation, not a confirmed match — ${requiredTorque} Nm needs a custom solution.`,
+              de: `${p.name} — ${torque} Nm ist das höchste Drehmoment, das wir auf Lager haben, erfüllt jedoch NICHT die angeforderten ${requiredTorque} Nm. Eine Empfehlung, keine bestätigte Übereinstimmung — für ${requiredTorque} Nm ist eine kundenspezifische Lösung erforderlich.`,
+              es: `${p.name} — ${torque} Nm es el par máximo que tenemos en stock, pero NO cumple los ${requiredTorque} Nm solicitados. Es una recomendación, no una coincidencia confirmada — para ${requiredTorque} Nm se necesita una solución a medida.`,
+            })
+          : pick(locale, {
+              sv: `${p.name} — ${torque} Nm vridmoment${requiredDeg > 0 ? `, ${requiredDeg}° rörelseomfång` : ""}.`,
+              en: `${p.name} — ${torque} Nm torque${requiredDeg > 0 ? `, ${requiredDeg}° rotation range` : ""}.`,
+              de: `${p.name} — ${torque} Nm Drehmoment${requiredDeg > 0 ? `, ${requiredDeg}° Drehbereich` : ""}.`,
+              es: `${p.name} — ${torque} Nm de par${requiredDeg > 0 ? `, rango de rotación de ${requiredDeg}°` : ""}.`,
+            }),
         pros: [] as string[], cons: [] as string[],
       };
     });
@@ -1901,14 +2156,20 @@ async function handleOptions(
       isWashdown: false, isVertical: false, isFoodGrade: false,
       isBatteryDryroom: false, isHydraulic: false, isAtex: false, isSilSafety: false,
     };
-    options.push(buildCustomSolutionOption(0, isSv, 0, false, customCtx) as typeof options[number]);
+    options.push(buildCustomSolutionOption(0, locale, 0, false, customCtx) as typeof options[number]);
     const summary = torqueInexact
-      ? (isSv
-          ? `Ingen lagervara klarar de begärda ${requiredTorque} Nm — ${picks[0]?.name} (${parseTorqueFromSpecs(picks[0]?.key_specs ?? {})} Nm) är närmaste, men otillräcklig. Se den som en utgångspunkt; för ${requiredTorque} Nm behövs en kundspecifik rotationsaktuator.`
-          : `No stocked unit meets the requested ${requiredTorque} Nm — ${picks[0]?.name} (${parseTorqueFromSpecs(picks[0]?.key_specs ?? {})} Nm) is the closest, but insufficient. Treat it as a starting point; ${requiredTorque} Nm needs a custom rotary actuator.`)
-      : (isSv
-          ? `Rotationsaktuator vald efter vridmoment${requiredTorque > 0 ? ` (krav ${requiredTorque} Nm)` : ""}${requiredDeg > 0 ? ` och ${requiredDeg}° rörelseomfång` : ""} — inte cylinderslag.`
-          : `Rotary actuator selected by torque${requiredTorque > 0 ? ` (requirement ${requiredTorque} Nm)` : ""}${requiredDeg > 0 ? ` and ${requiredDeg}° rotation range` : ""} — not cylinder stroke.`);
+      ? pick(locale, {
+          sv: `Ingen lagervara klarar de begärda ${requiredTorque} Nm — ${picks[0]?.name} (${parseTorqueFromSpecs(picks[0]?.key_specs ?? {})} Nm) är närmaste, men otillräcklig. Se den som en utgångspunkt; för ${requiredTorque} Nm behövs en kundspecifik rotationsaktuator.`,
+          en: `No stocked unit meets the requested ${requiredTorque} Nm — ${picks[0]?.name} (${parseTorqueFromSpecs(picks[0]?.key_specs ?? {})} Nm) is the closest, but insufficient. Treat it as a starting point; ${requiredTorque} Nm needs a custom rotary actuator.`,
+          de: `Keine Lagerware erfüllt die angeforderten ${requiredTorque} Nm — ${picks[0]?.name} (${parseTorqueFromSpecs(picks[0]?.key_specs ?? {})} Nm) ist am nächsten, aber unzureichend. Als Ausgangspunkt betrachten; für ${requiredTorque} Nm wird ein kundenspezifischer Rotationsaktuator benötigt.`,
+          es: `Ninguna unidad en stock cumple los ${requiredTorque} Nm solicitados — ${picks[0]?.name} (${parseTorqueFromSpecs(picks[0]?.key_specs ?? {})} Nm) es la más cercana, pero insuficiente. Considérela como punto de partida; para ${requiredTorque} Nm se necesita un actuador rotativo a medida.`,
+        })
+      : pick(locale, {
+          sv: `Rotationsaktuator vald efter vridmoment${requiredTorque > 0 ? ` (krav ${requiredTorque} Nm)` : ""}${requiredDeg > 0 ? ` och ${requiredDeg}° rörelseomfång` : ""} — inte cylinderslag.`,
+          en: `Rotary actuator selected by torque${requiredTorque > 0 ? ` (requirement ${requiredTorque} Nm)` : ""}${requiredDeg > 0 ? ` and ${requiredDeg}° rotation range` : ""} — not cylinder stroke.`,
+          de: `Rotationsaktuator ausgewählt nach Drehmoment${requiredTorque > 0 ? ` (Anforderung ${requiredTorque} Nm)` : ""}${requiredDeg > 0 ? ` und ${requiredDeg}° Drehbereich` : ""} — nicht nach Zylinderhub.`,
+          es: `Actuador rotativo seleccionado según el par${requiredTorque > 0 ? ` (requisito ${requiredTorque} Nm)` : ""}${requiredDeg > 0 ? ` y rango de rotación de ${requiredDeg}°` : ""} — no la carrera del cilindro.`,
+        });
     logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: picks[0]?.sku ?? null, option_count: options.length }, true);
     return Response.json({ summary, options }, { headers: CORS });
   }
@@ -1918,7 +2179,7 @@ async function handleOptions(
   // axes; the end-effector is then a BOM detail, not the headline recommendation).
   const endEffector = detectEndEffectorIntent(combinedText);
   if (endEffector && !isMultiAxis && !isSystemScope) {
-    return await handleEndEffectorOptions(endEffector, combinedText, loadKg, isSv, locale, t0);
+    return await handleEndEffectorOptions(endEffector, combinedText, loadKg, locale, t0);
   }
 
   if (minBoreMm > 0) console.log(`[options] load=${loadKg}kg → minBore=${minBoreMm}mm`);
@@ -2054,17 +2315,20 @@ async function handleOptions(
     // instead of a blank "why" — so it must hold up fully on its own: real
     // numbers only, never invented.
     const fallbackWhy = [
-      bore ? (isSv ? `Ø${bore} mm borr` : `Ø${bore} mm bore`) : "",
-      ms > 0 ? (isSv ? `${ms} mm slag` : `${ms} mm stroke`) : "",
+      bore ? pick(locale, { sv: `Ø${bore} mm borr`, en: `Ø${bore} mm bore`, de: `Ø${bore} mm Bohrung`, es: `Ø${bore} mm de diámetro` }) : "",
+      ms > 0 ? pick(locale, { sv: `${ms} mm slag`, en: `${ms} mm stroke`, de: `${ms} mm Hub`, es: `${ms} mm de carrera` }) : "",
       force ? `${force} N` : "",
     ].filter(Boolean).join(", ");
     return {
       sku: p.sku, name: p.name,
       badge: i === 0 && isSystemScope
-        ? (isSv ? "Byggblock – rörelsedel" : "Building block – motion")
+        ? pick(locale, { sv: "Byggblock – rörelsedel", en: "Building block – motion", de: "Baustein – Bewegungsteil", es: "Componente – parte de movimiento" })
         : i === 0 && boreInexact
-        ? (isSv ? "Närmaste — överdimensionerad" : "Closest — oversized")
-        : (isSv ? ["Bästa valet","Kompakt alternativ","Budgetalternativ"][i] : ["Best choice","Compact option","Budget option"][i]),
+        ? pick(locale, { sv: "Närmaste — överdimensionerad", en: "Closest — oversized", de: "Nächstgelegen — überdimensioniert", es: "Más cercano — sobredimensionado" })
+        : pick(locale, {
+            sv: ["Bästa valet","Kompakt alternativ","Budgetalternativ"], en: ["Best choice","Compact option","Budget option"],
+            de: ["Beste Wahl","Kompakte Option","Budget-Option"], es: ["Mejor opción","Opción compacta","Opción económica"],
+          })[i],
       bore_mm: bore,
       stroke_mm: ms > 0 ? ms : null,
       force_n: force,
@@ -2082,7 +2346,7 @@ async function handleOptions(
   const reqSummary = [
     maxRequiredStroke > 0 ? `Stroke: ${maxRequiredStroke} mm` : "",
     precisionMm > 0 ? `Precision: ±${precisionMm} mm` : "",
-    isVerticalLoad ? (isSv ? "Vertikal last" : "Vertical load") : "",
+    isVerticalLoad ? pick(locale, { sv: "Vertikal last", en: "Vertical load", de: "Vertikale Last", es: "Carga vertical" }) : "",
     isWashdown ? "Washdown/IP69K" : "",
     isAtex ? "ATEX Zone 1/2" : "",
     isAtexDust ? "ATEX Zone 20/21/22 (damm)" : "",
@@ -2192,47 +2456,77 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     // the user knows the exact stroke is chosen at order (not a fixed stock SKU).
     const isConfigurable = isFamilyProduct(cat) || actualMax === 0;
     const tooShort = maxRequiredStroke > 0 && actualMax > 0 && actualMax < maxRequiredStroke;
+    const closestCatalogBadge = pick(locale, { sv: "Närmaste katalogalternativ", en: "Closest catalog option", de: "Nächstgelegene Katalogoption", es: "Opción de catálogo más cercana" });
     if (isConfigurable && !tooShort) {
-      opt.badge = isSv ? "Konfigurera slag vid order" : "Configure stroke at order";
-      const note = isSv
-        ? `🔧 Produktfamilj/serie — exakt slaglängd${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} väljs vid beställning${actualMax > 0 ? `; serien täcker upp till ${actualMax} mm` : ""}.`
-        : `🔧 Product family/series — exact stroke${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} is selected at order${actualMax > 0 ? `; the series covers up to ${actualMax} mm` : ""}.`;
+      opt.badge = pick(locale, { sv: "Konfigurera slag vid order", en: "Configure stroke at order", de: "Hub bei Bestellung konfigurieren", es: "Configurar carrera al pedido" });
+      const note = pick(locale, {
+        sv: `🔧 Produktfamilj/serie — exakt slaglängd${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} väljs vid beställning${actualMax > 0 ? `; serien täcker upp till ${actualMax} mm` : ""}.`,
+        en: `🔧 Product family/series — exact stroke${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} is selected at order${actualMax > 0 ? `; the series covers up to ${actualMax} mm` : ""}.`,
+        de: `🔧 Produktfamilie/-serie — die genaue Hublänge${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} wird bei der Bestellung ausgewählt${actualMax > 0 ? `; die Serie deckt bis zu ${actualMax} mm ab` : ""}.`,
+        es: `🔧 Familia/serie de productos — la carrera exacta${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} se selecciona al realizar el pedido${actualMax > 0 ? `; la serie cubre hasta ${actualMax} mm` : ""}.`,
+      });
       opt.why = `${note} ${opt.why ?? ""}`.trim();
     }
     if (maxRequiredStroke > 0 && actualMax > 0 && actualMax < maxRequiredStroke) {
-      opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
-      opt.why = `${opt.why} ⚠️ Max stroke ${actualMax} mm — krav ${maxRequiredStroke} mm.`;
+      opt.badge = closestCatalogBadge;
+      opt.why = `${opt.why} ` + pick(locale, {
+        sv: `⚠️ Max slaglängd ${actualMax} mm — krav ${maxRequiredStroke} mm.`,
+        en: `⚠️ Max stroke ${actualMax} mm — requirement ${maxRequiredStroke} mm.`,
+        de: `⚠️ Max. Hub ${actualMax} mm — Anforderung ${maxRequiredStroke} mm.`,
+        es: `⚠️ Carrera máx. ${actualMax} mm — requisito ${maxRequiredStroke} mm.`,
+      });
     }
     if (isWashdown && !isWashdownProduct(cat)) {
-      opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
-      opt.why = `${opt.why} ⚠️ Standardprodukt — verifiera korrosionsskydd för washdown-miljö.`;
+      opt.badge = closestCatalogBadge;
+      opt.why = `${opt.why} ` + pick(locale, {
+        sv: `⚠️ Standardprodukt — verifiera korrosionsskydd för washdown-miljö.`,
+        en: `⚠️ Standard product — verify corrosion protection for washdown environment.`,
+        de: `⚠️ Standardprodukt — Korrosionsschutz für Washdown-Umgebung prüfen.`,
+        es: `⚠️ Producto estándar — verifique la protección contra corrosión para entorno washdown.`,
+      });
     }
     if (isHighPrecision && !isAllowedForHighPrecision(cat)) {
-      const ft = isPneumaticActuatorProduct(cat) ? "pneumatisk cylinder" : "kuggremsdrift";
-      const crit = isSv
-        ? `⛔ KRITISKT FEL: ${ft} kan INTE uppnå ±${precisionMm} mm. Krävs: kulskruvsaxel.`
-        : `⛔ CRITICAL FAILURE: ${ft} CANNOT achieve ±${precisionMm} mm. Required: ball-screw axis.`;
-      opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
+      const ft = isPneumaticActuatorProduct(cat)
+        ? pick(locale, { sv: "pneumatisk cylinder", en: "pneumatic cylinder", de: "Pneumatikzylinder", es: "cilindro neumático" })
+        : pick(locale, { sv: "kuggremsdrift", en: "belt drive", de: "Zahnriemenantrieb", es: "accionamiento por correa" });
+      const crit = pick(locale, {
+        sv: `⛔ KRITISKT FEL: ${ft} kan INTE uppnå ±${precisionMm} mm. Krävs: kulskruvsaxel.`,
+        en: `⛔ CRITICAL FAILURE: ${ft} CANNOT achieve ±${precisionMm} mm. Required: ball-screw axis.`,
+        de: `⛔ KRITISCHER FEHLER: ${ft} kann ±${precisionMm} mm NICHT erreichen. Erforderlich: Kugelumlaufspindelachse.`,
+        es: `⛔ FALLO CRÍTICO: ${ft} NO puede alcanzar ±${precisionMm} mm. Requerido: eje de husillo de bolas.`,
+      });
+      opt.badge = closestCatalogBadge;
       opt.why = crit + " " + opt.why;
       opt.cons = [...((opt.cons as string[]) ?? []), crit];
     }
     if (isHighSpeed && isBallScrewProduct(cat)) {
-      const warn = isSv
-        ? `⚠️ Kulskruvsaxel vid ${(speedMs*1000).toFixed(0)} mm/s — risk för vibration och slitage. Överväg kuggremsdrift (EGSC/ELGC-TB).`
-        : `⚠️ Ball-screw at ${(speedMs*1000).toFixed(0)} mm/s — vibration and wear risk. Consider belt drive (EGSC/ELGC-TB).`;
+      const warn = pick(locale, {
+        sv: `⚠️ Kulskruvsaxel vid ${(speedMs*1000).toFixed(0)} mm/s — risk för vibration och slitage. Överväg kuggremsdrift (EGSC/ELGC-TB).`,
+        en: `⚠️ Ball-screw at ${(speedMs*1000).toFixed(0)} mm/s — vibration and wear risk. Consider belt drive (EGSC/ELGC-TB).`,
+        de: `⚠️ Kugelumlaufspindelachse bei ${(speedMs*1000).toFixed(0)} mm/s — Vibrations- und Verschleißrisiko. Zahnriemenantrieb erwägen (EGSC/ELGC-TB).`,
+        es: `⚠️ Eje de husillo de bolas a ${(speedMs*1000).toFixed(0)} mm/s — riesgo de vibración y desgaste. Considere un accionamiento por correa (EGSC/ELGC-TB).`,
+      });
       opt.cons = [...((opt.cons as string[]) ?? []), warn];
     }
     if (isBatteryDryroom) {
-      const warn = isSv
-        ? `⚠️ Dryroom: Verifiera Cu/Zn/Ni-frihet i alla rörliga delar. Begär materialcertifikat.`
-        : `⚠️ Dryroom: Verify Cu/Zn/Ni-free in all moving parts. Request material certificate.`;
+      const warn = pick(locale, {
+        sv: `⚠️ Dryroom: Verifiera Cu/Zn/Ni-frihet i alla rörliga delar. Begär materialcertifikat.`,
+        en: `⚠️ Dryroom: Verify Cu/Zn/Ni-free in all moving parts. Request material certificate.`,
+        de: `⚠️ Trockenraum: Cu/Zn/Ni-Freiheit in allen beweglichen Teilen prüfen. Materialzertifikat anfordern.`,
+        es: `⚠️ Sala seca: verifique la ausencia de Cu/Zn/Ni en todas las piezas móviles. Solicite el certificado de materiales.`,
+      });
       opt.cons = [...((opt.cons as string[]) ?? []), warn];
     }
     if (requiredTemp > 0) {
       const tMax = parseProductTempMax(cat.key_specs ?? {});
       if (tMax > 0 && tMax < requiredTemp) {
-        opt.badge = isSv ? "Närmaste katalogalternativ" : "Closest catalog option";
-        opt.why = `⛔ Temp ${tMax}°C < krav ${requiredTemp}°C. ` + opt.why;
+        opt.badge = closestCatalogBadge;
+        opt.why = pick(locale, {
+          sv: `⛔ Temp ${tMax}°C < krav ${requiredTemp}°C. `,
+          en: `⛔ Temp ${tMax}°C < requirement ${requiredTemp}°C. `,
+          de: `⛔ Temp. ${tMax} °C < Anforderung ${requiredTemp} °C. `,
+          es: `⛔ Temp. ${tMax} °C < requisito ${requiredTemp} °C. `,
+        }) + opt.why;
       }
     }
     return opt;
@@ -2244,7 +2538,7 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     isFoodGrade: isPharmaGmp || /livsmedel|food|slakteri|chark|mejeri|kött|meat|poultry|fjäderfä|dairy|fisk|fish|bageri|brewery/i.test(combinedText),
     isBatteryDryroom, isHydraulic, isAtex, isSilSafety,
   };
-  finalOptions.push(buildCustomSolutionOption(maxRequiredStroke, isSv, maxCatalogStroke, catalogCanHandle, customCtx));
+  finalOptions.push(buildCustomSolutionOption(maxRequiredStroke, locale, maxCatalogStroke, catalogCanHandle, customCtx));
 
   // When no real catalog product matched (only CUSTOM-SOLUTION remains), the LLM
   // summary tends to hallucinate that our products meet the requirement (e.g.
@@ -2257,24 +2551,39 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     ? ` (${perAxisStrokes.map((a) => `${a.axis.toUpperCase()} ${a.stroke} mm`).join(", ")})`
     : "";
   const summary = customOnly
-    ? (isSv
-        ? "Den här kombinationen av krav ligger utanför vårt standardsortiment — ingen katalogprodukt klarar den säkert. Vi föreslår en kundspecifik lösning; kontakta oss så tar vi fram ett förslag."
-        : "This combination of requirements is outside our standard range — no catalog product meets it safely. We propose a custom-engineered solution; contact us and we'll work one out.")
+    ? pick(locale, {
+        sv: "Den här kombinationen av krav ligger utanför vårt standardsortiment — ingen katalogprodukt klarar den säkert. Vi föreslår en kundspecifik lösning; kontakta oss så tar vi fram ett förslag.",
+        en: "This combination of requirements is outside our standard range — no catalog product meets it safely. We propose a custom-engineered solution; contact us and we'll work one out.",
+        de: "Diese Kombination von Anforderungen liegt außerhalb unseres Standardsortiments — kein Katalogprodukt erfüllt sie sicher. Wir schlagen eine kundenspezifische Lösung vor; kontaktieren Sie uns, und wir erarbeiten einen Vorschlag.",
+        es: "Esta combinación de requisitos queda fuera de nuestra gama estándar — ningún producto de catálogo la cumple de forma segura. Proponemos una solución diseñada a medida; contáctenos y elaboraremos una propuesta.",
+      })
     : isSystemScope
-    ? (isSv
-        ? `Det här är ett flerstegssystem på linjenivå (detektera → stoppa/centrera → väga → identifiera → sortera till flera banor), inte en enskild komponent. Vårt sortiment täcker rörelse- och hanteringsdelen — pneumatiska aktuatorer för stopp, centrering och sortering samt sensorik — och förslagen nedan är byggblock för just den delen. Vägning (lastceller), identifiering (vision/streckkodsläsare), robot och PLC-styrning ligger utanför vårt komponentsortiment och kräver systemintegration. För kapacitet (t.ex. 30 st/min utan köbildning), buffring, cykeltid och komplett linjedesign tar våra ingenjörer helheten — kontakta oss för projektering.`
-        : `This is a line-level multi-stage system (detect → stop/center → weigh → identify → sort to several lanes), not a single component. Our range covers the motion and handling part — pneumatic actuators for stopping, centering and sorting plus sensing — and the options below are building blocks for that part only. Weighing (load cells), identification (vision/barcode readers), robotics and PLC control are outside our component range and need system integration. For throughput (e.g. 30 units/min without queueing), buffering, cycle time and full line design our engineers take the whole — contact us for project engineering.`)
+    ? pick(locale, {
+        sv: `Det här är ett flerstegssystem på linjenivå (detektera → stoppa/centrera → väga → identifiera → sortera till flera banor), inte en enskild komponent. Vårt sortiment täcker rörelse- och hanteringsdelen — pneumatiska aktuatorer för stopp, centrering och sortering samt sensorik — och förslagen nedan är byggblock för just den delen. Vägning (lastceller), identifiering (vision/streckkodsläsare), robot och PLC-styrning ligger utanför vårt komponentsortiment och kräver systemintegration. För kapacitet (t.ex. 30 st/min utan köbildning), buffring, cykeltid och komplett linjedesign tar våra ingenjörer helheten — kontakta oss för projektering.`,
+        en: `This is a line-level multi-stage system (detect → stop/center → weigh → identify → sort to several lanes), not a single component. Our range covers the motion and handling part — pneumatic actuators for stopping, centering and sorting plus sensing — and the options below are building blocks for that part only. Weighing (load cells), identification (vision/barcode readers), robotics and PLC control are outside our component range and need system integration. For throughput (e.g. 30 units/min without queueing), buffering, cycle time and full line design our engineers take the whole — contact us for project engineering.`,
+        de: `Dies ist ein mehrstufiges System auf Linienebene (Erkennen → Stoppen/Zentrieren → Wiegen → Identifizieren → Sortieren auf mehrere Bahnen), keine Einzelkomponente. Unser Sortiment deckt den Bewegungs- und Handhabungsteil ab — pneumatische Aktuatoren für Stopp, Zentrierung und Sortierung sowie Sensorik — und die unten stehenden Optionen sind Bausteine nur für diesen Teil. Wiegen (Wägezellen), Identifikation (Vision/Barcode-Leser), Robotik und SPS-Steuerung liegen außerhalb unseres Komponentensortiments und erfordern Systemintegration. Für Durchsatz (z. B. 30 Einheiten/min ohne Rückstau), Pufferung, Zykluszeit und komplettes Liniendesign übernehmen unsere Ingenieure das Gesamtbild — kontaktieren Sie uns für die Projektierung.`,
+        es: `Se trata de un sistema multietapa a nivel de línea (detectar → parar/centrar → pesar → identificar → clasificar en varios carriles), no de un componente único. Nuestra gama cubre la parte de movimiento y manipulación — actuadores neumáticos para parada, centrado y clasificación, además de sensórica — y las opciones siguientes son componentes solo para esa parte. El pesaje (células de carga), la identificación (visión/lectores de código de barras), la robótica y el control por PLC quedan fuera de nuestra gama de componentes y requieren integración de sistemas. Para el rendimiento (p. ej. 30 unidades/min sin colas), el almacenamiento intermedio, el tiempo de ciclo y el diseño completo de la línea, nuestros ingenieros se encargan del conjunto — contáctenos para la ingeniería del proyecto.`,
+      })
     : isMultiAxis
-    ? (isSv
-        ? `Det här är ett fleraxligt system${axesNote} — det behöver en separat axel per riktning, inte en enda aktuator. Se förslagen nedan som en axel i taget och kombinera dem i maskinbyggaren, där varje rörelse dimensioneras för sig.`
-        : `This is a multi-axis system${axesNote} — it needs a separate axis per direction, not a single actuator. Treat the suggestions below as one axis at a time and combine them in the machine builder, where each motion is sized individually.`)
+    ? pick(locale, {
+        sv: `Det här är ett fleraxligt system${axesNote} — det behöver en separat axel per riktning, inte en enda aktuator. Se förslagen nedan som en axel i taget och kombinera dem i maskinbyggaren, där varje rörelse dimensioneras för sig.`,
+        en: `This is a multi-axis system${axesNote} — it needs a separate axis per direction, not a single actuator. Treat the suggestions below as one axis at a time and combine them in the machine builder, where each motion is sized individually.`,
+        de: `Dies ist ein Mehrachsensystem${axesNote} — es benötigt eine separate Achse pro Richtung, nicht einen einzigen Aktuator. Betrachten Sie die untenstehenden Vorschläge jeweils als eine Achse und kombinieren Sie sie im Maschinenbauer, wo jede Bewegung einzeln dimensioniert wird.`,
+        es: `Se trata de un sistema multieje${axesNote} — necesita un eje independiente por dirección, no un único actuador. Trate las sugerencias siguientes como un eje a la vez y combínelas en el constructor de máquinas, donde cada movimiento se dimensiona individualmente.`,
+      })
     : boreInexact
-    ? (isSv
-        ? `Vi har ingen lagervara i exakt rätt storlek för det här — ${topProducts[0].name} är närmaste (något överdimensionerad) och klarar kraven tekniskt. Se den som en rekommendation; för exakt mått väljer du en konfigurerbar variant (beställs i rätt borrning och slag) eller en kundspecifik lösning.`
-        : `We don't stock an exact-size match for this — ${topProducts[0].name} is the closest (slightly oversized) and meets the requirements technically. Treat it as a recommendation; for an exact fit choose a configurable variant (ordered to the right bore and stroke) or a custom solution.`)
-    : (llmSummary || (isSv
-        ? `${topProducts.length} alternativ valda baserat på krav${maxRequiredStroke > 0 ? ` (slag ${maxRequiredStroke} mm)` : ""}.`
-        : `${topProducts.length} options selected for ${maxRequiredStroke > 0 ? `${maxRequiredStroke} mm stroke` : "this application"}.`));
+    ? pick(locale, {
+        sv: `Vi har ingen lagervara i exakt rätt storlek för det här — ${topProducts[0].name} är närmaste (något överdimensionerad) och klarar kraven tekniskt. Se den som en rekommendation; för exakt mått väljer du en konfigurerbar variant (beställs i rätt borrning och slag) eller en kundspecifik lösning.`,
+        en: `We don't stock an exact-size match for this — ${topProducts[0].name} is the closest (slightly oversized) and meets the requirements technically. Treat it as a recommendation; for an exact fit choose a configurable variant (ordered to the right bore and stroke) or a custom solution.`,
+        de: `Wir führen keine exakt passende Größe hierfür — ${topProducts[0].name} ist die nächstgelegene (leicht überdimensioniert) und erfüllt die Anforderungen technisch. Betrachten Sie sie als Empfehlung; für eine exakte Passform wählen Sie eine konfigurierbare Variante (bestellt in der richtigen Bohrung und dem richtigen Hub) oder eine kundenspezifische Lösung.`,
+        es: `No tenemos en stock una coincidencia de tamaño exacto para esto — ${topProducts[0].name} es la más cercana (ligeramente sobredimensionada) y cumple los requisitos técnicamente. Considérela una recomendación; para un ajuste exacto, elija una variante configurable (pedida con el diámetro y la carrera correctos) o una solución a medida.`,
+      })
+    : (llmSummary || pick(locale, {
+        sv: `${topProducts.length} alternativ valda baserat på krav${maxRequiredStroke > 0 ? ` (slag ${maxRequiredStroke} mm)` : ""}.`,
+        en: `${topProducts.length} options selected for ${maxRequiredStroke > 0 ? `${maxRequiredStroke} mm stroke` : "this application"}.`,
+        de: `${topProducts.length} Optionen ausgewählt für ${maxRequiredStroke > 0 ? `${maxRequiredStroke} mm Hub` : "diese Anwendung"}.`,
+        es: `${topProducts.length} opciones seleccionadas para ${maxRequiredStroke > 0 ? `${maxRequiredStroke} mm de carrera` : "esta aplicación"}.`,
+      }));
 
   if (optRateLimited) {
     logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: true, top_sku: topProducts[0]?.sku ?? null }, false, "rate_limited");
@@ -2400,14 +2709,14 @@ async function handleBom(
   // P2 sizing + P1 conflicts (first-order — guaranteed in the output below)
   const maxStroke = perAxisStrokes.length > 0 ? Math.max(...perAxisStrokes.map(a => a.stroke)) : minStroke;
   const dyn = computeDynamics(massKg, maxStroke, cycleTimeS, isVerticalLoad);
-  const conflicts = detectConflicts({ isSv, precisionMm, isHighPrecision, speedMs, isDirtyEnv, isWashdown, isAtexDust, isLowCost, is24x7, dyn });
+  const conflicts = detectConflicts({ locale, precisionMm, isHighPrecision, speedMs, isDirtyEnv, isWashdown, isAtexDust, isLowCost, is24x7, dyn });
   // P2 force check: does the chosen actuator's rated force cover the computed peak load?
   const ratedForceN = parseFloat(String(products.find(p => p.sku === primarySku)?.key_specs?.force_n ?? "0").replace(/[^\d.]/g, ""));
   const forceShortfall = (dyn && ratedForceN > 0 && dyn.forceN > ratedForceN)
     ? { needN: Math.round(dyn.forceN), ratedN: Math.round(ratedForceN) } : null;
   const bomCtx: BomCtx = {
     primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
-    isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isVacuum, isSv,
+    isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isVacuum, locale,
     products: atexSafeProducts,
     isMounting, isArticulated, isRodLock, primaryBoreMm, isHighTemp, isWashdown, isSilSafety: needsSilSafety(combinedText), isHydraulic, isVeryHighForce,
     isMultiAxis, perAxisStrokes,
@@ -2492,26 +2801,38 @@ JSON: { "title": "...", "explanation": "..." }`;
 
   // Auto-generate title/explanation when LLM is unavailable
   if (!title) {
-    title = isSv
-      ? `${isElectric ? "Elektrisk" : "Pneumatisk"}${isVerticalLoad ? " vertikal" : ""}${isMultiAxis ? " flerraxlad" : ""} aktuator — ${primarySku}`
-      : `${isElectric ? "Electric" : "Pneumatic"}${isVerticalLoad ? " vertical" : ""}${isMultiAxis ? " multi-axis" : ""} actuator — ${primarySku}`;
+    title = pick(locale, {
+      sv: `${isElectric ? "Elektrisk" : "Pneumatisk"}${isVerticalLoad ? " vertikal" : ""}${isMultiAxis ? " flerraxlad" : ""} aktuator — ${primarySku}`,
+      en: `${isElectric ? "Electric" : "Pneumatic"}${isVerticalLoad ? " vertical" : ""}${isMultiAxis ? " multi-axis" : ""} actuator — ${primarySku}`,
+      de: `${isElectric ? "Elektrischer" : "Pneumatischer"}${isVerticalLoad ? " vertikaler" : ""}${isMultiAxis ? " mehrachsiger" : ""} Aktuator — ${primarySku}`,
+      es: `Actuador ${isElectric ? "eléctrico" : "neumático"}${isVerticalLoad ? " vertical" : ""}${isMultiAxis ? " multieje" : ""} — ${primarySku}`,
+    });
   }
   if (!explanation) {
-    explanation = isSv
-      ? `System baserat på ${primarySku}. ${isElectric ? "Elektrisk servoaxel för precision och repeterbarhet." : "Pneumatisk cylinder med komplett luftberedning (FRL + ventil)."} ${isVerticalLoad ? (isElectric ? "Bromsmotor obligatorisk för lastsäkerhet vid strömavbrott." : "Backslagsventil förhindrar lastfall vid lufttrycksförlust.") : ""}${wasRateLimited ? " [Automatgenererad — AI tillfälligt otillgänglig]" : ""}`
-      : `System based on ${primarySku}. ${isElectric ? "Electric servo axis for precision and repeatability." : "Pneumatic cylinder with complete air preparation (FRL + valve)."} ${isVerticalLoad ? (isElectric ? "Brake motor mandatory for load safety on power loss." : "Check valve prevents load drop on air pressure loss.") : ""}${wasRateLimited ? " [Auto-generated — AI temporarily unavailable]" : ""}`;
+    explanation = pick(locale, {
+      sv: `System baserat på ${primarySku}. ${isElectric ? "Elektrisk servoaxel för precision och repeterbarhet." : "Pneumatisk cylinder med komplett luftberedning (FRL + ventil)."} ${isVerticalLoad ? (isElectric ? "Bromsmotor obligatorisk för lastsäkerhet vid strömavbrott." : "Backslagsventil förhindrar lastfall vid lufttrycksförlust.") : ""}${wasRateLimited ? " [Automatgenererad — AI tillfälligt otillgänglig]" : ""}`,
+      en: `System based on ${primarySku}. ${isElectric ? "Electric servo axis for precision and repeatability." : "Pneumatic cylinder with complete air preparation (FRL + valve)."} ${isVerticalLoad ? (isElectric ? "Brake motor mandatory for load safety on power loss." : "Check valve prevents load drop on air pressure loss.") : ""}${wasRateLimited ? " [Auto-generated — AI temporarily unavailable]" : ""}`,
+      de: `System basierend auf ${primarySku}. ${isElectric ? "Elektrische Servoachse für Präzision und Wiederholgenauigkeit." : "Pneumatikzylinder mit vollständiger Luftaufbereitung (FRL + Ventil)."} ${isVerticalLoad ? (isElectric ? "Bremsmotor zwingend erforderlich für die Lastsicherheit bei Stromausfall." : "Das Rückschlagventil verhindert ein Absinken der Last bei Luftdruckverlust.") : ""}${wasRateLimited ? " [Automatisch generiert — KI vorübergehend nicht verfügbar]" : ""}`,
+      es: `Sistema basado en ${primarySku}. ${isElectric ? "Eje servo eléctrico para precisión y repetibilidad." : "Cilindro neumático con tratamiento de aire completo (FRL + válvula)."} ${isVerticalLoad ? (isElectric ? "Motor con freno obligatorio para la seguridad de la carga ante fallo de alimentación." : "La válvula antirretorno evita la caída de la carga ante pérdida de presión de aire.") : ""}${wasRateLimited ? " [Generado automáticamente — IA temporalmente no disponible]" : ""}`,
+    });
   }
 
   // Deterministically append sizing + conflict notes so they are GUARANTEED present
   // (even if the LLM drops them or was rate-limited). The advisor must never look
   // "complete" while ignoring the physics and the requirement conflicts.
   const engNotes: string[] = [];
-  if (dyn) engNotes.push(isSv
-    ? `📐 Dimensionering (första-ordningens uppskattning): för ${cycleTimeS} s cykeltid, ${maxStroke} mm slag och ${massKg} kg → topphastighet ~${dyn.vPeak.toFixed(2)} m/s, acceleration ~${dyn.accel.toFixed(1)} m/s², toppkraft ~${Math.round(dyn.forceN)} N${isVerticalLoad ? " (inkl. gravitation)" : ""}. Verifiera vald axel/motor mot kraft, varvtal och kontinuerlig last — detta ersätter inte en full servoberäkning.`
-    : `📐 Sizing (first-order estimate): for a ${cycleTimeS} s cycle, ${maxStroke} mm stroke and ${massKg} kg → peak velocity ~${dyn.vPeak.toFixed(2)} m/s, acceleration ~${dyn.accel.toFixed(1)} m/s², peak force ~${Math.round(dyn.forceN)} N${isVerticalLoad ? " (incl. gravity)" : ""}. Verify the chosen axis/motor for force, rpm and continuous load — this does not replace a full servo calculation.`);
-  if (forceShortfall) engNotes.push(isSv
-    ? `⛔ Kraftvarning: beräknad toppkraft ~${forceShortfall.needN} N överstiger vald aktuators märkkraft ~${forceShortfall.ratedN} N. Välj kraftigare axel / större borrning, sänk last/acceleration eller öka cykeltiden.`
-    : `⛔ Force warning: computed peak force ~${forceShortfall.needN} N exceeds the chosen actuator's rated force ~${forceShortfall.ratedN} N. Pick a stronger axis / larger bore, reduce load/acceleration, or increase the cycle time.`);
+  if (dyn) engNotes.push(pick(locale, {
+    sv: `📐 Dimensionering (första-ordningens uppskattning): för ${cycleTimeS} s cykeltid, ${maxStroke} mm slag och ${massKg} kg → topphastighet ~${dyn.vPeak.toFixed(2)} m/s, acceleration ~${dyn.accel.toFixed(1)} m/s², toppkraft ~${Math.round(dyn.forceN)} N${isVerticalLoad ? " (inkl. gravitation)" : ""}. Verifiera vald axel/motor mot kraft, varvtal och kontinuerlig last — detta ersätter inte en full servoberäkning.`,
+    en: `📐 Sizing (first-order estimate): for a ${cycleTimeS} s cycle, ${maxStroke} mm stroke and ${massKg} kg → peak velocity ~${dyn.vPeak.toFixed(2)} m/s, acceleration ~${dyn.accel.toFixed(1)} m/s², peak force ~${Math.round(dyn.forceN)} N${isVerticalLoad ? " (incl. gravity)" : ""}. Verify the chosen axis/motor for force, rpm and continuous load — this does not replace a full servo calculation.`,
+    de: `📐 Dimensionierung (Schätzung erster Ordnung): für ${cycleTimeS} s Zykluszeit, ${maxStroke} mm Hub und ${massKg} kg → Spitzengeschwindigkeit ~${dyn.vPeak.toFixed(2)} m/s, Beschleunigung ~${dyn.accel.toFixed(1)} m/s², Spitzenkraft ~${Math.round(dyn.forceN)} N${isVerticalLoad ? " (inkl. Schwerkraft)" : ""}. Gewählte Achse/Motor gegen Kraft, Drehzahl und Dauerlast prüfen — dies ersetzt keine vollständige Servoberechnung.`,
+    es: `📐 Dimensionamiento (estimación de primer orden): para un tiempo de ciclo de ${cycleTimeS} s, ${maxStroke} mm de carrera y ${massKg} kg → velocidad máxima ~${dyn.vPeak.toFixed(2)} m/s, aceleración ~${dyn.accel.toFixed(1)} m/s², fuerza máxima ~${Math.round(dyn.forceN)} N${isVerticalLoad ? " (incl. gravedad)" : ""}. Verifique el eje/motor elegido frente a la fuerza, las RPM y la carga continua — esto no sustituye un cálculo servo completo.`,
+  }));
+  if (forceShortfall) engNotes.push(pick(locale, {
+    sv: `⛔ Kraftvarning: beräknad toppkraft ~${forceShortfall.needN} N överstiger vald aktuators märkkraft ~${forceShortfall.ratedN} N. Välj kraftigare axel / större borrning, sänk last/acceleration eller öka cykeltiden.`,
+    en: `⛔ Force warning: computed peak force ~${forceShortfall.needN} N exceeds the chosen actuator's rated force ~${forceShortfall.ratedN} N. Pick a stronger axis / larger bore, reduce load/acceleration, or increase the cycle time.`,
+    de: `⛔ Kraftwarnung: die berechnete Spitzenkraft ~${forceShortfall.needN} N übersteigt die Nennkraft ~${forceShortfall.ratedN} N des gewählten Aktuators. Stärkere Achse/größere Bohrung wählen, Last/Beschleunigung reduzieren oder die Zykluszeit erhöhen.`,
+    es: `⛔ Aviso de fuerza: la fuerza máxima calculada ~${forceShortfall.needN} N supera la fuerza nominal ~${forceShortfall.ratedN} N del actuador elegido. Elija un eje más fuerte / un diámetro mayor, reduzca la carga/aceleración o aumente el tiempo de ciclo.`,
+  }));
   for (const c of conflicts) engNotes.push("⚠️ " + c);
   if (engNotes.length) explanation += "\n\n" + engNotes.join("\n\n");
 
