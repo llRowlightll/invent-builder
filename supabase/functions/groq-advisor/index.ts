@@ -505,7 +505,7 @@ function needsValveTerminal(text: string): boolean {
  * are strictly forbidden unless explicitly ATEX/NAMUR-certified.
  */
 function needsAtex(text: string): boolean {
-  return /\batex\b|\bex[.\s-]?zon[e]?\b|\bexplosionsskyddad\b|\bexplosionsfarlig\b|\bflammable[.\s]?gas\b|\bbrännbar[.\s]?gas\b|\bnamur\b|\bzone\s?[12]\b|\bzon\s?[12]\b|\bii\s?[23]\s?[gd]\b|\bii[abc]\b|\bex\s?klass\b|\bex[.\s]?klassad\b/i.test(text);
+  return /\batex\b|\bex[.\s-]?zon[e]?\b|\bexplosionsskyddad\b|\bexplosionsfarlig\b|\bflammable[.\s]?gas\b|\bbrännbar[.\s]?gas\b|\bnamur\b|\bzone\s?[12]\b|\bzon\s?[12]\b|\bii\s?[23]\s?[gd]\b|\bii[abc]\b|\bex\s?klass\b|\bex[.\s]?klassad\b|\bexplosionsgeschützt\w*\b|\bexplosionsgefähr\w*\b|\bentzündlich\w*\s?gas\b|\batmósfera\s?explosiva\b|\bzona\s?explosiva\b|\bgas\s?inflamable\b|\bprueba\s?de\s?explosión\b|\bantideflagrante\b/i.test(text);
 }
 
 // ── Safety & environment detectors ────────────────────────────────────────────
@@ -513,22 +513,22 @@ function needsAtex(text: string): boolean {
 /** Vertical / suspended load: cylinder holds weight against gravity.
  *  On air-pressure loss the load WILL fall unless a lock valve is fitted. */
 function needsVerticalLoad(text: string): boolean {
-  return /\blyft|\bhissa\b|\bhäng.*last\b|\blast.*häng\b|\bvertikal|\bcylinder.*vertikal\b|\bz[.-]?axel\b|\bz[.-]?axis\b|\bpress.*ner\b|\bpress.*ned\b|\bnedåt\b|\buppåt\b|\bvertical.*load\b|\bhanging.*load\b|\bsuspended.*load\b|\blifting.*cyl\b|\bcylinder.*lyft\b/i.test(text);
+  return /\blyft|\bhissa\b|\bhäng.*last\b|\blast.*häng\b|\bvertikal|\bcylinder.*vertikal\b|\bz[.-]?axel\b|\bz[.-]?axis\b|\bpress.*ner\b|\bpress.*ned\b|\bnedåt\b|\buppåt\b|\bvertical.*load\b|\bhanging.*load\b|\bsuspended.*load\b|\blifting.*cyl\b|\bcylinder.*lyft\b|\bz[.-]?achse\b|\bheben\b|\bhebt\b|\bhängende\s?last\b|\bnach\s?unten\b|\bnach\s?oben\b|\belevar\b|\blevantar\b|\bcarga\s?suspendida\b|\bcarga\s?colgante\b|\beje\s?z\b|\bhacia\s?abajo\b|\bhacia\s?arriba\b/i.test(text);
 }
 
 /** High temperature environment (>80°C). Standard NBR seals fail — need PTFE/FKM/HT variants. */
 function needsHighTemp(text: string): boolean {
-  return /\bugn\b|\bfornace\b|\bautoklav\b|\bsteam\b|\bånga\b|\bvulk\b|\bsintr\b|\bsmält\b|\bhög.*temp\b|\bhigh.*temp\b|\bvarm.*milj\b|\bhet.*milj\b|\b[89]\d\s*°?\s*[cC]\b|\b1[0-9]\d\s*°?\s*[cC]\b|\b200\s*°?\s*[cC]\b|\bhögtemperatur\b|\bheat.*treat\b|\bvärmebehandl\b/i.test(text);
+  return /\bugn\b|\bfornace\b|\bautoklav\b|\bsteam\b|\bånga\b|\bvulk\b|\bsintr\b|\bsmält\b|\bhög.*temp\b|\bhigh.*temp\b|\bvarm.*milj\b|\bhet.*milj\b|\b[89]\d\s*°?\s*[cC]\b|\b1[0-9]\d\s*°?\s*[cC]\b|\b200\s*°?\s*[cC]\b|\bhögtemperatur\b|\bheat.*treat\b|\bvärmebehandl\b|\bofen\b|\bautoklav\w*\b|\bdampf\b|\bhohe\s?temperatur\b|\bheiße\s?umgebung\b|\bwärmebehandl\w*\b|\bgeschmolzen\b|\bhorno\b|\bvapor\b|\balta\s?temperatura\b|\bambiente\s?caliente\b|\btratamiento\s?térmico\b|\bfundido\b/i.test(text);
 }
 
 /** Low temperature environment (<-10°C). Standard seals crack/harden — need LT/FKM variants. */
 function needsLowTemp(text: string): boolean {
-  return /\bfrys\b|\bfrysrum\b|\bkylanläggn\b|\bcold.*room\b|\bcold.*stor\b|\bkylrum\b|\bcryogen\b|\bdjupfrys\b|\bfryscell\b|\bkyla.*milj\b|\b-[1-9]\d\s*°?\s*[cC]\b|\b-\s*[1-9]\d\s*°?\s*[cC]\b|\bbelow.*freez\b|\bsubzero\b|\bfrost.*milj\b/i.test(text);
+  return /\bfrys\b|\bfrysrum\b|\bkylanläggn\b|\bcold.*room\b|\bcold.*stor\b|\bkylrum\b|\bcryogen\b|\bdjupfrys\b|\bfryscell\b|\bkyla.*milj\b|\b-[1-9]\d\s*°?\s*[cC]\b|\b-\s*[1-9]\d\s*°?\s*[cC]\b|\bbelow.*freez\b|\bsubzero\b|\bfrost.*milj\b|\bgefrier\w*\b|\btiefkühl\w*\b|\bkühlraum\b|\bkälteanlage\b|\bkryogen\w*\b|\bcongelador\b|\bcámara\s?frigorífica\b|\bsala\s?fría\b|\bcriogénic\w*\b/i.test(text);
 }
 
 /** Hydraulic application — entirely different product family (100–350 bar oil). NOT in pneumatic catalog. */
 function isHydraulicApplication(text: string): boolean {
-  return /\bhydraulisk\b|\bhydraulic\b|\bhydraul\b|\bolje.*cylinder\b|\bcylinder.*olja\b|\bolje.*tryck\b|\bhydro.*cyl\b|\bhydro.*press\b/i.test(text);
+  return /\bhydraulisk\b|\bhydraulic\b|\bhydraul\b|\bolje.*cylinder\b|\bcylinder.*olja\b|\bolje.*tryck\b|\bhydro.*cyl\b|\bhydro.*press\b|\bhydraulisch\w*\b|\bölzylinder\b|\böldruck\b|\bhidráulic\w*\b|\bcilindro\s?hidráulico\b|\bpresión\s?de\s?aceite\b/i.test(text);
 }
 
 /** Force requirement that likely exceeds pneumatic capability (>8 000 N at reasonable bore/pressure). */
@@ -543,35 +543,35 @@ function needsVeryHighForce(text: string, answers: Record<string, string>): bool
 
 /** Oxygen-enriched atmosphere (>25% O2). Standard oil-lubricated pneumatics → fire/explosion risk. */
 function needsOxygenClean(text: string): boolean {
-  return /\bsyrgas\b|\boxygen[.\s-]?enrich\b|\boxygen[.\s-]?clean\b|\bo2[.\s-]?ren\b|\bhög.*syrgashal\b|\boxygen.*atmosf\b|\bmedical.*oxygen\b|\boxidations.*milj\b|\breact.*oxygen\b|\boi?l[.\s-]?free.*oxygen\b/i.test(text);
+  return /\bsyrgas\b|\boxygen[.\s-]?enrich\b|\boxygen[.\s-]?clean\b|\bo2[.\s-]?ren\b|\bhög.*syrgashal\b|\boxygen.*atmosf\b|\bmedical.*oxygen\b|\boxidations.*milj\b|\breact.*oxygen\b|\boi?l[.\s-]?free.*oxygen\b|\bsauerstoff\w*\b|\bmedizinisch\w*\s?sauerstoff\b|\boxígeno\b|\benriquecid\w*\s?con\s?oxígeno\b|\boxígeno\s?médico\b/i.test(text);
 }
 
 /** High cycle frequency (>60 cycles/min) — thermal and lubrication issues with standard cylinders. */
 function needsHighCycle(text: string, answers: Record<string, string>): boolean {
   const allText = text + " " + Object.values(answers).join(" ");
-  return /\b[6-9]\d\s*(?:cyk|slag|cykel|cyc|stroke|takt).*(?:min|s)\b|\b1[0-9]\d\s*(?:cyk|slag|cykel|cyc|stroke|takt)\b|\bhög.*frekvens\b|\bhigh.*freq\b|\bhigh.*cycle\b|\bsnabb.*takt\b|\brapid.*cycling\b|\bfastcycl\b/i.test(allText);
+  return /\b[6-9]\d\s*(?:cyk|slag|cykel|cyc|stroke|takt).*(?:min|s)\b|\b1[0-9]\d\s*(?:cyk|slag|cykel|cyc|stroke|takt)\b|\bhög.*frekvens\b|\bhigh.*freq\b|\bhigh.*cycle\b|\bsnabb.*takt\b|\brapid.*cycling\b|\bfastcycl\b|\bhohe\s?frequenz\b|\bschneller?\s?takt\b|\balta\s?frecuencia\b|\bciclo\s?rápido\b/i.test(allText);
 }
 
 /** High speed > 1 m/s without deceleration control — end-stop impact damage. */
 function needsHighSpeed(text: string, answers: Record<string, string>): boolean {
   const allText = text + " " + Object.values(answers).join(" ");
   // \b[1-9]\d{3,}\s*mm\/s\b catches "1200mm/s", "2000 mm/s" etc (≥1000 mm/s = >1 m/s)
-  return /\b[1-9](?:[.,]\d+)?\s*m\/s\b|\b[1-9]\d{3,}\s*mm\/s\b|\bsnabb.*rörelse\b|\bhigh.*speed\b|\bhög.*hastighet\b|\bfast.*actuat\b|\bsnabb.*stans\b|\bslaghastighet.*[1-9]\b/i.test(allText);
+  return /\b[1-9](?:[.,]\d+)?\s*m\/s\b|\b[1-9]\d{3,}\s*mm\/s\b|\bsnabb.*rörelse\b|\bhigh.*speed\b|\bhög.*hastighet\b|\bfast.*actuat\b|\bsnabb.*stans\b|\bslaghastighet.*[1-9]\b|\bschnelle\s?bewegung\b|\bhohe\s?geschwindigkeit\b|\bmovimiento\s?rápido\b|\balta\s?velocidad\b/i.test(allText);
 }
 
 /** SIL/functional safety required — safety relay, guard interlock, emergency stop function. */
 function needsSilSafety(text: string): boolean {
-  return /\bsil\s*[1-4]\b|\bsäkerhetsfunktion\b|\bsafety.*function\b|\bnödstopp\b|\bemergency.*stop\b|\bguard.*interlock\b|\bskyddsgrind\b|\bplt\b|\biso\s*13849\b|\biec\s*62061\b|\bperformance.*level\b|\bplr\b|\bple\b|\bpld\b|\bsafety.*relay\b|\bsäkerhetsrelä\b|\bPNOZ\b|\bfail.*safe\b/i.test(text);
+  return /\bsil\s*[1-4]\b|\bsäkerhetsfunktion\b|\bsafety.*function\b|\bnödstopp\b|\bemergency.*stop\b|\bguard.*interlock\b|\bskyddsgrind\b|\bplt\b|\biso\s*13849\b|\biec\s*62061\b|\bperformance.*level\b|\bplr\b|\bple\b|\bpld\b|\bsafety.*relay\b|\bsäkerhetsrelä\b|\bPNOZ\b|\bfail.*safe\b|\bsicherheitsfunktion\b|\bnot.?halt\b|\bnotaus\b|\bschutztür\b|\bschutzgitter\b|\bschutzzaun\b|\bsicherheitsrelais\b|\bsicher\s?abgeschaltet\b|\bfunción\s?de\s?seguridad\b|\bparada\s?de\s?emergencia\b|\bpuerta\s?de\s?seguridad\b|\breja\s?de\s?seguridad\b|\brelé\s?de\s?seguridad\b|\bseguro\s?contra\s?fallos\b/i.test(text);
 }
 
 /** Outdoor / marine / harsh UV + weather environment. */
 function needsOutdoor(text: string): boolean {
-  return /\butomhus\b|\boutdoor\b|\bexterior.*install\b|\bsalt.*milj\b|\bmarin\b|\bmarine\b|\boffshore\b|\bsalt.*spray\b|\bsalt.*dimma\b|\bväder.*skydd\b|\buv.*exponering\b|\bregn.*milj\b|\bkorrosiv.*milj\b/i.test(text);
+  return /\butomhus\b|\boutdoor\b|\bexterior.*install\b|\bsalt.*milj\b|\bmarin\b|\bmarine\b|\boffshore\b|\bsalt.*spray\b|\bsalt.*dimma\b|\bväder.*skydd\b|\buv.*exponering\b|\bregn.*milj\b|\bkorrosiv.*milj\b|\bim\s?freien\b|\baußenbereich\b|\bmaritim\w*\b|\bsalzsprühnebel\b|\bwetterfest\w*\b|\bexterior\b|\bal\s?aire\s?libre\b|\bambiente\s?marino\b|\bmarítim\w*\b|\bniebla\s?salina\b|\bintemperie\b/i.test(text);
 }
 
 /** Pharmaceutical / GMP / FDA — validated materials, no dead-spaces, 316L, PTFE. */
 function needsPharmaGmp(text: string): boolean {
-  return /\bgmp\b|\bfda\b|\b21\s*cfr\b|\bläkemedel\b|\bpharma\b|\bpharmaceut\b|\bsterilit\b|\bsteril.*milj\b|\bvalidat\b|\biso\s*14159\b|\behedg\b|\bbioprocess\b|\bapi\b.*\bprodukt\b|\bcip\b|\bsip\b/i.test(text);
+  return /\bgmp\b|\bfda\b|\b21\s*cfr\b|\bläkemedel\b|\bpharma\b|\bpharmaceut\b|\bsterilit\b|\bsteril.*milj\b|\bvalidat\b|\biso\s*14159\b|\behedg\b|\bbioprocess\b|\bapi\b.*\bprodukt\b|\bcip\b|\bsip\b|\barzneimittel\b|\bfarmazeutisch\w*\b|\bfarmacéutic\w*\b|\bmedicamento\b|\bestéril\w*\b|\bvalidación\b/i.test(text);
 }
 
 /** Brands the site carries, matched against a customer's explicit request
@@ -592,7 +592,7 @@ function detectRequestedBrands(text: string): string[] {
 
 /** ATEX Dust (Zone 20/21/22) — combustible dust explosion. Different from gas zones (different group/category). */
 function needsAtexDust(text: string): boolean {
-  return /\bzon\s*2[012]\b|\bzone\s*2[012]\b|\bdamm.*explosion\b|\bexplosivt.*damm\b|\bcombustible.*dust\b|\bbrännbart.*damm\b|\bsädes\b.*\bexplos\b|\bmjöl.*explos\b|\bträ.*damm.*explos\b|\bcoal.*dust\b|\bkol.*damm\b|\bii[i]?\s*[23][d]\b|\bdust.*atex\b|\batex.*dust\b/i.test(text);
+  return /\bzon\s*2[012]\b|\bzone\s*2[012]\b|\bdamm.*explosion\b|\bexplosivt.*damm\b|\bcombustible.*dust\b|\bbrännbart.*damm\b|\bsädes\b.*\bexplos\b|\bmjöl.*explos\b|\bträ.*damm.*explos\b|\bcoal.*dust\b|\bkol.*damm\b|\bii[i]?\s*[23][d]\b|\bdust.*atex\b|\batex.*dust\b|\bstaub.*explosion\b|\bexplosionsfähig\w*\s?staub\b|\bbrennbar\w*\s?staub\b|\bmehlstaub\b|\bholzstaub\b|\bkohlestaub\b|\bexplosión\s?de\s?polvo\b|\bpolvo\s?combustible\b|\bpolvo\s?de\s?harina\b|\bpolvo\s?de\s?madera\b|\bpolvo\s?de\s?carbón\b/i.test(text);
 }
 
 /**
@@ -602,7 +602,7 @@ function needsAtexDust(text: string): boolean {
  * Dew point typically -40 to -60 °C — particle generation is a critical risk.
  */
 function needsBatteryDryroom(text: string): boolean {
-  return /\bdryroom\b|\bdry\s*room\b|\btorrkammare\b|\blitiumjon\b|\blithium[-\s]?ion\b|\bli[-\s]?ion\b|\bbatterifabrik\b|\bbattery\s*(?:manufactur|produc|cell|fabrik)\b|\bbatteriproduk\b|\bbattericell\b|\bkatod(?:material)?\b|\banod(?:material)?\b|\belektrod(?:material)?\b|\belectrode\b|\bpouch\s*cell\b|\blitiumbatteri\b|\bcell\s*monter\b|\bcu\/zn\/ni\b|\bkoppar.*zink.*nickel\b/i.test(text);
+  return /\bdryroom\b|\bdry\s*room\b|\btorrkammare\b|\blitiumjon\b|\blithium[-\s]?ion\b|\bli[-\s]?ion\b|\bbatterifabrik\b|\bbattery\s*(?:manufactur|produc|cell|fabrik)\b|\bbatteriproduk\b|\bbattericell\b|\bkatod(?:material)?\w*\b|\banod(?:material)?\w*\b|\belektrod(?:material)?\w*\b|\belectrode\b|\bpouch\s*cell\b|\blitiumbatteri\b|\bcell\s*monter\b|\bcu\/zn\/ni\b|\bkoppar.*zink.*nickel\b|\btrockenraum\b|\blithium[-\s]?ionen\b|\bbatteriefertigung\b|\bbatterieproduktion\b|\bsala\s?seca\b|\blitio[-\s]?ion\b|\bproducción\s?de\s?baterías\b|\bcátodo\w*\b|\bánodo\w*\b|\belectrodo\w*\b/i.test(text);
 }
 
 /** Extract numeric speed in m/s from free text + answers (for mechanism compatibility check). */
@@ -660,7 +660,7 @@ function isPneumaticByDrive(p: CatalogProduct): boolean {
  *  AND power loss (e-stop with corrosive media, etc.). A pilot check valve holds
  *  pressure but not a broken hose — a spring-applied rod lock is the fail-safe. */
 function needsRodLock(text: string): boolean {
-  return /stångbroms|stång.?lås|rod.?lock|mekaniskt?\s+lås|fallskydd|spring.?applied|hållbroms|broms.*(strömavbrott|nödstopp|luftbortfall)|inte\s+fall(a|er)\s+(ner|ned)|får\s+inte\s+falla/i.test(text);
+  return /stångbroms|stång.?lås|rod.?lock|mekaniskt?\s+lås|fallskydd|spring.?applied|hållbroms|broms.*(strömavbrott|nödstopp|luftbortfall)|inte\s+fall(a|er)\s+(ner|ned)|får\s+inte\s+falla|kolbenstangenbremse|mechanische\s?verriegelung|mechanisches\s?schloss|absturzsicherung|darf\s?nicht\s?fallen|freno\s?de\s?vástago|bloqueo\s?mecánico|no\s?debe\s?caer|no\s?puede\s?caer/i.test(text);
 }
 
 /**
@@ -669,7 +669,7 @@ function needsRodLock(text: string): boolean {
  * standard aluminum cylinders will corrode immediately.
  */
 function needsWashdown(text: string): boolean {
-  return /washdown|wash[-\s]down|livsmedel|food[-\s]grade|food[-\s]safe|mejeri|dairy|slakteri|slakter|livsmedelsgodkänd|livsmedelsgodkand|ip[-\s]?69|högtrycksspolning|högtryck.*spol|spol.*kemik|kemisk.*reng|cip\b|sip\b|hygienic|hygienisk|clean[-\s]design|cleandesign|rostfri|stainless|korrosionsskyddad|vätsk.*milj|blot.*milj|kemikalie|frätande|korrosiv|korrosion|\bsyra\b|syrabeständig|aggressiva?\s+(medier|vätskor|kemikalier)/i.test(text);
+  return /washdown|wash[-\s]down|livsmedel|food[-\s]grade|food[-\s]safe|mejeri|dairy|slakteri|slakter|livsmedelsgodkänd|livsmedelsgodkand|ip[-\s]?69|högtrycksspolning|högtryck.*spol|spol.*kemik|kemisk.*reng|cip\b|sip\b|hygienic|hygienisk|clean[-\s]design|cleandesign|rostfri|stainless|korrosionsskyddad|vätsk.*milj|blot.*milj|kemikalie|frätande|korrosiv|korrosion|\bsyra\b|syrabeständig|aggressiva?\s+(medier|vätskor|kemikalier)|lebensmittel\w*|molkerei|schlachthof|edelstahl|rostfrei\w*|hochdruckreinig\w*|chemikalie\w*|ätzend\w*|\bsäure\b|säurebeständig\w*|\balimentos?\b|grado\s?alimentici\w*|lácte\w*|matadero|acero\s?inoxidable|limpieza\s?a\s?alta\s?presión|químic\w*|corrosiv\w*|\bácido\b/i.test(text);
 }
 
 /** Returns true if the user requested end-position / stroke-end detection (sensors). */
