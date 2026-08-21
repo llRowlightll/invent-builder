@@ -2134,7 +2134,12 @@ async function handleOptions(
       const torque = parseTorqueFromSpecs(p.key_specs ?? {});
       const mode = p.key_specs?.mode_of_operation ? String(p.key_specs.mode_of_operation) : "";
       const posSensing = p.key_specs?.position_sensing ? String(p.key_specs.position_sensing) : "";
-      const tempRange = p.key_specs?.temp_range ? String(p.key_specs.temp_range) : "";
+      // fetch_products_for_advisor() already appends `product_specs.unit` server-side
+      // when that column is set (so some rows arrive as "-10 to +80 °C", others as
+      // plain "-10 to +80") - append °C only when it isn't already there, so this
+      // never doubles up regardless of which rows happen to have a unit on file.
+      const tempRangeRaw = p.key_specs?.temp_range ? String(p.key_specs.temp_range) : "";
+      const tempRange = tempRangeRaw && !/°?\s*c\b/i.test(tempRangeRaw) ? `${tempRangeRaw}°C` : tempRangeRaw;
       const pros = [
         mode ? pick(locale, {
           sv: `Drivmekanism: ${mode}.`, en: `Drive mechanism: ${mode}.`,
@@ -2158,8 +2163,8 @@ async function handleOptions(
           es: `NO cumple los ${requiredTorque} Nm solicitados — considérela un punto de partida, no una coincidencia confirmada.`,
         }) : "",
         tempRange ? pick(locale, {
-          sv: `Drifttemperatur ${tempRange}°C — verifiera mot er miljö.`, en: `Operating temperature ${tempRange}°C — verify against your environment.`,
-          de: `Betriebstemperatur ${tempRange}°C — mit Ihrer Umgebung abgleichen.`, es: `Temperatura de funcionamiento ${tempRange}°C — verifique frente a su entorno.`,
+          sv: `Drifttemperatur ${tempRange} — verifiera mot er miljö.`, en: `Operating temperature ${tempRange} — verify against your environment.`,
+          de: `Betriebstemperatur ${tempRange} — mit Ihrer Umgebung abgleichen.`, es: `Temperatura de funcionamiento ${tempRange} — verifique frente a su entorno.`,
         }) : "",
         pick(locale, {
           sv: `Kontrollera axelinterface/montering mot er applikation.`, en: `Verify shaft interface/mounting against your application.`,
