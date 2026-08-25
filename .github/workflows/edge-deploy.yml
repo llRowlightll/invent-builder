@@ -36,9 +36,20 @@ jobs:
         # deno check runs on index.ts explicitly: deno test alone only
         # type-checks what *.test.ts files import, and no test file may import
         # index.ts (it unconditionally calls Deno.serve() at module scope).
+        #
+        # --node-modules-dir=none: this repo's root package.json makes Deno
+        # auto-detect "managed node_modules" mode for npm: specifiers (e.g.
+        # @supabase/functions-js's own npm:openai dependency) -- which then
+        # requires a populated node_modules/ to resolve them. This step runs
+        # before "Setup Node"/npm install, so on a fresh checkout node_modules
+        # doesn't exist yet and resolution fails (confirmed: reproduced locally
+        # with an empty DENO_DIR + a real node_modules present -- passed;
+        # failed the same way as CI once node_modules was taken out of the
+        # picture). This flag forces Deno back to its own global npm-cache
+        # resolution instead, which needs no local node_modules at all.
         run: |
-          deno check --no-lock supabase/functions/groq-advisor/index.ts
-          deno test --no-lock supabase/functions/groq-advisor/
+          deno check --no-lock --node-modules-dir=none supabase/functions/groq-advisor/index.ts
+          deno test --no-lock --node-modules-dir=none supabase/functions/groq-advisor/
 
       - name: Setup Node
         uses: actions/setup-node@v5
