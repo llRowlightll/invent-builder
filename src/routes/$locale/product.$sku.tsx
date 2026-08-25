@@ -18,29 +18,39 @@ function formatSpecKey(key: string): string {
   return isUnit ? `${label} (${last})` : label;
 }
 
-type ProductSeo = {
-  name: string;
-  description: string | null;
-  brand: string;
-  category: string;
-  specs: { key: string; value: string; unit: string | null }[];
-};
-
 export const Route = createFileRoute("/$locale/product/$sku")({
-  head: ({ params }) => {
+  head: ({ params, loaderData }) => {
     const t = makeT(params.locale as Locale);
     const { locale, sku } = params;
     const canonical = `${SITE}/${locale}/product/${sku}`;
     const isSv = locale === "sv";
     const titleSuffix = isSv ? "köp & spec | Maskinval" : "specs & order | Maskinval";
-    const desc = isSv
-      ? `${sku} — Köp industriell automationskomponent. Jämför specifikationer, leveranstid och beställ direkt via Maskinval.`
-      : `${sku} — Industrial automation component. Compare specs, lead time and order via Maskinval.`;
+    const product = (loaderData as { product: ProductRow | null } | undefined)?.product ?? null;
+
+    let title: string, ogTitle: string, desc: string;
+    if (product) {
+      // Catalog names already lead with the brand (e.g. "Festo DSBC ISO-cylinder
+      // 50x200") — a naive `${brand} ${name}` prefix would duplicate it.
+      const displayName = product.name.toLowerCase().startsWith(product.brand.name.toLowerCase())
+        ? product.name
+        : `${product.brand.name} ${product.name}`;
+      title = `${displayName} (${sku}) — ${titleSuffix}`;
+      ogTitle = `${displayName} | Maskinval`;
+      desc = isSv
+        ? `${displayName} (${sku}) — ${product.category.name}. Jämför specifikationer, leveranstid och beställ direkt via Maskinval.`
+        : `${displayName} (${sku}) — ${product.category.name}. Compare specs, lead time and order via Maskinval.`;
+    } else {
+      title = `${sku} — ${titleSuffix}`;
+      ogTitle = `${sku} | Maskinval`;
+      desc = isSv
+        ? `${sku} — Köp industriell automationskomponent. Jämför specifikationer, leveranstid och beställ direkt via Maskinval.`
+        : `${sku} — Industrial automation component. Compare specs, lead time and order via Maskinval.`;
+    }
     return {
       meta: [
-        { title: `${sku} — ${titleSuffix}` },
+        { title },
         { name: "description", content: desc },
-        { property: "og:title", content: `${sku} | Maskinval` },
+        { property: "og:title", content: ogTitle },
         { property: "og:type", content: "product" },
         { property: "og:url", content: canonical },
         { property: "og:description", content: desc },
@@ -52,26 +62,41 @@ export const Route = createFileRoute("/$locale/product/$sku")({
       ],
     };
   },
-  // Fetch the product server-side so the page SSRs real content (name, specs)
-  // instead of a "loading" line — the full catalog still loads client-side for
-  // related/alternatives. Avoids Googlebot seeing a soft 404.
-  loader: async ({ params }): Promise<{ seo: ProductSeo | null }> => {
-    const { data } = await supabase
+  // Fetch the product server-side (same column set as loadCatalog(), scoped to one
+  // SKU) so the page SSRs real content AND the JSON-LD below — a crawler that
+  // doesn't execute JS used to see neither. related/alternatives still load
+  // client-side (below-the-fold, not SEO-critical, inherently multi-record).
+  loader: async ({ params }): Promise<{ product: ProductRow | null }> => {
+    const { data, error } = await supabase
       .from("products")
-      .select("name,description,brands(name),categories(name),product_specs(key,value,unit)")
+      .select(
+        "id,sku,name,description,family,lead_time_days,availability,ip_rating,fieldbus,voltage,image_url,weight_kg,length_mm,width_mm,height_mm,brand:brands(slug,name),category:categories(slug,name),product_specs(key,value,unit)",
+      )
       .eq("sku", params.sku)
+      .eq("status", "active")
       .maybeSingle();
-    const d = data as Record<string, unknown> | null;
-    const seo: ProductSeo | null = d
-      ? {
-          name: String(d.name ?? ""),
-          description: (d.description as string | null) ?? null,
-          brand: (d.brands as { name?: string } | null)?.name ?? "",
-          category: (d.categories as { name?: string } | null)?.name ?? "",
-          specs: (d.product_specs as { key: string; value: string; unit: string | null }[]) ?? [],
-        }
-      : null;
-    return { seo };
+    if (error || !data) return { product: null };
+    const d = data as unknown as {
+      id: string; sku: string; name: string; description: string | null; family: string | null;
+      lead_time_days: number | null; availability: string | null; ip_rating: string | null;
+      fieldbus: string | null; voltage: string | null; image_url: string | null;
+      weight_kg: number | null; length_mm: number | null; width_mm: number | null; height_mm: number | null;
+      brand: { slug: string; name: string } | null;
+      category: { slug: string; name: string } | null;
+      product_specs: { key: string; value: string; unit: string | null }[] | null;
+    };
+    const specs: ProductRow["specs"] = {};
+    for (const s of d.product_specs ?? []) specs[s.key] = { value: s.value, unit: s.unit };
+    const product: ProductRow = {
+      id: d.id, sku: d.sku, name: d.name, description: d.description, family: d.family,
+      brand: d.brand ?? { slug: "", name: "" },
+      category: d.category ?? { slug: "", name: "" },
+      lead_time_days: d.lead_time_days, availability: d.availability,
+      weight_kg: d.weight_kg, ip_rating: d.ip_rating, fieldbus: d.fieldbus, voltage: d.voltage,
+      image_url: d.image_url, length_mm: d.length_mm, width_mm: d.width_mm, height_mm: d.height_mm,
+      specs,
+    };
+    return { product };
   },
   component: ProductDetail,
   notFoundComponent: () => {
@@ -83,73 +108,42 @@ function ProductDetail() {
   const { locale, sku } = Route.useParams();
   // Cast: TanStack's deep generic inference returns `undefined` for this route's
   // loaderData type (head + loader + notFoundComponent), but the loader does run.
-  const { seo } = Route.useLoaderData() as unknown as { seo: ProductSeo | null };
+  const { product } = Route.useLoaderData() as unknown as { product: ProductRow | null };
   const t = makeT(locale as Locale);
-  const [catalog, setCatalog] = useState<ProductRow[] | null>(null);
   const [related, setRelated] = useState<ProductRow[]>([]);
   const [alternatives, setAlternatives] = useState<ProductRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const [addedToCart, setAddedToCart] = useState(false);
   const [configSlug, setConfigSlug] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!product) return;
     (async () => {
       const cat = await loadCatalog();
-      setCatalog(cat);
-      const product = cat.find((x) => x.sku === sku);
-      if (product) {
-        const { data: rels } = await supabase
-          .from("product_relations")
-          .select("related_product_id,relation_type")
-          .eq("product_id", product.id);
-        const relIds = new Set((rels ?? []).map((r) => r.related_product_id));
-        setRelated(cat.filter((p) => relIds.has(p.id)));
-        // Dynamic alternatives: same category, different brand, max 6
-        const alts = cat
-          .filter((p) => p.category.slug === product.category.slug && p.brand.slug !== product.brand.slug && p.sku !== product.sku)
-          .slice(0, 6);
-        setAlternatives(alts);
-        // Show a "Configure" button when this product's family has a configurator.
-        const fam = product.family?.toLowerCase().trim();
-        if (fam) {
-          const { data: cf } = await supabase
-            .from("configurator_families")
-            .select("slug")
-            .eq("slug", fam)
-            .maybeSingle();
-          if (cf?.slug) setConfigSlug(cf.slug);
-        }
+      const { data: rels } = await supabase
+        .from("product_relations")
+        .select("related_product_id,relation_type")
+        .eq("product_id", product.id);
+      const relIds = new Set((rels ?? []).map((r) => r.related_product_id));
+      setRelated(cat.filter((p) => relIds.has(p.id)));
+      // Dynamic alternatives: same category, different brand, max 6
+      const alts = cat
+        .filter((p) => p.category.slug === product.category.slug && p.brand.slug !== product.brand.slug && p.sku !== product.sku)
+        .slice(0, 6);
+      setAlternatives(alts);
+      // Show a "Configure" button when this product's family has a configurator.
+      const fam = product.family?.toLowerCase().trim();
+      if (fam) {
+        const { data: cf } = await supabase
+          .from("configurator_families")
+          .select("slug")
+          .eq("slug", fam)
+          .maybeSingle();
+        if (cf?.slug) setConfigSlug(cf.slug);
       }
-      setLoading(false);
     })();
-  }, [sku]);
+  }, [sku, product]);
 
-  if (loading) return (
-    <div className="container-page py-8 max-w-5xl">
-      {seo && (
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">{seo.name}</h1>
-          <div className="mt-1 text-sm text-muted-foreground">{[seo.brand, seo.category].filter(Boolean).join(" · ")}</div>
-          {seo.description && <p className="mt-4 text-sm text-foreground/80 leading-relaxed max-w-2xl">{seo.description}</p>}
-          {seo.specs.length > 0 && (
-            <table className="mt-6 text-sm border-collapse">
-              <tbody>
-                {seo.specs.slice(0, 14).map((s) => (
-                  <tr key={s.key} className="border-b border-border">
-                    <td className="pr-6 py-1.5 text-muted-foreground">{formatSpecKey(s.key)}</td>
-                    <td className="py-1.5">{s.value}{s.unit ? " " + s.unit : ""}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
-      <div className="mt-8 text-sm text-muted-foreground">{t("common.loading")}</div>
-    </div>
-  );
-  const product = catalog?.find((x) => x.sku === sku);
   if (!product) throw notFound();
 
   const productImageUrl = getProductImage(product);
