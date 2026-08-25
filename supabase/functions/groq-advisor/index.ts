@@ -1117,6 +1117,7 @@ interface BomCtx {
   isArticulated: boolean;
   isRodLock: boolean;
   primaryBoreMm: number;   // fetched by SKU — `products` (30/category) may miss the primary
+  primaryBrand: string;    // same as above — see fetchPrimaryInfo() call site
   // Safety & environment flags — drive mandatory warning rows
   isHighTemp: boolean;
   isWashdown: boolean;
@@ -1136,7 +1137,7 @@ interface BomCtx {
 function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: number; role: string; reason: string }> {
   const { primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
           isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, locale, products,
-          isMounting, isArticulated, isRodLock, primaryBoreMm, isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
+          isMounting, isArticulated, isRodLock, primaryBoreMm, primaryBrand: primaryBrandFetched, isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
           isMultiAxis, perAxisStrokes } = ctx;
   const isPneumatic = !isElectric && !isAtex && !isAtexDust;
   const rows: Array<{ sku: string; quantity: number; role: string; reason: string }> = [];
@@ -1161,9 +1162,20 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     reason: pick(locale, { sv: "Vald primär aktuator", en: "Selected primary actuator", de: "Ausgewählter Primäraktuator", es: "Actuador primario seleccionado" }) + famNote,
   });
 
-  // Prefer the primary's brand when picking motor/drive/secondary axis, so e.g. an
-  // SMC axis gets an SMC drive rather than a Festo one. Same-brand sorted to front.
-  const primaryBrand = (products.find(p => p.sku === primarySku)?.brand ?? "").toLowerCase();
+  // Prefer the primary's brand when picking motor/drive/sensor/secondary axis, so
+  // e.g. an SMC axis gets an SMC drive rather than a Festo one. Same-brand sorted
+  // to front. Found 2026-08-21: this used to look up the primary's brand via
+  // `products.find(p => p.sku === primarySku)`, but `products` here is capped at
+  // 30 per category and ordered by brand slug then SKU — for a category with
+  // >30 rows before a given brand alphabetically (e.g. "cylinder" has 45
+  // bosch-rexroth rows alone, so nothing from smc/norgren/parker/metal-work ever
+  // survives the cut), the primary SKU itself is silently absent from `products`,
+  // so this returned "" and brandSorted silently fell back to unsorted `products`
+  // every time — the exact same failure mode primaryBoreMm was already fetched
+  // separately to avoid (see its comment above). Reusing that same fetch now that
+  // it also returns brand, instead of re-deriving it from a pool that may not
+  // contain the one product that actually matters here.
+  const primaryBrand = primaryBrandFetched.toLowerCase();
   const brandSorted = primaryBrand
     ? [...products].sort((a, b) => (a.brand?.toLowerCase() === primaryBrand ? 0 : 1) - (b.brand?.toLowerCase() === primaryBrand ? 0 : 1))
     : products;
@@ -1392,7 +1404,20 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
         en: "MANDATORY — 2 magnetic sensors (one per end position) required for PLC feedback. Select a sensor matching the cylinder's sensor groove (T-slot or C-slot, depending on brand) and control voltage (24 V DC NPN/PNP).",
         de: "ZWINGEND ERFORDERLICH — 2 Magnetsensoren (einer je Endlage) für die SPS-Rückmeldung erforderlich. Sensor passend zur Sensornut des Zylinders (T-Nut oder C-Nut, je nach Hersteller) und zur Steuerspannung wählen (24 V DC NPN/PNP).",
         es: "OBLIGATORIO — se requieren 2 sensores magnéticos (uno por posición final) para la retroalimentación al PLC. Seleccione un sensor compatible con la ranura del cilindro (ranura en T o en C, según el fabricante) y la tensión de control (24 V CC NPN/PNP).",
-      }),
+      }) + (isWashdown
+        // Found 2026-08-21: the catalog does not currently stock an IP69K-rated
+        // cylinder position sensor at all (checked every "sensor" row's
+        // ip_rating - none reach it), so a washdown/food-grade job always gets
+        // a standard-rated sensor here with no better option to substitute.
+        // Rather than presenting that pick as an unqualified "MANDATORY" match
+        // the way every other row does, say so plainly.
+        ? pick(locale, {
+            sv: " ⚠️ Vi har ingen IP69K-klassad ändlägesgivare i lager — vald givare kan behöva bytas mot en washdown-tålig variant, begär offert.",
+            en: " ⚠️ We don't stock an IP69K-rated end-position sensor — the selected one may need swapping for a washdown-rated variant, request a quote.",
+            de: " ⚠️ Wir führen keinen IP69K-klassifizierten Endlagensensor — der ausgewählte Sensor muss ggf. gegen eine waschdown-taugliche Variante ausgetauscht werden, bitte Angebot anfordern.",
+            es: " ⚠️ No tenemos en stock un sensor de fin de carrera con clasificación IP69K — puede que el seleccionado deba sustituirse por una variante apta para washdown, solicite una oferta.",
+          })
+        : ""),
     });
   }
 
@@ -2665,19 +2690,23 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
 // brand-ordered rows, so a late-alphabet primary (e.g. Metal Work HCR-50) is often
 // NOT in `products` — bore-matched accessory rows (rod lock, mounting) then had no
 // bore to match against and fell to SPECIFY even when the Ø-variant is stocked.
-async function fetchPrimaryInfo(sku: string): Promise<{ category: string; boreMm: number }> {
-  if (!sku || sku === "CUSTOM-SOLUTION" || sku === "SPECIFY") return { category: "", boreMm: 0 };
+async function fetchPrimaryInfo(sku: string): Promise<{ category: string; boreMm: number; brand: string }> {
+  if (!sku || sku === "CUSTOM-SOLUTION" || sku === "SPECIFY") return { category: "", boreMm: 0, brand: "" };
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/products?sku=eq.${encodeURIComponent(sku)}&select=name,categories(slug),specs:product_specs(key,value)`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/products?sku=eq.${encodeURIComponent(sku)}&select=name,categories(slug),brands(slug),specs:product_specs(key,value)`, {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
     });
-    if (!res.ok) return { category: "", boreMm: 0 };
+    if (!res.ok) return { category: "", boreMm: 0, brand: "" };
     const d = await res.json();
-    if (!Array.isArray(d) || !d[0]) return { category: "", boreMm: 0 };
+    if (!Array.isArray(d) || !d[0]) return { category: "", boreMm: 0, brand: "" };
     const specs = Object.fromEntries(((d[0].specs ?? []) as Array<{ key: string; value: unknown }>).map(s => [s.key, s.value]));
     const boreMm = firstNumAbs(specs.bore_mm) || firstNumAbs(String(d[0].name ?? "").match(/Ø\s?(\d+)/)?.[1]);
-    return { category: d[0]?.categories?.slug ? String(d[0].categories.slug) : "", boreMm };
-  } catch { return { category: "", boreMm: 0 }; }
+    return {
+      category: d[0]?.categories?.slug ? String(d[0].categories.slug) : "",
+      boreMm,
+      brand: d[0]?.brands?.slug ? String(d[0].brands.slug) : "",
+    };
+  } catch { return { category: "", boreMm: 0, brand: "" }; }
 }
 
 async function handleBom(
@@ -2708,7 +2737,7 @@ async function handleBom(
   // categories — a trigger like "noggrann"/"precis" can put electric-actuator into
   // the categories even when the chosen primary is a pneumatic cylinder, which then
   // wrongly built an electric drivetrain (servo drive + motor cable) for it.
-  const { category: primaryCategory, boreMm: primaryBoreMm } = await fetchPrimaryInfo(primarySku);
+  const { category: primaryCategory, boreMm: primaryBoreMm, brand: primaryBrand } = await fetchPrimaryInfo(primarySku);
   const isElectric = !isAtex && !isAtexDust && (primaryCategory
     ? ["electric-actuator", "linear-module", "servo-motor", "servo-drive"].includes(primaryCategory)
     : categories.some(c => c === "electric-actuator" || c === "linear-module"));
@@ -2774,7 +2803,7 @@ async function handleBom(
     primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
     isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isVacuum, locale,
     products: atexSafeProducts,
-    isMounting, isArticulated, isRodLock, primaryBoreMm, isHighTemp, isWashdown, isSilSafety: needsSilSafety(combinedText), isHydraulic, isVeryHighForce,
+    isMounting, isArticulated, isRodLock, primaryBoreMm, primaryBrand, isHighTemp, isWashdown, isSilSafety: needsSilSafety(combinedText), isHydraulic, isVeryHighForce,
     isMultiAxis, perAxisStrokes,
   };
   const mandatoryBom = buildMandatoryBomRows(bomCtx);
