@@ -1372,15 +1372,26 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
 
   // ── 7. End-position sensors (2 pcs, one per end) ─────────────────
   if (isEndPosDetect && isPneumatic) {
-    const sensorMatch = findCatalogProductByType("sensor", products);
+    // Found 2026-08-21 (adversarial test): this used plain `products` — the
+    // catalog has both T-slot AND C-slot sensors (e.g. SMC-D-A72H is C-slot,
+    // SMC-D-A73/D-A93 are T-slot; Festo's SIES/SIET/SMT lines are all T-slot)
+    // and neither groove type is universal across brands. A real test with an
+    // SMC-CQ2 primary actuator got FE-SIES-8M — a Festo sensor — recommended,
+    // with zero brand or groove-type check at all. There's no groove-type spec
+    // on the cylinder to match exactly, so brand is the strongest signal we
+    // have: manufacturers design their sensor lines for their own cylinders'
+    // grooves, so a same-brand pairing is far more likely to physically fit
+    // than a cross-brand one. brandSorted already exists (same pattern used
+    // for servo-motor/servo-drive above) — just wasn't being used here.
+    const sensorMatch = findCatalogProductByType("sensor", brandSorted);
     rows.push({
       sku: sensorMatch?.sku ?? "SPECIFY", quantity: 2,
       role: pick(locale, { sv: "Ändlägesgivare (hemläge + utsträckt läge)", en: "End-position sensor (home + extended)", de: "Endlagensensor (Grundstellung + ausgefahren)", es: "Sensor de fin de carrera (posición inicial + extendida)" }),
       reason: pick(locale, {
-        sv: "OBLIGATORISK — 2 st magnetgivare för T-spår (en per ändläge) krävs för PLC-feedback. Välj givare kompatibel med cylinderprofil och styrsystem (24 V DC NPN/PNP).",
-        en: "MANDATORY — 2 T-slot magnetic sensors (one per end position) required for PLC feedback. Select sensor matching cylinder profile and control voltage (24 V DC NPN/PNP).",
-        de: "ZWINGEND ERFORDERLICH — 2 T-Nuten-Magnetsensoren (einer je Endlage) für die SPS-Rückmeldung erforderlich. Sensor passend zum Zylinderprofil und zur Steuerspannung wählen (24 V DC NPN/PNP).",
-        es: "OBLIGATORIO — se requieren 2 sensores magnéticos de ranura en T (uno por posición final) para la retroalimentación al PLC. Seleccione un sensor compatible con el perfil del cilindro y la tensión de control (24 V CC NPN/PNP).",
+        sv: "OBLIGATORISK — 2 st magnetgivare (en per ändläge) krävs för PLC-feedback. Välj givare som passar cylinderns givarspår (T-spår eller C-spår, beroende på fabrikat) samt styrsystem (24 V DC NPN/PNP).",
+        en: "MANDATORY — 2 magnetic sensors (one per end position) required for PLC feedback. Select a sensor matching the cylinder's sensor groove (T-slot or C-slot, depending on brand) and control voltage (24 V DC NPN/PNP).",
+        de: "ZWINGEND ERFORDERLICH — 2 Magnetsensoren (einer je Endlage) für die SPS-Rückmeldung erforderlich. Sensor passend zur Sensornut des Zylinders (T-Nut oder C-Nut, je nach Hersteller) und zur Steuerspannung wählen (24 V DC NPN/PNP).",
+        es: "OBLIGATORIO — se requieren 2 sensores magnéticos (uno por posición final) para la retroalimentación al PLC. Seleccione un sensor compatible con la ranura del cilindro (ranura en T o en C, según el fabricante) y la tensión de control (24 V CC NPN/PNP).",
       }),
     });
   }
