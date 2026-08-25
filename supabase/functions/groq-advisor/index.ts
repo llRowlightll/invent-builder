@@ -1383,7 +1383,27 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
   }
 
   // ── 7. End-position sensors (2 pcs, one per end) ─────────────────
-  if (isEndPosDetect && isPneumatic) {
+  // Found 2026-08-21 (adversarial test): asking for an ATEX cylinder WITH
+  // end-position sensors produced zero sensor row at all - isPneumatic is
+  // false for isAtex/isAtexDust (by design, so the block below never fires),
+  // and nothing else covers it, so a stated requirement just silently
+  // vanished from the BOM. Standard 24V sensors are exactly what the ATEX
+  // section's own final warning row already says is forbidden, and the
+  // catalog has no ATEX-rated sensor to substitute (checked - none of the
+  // "sensor" rows carry any Ex-relevant certification data), so SPECIFY is
+  // the honest answer, same pattern as the other ATEX-only rows below.
+  if (isEndPosDetect && (isAtex || isAtexDust)) {
+    rows.push({
+      sku: "SPECIFY", quantity: 2,
+      role: pick(locale, { sv: "ATEX-ändlägesgivare (zon-certifierad)", en: "ATEX end-position sensor (zone-certified)", de: "ATEX-Endlagensensor (zonzertifiziert)", es: "Sensor de fin de carrera ATEX (certificado para la zona)" }),
+      reason: pick(locale, {
+        sv: "OBLIGATORISK — 2 st ATEX/IECEx-certifierade lägesgivare (en per ändläge) krävs för PLC-feedback. Standard 24V-givare är EJ tillåtna i zonen; vi har ingen zon-certifierad givare i lager, begär offert.",
+        en: "MANDATORY — 2 ATEX/IECEx-certified position sensors (one per end position) required for PLC feedback. Standard 24 V sensors are NOT permitted in the zone; we don't stock a zone-certified sensor, request a quote.",
+        de: "ZWINGEND ERFORDERLICH — 2 ATEX/IECEx-zertifizierte Positionssensoren (einer je Endlage) für die SPS-Rückmeldung erforderlich. Standard-24-V-Sensoren sind in der Zone NICHT zulässig; wir führen keinen zonenzertifizierten Sensor, bitte Angebot anfordern.",
+        es: "OBLIGATORIO — se requieren 2 sensores de posición certificados ATEX/IECEx (uno por posición final) para la retroalimentación al PLC. Los sensores estándar de 24 V NO están permitidos en la zona; no tenemos en stock un sensor certificado para la zona, solicite una oferta.",
+      }),
+    });
+  } else if (isEndPosDetect && isPneumatic) {
     // Found 2026-08-21 (adversarial test): this used plain `products` — the
     // catalog has both T-slot AND C-slot sensors (e.g. SMC-D-A72H is C-slot,
     // SMC-D-A73/D-A93 are T-slot; Festo's SIES/SIET/SMT lines are all T-slot)
