@@ -20,30 +20,84 @@ export const Route = createFileRoute("/$locale/products")({
     brand: z.string().optional(),
     ai: z.string().optional(),
   }),
-  // Surface the active category filter to head() so the page gets a unique,
-  // category-specific <title> + meta description (better Google CTR).
-  loaderDeps: ({ search }) => ({ category: search.category ?? null }),
-  loader: ({ deps }) => ({ category: deps.category }),
+  // Surface the active category/brand filters to head() so the page gets a
+  // unique, filter-specific <title> + meta description (better CTR), and fetch
+  // the catalog server-side so the grid itself SSRs instead of starting empty
+  // (a non-JS crawler used to see nothing here at all).
+  loaderDeps: ({ search }) => ({ category: search.category ?? null, brand: search.brand ?? null }),
+  loader: async ({ deps }): Promise<{ items: ProductRow[] | null; category: string | null; brand: string | null }> => {
+    try {
+      const items = await loadCatalog();
+      return { items, category: deps.category, brand: deps.brand };
+    } catch {
+      return { items: null, category: deps.category, brand: deps.brand };
+    }
+  },
   head: ({ params, loaderData }) => {
     const t = makeT(params.locale as Locale);
     const locale = params.locale;
     const sv = locale === "sv";
-    const cat = (loaderData as { category: string | null } | undefined)?.category ?? null;
-    const seo = cat ? CATEGORY_SEO[cat] : null;
+    const ld = loaderData as { items: ProductRow[] | null; category: string | null; brand: string | null } | undefined;
+    const cat = ld?.category ?? null;
+    const brandSlug = ld?.brand ?? null;
+    const catSeo = cat ? CATEGORY_SEO[cat] : null;
+    const catName = cat && catSeo ? categoryName(cat, locale) : null;
+    // Brand names are proper nouns (Festo, SMC, ...) -- no translation data
+    // structure needed; resolve from the already-fetched items, free of cost.
+    const brandName = brandSlug ? ld?.items?.find((p) => p.brand.slug === brandSlug)?.brand.name ?? null : null;
 
-    if (cat && seo) {
-      const name = categoryName(cat, locale);
-      const desc = sv ? seo.sv : seo.en;
+    if (catName && brandName) {
+      const canonical = `${SITE}/${locale}/products?category=${cat}&brand=${brandSlug}`;
+      const title = sv
+        ? `${brandName} ${catName} — köp, jämför & beställ | ${t("common.appName")}`
+        : `${brandName} ${catName} — buy, compare & order | ${t("common.appName")}`;
+      const desc = sv
+        ? `${brandName} ${catName.toLowerCase()} hos Maskinval — jämför specifikationer, kontrollera leveranstid och beställ direkt online.`
+        : `${brandName} ${catName.toLowerCase()} at Maskinval — compare specifications, check lead time and order directly online.`;
+      return {
+        meta: [
+          { title },
+          { name: "description", content: desc },
+          { property: "og:title", content: `${brandName} ${catName} | ${t("common.appName")}` },
+          { property: "og:url", content: canonical },
+          { property: "og:description", content: desc },
+        ],
+        links: [{ rel: "canonical", href: canonical }, ...hreflangLinks(`products?category=${cat}&brand=${brandSlug}`)],
+      };
+    }
+
+    if (brandName) {
+      const canonical = `${SITE}/${locale}/products?brand=${brandSlug}`;
+      const title = sv
+        ? `${brandName} — komponenter för industriell automation | ${t("common.appName")}`
+        : `${brandName} — industrial automation components | ${t("common.appName")}`;
+      const desc = sv
+        ? `Bläddra i Maskinvals sortiment av ${brandName}-komponenter för industriell automation och pneumatik. Jämför specifikationer, leveranstid och beställ direkt.`
+        : `Browse Maskinval's range of ${brandName} components for industrial automation and pneumatics. Compare specs, lead time and order directly.`;
+      return {
+        meta: [
+          { title },
+          { name: "description", content: desc },
+          { property: "og:title", content: `${brandName} | ${t("common.appName")}` },
+          { property: "og:url", content: canonical },
+          { property: "og:description", content: desc },
+        ],
+        links: [{ rel: "canonical", href: canonical }, ...hreflangLinks(`products?brand=${brandSlug}`)],
+      };
+    }
+
+    if (catName && catSeo) {
+      const desc = sv ? catSeo.sv : catSeo.en;
       const canonical = `${SITE}/${locale}/products?category=${cat}`;
       return {
         meta: [
           {
             title: sv
-              ? `${name} — köp, jämför & beställ | ${t("common.appName")}`
-              : `${name} — buy, compare & order | ${t("common.appName")}`,
+              ? `${catName} — köp, jämför & beställ | ${t("common.appName")}`
+              : `${catName} — buy, compare & order | ${t("common.appName")}`,
           },
           { name: "description", content: desc },
-          { property: "og:title", content: `${name} | ${t("common.appName")}` },
+          { property: "og:title", content: `${catName} | ${t("common.appName")}` },
           { property: "og:url", content: canonical },
           { property: "og:description", content: desc },
         ],
@@ -183,7 +237,8 @@ function ProductsPage() {
   const t = makeT(locale as Locale);
   const aiSearch = useServerFn(aiSearchProducts);
 
-  const [items, setItems] = useState<ProductRow[] | null>(null);
+  const ld = Route.useLoaderData() as { items: ProductRow[] | null; category: string | null; brand: string | null };
+  const [items, setItems] = useState<ProductRow[] | null>(ld.items);
   const [q, setQ] = useState(search.q ?? search.ai ?? "");
   const [brands, setBrands] = useState<Set<string>>(new Set(search.brand ? [search.brand] : []));
   const [cats, setCats] = useState<Set<string>>(new Set(search.category ? [search.category] : []));
@@ -201,7 +256,6 @@ function ProductsPage() {
   }
 
   useEffect(() => {
-    loadCatalog().then(setItems).catch(console.error);
     // Auto-run AI search if arrived with ?ai= param
     if (search.ai) {
       runAiSearch(search.ai);
