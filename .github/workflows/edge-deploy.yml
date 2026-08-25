@@ -25,6 +25,21 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type-check + unit-test pure logic (deno)
+        # Fails fast on broken deterministic BOM/hazard-detection logic BEFORE
+        # deploying or spending live Groq quota on the regression suite below.
+        # deno check runs on index.ts explicitly: deno test alone only
+        # type-checks what *.test.ts files import, and no test file may import
+        # index.ts (it unconditionally calls Deno.serve() at module scope).
+        run: |
+          deno check --no-lock supabase/functions/groq-advisor/index.ts
+          deno test --no-lock supabase/functions/groq-advisor/
+
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
