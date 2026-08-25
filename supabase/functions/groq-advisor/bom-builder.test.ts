@@ -142,3 +142,62 @@ Deno.test("findAxisActuator picks the first brand-matching candidate when a bran
   const picked = findAxisActuator(brandSorted, 80, false);
   assertEquals(picked?.sku, "SMC-CDQ2B32-100");
 });
+
+// ── Generalized matrix: brand × hazard-flag, locale ────────────────────────────
+// Bounded, not open-ended: covers the REAL brand roster per category (queried
+// live 2026-08-25 -- sensor: festo(10)/smc(5) only; cylinder: metal-work(70),
+// parker(54), camozzi(47), bosch-rexroth(45), festo(44), smc(42), norgren(23)),
+// not a guessed/hypothetical list. Two sub-sweeps: which mandatory-row lookup
+// (sensor vs. axis-actuator) honors brand, and whether the mandatory-row COPY
+// itself stays correctly localized across all 4 locales.
+
+// Sweep A1 -- sensor brand-matching (buildMandatoryBomRows), every real sensor brand
+const SENSOR_BRAND_CASES: { brand: string; sku: string }[] = [
+  { brand: "festo", sku: "FE-SIES-8M" },
+  { brand: "smc", sku: "SMC-D-A73" },
+];
+for (const c of SENSOR_BRAND_CASES) {
+  Deno.test(`end-position sensor picks the ${c.brand} product when ${c.brand} is the primary brand`, () => {
+    const products = [prod("FE-SIES-8M", "sensor", "festo"), prod("SMC-D-A73", "sensor", "smc")];
+    const rows = buildMandatoryBomRows(bomCtx({
+      primarySku: `TEST-${c.brand.toUpperCase()}`,
+      primaryBrand: c.brand,
+      isEndPosDetect: true,
+      products,
+    }));
+    assertEquals(findRow(rows, SENSOR_ROLE)?.sku, c.sku);
+  });
+}
+
+// Sweep A2 -- findAxisActuator brand-matching, every real cylinder brand
+const CYLINDER_BRANDS = ["metal-work", "parker", "camozzi", "bosch-rexroth", "festo", "smc", "norgren"];
+for (const brand of CYLINDER_BRANDS) {
+  Deno.test(`findAxisActuator picks the ${brand} candidate when it's sorted first (real cylinder-brand roster)`, () => {
+    const target = prod(`${brand.toUpperCase()}-100`, "cylinder", brand, { stroke_mm: "100 mm" });
+    const others = CYLINDER_BRANDS.filter((b) => b !== brand)
+      .map((b) => prod(`${b.toUpperCase()}-100`, "cylinder", b, { stroke_mm: "100 mm" }));
+    const brandSorted = [target, ...others]; // mirrors buildMandatoryBomRows' own brand-first sort
+    assertEquals(findAxisActuator(brandSorted, 80, false)?.sku, target.sku);
+  });
+}
+
+// Sweep B -- locale correctness of a mandatory-row's copy, all 4 locales
+// Uses the ATEX end-position SPECIFY row (fires unconditionally, no product-pool
+// dependency) -- guards against a future hand-edit updating one of 4 parallel
+// pick() strings and missing the others.
+const LOCALE_MANDATORY_KEYWORD: Record<string, RegExp> = {
+  sv: /OBLIGATORISK/,
+  en: /MANDATORY/,
+  de: /ZWINGEND/,
+  es: /OBLIGATORIO/,
+};
+for (const [locale, keyword] of Object.entries(LOCALE_MANDATORY_KEYWORD)) {
+  Deno.test(`ATEX end-position SPECIFY row stays correctly localized for locale "${locale}"`, () => {
+    const rows = buildMandatoryBomRows(bomCtx({
+      primarySku: "FE-ATEX-CYL", isAtex: true, isEndPosDetect: true, locale,
+    }));
+    const sensorRow = findRow(rows, SENSOR_ROLE);
+    assert(sensorRow, `expected an ATEX end-position row for locale ${locale}`);
+    assert(keyword.test(sensorRow!.reason), `reason must contain ${keyword} for locale ${locale}, got: ${sensorRow!.reason}`);
+  });
+}
