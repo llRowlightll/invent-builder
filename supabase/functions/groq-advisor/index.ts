@@ -1223,6 +1223,24 @@ function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: numb
     }
   }
 
+  // Found 2026-08-21 (adversarial test): an electric axis explicitly asked for
+  // end-position sensors got zero acknowledgment of that anywhere in the BOM -
+  // isEndPosDetect only ever adds a row inside `isPneumatic` (or, since the
+  // ATEX fix above, `isAtex`/`isAtexDust`) branches, and isElectric is none of
+  // those. Less severe than the ATEX case (a servo axis's integrated encoder
+  // genuinely already provides position feedback, so no separate sensor is
+  // actually missing) but the same "stated requirement silently vanished"
+  // problem applies - say so, appended to the primary actuator row rather
+  // than inventing a purchasable-looking row for something that isn't one.
+  if (isEndPosDetect && isElectric) {
+    rows[0].reason += pick(locale, {
+      sv: " OBS: separat ändlägesgivare behövs inte — servoaxelns inbyggda encoder ger redan exakt lägesåterkoppling till PLC:n.",
+      en: " Note: a separate end-position sensor isn't needed — the servo axis's built-in encoder already provides precise position feedback to the PLC.",
+      de: " Hinweis: ein separater Endlagensensor ist nicht erforderlich — der integrierte Encoder der Servoachse liefert bereits eine präzise Positionsrückmeldung an die SPS.",
+      es: " Nota: no se necesita un sensor de fin de carrera independiente — el encoder integrado del eje servo ya proporciona una retroalimentación de posición precisa al PLC.",
+    });
+  }
+
   // ── 2b. Servo drive / amplifier (all electric axes) ──────────────
   if (isElectric) {
     const driveMatch = findCatalogProductByType("servo-drive", brandSorted);
