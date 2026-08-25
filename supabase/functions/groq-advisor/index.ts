@@ -234,6 +234,49 @@ async function fetchProducts(categorySlugs: string[], limit = 30): Promise<Catal
   return results.flat() as CatalogProduct[];
 }
 
+/**
+ * Supplementary fetch to guarantee the primary actuator's own brand is
+ * actually represented in a category pool. fetch_products_for_advisor()
+ * (used by fetchProducts above) caps at `limit` per category, ordered by
+ * brand slug then SKU — fine for small categories, but "cylinder" alone
+ * has 325 products across 7 brands (bosch-rexroth's 45 already exceed the
+ * default cap of 30 on its own), so a brand sorting late alphabetically
+ * (smc, norgren, parker, metal-work) can be entirely absent from the pool
+ * regardless of how many of ITS OWN products exist.
+ *
+ * Confirmed empirically 2026-08-21: an SMC multi-axis job's secondary-axis
+ * lookup (findAxisActuator, fed by brandSorted) returned a Bosch Rexroth
+ * cylinder for the Z-axis — not because no SMC cylinder could have fit, but
+ * because zero SMC cylinders survived fetchProducts' cutoff in the first
+ * place, so brandSorted had nothing of the primary's own brand to sort
+ * forward. This doesn't go through the shared RPC (which has no brand
+ * parameter) — same reasoning fetchEndEffectorProducts already used for a
+ * different gap: a direct, narrowly-scoped query beats widening a shared
+ * fetch path that other callers also rely on for its current shape/cost.
+ */
+async function fetchProductsByCategoryAndBrand(categorySlug: string, brandSlug: string, limit = 15): Promise<CatalogProduct[]> {
+  if (!categorySlug || !brandSlug) return [];
+  try {
+    const q = `select=sku,name,family,categories!inner(slug),brands!inner(slug),specs:product_specs(key,value)` +
+      `&categories.slug=eq.${encodeURIComponent(categorySlug)}&brands.slug=eq.${encodeURIComponent(brandSlug)}&status=eq.active&limit=${limit}`;
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/products?${q}`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!Array.isArray(data)) return [];
+    return data.map((p: { sku: string; name: string; family?: string; specs?: Array<{ key: string; value: unknown }> }) => ({
+      sku: p.sku,
+      name: p.name,
+      category: categorySlug,
+      brand: brandSlug,
+      key_specs: normalizeKeySpecs(Object.fromEntries((p.specs ?? []).map((s) => [s.key, s.value]))),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 // Grippers/vacuum are sized by spec keys (clamping_force, grip_force_kgf,
 // cup_diameter_mm, …) that the shared advisor RPC curates away. Fetch the FULL
 // product_specs directly so the end-effector branch can size on real grip/holding
@@ -2816,10 +2859,24 @@ async function handleBom(
     isRodLock                         ? "rod-lock"       : null,
   ].filter(Boolean) as string[];
 
-  const [products, pdfCtx] = await Promise.all([
+  const [fetchedProducts, pdfCtx, brandProducts] = await Promise.all([
     fetchProducts([...new Set(bomCategories)], 30),
     searchKnowledge(combinedText + " BOM komplett system", 5),
+    // Guarantee the primary's own brand+category is represented (see
+    // fetchProductsByCategoryAndBrand's comment) - only actually needed for
+    // categories fetchProducts' 30-cap can plausibly exclude a brand from,
+    // but cheap and harmless to run generally rather than special-case it.
+    fetchProductsByCategoryAndBrand(primaryCategory, primaryBrand),
   ]);
+  // Merge, primary's own brand first so brandSorted's stable sort keeps it
+  // there; dedupe by SKU in case fetchProducts already had some of these.
+  const seenSkus = new Set<string>();
+  const products: CatalogProduct[] = [];
+  for (const p of [...brandProducts, ...fetchedProducts]) {
+    if (seenSkus.has(p.sku)) continue;
+    seenSkus.add(p.sku);
+    products.push(p);
+  }
 
   // ATEX: strip electric actuators
   const atexSafeProducts = (isAtex || isAtexDust) ? products.filter(p => !isElectricActuator(p)) : products;
