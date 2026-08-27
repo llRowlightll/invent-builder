@@ -513,6 +513,35 @@ export function extractLoadKg(text: string, answers: Record<string, string>): nu
 }
 
 /** Extract required torque (Nm) for a rotary-actuator request. */
+/**
+ * Explicitly stated grip force (N) for a gripper request -- e.g. "greppkraft
+ * ca 100N", "grip force 100N". Found 2026-08-27 (adversarial test): a stated
+ * grip force fell into extractLoadKg's generic "any N value ÷ 9.81 = kg"
+ * fallback (treating it as an object's WEIGHT, not the grip-force spec
+ * itself), then the gripper-sizing rule of thumb (weight × 100) re-derived a
+ * ~10× too-high requirement from that misread "weight" -- silently ignoring
+ * the customer's own directly-usable number. Checked BEFORE extractLoadKg in
+ * the gripper path so an explicit grip-force statement is used as-is.
+ */
+export function extractGripForceN(text: string, answers: Record<string, string>): number {
+  const allText = text + " " + Object.values(answers).join(" ");
+  const m = allText.match(/(?:greppkraft|gripkraft|klämkraft|klamkraft|grip(?:ping)?\s*force|clamping\s*force|greifkraft|klemmkraft|fuerza\s*de\s*agarre|fuerza\s*de\s*sujeci[oó]n)[^\d]{0,10}(\d+(?:[.,]\d+)?)\s*N\b/i)
+    || allText.match(/(\d+(?:[.,]\d+)?)\s*N\b[^\d]{0,15}(?:greppkraft|gripkraft|klämkraft|klamkraft|grip(?:ping)?\s*force|clamping\s*force|greifkraft|klemmkraft)/i);
+  return m ? parseFloat(m[1].replace(",", ".")) : 0;
+}
+
+/**
+ * Explicitly stated holding force (N) for a vacuum-cup request -- e.g.
+ * "hållkraft 50N", "holding force 50N". Same fix as extractGripForceN, for
+ * the vacuum branch's ×9.81×2 weight-to-force derivation.
+ */
+export function extractHoldingForceN(text: string, answers: Record<string, string>): number {
+  const allText = text + " " + Object.values(answers).join(" ");
+  const m = allText.match(/(?:håll[-\s]?kraft|hallkraft|hold(?:ing)?\s*force|haltekraft|fuerza\s*de\s*(?:sujeci[oó]n|retenci[oó]n))[^\d]{0,10}(\d+(?:[.,]\d+)?)\s*N\b/i)
+    || allText.match(/(\d+(?:[.,]\d+)?)\s*N\b[^\d]{0,15}(?:håll[-\s]?kraft|hallkraft|hold(?:ing)?\s*force|haltekraft)/i);
+  return m ? parseFloat(m[1].replace(",", ".")) : 0;
+}
+
 export function extractTorqueNm(text: string, answers: Record<string, string>): number {
   const allText = text + " " + Object.values(answers).join(" ");
   const m = allText.match(/(\d+(?:[.,]\d+)?)\s*Nm\b/i);
