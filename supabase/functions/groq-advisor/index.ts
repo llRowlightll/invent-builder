@@ -1248,6 +1248,15 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
         es: `🔧 Familia/serie de productos — la carrera exacta${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} se selecciona al realizar el pedido${actualMax > 0 ? `; la serie cubre hasta ${actualMax} mm` : ""}.`,
       });
       opt.why = `${note} ${opt.why ?? ""}`.trim();
+      // The LLM writes cons from the raw stroke_mm spec (the family's max, e.g.
+      // 3200/4000mm) BEFORE this block runs, with no notion of "configurable at
+      // order" -- so a family product got both "exact 300mm at order" (above,
+      // correct) AND an LLM-authored "stroke exceeds 300mm requirement" con
+      // (contradicting the note right next to it) in the same response. Strip
+      // any con shaped like that stroke-mismatch complaint now that the note
+      // already explains it isn't one.
+      const STROKE_MISMATCH_CON = /(slagl[äa]ngd|stroke|\bhub\b|carrera).{0,25}(över|overskrider|exceed|over\b|longer|über|excede|super(?:a|ior))/i;
+      opt.cons = ((opt.cons as string[] | undefined) ?? []).filter(c => !STROKE_MISMATCH_CON.test(c));
     }
     if (maxRequiredStroke > 0 && actualMax > 0 && actualMax < maxRequiredStroke) {
       opt.badge = closestCatalogBadge;
