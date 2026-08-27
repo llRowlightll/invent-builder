@@ -148,49 +148,6 @@ export function buildCustomSolutionOption(
   };
 }
 
-export function sanitizeSingleAxisBom(
-  bom: Array<{ sku: string; quantity: number; role: string; reason: string }>,
-  primarySku: string
-): Array<{ sku: string; quantity: number; role: string; reason: string }> {
-  const SECOND_AXIS = /\b(z|y)[-\s]?axel\b|\b(z|y)[-\s]?axis\b|axel\s*[2-9]|axis\s*[2-9]|second.axis|andre.axel/i;
-  let result = bom.filter(line => {
-    if (line.sku === primarySku) return true;
-    if (SECOND_AXIS.test(line.role)) return false;
-    return true;
-  });
-  const primaryRows = result.filter(l => l.sku === primarySku);
-  const otherRows   = result.filter(l => l.sku !== primarySku);
-  if (primaryRows.length > 1) {
-    result = [{ ...primaryRows[0], quantity: 1 }, ...otherRows];
-  } else if (primaryRows.length === 1 && primaryRows[0].quantity > 1) {
-    result = [{ ...primaryRows[0], quantity: 1 }, ...otherRows];
-  }
-  result = result.map(line => ({
-    ...line,
-    role: line.role
-      .replace(/\s*\/\s*[XYZ][-\s]?axel[^,/]*/gi, '')
-      .replace(/[XYZ][-\s]?axel\s*/gi, '')
-      .trim(),
-  }));
-  const SINGLE_PER_AXIS = /motor(?!\s*kabel)|controller|kontroller|\bdrive\b|styrenhet/i;
-  result = result.map(line => {
-    if (line.sku === primarySku) return line;
-    if (line.quantity === 2 && SINGLE_PER_AXIS.test(line.role)) return { ...line, quantity: 1 };
-    return line;
-  });
-  const merged = new Map<string, { sku: string; quantity: number; role: string; reason: string }>();
-  for (const line of result) {
-    const ex = merged.get(line.sku);
-    if (ex) {
-      ex.quantity += line.quantity;
-      if (!ex.role.includes(line.role)) ex.role = ex.role + " / " + line.role;
-    } else {
-      merged.set(line.sku, { ...line });
-    }
-  }
-  return Array.from(merged.values());
-}
-
 /**
  * v40: Find the best catalog product of a given component type.
  * Returns null if no catalog match exists — caller should use SPECIFY.
