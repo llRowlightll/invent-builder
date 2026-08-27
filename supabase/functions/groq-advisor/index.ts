@@ -57,6 +57,8 @@ import {
   needsMounting,
   calcMinBoreMm,
   extractLoadKg,
+  extractGripForceN,
+  extractHoldingForceN,
   extractTorqueNm,
   extractRotationDeg,
   parseTorqueFromSpecs,
@@ -523,7 +525,11 @@ async function handleEndEffectorOptions(
     const cups = prods.filter(p => dia(p) > 0).sort((a, b) => dia(a) - dia(b));
     const ejector = prods.find(p => /eject|venturi/i.test(`${p.key_specs?.type ?? ""} ${p.name}`));
     const picks = cups.length <= 3 ? cups : [cups[0], cups[Math.floor(cups.length / 2)], cups[cups.length - 1]];
-    const reqN = loadKg > 0 ? loadKg * 9.81 * 2 : 0; // 2× safety
+    // An explicitly stated holding force is a direct, already-usable spec --
+    // use it as-is rather than reinterpreting it as a weight to reconvert
+    // (see extractHoldingForceN's comment for the bug this fixes).
+    const explicitHoldN = extractHoldingForceN(text, {});
+    const reqN = explicitHoldN > 0 ? explicitHoldN : (loadKg > 0 ? loadKg * 9.81 * 2 : 0); // 2× safety
     const options: Array<Record<string, unknown>> = picks.map((p, i) => {
       const d = dia(p);
       const holdN = Math.round(Math.PI * (d / 2) ** 2 * 0.04); // ≈ -0.6 bar usable
@@ -551,7 +557,14 @@ async function handleEndEffectorOptions(
         }),
       };
     });
-    const need = reqN > 0
+    const need = explicitHoldN > 0
+      ? pick(locale, {
+          sv: ` Angiven håll-kraft ≈ ${Math.round(explicitHoldN)} N — fördela på en eller flera koppar.`,
+          en: ` Stated holding force ≈ ${Math.round(explicitHoldN)} N — across one or more cups.`,
+          de: ` Angegebene Haltekraft ≈ ${Math.round(explicitHoldN)} N — verteilt auf einen oder mehrere Saugnäpfe.`,
+          es: ` Fuerza de sujeción indicada ≈ ${Math.round(explicitHoldN)} N — repartidos entre una o más ventosas.`,
+        })
+      : reqN > 0
       ? pick(locale, {
           sv: ` För ~${loadKg} kg krävs ≈ ${Math.round(reqN)} N håll-kraft (2× säkerhet) — fördela på en eller flera koppar.`,
           en: ` For ~${loadKg} kg you need ≈ ${Math.round(reqN)} N holding force (2× safety) — across one or more cups.`,
@@ -588,7 +601,15 @@ async function handleEndEffectorOptions(
   const concrete = pool.filter(p => !isGripperFamily(p) && gripperForceN(p.key_specs ?? {}) > 0);
   const ranked = (concrete.length ? concrete : pool.filter(p => gripperForceN(p.key_specs ?? {}) > 0))
     .sort((a, b) => gripperForceN(a.key_specs ?? {}) - gripperForceN(b.key_specs ?? {}));
-  const reqN = loadKg > 0 ? Math.max(loadKg * 100, 20) : 0; // rule of thumb ≈ weight × 100 N
+  // An explicitly stated grip force is a direct, already-usable spec -- use
+  // it as-is rather than reinterpreting it as a weight to reconvert (see
+  // extractGripForceN's comment for the bug this fixes: a stated "100N" grip
+  // force was falling into extractLoadKg's generic N-to-kg fallback, then
+  // getting multiplied by 100 again by the rule of thumb below -- a ~10×
+  // inflated, wrong requirement derived from a number the customer already
+  // gave directly).
+  const explicitGripN = extractGripForceN(text, {});
+  const reqN = explicitGripN > 0 ? explicitGripN : (loadKg > 0 ? Math.max(loadKg * 100, 20) : 0); // rule of thumb ≈ weight × 100 N
   let picks: CatalogProduct[];
   if (reqN > 0 && ranked.length) {
     const adequate = ranked.filter(p => gripperForceN(p.key_specs ?? {}) >= reqN);
@@ -632,7 +653,14 @@ async function handleEndEffectorOptions(
     es: { parallel: "pinzas paralelas", angular: "pinzas angulares", radial: "pinzas radiales/de 3 mordazas" },
   };
   const typeLabel = (typeLabels[locale] ?? typeLabels.en)[wantType];
-  const need = reqN > 0
+  const need = explicitGripN > 0
+    ? pick(locale, {
+        sv: ` Angiven gripkraft ≈ ${Math.round(explicitGripN)} N.`,
+        en: ` Stated grip force ≈ ${Math.round(explicitGripN)} N.`,
+        de: ` Angegebene Greifkraft ≈ ${Math.round(explicitGripN)} N.`,
+        es: ` Fuerza de agarre indicada ≈ ${Math.round(explicitGripN)} N.`,
+      })
+    : reqN > 0
     ? pick(locale, {
         sv: ` För ~${loadKg} kg är en rimlig tumregel ≈ ${Math.round(reqN)} N gripkraft (≈ vikt × 100; justera för friktion och acceleration).`,
         en: ` For ~${loadKg} kg a reasonable rule of thumb is ≈ ${Math.round(reqN)} N grip force (≈ weight × 100; adjust for friction and acceleration).`,
