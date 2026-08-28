@@ -965,12 +965,35 @@ async function handleOptions(
         pros, cons,
       };
     });
+    // Found 2026-08-28 (adversarial test): this branch never calls the LLM
+    // (deliberate, same "no hallucination risk" reasoning noted above) but its
+    // CustomSolutionContext hardcoded every hazard flag to false regardless of
+    // what the customer actually said -- an ATEX Zone 1 rotary request got a
+    // generic "want a custom solution?" pitch with zero ATEX guidance, and
+    // (more seriously) 3 standard, non-certified pneumatic rotary actuators
+    // presented as normal ranked "options" with no safety caveat at all. No
+    // rotary-actuator product in the catalog has ANY ATEX/zone spec (checked
+    // product_specs directly) -- there's nothing to safely recommend from
+    // stock, so an ATEX/ATEX-dust request skips the catalog picks entirely
+    // and goes straight to a properly ATEX-aware custom solution, mirroring
+    // how the general (non-rotary) options path already treats ATEX as
+    // excluding standard catalog electric categories rather than presenting
+    // them with a disclaimer.
+    const isAtexZone = isAtex || isAtexDust;
     const customCtx: CustomSolutionContext = {
-      isWashdown: false, isVertical: false, isFoodGrade: false,
-      isBatteryDryroom: false, isHydraulic: false, isAtex: false, isSilSafety: false,
+      isWashdown, isVertical: isVerticalLoad, isFoodGrade: false,
+      isBatteryDryroom, isHydraulic, isAtex: isAtexZone, isSilSafety,
     };
-    options.push(buildCustomSolutionOption(0, locale, 0, false, customCtx) as typeof options[number]);
-    const summary = torqueInexact
+    const customSolution = buildCustomSolutionOption(0, locale, 0, false, customCtx) as typeof options[number];
+    const finalOptions = isAtexZone ? [customSolution] : [...options, customSolution];
+    const summary = isAtexZone
+      ? pick(locale, {
+          sv: `Ingen katalogprodukt är ATEX/zon-certifierad för rotationsaktuatorer — vi har ${picks.length} standardprodukter i lager, men ingen med dokumenterad ATEX-märkning, så vi rekommenderar dem inte för er zon. En kundspecifik, zon-certifierad rotationsaktuator krävs.`,
+          en: `No catalog product is ATEX/zone-certified for rotary actuators — we stock ${picks.length} standard units, but none with documented ATEX marking, so we don't recommend them for your zone. A custom, zone-certified rotary actuator is required.`,
+          de: `Kein Katalogprodukt ist ATEX-/zonenzertifiziert für Rotationsaktuatoren — wir führen ${picks.length} Standardeinheiten, aber keine mit dokumentierter ATEX-Kennzeichnung, daher empfehlen wir sie nicht für Ihre Zone. Ein kundenspezifischer, zonenzertifizierter Rotationsaktuator ist erforderlich.`,
+          es: `Ningún producto de catálogo está certificado ATEX/zona para actuadores rotativos — tenemos ${picks.length} unidades estándar en stock, pero ninguna con marcado ATEX documentado, por lo que no las recomendamos para su zona. Se requiere un actuador rotativo a medida y certificado para la zona.`,
+        })
+      : torqueInexact
       ? pick(locale, {
           sv: `Ingen lagervara klarar de begärda ${requiredTorque} Nm — ${picks[0]?.name} (${parseTorqueFromSpecs(picks[0]?.key_specs ?? {})} Nm) är närmaste, men otillräcklig. Se den som en utgångspunkt; för ${requiredTorque} Nm behövs en kundspecifik rotationsaktuator.`,
           en: `No stocked unit meets the requested ${requiredTorque} Nm — ${picks[0]?.name} (${parseTorqueFromSpecs(picks[0]?.key_specs ?? {})} Nm) is the closest, but insufficient. Treat it as a starting point; ${requiredTorque} Nm needs a custom rotary actuator.`,
@@ -983,8 +1006,8 @@ async function handleOptions(
           de: `Rotationsaktuator ausgewählt nach Drehmoment${requiredTorque > 0 ? ` (Anforderung ${requiredTorque} Nm)` : ""}${requiredDeg > 0 ? ` und ${requiredDeg}° Drehbereich` : ""} — nicht nach Zylinderhub.`,
           es: `Actuador rotativo seleccionado según el par${requiredTorque > 0 ? ` (requisito ${requiredTorque} Nm)` : ""}${requiredDeg > 0 ? ` y rango de rotación de ${requiredDeg}°` : ""} — no la carrera del cilindro.`,
         });
-    logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: picks[0]?.sku ?? null, option_count: options.length }, true);
-    return Response.json({ summary, options }, { headers: CORS });
+    logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: finalOptions[0]?.sku ?? null, option_count: finalOptions.length }, true);
+    return Response.json({ summary, options: finalOptions }, { headers: CORS });
   }
 
   // End-effector (gripper / vacuum) — the primary function is GRIPPING, not linear
