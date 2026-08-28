@@ -57,9 +57,6 @@ import {
   needsMounting,
   calcMinBoreMm,
   extractLoadKg,
-  extractGripForceN,
-  extractHoldingForceN,
-  needsEsdSafe,
   extractTorqueNm,
   extractRotationDeg,
   parseTorqueFromSpecs,
@@ -70,10 +67,10 @@ import {
   computeDynamics,
   detectConflicts,
   detectHazards,
+  type HazardFlags,
   detectEndEffectorIntent,
 } from "./signals.ts";
 import {
-  type CustomSolutionContext,
   buildCustomSolutionOption,
   findCatalogProductByType,
   findAxisActuator,
@@ -512,20 +509,23 @@ async function handleQuestions(description: string, locale: string): Promise<Res
 
 
 async function handleEndEffectorOptions(
-  intent: "gripper" | "vacuum", text: string, loadKg: number,
+  intent: "gripper" | "vacuum", text: string, hazards: HazardFlags, loadKg: number,
   locale: string, t0: number,
 ): Promise<Response> {
   const t = text.toLowerCase();
-  const customCtx: CustomSolutionContext = {
-    isWashdown: false, isVertical: false, isFoodGrade: false,
-    isBatteryDryroom: false, isHydraulic: false, isAtex: false, isSilSafety: false,
-  };
+  // Found 2026-08-28 (audit): this function used to hardcode ALL 7 hazard
+  // flags to false and call none of their real detectors -- the worst
+  // offender of the hazard-blindness pattern found across the file (see
+  // signals.ts's HazardFlags comment). Now takes the caller's already-
+  // computed hazards directly: cheaper than recomputing, and structurally
+  // guarantees this delegated handler can never disagree with the routing
+  // decision that sent it here.
+  const customCtx: HazardFlags = hazards;
   // No end-effector product in the catalog has any ESD/antistatic/conductive
   // spec field at all (checked product_specs directly) -- there's no way to
   // filter or verify an ESD-safety requirement, so say so explicitly rather
   // than silently staying quiet about a stated requirement we can't confirm.
-  const isEsdSafe = needsEsdSafe(text);
-  const esdCaveat = isEsdSafe
+  const esdCaveat = hazards.isEsdSafe
     ? pick(locale, {
         sv: " ⚠️ ESD-säkerhet: vi har inga ESD-/antistatiska specifikationer i katalogen för att verifiera detta — begär offert med ESD-krav specificerat.",
         en: " ⚠️ ESD safety: we have no ESD/antistatic specs in the catalog to verify this — request a quote with the ESD requirement specified.",
@@ -542,8 +542,12 @@ async function handleEndEffectorOptions(
     const picks = cups.length <= 3 ? cups : [cups[0], cups[Math.floor(cups.length / 2)], cups[cups.length - 1]];
     // An explicitly stated holding force is a direct, already-usable spec --
     // use it as-is rather than reinterpreting it as a weight to reconvert
-    // (see extractHoldingForceN's comment for the bug this fixes).
-    const explicitHoldN = extractHoldingForceN(text, {});
+    // (see extractHoldingForceN's comment for the bug this fixes). Reading
+    // hazards.holdingForceN instead of calling extractHoldingForceN(text, {})
+    // directly also closes a real gap: a force stated in an ANSWER field
+    // (not just free text) is now visible here too, since detectHazards()
+    // was given both.
+    const explicitHoldN = hazards.holdingForceN;
     const reqN = explicitHoldN > 0 ? explicitHoldN : (loadKg > 0 ? loadKg * 9.81 * 2 : 0); // 2× safety
     const options: Array<Record<string, unknown>> = picks.map((p, i) => {
       const d = dia(p);
@@ -622,8 +626,10 @@ async function handleEndEffectorOptions(
   // force was falling into extractLoadKg's generic N-to-kg fallback, then
   // getting multiplied by 100 again by the rule of thumb below -- a ~10×
   // inflated, wrong requirement derived from a number the customer already
-  // gave directly).
-  const explicitGripN = extractGripForceN(text, {});
+  // gave directly). Reading hazards.gripForceN instead of calling
+  // extractGripForceN(text, {}) directly also closes a real gap: a force
+  // stated in an ANSWER field (not just free text) is now visible here too.
+  const explicitGripN = hazards.gripForceN;
   const reqN = explicitGripN > 0 ? explicitGripN : (loadKg > 0 ? Math.max(loadKg * 100, 20) : 0); // rule of thumb ≈ weight × 100 N
   let picks: CatalogProduct[];
   if (reqN > 0 && ranked.length) {
@@ -703,6 +709,12 @@ async function handleOptions(
   const t0 = Date.now();
   const combinedText = description + " " + Object.values(answers).join(" ");
   const categories = detectCategories(combinedText);
+  // Added now (PR 3/5) only to support handleEndEffectorOptions's migration --
+  // this function's OWN ~25 individually-duplicated locals below are
+  // deliberately left as-is for now (temporary, intentional duplication) and
+  // migrated onto `hazards` in a later PR, kept separate so each PR stays
+  // independently reviewable.
+  const hazards = detectHazards(combinedText, answers, locale);
   const minStroke = extractMinStroke(answers, description);
   const isCleanroom = /\brenrum\b|\bcleanroom\b|\bclean\s+room\b/i.test(combinedText);
   const needsProgrammable = /programmer|stopp-position|servo|positioner/i.test(combinedText);
@@ -855,13 +867,8 @@ async function handleOptions(
   // stroke alone, with no pressure/force-class check at all). We carry zero
   // hydraulic products — escalate honestly instead of presenting pneumatic parts
   // as if they could survive hydraulic oil pressure.
-  const isHydraulicReq = isHydraulicApplication(combinedText);
-  if (isHydraulicReq) {
-    const customCtx: CustomSolutionContext = {
-      isWashdown: false, isVertical: false, isFoodGrade: false,
-      isBatteryDryroom: false, isHydraulic: true, isAtex: false, isSilSafety: false,
-    };
-    const options = [buildCustomSolutionOption(0, locale, 0, false, customCtx)];
+  if (hazards.isHydraulic) {
+    const options = [buildCustomSolutionOption(0, locale, 0, false, hazards)];
     const summary = pick(locale, {
       sv: "Det här är en hydraulisk applikation (oljedrift, högt tryck) — helt utanför vårt pneumatiska/elektriska sortiment. Att föreslå en pneumatisk katalogcylinder här vore direkt farligt (den är inte tryckklassad för hydraulolja). Vi tar fram en kundspecifik hydrauliklösning.",
       en: "This is a hydraulic application (oil-driven, high pressure) — entirely outside our pneumatic/electric range. Recommending a pneumatic catalog cylinder here would be unsafe (it isn't pressure-rated for hydraulic oil). We'll work out a custom hydraulic solution.",
@@ -980,11 +987,11 @@ async function handleOptions(
     // how the general (non-rotary) options path already treats ATEX as
     // excluding standard catalog electric categories rather than presenting
     // them with a disclaimer.
-    const isAtexZone = isAtex || isAtexDust;
-    const customCtx: CustomSolutionContext = {
-      isWashdown, isVertical: isVerticalLoad, isFoodGrade: false,
-      isBatteryDryroom, isHydraulic, isAtex: isAtexZone, isSilSafety,
-    };
+    // isFoodGrade deliberately NOT overridden to false the way it used to be:
+    // no comment ever explained why, and a food-grade rotary valve actuator
+    // is a coherent real request -- no reason found to suppress it.
+    const isAtexZone = hazards.isAtex || hazards.isAtexDust;
+    const customCtx: HazardFlags = { ...hazards, isAtex: isAtexZone };
     const customSolution = buildCustomSolutionOption(0, locale, 0, false, customCtx) as typeof options[number];
     const finalOptions = isAtexZone ? [customSolution] : [...options, customSolution];
     const summary = isAtexZone
@@ -1016,7 +1023,7 @@ async function handleOptions(
   // axes; the end-effector is then a BOM detail, not the headline recommendation).
   const endEffector = detectEndEffectorIntent(combinedText);
   if (endEffector && !isMultiAxis && !isSystemScope) {
-    return await handleEndEffectorOptions(endEffector, combinedText, loadKg, locale, t0);
+    return await handleEndEffectorOptions(endEffector, combinedText, hazards, loadKg, locale, t0);
   }
 
   if (minBoreMm > 0) console.log(`[options] load=${loadKg}kg → minBore=${minBoreMm}mm`);
@@ -1378,13 +1385,10 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     return opt;
   });
 
-  // Always append CUSTOM-SOLUTION
-  const customCtx: CustomSolutionContext = {
-    isWashdown, isVertical: isVerticalLoad,
-    isFoodGrade: isPharmaGmp || /livsmedel|food|slakteri|chark|mejeri|kött|meat|poultry|fjäderfä|dairy|fisk|fish|bageri|brewery/i.test(combinedText),
-    isBatteryDryroom, isHydraulic, isAtex, isSilSafety,
-  };
-  finalOptions.push(buildCustomSolutionOption(maxRequiredStroke, locale, maxCatalogStroke, catalogCanHandle, customCtx));
+  // Always append CUSTOM-SOLUTION. hazards.isFoodGrade already computes the
+  // exact same isPharmaGmp-OR-food-regex composition this literal used to
+  // build by hand.
+  finalOptions.push(buildCustomSolutionOption(maxRequiredStroke, locale, maxCatalogStroke, catalogCanHandle, hazards));
 
   // When no real catalog product matched (only CUSTOM-SOLUTION remains), the LLM
   // summary tends to hallucinate that our products meet the requirement (e.g.

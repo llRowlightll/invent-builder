@@ -13,23 +13,11 @@
 import { type CatalogProduct, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
 import { type HazardFlags, pick, isPneumaticByDrive } from "./signals.ts";
 
-export interface CustomSolutionContext {
-  isWashdown?: boolean;
-  isVertical?: boolean;
-  isFoodGrade?: boolean;
-  isBatteryDryroom?: boolean;
-  isHydraulic?: boolean;
-  isAtex?: boolean;
-  isSilSafety?: boolean;
-  maxCatalogStroke?: number;
-  catalogCanHandle?: boolean;
-}
-
 export function buildCustomSolutionOption(
   minStroke: number, locale: string, maxCatalogStroke: number, catalogCanHandle: boolean,
-  ctx: CustomSolutionContext = {}
+  ctx: HazardFlags,
 ) {
-  const { isWashdown, isVertical, isFoodGrade, isBatteryDryroom, isHydraulic, isAtex, isSilSafety } = ctx;
+  const { isWashdown, isVerticalLoad, isFoodGrade, isBatteryDryroom, isHydraulic, isAtex, isSilSafety } = ctx;
 
   // Build a context-specific "why" with product family recommendations
   let whyLines: string[] = [];
@@ -44,7 +32,7 @@ export function buildCustomSolutionOption(
   }
 
   // Washdown + vertical + food = most demanding scenario — give two explicit architectural paths
-  if (isWashdown && isVertical && isFoodGrade) {
+  if (isWashdown && isVerticalLoad && isFoodGrade) {
     whyLines.push(pick(locale, {
       sv: `⚙️ Rekommenderade arkitekturval för slakteri/IP69K-miljö:\n` +
         `▸ ALT A – Pneumatisk rostfri cylinder (316L): SMC HY-serien (IP69K, NSF-H1-smörjning, EHEDG-hygienisk design) eller Parker P1S Stainless Washdown Cylinder. Komplettera med pneumatisk stångbroms (rod lock) för säker hållning vid strömavbrott.\n` +
@@ -75,14 +63,14 @@ export function buildCustomSolutionOption(
     }));
   }
 
-  if (isVertical && isSilSafety) {
+  if (isVerticalLoad && isSilSafety) {
     whyLines.push(pick(locale, {
       sv: `⚠️ Vertikal last + säkerhetsfunktion: Mekanisk stångbroms (t.ex. SMC MHF2 rod lock) eller integrerad motorbroms OBLIGATORISK. Säkerhetsventil SIL 2-certifierad krävs per ISO 13849 PLd.`,
       en: `⚠️ Vertical load + safety function: Mechanical rod lock (e.g. SMC MHF2) or integrated motor brake MANDATORY. SIL 2-certified safety valve required per ISO 13849 PLd.`,
       de: `⚠️ Vertikale Last + Sicherheitsfunktion: Mechanische Kolbenstangenbremse (z. B. SMC MHF2 Rod Lock) oder integrierte Motorbremse ZWINGEND ERFORDERLICH. SIL 2-zertifiziertes Sicherheitsventil gemäß ISO 13849 PLd erforderlich.`,
       es: `⚠️ Carga vertical + función de seguridad: Bloqueo de vástago mecánico (p. ej. SMC MHF2 rod lock) o freno de motor integrado OBLIGATORIO. Se requiere válvula de seguridad certificada SIL 2 según ISO 13849 PLd.`,
     }));
-  } else if (isVertical) {
+  } else if (isVerticalLoad) {
     whyLines.push(pick(locale, {
       sv: `⚠️ Vertikal rörelse: Pilotmanövrerad backslagsventil eller stångbroms OBLIGATORISK för att förhindra fall vid lufttrycksfall.`,
       en: `⚠️ Vertical movement: Pilot-operated check valve or rod lock MANDATORY to prevent drop on air loss.`,
