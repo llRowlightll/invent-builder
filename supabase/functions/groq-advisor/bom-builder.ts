@@ -11,7 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { type CatalogProduct, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
-import { pick, isPneumaticByDrive } from "./signals.ts";
+import { type HazardFlags, pick, isPneumaticByDrive } from "./signals.ts";
 
 export interface CustomSolutionContext {
   isWashdown?: boolean;
@@ -237,35 +237,20 @@ export function findAxisActuator(products: CatalogProduct[], strokeMm: number, i
   return cands[0];
 }
 
-export interface BomCtx {
+// `extends HazardFlags` (not `Pick<HazardFlags, ...>`) is deliberate: every
+// hazard field HazardFlags has TODAY becomes required here, and every field
+// it gains in the FUTURE automatically becomes required at this call site
+// too -- a missing flag fails the TypeScript build, not a customer's request
+// at runtime. Only genuinely non-hazard, product-fetch/SKU-specific fields
+// are added on top.
+export interface BomCtx extends HazardFlags {
   primarySku: string;
   primaryIsFamilyProd: boolean;
-  isElectric: boolean;
-  isAtex: boolean;
-  isAtexDust: boolean;
-  isVerticalLoad: boolean;
-  isHighSpeed: boolean;
-  valveTerminal: boolean;
-  isEndPosDetect: boolean;
-  isVacuum: boolean;
+  isElectric: boolean;          // derived from primaryCategory (impure fetch) + isAtex/isAtexDust
   locale: string;
   products: CatalogProduct[];
-  // Accessory flags — drive deterministic accessory rows
-  isMounting: boolean;
-  isArticulated: boolean;
-  isRodLock: boolean;
   primaryBoreMm: number;   // fetched by SKU — `products` (30/category) may miss the primary
   primaryBrand: string;    // same as above — see fetchPrimaryInfo() call site
-  // Safety & environment flags — drive mandatory warning rows
-  isHighTemp: boolean;
-  isWashdown: boolean;
-  isSilSafety: boolean;
-  isHydraulic: boolean;
-  isVeryHighForce: boolean;
-  isBatteryDryroom: boolean;
-  // Multi-axis
-  isMultiAxis: boolean;
-  perAxisStrokes: Array<{ axis: string; stroke: number }>;
 }
 
 /**

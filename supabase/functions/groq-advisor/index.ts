@@ -69,6 +69,7 @@ import {
   needsDirtyEnv,
   computeDynamics,
   detectConflicts,
+  detectHazards,
   detectEndEffectorIntent,
 } from "./signals.ts";
 import {
@@ -1489,53 +1490,22 @@ async function handleBom(
   const isSv = locale === "sv";
   const combinedText = (description ?? "") + " " + Object.values(answers).join(" ");
   const categories = detectCategories(combinedText);
-  const isAtex = needsAtex(combinedText);
-  const isAtexDust = needsAtexDust(combinedText);
-  const isVerticalLoad = needsVerticalLoad(combinedText);
-  const isHighTemp = needsHighTemp(combinedText);
-  const isLowTemp = needsLowTemp(combinedText);
-  const isHydraulic = isHydraulicApplication(combinedText);
-  const isVeryHighForce = needsVeryHighForce(combinedText, answers);
-  const isOxygenClean = needsOxygenClean(combinedText);
-  const isHighCycle = needsHighCycle(combinedText, answers);
-  const isHighSpeed = needsHighSpeed(combinedText, answers);
-  const isSilSafety = needsSilSafety(combinedText);
-  const isOutdoor = needsOutdoor(combinedText);
-  const isPharmaGmp = needsPharmaGmp(combinedText);
-  const isBatteryDryroom = needsBatteryDryroom(combinedText);
-  const speedMs = extractSpeedMs(combinedText, answers);
-  const precisionMm = extractPrecisionMm(combinedText, answers);
-  const isHighPrecision = precisionMm > 0 && precisionMm <= 0.1;
+  const hazards = detectHazards(combinedText, answers, locale);
   // Base isElectric on the ACTUAL chosen primary product, not the loose candidate
   // categories — a trigger like "noggrann"/"precis" can put electric-actuator into
   // the categories even when the chosen primary is a pneumatic cylinder, which then
   // wrongly built an electric drivetrain (servo drive + motor cable) for it.
   const { category: primaryCategory, boreMm: primaryBoreMm, brand: primaryBrand } = await fetchPrimaryInfo(primarySku);
-  const isElectric = !isAtex && !isAtexDust && (primaryCategory
+  const isElectric = !hazards.isAtex && !hazards.isAtexDust && (primaryCategory
     ? ["electric-actuator", "linear-module", "servo-motor", "servo-drive"].includes(primaryCategory)
     : categories.some(c => c === "electric-actuator" || c === "linear-module"));
-  const isCleanroom = /\brenrum\b|\bcleanroom\b|\bclean\s+room\b/i.test(combinedText);
-  const isMultiAxis = needsMultiAxis(combinedText);
-  const isVacuum = needsVacuumGrip(combinedText);
-  const valveTerminal = needsValveTerminal(combinedText);
-  const isWashdown = needsWashdown(combinedText);
-  const isEndPosDetect = needsEndPositionDetection(combinedText);
-  const isMounting = needsMounting(combinedText);
-  const isArticulated = needsArticulatedMount(combinedText);
-  const isRodLock = needsRodLock(combinedText) || (isVerticalLoad && needsSilSafety(combinedText));
-  const massKg = extractLoadKg(combinedText, answers);
-  const cycleTimeS = extractCycleTimeS(combinedText, answers);
-  const isLowCost = needsLowCost(combinedText);
-  const is24x7 = needsContinuousDuty(combinedText);
-  const isDirtyEnv = needsDirtyEnv(combinedText);
-  const minStroke = extractMinStroke(answers, description);
   const primaryIsFamilyProd = isFamilyProduct({ sku: primarySku, name: "", category: "", brand: "", key_specs: {} });
 
-  const isPneumaticBom = !isElectric && !isAtex && !isAtexDust;
+  const isPneumaticBom = !isElectric && !hazards.isAtex && !hazards.isAtexDust;
   const bomCategories = [
     ...categories,
-    isVacuum                          ? "vacuum"         : null,
-    valveTerminal                     ? "valve-terminal" : null,
+    hazards.isVacuum                          ? "vacuum"         : null,
+    hazards.valveTerminal                     ? "valve-terminal" : null,
     "sensor",
     isElectric                        ? "cable"          : "fitting",
     isElectric                        ? "servo-motor"    : null,
@@ -1545,10 +1515,10 @@ async function handleBom(
     isPneumaticBom                    ? "silencer"       : null,
     isPneumaticBom                    ? "flow-control"   : null,
     isPneumaticBom                    ? "tubing"         : null,
-    isPneumaticBom && isHighSpeed     ? "shock-absorber" : null,
-    isPneumaticBom && isVerticalLoad  ? "check-valve"    : null,
-    (isMounting || isArticulated)     ? "mounting"       : null,
-    isRodLock                         ? "rod-lock"       : null,
+    isPneumaticBom && hazards.isHighSpeed     ? "shock-absorber" : null,
+    isPneumaticBom && hazards.isVerticalLoad  ? "check-valve"    : null,
+    (hazards.isMounting || hazards.isArticulated)     ? "mounting"       : null,
+    hazards.isRodLock                         ? "rod-lock"       : null,
   ].filter(Boolean) as string[];
 
   const [fetchedProducts, pdfCtx, brandProducts] = await Promise.all([
@@ -1571,42 +1541,35 @@ async function handleBom(
   }
 
   // ATEX: strip electric actuators
-  const atexSafeProducts = (isAtex || isAtexDust) ? products.filter(p => !isElectricActuator(p)) : products;
+  const atexSafeProducts = (hazards.isAtex || hazards.isAtexDust) ? products.filter(p => !isElectricActuator(p)) : products;
   const validBomSkus = new Set(atexSafeProducts.map(p => p.sku));
   validBomSkus.add("SPECIFY");
   validBomSkus.add(primarySku);
 
   // ── v40: Build complete mandatory BOM deterministically ─────────────────────
-  const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
-  // P2 sizing + P1 conflicts (first-order — guaranteed in the output below)
-  const maxStroke = perAxisStrokes.length > 0 ? Math.max(...perAxisStrokes.map(a => a.stroke)) : minStroke;
-  const dyn = computeDynamics(massKg, maxStroke, cycleTimeS, isVerticalLoad);
-  const conflicts = detectConflicts({ locale, precisionMm, isHighPrecision, speedMs, isDirtyEnv, isWashdown, isAtexDust, isLowCost, is24x7, dyn });
   // P2 force check: does the chosen actuator's rated force cover the computed peak load?
   const ratedForceN = parseFloat(String(products.find(p => p.sku === primarySku)?.key_specs?.force_n ?? "0").replace(/[^\d.]/g, ""));
-  const forceShortfall = (dyn && ratedForceN > 0 && dyn.forceN > ratedForceN)
-    ? { needN: Math.round(dyn.forceN), ratedN: Math.round(ratedForceN) } : null;
+  const forceShortfall = (hazards.dynamics && ratedForceN > 0 && hazards.dynamics.forceN > ratedForceN)
+    ? { needN: Math.round(hazards.dynamics.forceN), ratedN: Math.round(ratedForceN) } : null;
   const bomCtx: BomCtx = {
-    primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
-    isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isVacuum, locale,
-    products: atexSafeProducts,
-    isMounting, isArticulated, isRodLock, primaryBoreMm, primaryBrand, isHighTemp, isWashdown, isSilSafety: needsSilSafety(combinedText), isHydraulic, isVeryHighForce,
-    isMultiAxis, perAxisStrokes, isBatteryDryroom,
+    ...hazards,
+    primarySku, primaryIsFamilyProd, isElectric, locale,
+    products: atexSafeProducts, primaryBoreMm, primaryBrand,
   };
   const mandatoryBom = buildMandatoryBomRows(bomCtx);
-  console.log(`[bom v49] primary=${primarySku} electric=${isElectric} vertical=${isVerticalLoad} highSpeed=${isHighSpeed} multiAxis=${isMultiAxis} mounting=${isMounting} mandatoryRows=${mandatoryBom.length}`);
+  console.log(`[bom v49] primary=${primarySku} electric=${isElectric} vertical=${hazards.isVerticalLoad} highSpeed=${hazards.isHighSpeed} multiAxis=${hazards.isMultiAxis} mounting=${hazards.isMounting} mandatoryRows=${mandatoryBom.length}`);
 
   // ── LLM enrichment: title + explanation + optional extras ─────────────────
   const lang = langName(locale);
-  const axisStrokeNote = isMultiAxis && perAxisStrokes.length > 0
-    ? `Per-axis strokes: ${perAxisStrokes.map(a => `${a.axis}=${a.stroke}mm`).join(", ")}.`
+  const axisStrokeNote = hazards.isMultiAxis && hazards.perAxisStrokes.length > 0
+    ? `Per-axis strokes: ${hazards.perAxisStrokes.map(a => `${a.axis}=${a.stroke}mm`).join(", ")}.`
     : "";
 
   // ── Accessory catalog for LLM ─────────────────────────────────────────────
   // For multi-axis systems, include actuators; for single-axis, accessories only
-  const accessoryCatalog = balancedSlice(atexSafeProducts, isMultiAxis ? 30 : 20)
-    .filter(p => isMultiAxis || parseStrokeFromSpecs(p.key_specs ?? {}) === 0)
-    .slice(0, isMultiAxis ? 20 : 10)
+  const accessoryCatalog = balancedSlice(atexSafeProducts, hazards.isMultiAxis ? 30 : 20)
+    .filter(p => hazards.isMultiAxis || parseStrokeFromSpecs(p.key_specs ?? {}) === 0)
+    .slice(0, hazards.isMultiAxis ? 20 : 10)
     .map(p => {
       const ks = p.key_specs ?? {};
       const s = ks.stroke_mm ? ` stroke=${String(ks.stroke_mm).replace(/\s*mm/i,"")}mm` : "";
@@ -1619,22 +1582,22 @@ async function handleBom(
   const skeletonStr = mandatoryBom.map(r => `  SKU="${r.sku}" qty=${r.quantity} | ${r.role}`).join("\n");
 
   const reqLines = Object.entries(answers)
-    .map(([k, v]) => { let l = k.replace(/_/g, " "); if (!isMultiAxis) l = l.replace(/\s*[xyz]$/i, "").trim(); return `${l}: ${v}`; })
+    .map(([k, v]) => { let l = k.replace(/_/g, " "); if (!hazards.isMultiAxis) l = l.replace(/\s*[xyz]$/i, "").trim(); return `${l}: ${v}`; })
     .join(", ");
 
   const specialConstraints = [
-    isAtex    ? (isSv ? "⛔ ATEX Zone 1/2 — inga elektriska komponenter." : "⛔ ATEX Zone 1/2 — no electric components.") : "",
-    isAtexDust ? (isSv ? "⛔ ATEX Zone 20/21/22 damm." : "⛔ ATEX Zone 20/21/22 dust.") : "",
-    isHighPrecision ? (isSv ? `⛔ Precision ±${precisionMm}mm — kulskruv obligatorisk.` : `⛔ Precision ±${precisionMm}mm — ball screw mandatory.`) : "",
-    isWashdown ? (isSv ? "⚠️ Washdown IP69K." : "⚠️ Washdown IP69K.") : "",
-    isPharmaGmp ? (isSv ? "⚠️ GMP/FDA — 316L, PTFE, EPDM." : "⚠️ GMP/FDA — 316L, PTFE, EPDM.") : "",
-    isBatteryDryroom ? (isSv ? "⛔ Dryroom — absolut Cu/Zn/Ni-förbud." : "⛔ Dryroom — Cu/Zn/Ni ban.") : "",
-    isHydraulic || isVeryHighForce ? (isSv ? "⚠️ Hydraulik/hög kraft — utanför pneumatisk katalog." : "⚠️ Hydraulic/high force — outside pneumatic catalog.") : "",
-    isHighTemp ? (isSv ? "⚠️ Hög temp >80°C — PTFE/FKM-tätning krävs." : "⚠️ High temp >80°C — PTFE/FKM seals required.") : "",
-    isOxygenClean ? (isSv ? "⛔ Syrgasmiljö — oljefria komponenter." : "⛔ Oxygen atmosphere — oil-free only.") : "",
-    isSilSafety ? (isSv ? "⚠️ SIL/PL säkerhetsfunktion — certifierad ventil krävs." : "⚠️ SIL/PL safety function — certified valve required.") : "",
-    dyn ? (isSv ? `📐 Rörelse-uppskattning: ~${dyn.accel.toFixed(1)} m/s², ~${Math.round(dyn.forceN)} N topp — säg uttryckligen att servo/motor måste dimensioneras för detta.` : `📐 Motion estimate: ~${dyn.accel.toFixed(1)} m/s², ~${Math.round(dyn.forceN)} N peak — state explicitly the servo/motor must be sized for this.`) : "",
-    conflicts.length ? (isSv ? `⚠️ Kravkonflikter att nämna: ${conflicts.join(" | ")}` : `⚠️ Requirement conflicts to mention: ${conflicts.join(" | ")}`) : "",
+    hazards.isAtex    ? (isSv ? "⛔ ATEX Zone 1/2 — inga elektriska komponenter." : "⛔ ATEX Zone 1/2 — no electric components.") : "",
+    hazards.isAtexDust ? (isSv ? "⛔ ATEX Zone 20/21/22 damm." : "⛔ ATEX Zone 20/21/22 dust.") : "",
+    hazards.isHighPrecision ? (isSv ? `⛔ Precision ±${hazards.precisionMm}mm — kulskruv obligatorisk.` : `⛔ Precision ±${hazards.precisionMm}mm — ball screw mandatory.`) : "",
+    hazards.isWashdown ? (isSv ? "⚠️ Washdown IP69K." : "⚠️ Washdown IP69K.") : "",
+    hazards.isPharmaGmp ? (isSv ? "⚠️ GMP/FDA — 316L, PTFE, EPDM." : "⚠️ GMP/FDA — 316L, PTFE, EPDM.") : "",
+    hazards.isBatteryDryroom ? (isSv ? "⛔ Dryroom — absolut Cu/Zn/Ni-förbud." : "⛔ Dryroom — Cu/Zn/Ni ban.") : "",
+    hazards.isHydraulic || hazards.isVeryHighForce ? (isSv ? "⚠️ Hydraulik/hög kraft — utanför pneumatisk katalog." : "⚠️ Hydraulic/high force — outside pneumatic catalog.") : "",
+    hazards.isHighTemp ? (isSv ? "⚠️ Hög temp >80°C — PTFE/FKM-tätning krävs." : "⚠️ High temp >80°C — PTFE/FKM seals required.") : "",
+    hazards.isOxygenClean ? (isSv ? "⛔ Syrgasmiljö — oljefria komponenter." : "⛔ Oxygen atmosphere — oil-free only.") : "",
+    hazards.isSilSafety ? (isSv ? "⚠️ SIL/PL säkerhetsfunktion — certifierad ventil krävs." : "⚠️ SIL/PL safety function — certified valve required.") : "",
+    hazards.dynamics ? (isSv ? `📐 Rörelse-uppskattning: ~${hazards.dynamics.accel.toFixed(1)} m/s², ~${Math.round(hazards.dynamics.forceN)} N topp — säg uttryckligen att servo/motor måste dimensioneras för detta.` : `📐 Motion estimate: ~${hazards.dynamics.accel.toFixed(1)} m/s², ~${Math.round(hazards.dynamics.forceN)} N peak — state explicitly the servo/motor must be sized for this.`) : "",
+    hazards.conflicts.length ? (isSv ? `⚠️ Kravkonflikter att nämna: ${hazards.conflicts.join(" | ")}` : `⚠️ Requirement conflicts to mention: ${hazards.conflicts.join(" | ")}`) : "",
   ].filter(Boolean).join(" ");
 
   // LLM only writes title + explanation — no extras, no SKU selection
@@ -1674,18 +1637,18 @@ JSON: { "title": "...", "explanation": "..." }`;
   // Auto-generate title/explanation when LLM is unavailable
   if (!title) {
     title = pick(locale, {
-      sv: `${isElectric ? "Elektrisk" : "Pneumatisk"}${isVerticalLoad ? " vertikal" : ""}${isMultiAxis ? " flerraxlad" : ""} aktuator — ${primarySku}`,
-      en: `${isElectric ? "Electric" : "Pneumatic"}${isVerticalLoad ? " vertical" : ""}${isMultiAxis ? " multi-axis" : ""} actuator — ${primarySku}`,
-      de: `${isElectric ? "Elektrischer" : "Pneumatischer"}${isVerticalLoad ? " vertikaler" : ""}${isMultiAxis ? " mehrachsiger" : ""} Aktuator — ${primarySku}`,
-      es: `Actuador ${isElectric ? "eléctrico" : "neumático"}${isVerticalLoad ? " vertical" : ""}${isMultiAxis ? " multieje" : ""} — ${primarySku}`,
+      sv: `${isElectric ? "Elektrisk" : "Pneumatisk"}${hazards.isVerticalLoad ? " vertikal" : ""}${hazards.isMultiAxis ? " flerraxlad" : ""} aktuator — ${primarySku}`,
+      en: `${isElectric ? "Electric" : "Pneumatic"}${hazards.isVerticalLoad ? " vertical" : ""}${hazards.isMultiAxis ? " multi-axis" : ""} actuator — ${primarySku}`,
+      de: `${isElectric ? "Elektrischer" : "Pneumatischer"}${hazards.isVerticalLoad ? " vertikaler" : ""}${hazards.isMultiAxis ? " mehrachsiger" : ""} Aktuator — ${primarySku}`,
+      es: `Actuador ${isElectric ? "eléctrico" : "neumático"}${hazards.isVerticalLoad ? " vertical" : ""}${hazards.isMultiAxis ? " multieje" : ""} — ${primarySku}`,
     });
   }
   if (!explanation) {
     explanation = pick(locale, {
-      sv: `System baserat på ${primarySku}. ${isElectric ? "Elektrisk servoaxel för precision och repeterbarhet." : "Pneumatisk cylinder med komplett luftberedning (FRL + ventil)."} ${isVerticalLoad ? (isElectric ? "Bromsmotor obligatorisk för lastsäkerhet vid strömavbrott." : "Backslagsventil förhindrar lastfall vid lufttrycksförlust.") : ""}${wasRateLimited ? " [Automatgenererad — AI tillfälligt otillgänglig]" : ""}`,
-      en: `System based on ${primarySku}. ${isElectric ? "Electric servo axis for precision and repeatability." : "Pneumatic cylinder with complete air preparation (FRL + valve)."} ${isVerticalLoad ? (isElectric ? "Brake motor mandatory for load safety on power loss." : "Check valve prevents load drop on air pressure loss.") : ""}${wasRateLimited ? " [Auto-generated — AI temporarily unavailable]" : ""}`,
-      de: `System basierend auf ${primarySku}. ${isElectric ? "Elektrische Servoachse für Präzision und Wiederholgenauigkeit." : "Pneumatikzylinder mit vollständiger Luftaufbereitung (FRL + Ventil)."} ${isVerticalLoad ? (isElectric ? "Bremsmotor zwingend erforderlich für die Lastsicherheit bei Stromausfall." : "Das Rückschlagventil verhindert ein Absinken der Last bei Luftdruckverlust.") : ""}${wasRateLimited ? " [Automatisch generiert — KI vorübergehend nicht verfügbar]" : ""}`,
-      es: `Sistema basado en ${primarySku}. ${isElectric ? "Eje servo eléctrico para precisión y repetibilidad." : "Cilindro neumático con tratamiento de aire completo (FRL + válvula)."} ${isVerticalLoad ? (isElectric ? "Motor con freno obligatorio para la seguridad de la carga ante fallo de alimentación." : "La válvula antirretorno evita la caída de la carga ante pérdida de presión de aire.") : ""}${wasRateLimited ? " [Generado automáticamente — IA temporalmente no disponible]" : ""}`,
+      sv: `System baserat på ${primarySku}. ${isElectric ? "Elektrisk servoaxel för precision och repeterbarhet." : "Pneumatisk cylinder med komplett luftberedning (FRL + ventil)."} ${hazards.isVerticalLoad ? (isElectric ? "Bromsmotor obligatorisk för lastsäkerhet vid strömavbrott." : "Backslagsventil förhindrar lastfall vid lufttrycksförlust.") : ""}${wasRateLimited ? " [Automatgenererad — AI tillfälligt otillgänglig]" : ""}`,
+      en: `System based on ${primarySku}. ${isElectric ? "Electric servo axis for precision and repeatability." : "Pneumatic cylinder with complete air preparation (FRL + valve)."} ${hazards.isVerticalLoad ? (isElectric ? "Brake motor mandatory for load safety on power loss." : "Check valve prevents load drop on air pressure loss.") : ""}${wasRateLimited ? " [Auto-generated — AI temporarily unavailable]" : ""}`,
+      de: `System basierend auf ${primarySku}. ${isElectric ? "Elektrische Servoachse für Präzision und Wiederholgenauigkeit." : "Pneumatikzylinder mit vollständiger Luftaufbereitung (FRL + Ventil)."} ${hazards.isVerticalLoad ? (isElectric ? "Bremsmotor zwingend erforderlich für die Lastsicherheit bei Stromausfall." : "Das Rückschlagventil verhindert ein Absinken der Last bei Luftdruckverlust.") : ""}${wasRateLimited ? " [Automatisch generiert — KI vorübergehend nicht verfügbar]" : ""}`,
+      es: `Sistema basado en ${primarySku}. ${isElectric ? "Eje servo eléctrico para precisión y repetibilidad." : "Cilindro neumático con tratamiento de aire completo (FRL + válvula)."} ${hazards.isVerticalLoad ? (isElectric ? "Motor con freno obligatorio para la seguridad de la carga ante fallo de alimentación." : "La válvula antirretorno evita la caída de la carga ante pérdida de presión de aire.") : ""}${wasRateLimited ? " [Generado automáticamente — IA temporalmente no disponible]" : ""}`,
     });
   }
 
@@ -1693,11 +1656,11 @@ JSON: { "title": "...", "explanation": "..." }`;
   // (even if the LLM drops them or was rate-limited). The advisor must never look
   // "complete" while ignoring the physics and the requirement conflicts.
   const engNotes: string[] = [];
-  if (dyn) engNotes.push(pick(locale, {
-    sv: `📐 Dimensionering (första-ordningens uppskattning): för ${cycleTimeS} s cykeltid, ${maxStroke} mm slag och ${massKg} kg → topphastighet ~${dyn.vPeak.toFixed(2)} m/s, acceleration ~${dyn.accel.toFixed(1)} m/s², toppkraft ~${Math.round(dyn.forceN)} N${isVerticalLoad ? " (inkl. gravitation)" : ""}. Verifiera vald axel/motor mot kraft, varvtal och kontinuerlig last — detta ersätter inte en full servoberäkning.`,
-    en: `📐 Sizing (first-order estimate): for a ${cycleTimeS} s cycle, ${maxStroke} mm stroke and ${massKg} kg → peak velocity ~${dyn.vPeak.toFixed(2)} m/s, acceleration ~${dyn.accel.toFixed(1)} m/s², peak force ~${Math.round(dyn.forceN)} N${isVerticalLoad ? " (incl. gravity)" : ""}. Verify the chosen axis/motor for force, rpm and continuous load — this does not replace a full servo calculation.`,
-    de: `📐 Dimensionierung (Schätzung erster Ordnung): für ${cycleTimeS} s Zykluszeit, ${maxStroke} mm Hub und ${massKg} kg → Spitzengeschwindigkeit ~${dyn.vPeak.toFixed(2)} m/s, Beschleunigung ~${dyn.accel.toFixed(1)} m/s², Spitzenkraft ~${Math.round(dyn.forceN)} N${isVerticalLoad ? " (inkl. Schwerkraft)" : ""}. Gewählte Achse/Motor gegen Kraft, Drehzahl und Dauerlast prüfen — dies ersetzt keine vollständige Servoberechnung.`,
-    es: `📐 Dimensionamiento (estimación de primer orden): para un tiempo de ciclo de ${cycleTimeS} s, ${maxStroke} mm de carrera y ${massKg} kg → velocidad máxima ~${dyn.vPeak.toFixed(2)} m/s, aceleración ~${dyn.accel.toFixed(1)} m/s², fuerza máxima ~${Math.round(dyn.forceN)} N${isVerticalLoad ? " (incl. gravedad)" : ""}. Verifique el eje/motor elegido frente a la fuerza, las RPM y la carga continua — esto no sustituye un cálculo servo completo.`,
+  if (hazards.dynamics) engNotes.push(pick(locale, {
+    sv: `📐 Dimensionering (första-ordningens uppskattning): för ${hazards.cycleTimeS} s cykeltid, ${hazards.requiredStrokeMm} mm slag och ${hazards.loadKg} kg → topphastighet ~${hazards.dynamics.vPeak.toFixed(2)} m/s, acceleration ~${hazards.dynamics.accel.toFixed(1)} m/s², toppkraft ~${Math.round(hazards.dynamics.forceN)} N${hazards.isVerticalLoad ? " (inkl. gravitation)" : ""}. Verifiera vald axel/motor mot kraft, varvtal och kontinuerlig last — detta ersätter inte en full servoberäkning.`,
+    en: `📐 Sizing (first-order estimate): for a ${hazards.cycleTimeS} s cycle, ${hazards.requiredStrokeMm} mm stroke and ${hazards.loadKg} kg → peak velocity ~${hazards.dynamics.vPeak.toFixed(2)} m/s, acceleration ~${hazards.dynamics.accel.toFixed(1)} m/s², peak force ~${Math.round(hazards.dynamics.forceN)} N${hazards.isVerticalLoad ? " (incl. gravity)" : ""}. Verify the chosen axis/motor for force, rpm and continuous load — this does not replace a full servo calculation.`,
+    de: `📐 Dimensionierung (Schätzung erster Ordnung): für ${hazards.cycleTimeS} s Zykluszeit, ${hazards.requiredStrokeMm} mm Hub und ${hazards.loadKg} kg → Spitzengeschwindigkeit ~${hazards.dynamics.vPeak.toFixed(2)} m/s, Beschleunigung ~${hazards.dynamics.accel.toFixed(1)} m/s², Spitzenkraft ~${Math.round(hazards.dynamics.forceN)} N${hazards.isVerticalLoad ? " (inkl. Schwerkraft)" : ""}. Gewählte Achse/Motor gegen Kraft, Drehzahl und Dauerlast prüfen — dies ersetzt keine vollständige Servoberechnung.`,
+    es: `📐 Dimensionamiento (estimación de primer orden): para un tiempo de ciclo de ${hazards.cycleTimeS} s, ${hazards.requiredStrokeMm} mm de carrera y ${hazards.loadKg} kg → velocidad máxima ~${hazards.dynamics.vPeak.toFixed(2)} m/s, aceleración ~${hazards.dynamics.accel.toFixed(1)} m/s², fuerza máxima ~${Math.round(hazards.dynamics.forceN)} N${hazards.isVerticalLoad ? " (incl. gravedad)" : ""}. Verifique el eje/motor elegido frente a la fuerza, las RPM y la carga continua — esto no sustituye un cálculo servo completo.`,
   }));
   if (forceShortfall) engNotes.push(pick(locale, {
     sv: `⛔ Kraftvarning: beräknad toppkraft ~${forceShortfall.needN} N överstiger vald aktuators märkkraft ~${forceShortfall.ratedN} N. Välj kraftigare axel / större borrning, sänk last/acceleration eller öka cykeltiden.`,
@@ -1705,7 +1668,7 @@ JSON: { "title": "...", "explanation": "..." }`;
     de: `⛔ Kraftwarnung: die berechnete Spitzenkraft ~${forceShortfall.needN} N übersteigt die Nennkraft ~${forceShortfall.ratedN} N des gewählten Aktuators. Stärkere Achse/größere Bohrung wählen, Last/Beschleunigung reduzieren oder die Zykluszeit erhöhen.`,
     es: `⛔ Aviso de fuerza: la fuerza máxima calculada ~${forceShortfall.needN} N supera la fuerza nominal ~${forceShortfall.ratedN} N del actuador elegido. Elija un eje más fuerte / un diámetro mayor, reduzca la carga/aceleración o aumente el tiempo de ciclo.`,
   }));
-  for (const c of conflicts) engNotes.push("⚠️ " + c);
+  for (const c of hazards.conflicts) engNotes.push("⚠️ " + c);
   if (engNotes.length) explanation += "\n\n" + engNotes.join("\n\n");
 
   // ── Extra validation pipeline (4 layers) ────────────────────────────────────
@@ -1714,7 +1677,7 @@ JSON: { "title": "...", "explanation": "..." }`;
   // ATEX: strip any electric SKU that might have slipped in
   const electricSKUs = new Set(products.filter(p => isElectricActuator(p)).map(p => p.sku));
   const finalBom = mandatoryBom.filter(row => {
-    if (!isAtex && !isAtexDust) return true;
+    if (!hazards.isAtex && !hazards.isAtexDust) return true;
     if (row.sku === primarySku || row.sku === "SPECIFY") return true;
     if (electricSKUs.has(row.sku)) { console.warn(`[bom v49] ATEX stripped: ${row.sku}`); return false; }
     return true;
