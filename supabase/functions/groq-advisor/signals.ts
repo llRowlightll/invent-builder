@@ -768,6 +768,10 @@ export function detectHazards(
   answers: Record<string, string>,
   locale: string,
 ): HazardFlags {
+  // Whole-line, multi-station request (weigh + identify + sort + robot/PLC).
+  // The catalog can't be a single "solution" here -- consumers should surface
+  // motion building blocks and be honest about what needs system integration
+  // vs. the catalog's range.
   const isSystemScope = isMultiFunctionSystem(text);
   const isMultiAxis = needsMultiAxis(text);
   const isVacuum = needsVacuumGrip(text);
@@ -806,6 +810,9 @@ export function detectHazards(
   // keyed stroke answers on a single-axis request as multiple axes and take
   // their max instead of minStrokeMm's single (first-match) value.
   const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
+  // System scope: a number like "200-500 mm" is carton SIZE, not actuator
+  // stroke -- don't treat it as a stroke requirement (it would falsely fail
+  // every cylinder).
   const requiredStrokeMm = isSystemScope ? 0
     : perAxisStrokes.length > 0 ? Math.max(...perAxisStrokes.map(a => a.stroke))
     : minStrokeMm;
