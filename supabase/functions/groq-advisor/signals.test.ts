@@ -1,7 +1,7 @@
 // Regression tests for pure text/spec extraction and hazard-detection helpers.
 // Run: deno test supabase/functions/groq-advisor/signals.test.ts
 import { assertEquals } from "jsr:@std/assert@^1";
-import { extractGripForceN, extractHoldingForceN, extractLoadKg } from "./signals.ts";
+import { extractGripForceN, extractHoldingForceN, extractLoadKg, needsEsdSafe } from "./signals.ts";
 
 // ── Explicit force statements must not round-trip through extractLoadKg ────────
 // Found 2026-08-27 (adversarial test): "greppkraft ca 100N" was matched by
@@ -41,4 +41,22 @@ Deno.test("extractHoldingForceN reads an explicit English holding-force statemen
 
 Deno.test("extractHoldingForceN returns 0 when no holding-force keyword is present", () => {
   assertEquals(extractHoldingForceN("Lyfter en glasskiva som väger 5kg", {}), 0);
+});
+
+// ── ESD-safety requirement detection ────────────────────────────────────────
+// Found 2026-08-28 (adversarial test): a stated ESD-safety requirement was
+// silently ignored for vacuum/gripper end-effector selection -- the catalog
+// has no ESD/antistatic spec field on any product, so there was no way to
+// verify it, but nothing said so either.
+
+Deno.test("needsEsdSafe detects an explicit Swedish ESD requirement", () => {
+  assertEquals(needsEsdSafe("Vakuumgrepp för PCB, ESD-säkert material krävs"), true);
+});
+
+Deno.test("needsEsdSafe detects an explicit English ESD requirement", () => {
+  assertEquals(needsEsdSafe("Gripper for PCB handling, must be ESD safe"), true);
+});
+
+Deno.test("needsEsdSafe returns false when nothing ESD-related is mentioned", () => {
+  assertEquals(needsEsdSafe("Vakuumgrepp för att lyfta en glasskiva, hållkraft 50N"), false);
 });
