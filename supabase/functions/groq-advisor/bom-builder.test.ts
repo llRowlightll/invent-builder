@@ -42,6 +42,7 @@ function bomCtx(over: Partial<BomCtx> = {}): BomCtx {
     isSilSafety: false,
     isHydraulic: false,
     isVeryHighForce: false,
+    isBatteryDryroom: false,
     isMultiAxis: false,
     perAxisStrokes: [],
     ...over,
@@ -220,4 +221,20 @@ Deno.test("integrated-motor actuator (no same-brand servo-motor product) explain
   const primaryRow = rows.find((r) => r.sku === "SMC-LEY");
   assert(primaryRow, "expected the primary actuator row");
   assert(/integrerad|integrated|integriert/i.test(primaryRow!.reason), "primary row must explain the motor is integrated, not stay silent");
+});
+
+// ── Battery dryroom (Cu/Zn/Ni ban) must be a deterministic row (#new) ──────────
+// Found 2026-08-28 (adversarial test): isBatteryDryroom only ever produced
+// guidance inside buildCustomSolutionOption (options flow) -- the bom flow had
+// no deterministic row for it at all, unlike every other safety hazard here,
+// so a rate-limited LLM call meant zero mention of the Cu/Zn/Ni material ban
+// anywhere in the response.
+
+Deno.test("battery-dryroom BOM gets a deterministic Cu/Zn/Ni material-ban row, independent of the LLM", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "SMC-LEY", primaryBrand: "smc", isElectric: true, isVerticalLoad: true, isBatteryDryroom: true,
+  }));
+  const warnRow = rows.find((r) => /Cu\/Zn\/Ni/i.test(r.reason));
+  assert(warnRow, "expected a deterministic Cu/Zn/Ni material-ban row for a battery-dryroom request");
+  assertEquals(warnRow!.sku, "SPECIFY");
 });

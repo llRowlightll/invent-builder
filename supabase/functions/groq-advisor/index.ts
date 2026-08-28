@@ -1591,7 +1591,7 @@ async function handleBom(
     isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, isVacuum, locale,
     products: atexSafeProducts,
     isMounting, isArticulated, isRodLock, primaryBoreMm, primaryBrand, isHighTemp, isWashdown, isSilSafety: needsSilSafety(combinedText), isHydraulic, isVeryHighForce,
-    isMultiAxis, perAxisStrokes,
+    isMultiAxis, perAxisStrokes, isBatteryDryroom,
   };
   const mandatoryBom = buildMandatoryBomRows(bomCtx);
   console.log(`[bom v49] primary=${primarySku} electric=${isElectric} vertical=${isVerticalLoad} highSpeed=${isHighSpeed} multiAxis=${isMultiAxis} mounting=${isMounting} mandatoryRows=${mandatoryBom.length}`);
