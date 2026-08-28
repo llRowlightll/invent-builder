@@ -262,6 +262,7 @@ export interface BomCtx {
   isSilSafety: boolean;
   isHydraulic: boolean;
   isVeryHighForce: boolean;
+  isBatteryDryroom: boolean;
   // Multi-axis
   isMultiAxis: boolean;
   perAxisStrokes: Array<{ axis: string; stroke: number }>;
@@ -276,7 +277,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   const { primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
           isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, locale, products,
           isMounting, isArticulated, isRodLock, primaryBoreMm, primaryBrand: primaryBrandFetched, isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
-          isMultiAxis, perAxisStrokes } = ctx;
+          isMultiAxis, perAxisStrokes, isBatteryDryroom } = ctx;
   const isPneumatic = !isElectric && !isAtex && !isAtexDust;
   const rows: Array<{ sku: string; quantity: number; role: string; reason: string }> = [];
 
@@ -825,6 +826,29 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
         en: "OUT OF SCOPE: Hydraulic cylinders and force >5 kN are outside the pneumatic catalog. Contact hydraulic specialist (Parker, Bosch Rexroth, Enerpac). Pneumatic catalog covers max ~2 kN at 6 bar.",
         de: "AUSSERHALB DES KATALOGS: Hydraulikzylinder und Kräfte >5 kN werden vom pneumatischen Katalog nicht abgedeckt. Hydraulikspezialisten kontaktieren (Parker, Bosch Rexroth, Enerpac). Der pneumatische Katalog deckt max. ~2 kN bei 6 bar ab.",
         es: "FUERA DE CATÁLOGO: los cilindros hidráulicos y fuerzas >5 kN quedan fuera del catálogo neumático. Contacte con un especialista en hidráulica (Parker, Bosch Rexroth, Enerpac). El catálogo neumático cubre un máximo de ~2 kN a 6 bar.",
+      }),
+    });
+  }
+
+  // ── 11b. Battery dryroom (Cu/Zn/Ni ban) — deterministic, LLM-independent ──
+  // Found 2026-08-28 (adversarial test): isBatteryDryroom only ever produced
+  // guidance inside buildCustomSolutionOption (the options-flow's custom-
+  // solution text) -- the bom flow had no deterministic row for it at all,
+  // unlike every other safety hazard here (ATEX, washdown, vertical, SIL,
+  // hydraulic), which the v40 architecture guarantees survive even when the
+  // LLM is rate-limited. A dryroom BOM request that happened to hit a rate
+  // limit got zero mention of the Cu/Zn/Ni material ban anywhere in the
+  // response -- a real material-compatibility risk for battery manufacturing,
+  // not a cosmetic gap.
+  if (isBatteryDryroom) {
+    rows.push({
+      sku: "SPECIFY", quantity: 1,
+      role: pick(locale, { sv: "⛔ Dryroom-krav: Cu/Zn/Ni-fritt", en: "⛔ Dryroom requirement: Cu/Zn/Ni-free", de: "⛔ Trockenraum-Anforderung: Cu/Zn/Ni-frei", es: "⛔ Requisito de sala seca: sin Cu/Zn/Ni" }),
+      reason: pick(locale, {
+        sv: "OBLIGATORISKT för torrumsmiljö (batteritillverkning): koppar (Cu), zink (Zn) och nickel (Ni) förbjudet i alla vätta/rörliga delar. Standardkulskruvar, zinkbelagda styrningar och de flesta fetter är EJ tillåtna. Begär materialdeklarationsintyg — SMC 25-serien (Cu/Zn/Ni-fri, PFPE-smörjd) är ett känt alternativ.",
+        en: "MANDATORY for dryroom environments (battery manufacturing): copper (Cu), zinc (Zn) and nickel (Ni) are forbidden in any wetted or moving part. Standard ball screws, zinc-coated guides and most greases are NOT allowed. Request a material declaration — SMC 25-Series (Cu/Zn/Ni-free, PFPE-lubricated) is a known option.",
+        de: "ZWINGEND ERFORDERLICH für Trockenraumumgebungen (Batteriefertigung): Kupfer (Cu), Zink (Zn) und Nickel (Ni) sind in allen benetzten/beweglichen Teilen verboten. Standard-Kugelumlaufspindeln, zinkbeschichtete Führungen und die meisten Fette sind NICHT zulässig. Materialdeklaration anfordern — SMC 25-Serie (Cu/Zn/Ni-frei, PFPE-geschmiert) ist eine bekannte Option.",
+        es: "OBLIGATORIO para entornos de sala seca (fabricación de baterías): el cobre (Cu), el zinc (Zn) y el níquel (Ni) están prohibidos en cualquier pieza húmeda o móvil. Los husillos de bolas estándar, las guías con recubrimiento de zinc y la mayoría de las grasas NO están permitidos. Solicite una declaración de materiales — la serie SMC 25 (sin Cu/Zn/Ni, lubricada con PFPE) es una opción conocida.",
       }),
     });
   }
