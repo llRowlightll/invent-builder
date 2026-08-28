@@ -855,11 +855,17 @@ async function handleOptions(
           es: ` Energía cinética estimada ≈ ${energyJ.toFixed(1)} J/ciclo (½·${loadKg} kg·(${speedMs} m/s)²).`,
         })
       : "";
+    // hazards.conflicts messages are already fully localized (built via
+    // pick(locale, ...) inside detectConflicts), so they append uniformly
+    // regardless of which locale string below they land in.
+    const conflictNote = hazards.conflicts.length
+      ? " " + hazards.conflicts.map(c => "⚠️ " + c).join(" ")
+      : "";
     const summary = pick(locale, {
-      sv: `Det här är en stötdämpar-applikation — en cylinder bromsar inte en rullande massa, det gör en stötdämpare.${eNote} Välj storlek (M8–M20) efter dämparens energikapacitet per slag (se datablad).`,
-      en: `This is a shock-absorber application — a cylinder won't stop a rolling mass, a shock absorber does.${eNote} Pick a size (M8–M20) by the absorber's energy capacity per cycle (see datasheet).`,
-      de: `Dies ist eine Stoßdämpfer-Anwendung — ein Zylinder bremst keine rollende Masse ab, das übernimmt ein Stoßdämpfer.${eNote} Größe (M8–M20) nach der Energiekapazität des Dämpfers pro Hub wählen (siehe Datenblatt).`,
-      es: `Esta es una aplicación de amortiguador — un cilindro no detiene una masa rodante, un amortiguador sí.${eNote} Elija el tamaño (M8-M20) según la capacidad energética del amortiguador por ciclo (véase la hoja de datos).`,
+      sv: `Det här är en stötdämpar-applikation — en cylinder bromsar inte en rullande massa, det gör en stötdämpare.${eNote} Välj storlek (M8–M20) efter dämparens energikapacitet per slag (se datablad).${conflictNote}`,
+      en: `This is a shock-absorber application — a cylinder won't stop a rolling mass, a shock absorber does.${eNote} Pick a size (M8–M20) by the absorber's energy capacity per cycle (see datasheet).${conflictNote}`,
+      de: `Dies ist eine Stoßdämpfer-Anwendung — ein Zylinder bremst keine rollende Masse ab, das übernimmt ein Stoßdämpfer.${eNote} Größe (M8–M20) nach der Energiekapazität des Dämpfers pro Hub wählen (siehe Datenblatt).${conflictNote}`,
+      es: `Esta es una aplicación de amortiguador — un cilindro no detiene una masa rodante, un amortiguador sí.${eNote} Elija el tamaño (M8-M20) según la capacidad energética del amortiguador por ciclo (véase la hoja de datos).${conflictNote}`,
     });
     logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: options[0]?.sku ?? null, option_count: options.length }, true);
     return Response.json({ summary, options }, { headers: CORS });
@@ -998,7 +1004,16 @@ async function handleOptions(
     const customCtx: HazardFlags = { ...hazards, isAtex: isAtexZone };
     const customSolution = buildCustomSolutionOption(0, locale, 0, false, customCtx) as typeof options[number];
     const finalOptions = isAtexZone ? [customSolution] : [...options, customSolution];
-    const summary = isAtexZone
+    // hazards.conflicts is not provably empty here the way dynamics is (see
+    // the equivalence test in signals.test.ts): a food-grade or washdown
+    // high-precision rotary request can still trigger the precision/
+    // speed/cost conflicts, which are orthogonal to ATEX and torque -- so
+    // it's appended uniformly across all three outcomes below rather than
+    // only the plain-success case.
+    const conflictNote = hazards.conflicts.length
+      ? " " + hazards.conflicts.map(c => "⚠️ " + c).join(" ")
+      : "";
+    const summaryBase = isAtexZone
       ? pick(locale, {
           sv: `Ingen katalogprodukt är ATEX/zon-certifierad för rotationsaktuatorer — vi har ${picks.length} standardprodukter i lager, men ingen med dokumenterad ATEX-märkning, så vi rekommenderar dem inte för er zon. En kundspecifik, zon-certifierad rotationsaktuator krävs.`,
           en: `No catalog product is ATEX/zone-certified for rotary actuators — we stock ${picks.length} standard units, but none with documented ATEX marking, so we don't recommend them for your zone. A custom, zone-certified rotary actuator is required.`,
@@ -1018,6 +1033,7 @@ async function handleOptions(
           de: `Rotationsaktuator ausgewählt nach Drehmoment${requiredTorque > 0 ? ` (Anforderung ${requiredTorque} Nm)` : ""}${requiredDeg > 0 ? ` und ${requiredDeg}° Drehbereich` : ""} — nicht nach Zylinderhub.`,
           es: `Actuador rotativo seleccionado según el par${requiredTorque > 0 ? ` (requisito ${requiredTorque} Nm)` : ""}${requiredDeg > 0 ? ` y rango de rotación de ${requiredDeg}°` : ""} — no la carrera del cilindro.`,
         });
+    const summary = summaryBase + conflictNote;
     logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: finalOptions[0]?.sku ?? null, option_count: finalOptions.length }, true);
     return Response.json({ summary, options: finalOptions }, { headers: CORS });
   }
