@@ -664,3 +664,171 @@ export function detectEndEffectorIntent(text: string): "gripper" | "vacuum" | nu
   if (fragileFlat) return "vacuum";
   return null;
 }
+
+/**
+ * Food-grade / food-industry material or lubrication requirement (NSF-H1,
+ * EHEDG, direct food contact). Consolidates two regexes that had drifted
+ * apart across two call sites in index.ts (handleQuestions vs. handleOptions)
+ * -- this is their union, verbatim (the handleQuestions version was already
+ * the superset: it additionally matched nsf/h1).
+ */
+export function needsFoodGrade(text: string): boolean {
+  return /livsmedel|food|slakteri|chark|mejeri|kött|meat|poultry|fjäderfä|dairy|fisk|fish|bageri|brewery|nsf|h1\b/i.test(text);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HazardFlags / detectHazards -- single source of truth for every hazard flag
+// and free-text numeric extraction above.
+//
+// Found 2026-08-28: five real bugs (ATEX ignored by the pure-rotary options
+// path, a battery-dryroom material warning missing from BomCtx entirely, an
+// engineering conflict-check wired into only one of several handlers, an
+// ESD-safety requirement with no detector at all, and more found on audit)
+// all shared one root cause -- index.ts has several independent HTTP-handler
+// code paths, and each one independently decided which of the detectors above
+// to call and which flags to thread into the object it builds for downstream
+// use. It's easy for one path to wire a flag in correctly while a sibling
+// forgets it, silently.
+//
+// detectHazards() computes every flag exactly once. Every field below is a
+// direct, unmodified call to one of the exported functions above (e.g.
+// `isAtex` really is `needsAtex(text)`, not a re-derivation) -- so it can
+// never disagree with calling the detector directly, which is also what
+// makes it possible to prove equivalence with a static test once (see
+// signals.test.ts) rather than needing a runtime shadow-check.
+//
+// `conflicts`/`dynamics` are always computed here (cheap, pure) but whether a
+// given consumer SURFACES them in customer-facing text is that consumer's own
+// decision -- the underlying messages assume a linear ball-screw/belt/
+// pneumatic axis, so bolting them onto e.g. a vacuum-cup recommendation would
+// be a non-sequitur, not a fix.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface HazardFlags {
+  // Routing / scope
+  isSystemScope: boolean;
+  isMultiAxis: boolean;
+  isVacuum: boolean;
+  valveTerminal: boolean;
+  // Environment / material / safety hazards
+  isAtex: boolean;
+  isAtexDust: boolean;
+  isVerticalLoad: boolean;
+  isHighTemp: boolean;
+  isLowTemp: boolean;
+  isHydraulic: boolean;
+  isVeryHighForce: boolean;
+  isOxygenClean: boolean;
+  isEsdSafe: boolean;
+  isHighCycle: boolean;
+  isHighSpeed: boolean;
+  isSilSafety: boolean;
+  isOutdoor: boolean;
+  isPharmaGmp: boolean;
+  isFoodGrade: boolean;
+  isBatteryDryroom: boolean;
+  isRodLock: boolean;
+  isWashdown: boolean;
+  isEndPosDetect: boolean;
+  isArticulated: boolean;
+  isMounting: boolean;
+  isLowCost: boolean;
+  is24x7: boolean;
+  isDirtyEnv: boolean;
+  // Derived (cheap, deterministic)
+  isHighPrecision: boolean;
+  minBoreMm: number;
+  // Numeric / structured extractions
+  requiredMaxTempC: number;
+  minStrokeMm: number;
+  perAxisStrokes: Array<{ axis: string; stroke: number }>;
+  requiredStrokeMm: number;
+  speedMs: number;
+  precisionMm: number;
+  explicitBoreMm: number;
+  loadKg: number;
+  gripForceN: number;
+  holdingForceN: number;
+  torqueNm: number;
+  rotationDeg: number;
+  cycleTimeS: number;
+  // Composed -- assume a linear axis, see file-header comment above
+  dynamics: { vPeak: number; accel: number; forceN: number } | null;
+  conflicts: string[];
+}
+
+/**
+ * `text` should be the caller's full available text (raw `description` at the
+ * questions step, `description + " " + answers` everywhere else -- matches
+ * what every existing call site already passed). `locale` affects ONLY the
+ * strings inside `conflicts` -- every other field is locale-independent.
+ */
+export function detectHazards(
+  text: string,
+  answers: Record<string, string>,
+  locale: string,
+): HazardFlags {
+  const isSystemScope = isMultiFunctionSystem(text);
+  const isMultiAxis = needsMultiAxis(text);
+  const isVacuum = needsVacuumGrip(text);
+  const valveTerminal = needsValveTerminal(text);
+  const isAtex = needsAtex(text);
+  const isAtexDust = needsAtexDust(text);
+  const isVerticalLoad = needsVerticalLoad(text);
+  const isHighTemp = needsHighTemp(text);
+  const isLowTemp = needsLowTemp(text);
+  const isHydraulic = isHydraulicApplication(text);
+  const isVeryHighForce = needsVeryHighForce(text, answers);
+  const isOxygenClean = needsOxygenClean(text);
+  const isEsdSafe = needsEsdSafe(text);
+  const isHighCycle = needsHighCycle(text, answers);
+  const isHighSpeed = needsHighSpeed(text, answers);
+  const isSilSafety = needsSilSafety(text);
+  const isOutdoor = needsOutdoor(text);
+  const isPharmaGmp = needsPharmaGmp(text);
+  const isFoodGrade = needsFoodGrade(text) || isPharmaGmp;
+  const isBatteryDryroom = needsBatteryDryroom(text);
+  const isRodLock = needsRodLock(text) || (isVerticalLoad && isSilSafety);
+  const isWashdown = needsWashdown(text);
+  const isEndPosDetect = needsEndPositionDetection(text);
+  const isArticulated = needsArticulatedMount(text);
+  const isMounting = needsMounting(text);
+  const isLowCost = needsLowCost(text);
+  const is24x7 = needsContinuousDuty(text);
+  const isDirtyEnv = needsDirtyEnv(text);
+
+  const requiredMaxTempC = extractRequiredMaxTemp(text, answers);
+  const minStrokeMm = extractMinStroke(answers, text);
+  const perAxisStrokes = extractPerAxisStrokes(answers);
+  const requiredStrokeMm = isSystemScope ? 0
+    : perAxisStrokes.length > 0 ? Math.max(...perAxisStrokes.map(a => a.stroke))
+    : minStrokeMm;
+  const speedMs = extractSpeedMs(text, answers);
+  const precisionMm = extractPrecisionMm(text, answers);
+  const isHighPrecision = precisionMm > 0 && precisionMm <= 0.1;
+  const explicitBoreMm = extractExplicitBoreMm(text, answers);
+  const loadKg = extractLoadKg(text, answers);
+  const minBoreMm = calcMinBoreMm(loadKg);
+  const gripForceN = extractGripForceN(text, answers);
+  const holdingForceN = extractHoldingForceN(text, answers);
+  const torqueNm = extractTorqueNm(text, answers);
+  const rotationDeg = extractRotationDeg(text, answers);
+  const cycleTimeS = extractCycleTimeS(text, answers);
+
+  const dynamics = computeDynamics(loadKg, requiredStrokeMm, cycleTimeS, isVerticalLoad);
+  const conflicts = detectConflicts({
+    locale, precisionMm, isHighPrecision, speedMs, isDirtyEnv, isWashdown, isAtexDust,
+    isLowCost, is24x7, dyn: dynamics,
+  });
+
+  return {
+    isSystemScope, isMultiAxis, isVacuum, valveTerminal,
+    isAtex, isAtexDust, isVerticalLoad, isHighTemp, isLowTemp, isHydraulic, isVeryHighForce,
+    isOxygenClean, isEsdSafe, isHighCycle, isHighSpeed, isSilSafety, isOutdoor, isPharmaGmp,
+    isFoodGrade, isBatteryDryroom, isRodLock, isWashdown, isEndPosDetect, isArticulated,
+    isMounting, isLowCost, is24x7, isDirtyEnv, isHighPrecision, minBoreMm,
+    requiredMaxTempC, minStrokeMm, perAxisStrokes, requiredStrokeMm, speedMs, precisionMm,
+    explicitBoreMm, loadKg, gripForceN, holdingForceN, torqueNm, rotationDeg, cycleTimeS,
+    dynamics, conflicts,
+  };
+}
