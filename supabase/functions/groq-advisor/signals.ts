@@ -327,6 +327,19 @@ export function needsOxygenClean(text: string): boolean {
   return /\bsyrgas\b|\boxygen[.\s-]?enrich\b|\boxygen[.\s-]?clean\b|\bo2[.\s-]?ren\b|\bhög.*syrgashal\b|\boxygen.*atmosf\b|\bmedical.*oxygen\b|\boxidations.*milj\b|\breact.*oxygen\b|\boi?l[.\s-]?free.*oxygen\b|\bsauerstoff\w*\b|\bmedizinisch\w*\s?sauerstoff\b|\boxígeno\b|\benriquecid\w*\s?con\s?oxígeno\b|\boxígeno\s?médico\b/i.test(text);
 }
 
+/**
+ * ESD-safe / antistatic material requested (electronics/PCB handling). Found
+ * 2026-08-28 (adversarial test): an explicit "ESD-säkert material krävs"
+ * requirement was silently ignored end-to-end for vacuum/gripper end-effector
+ * selection — no catalog product has any ESD/antistatic/conductive spec field
+ * at all (checked product_specs directly), so there's no way to filter for it,
+ * but the response said nothing about that gap either, unlike the analogous
+ * washdown-IP69K gap disclaimer that already exists elsewhere.
+ */
+export function needsEsdSafe(text: string): boolean {
+  return /\besd[.\s-]?säker\w*\b|\besd[.\s-]?safe\b|\bantistatisk\w*\b|\bantistatic\b|\bledande\s+material\b|\bconductive\s+material\b|\besd[.\s-]?schutz\w*\b|\bantistatisch\w*\b|\bleitfähig\w*\s+material\w*\b|\bantiestátic\w*\b|\bmaterial\s+conductor\b|\bprotección\s+esd\b/i.test(text);
+}
+
 /** High cycle frequency (>60 cycles/min) — thermal and lubrication issues with standard cylinders. */
 export function needsHighCycle(text: string, answers: Record<string, string>): boolean {
   const allText = text + " " + Object.values(answers).join(" ");

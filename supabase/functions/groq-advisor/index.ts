@@ -59,6 +59,7 @@ import {
   extractLoadKg,
   extractGripForceN,
   extractHoldingForceN,
+  needsEsdSafe,
   extractTorqueNm,
   extractRotationDeg,
   parseTorqueFromSpecs,
@@ -518,6 +519,19 @@ async function handleEndEffectorOptions(
     isWashdown: false, isVertical: false, isFoodGrade: false,
     isBatteryDryroom: false, isHydraulic: false, isAtex: false, isSilSafety: false,
   };
+  // No end-effector product in the catalog has any ESD/antistatic/conductive
+  // spec field at all (checked product_specs directly) -- there's no way to
+  // filter or verify an ESD-safety requirement, so say so explicitly rather
+  // than silently staying quiet about a stated requirement we can't confirm.
+  const isEsdSafe = needsEsdSafe(text);
+  const esdCaveat = isEsdSafe
+    ? pick(locale, {
+        sv: " ⚠️ ESD-säkerhet: vi har inga ESD-/antistatiska specifikationer i katalogen för att verifiera detta — begär offert med ESD-krav specificerat.",
+        en: " ⚠️ ESD safety: we have no ESD/antistatic specs in the catalog to verify this — request a quote with the ESD requirement specified.",
+        de: " ⚠️ ESD-Sicherheit: wir haben keine ESD-/antistatischen Spezifikationen im Katalog, um dies zu verifizieren — Angebot mit angegebener ESD-Anforderung anfordern.",
+        es: " ⚠️ Seguridad ESD: no tenemos especificaciones ESD/antiestáticas en el catálogo para verificarlo — solicite una oferta especificando el requisito ESD.",
+      })
+    : "";
 
   if (intent === "vacuum") {
     const prods = await fetchEndEffectorProducts("vacuum", 40);
@@ -581,10 +595,10 @@ async function handleEndEffectorOptions(
         })
       : "";
     const summary = pick(locale, {
-      sv: `Det här är ett vakuumgrepp — välj sugkopp efter håll-kraft (kopparea × vakuum), inte cylinderslag.${need}${ejNote}`,
-      en: `This is a vacuum-gripping application — choose the suction cup by holding force (cup area × vacuum), not cylinder stroke.${need}${ejNote}`,
-      de: `Dies ist eine Vakuumgreif-Anwendung — den Saugnapf nach Haltekraft (Napffläche × Vakuum) wählen, nicht nach Zylinderhub.${need}${ejNote}`,
-      es: `Esta es una aplicación de agarre por vacío — elija la ventosa según la fuerza de sujeción (área de la ventosa × vacío), no según la carrera del cilindro.${need}${ejNote}`,
+      sv: `Det här är ett vakuumgrepp — välj sugkopp efter håll-kraft (kopparea × vakuum), inte cylinderslag.${need}${ejNote}${esdCaveat}`,
+      en: `This is a vacuum-gripping application — choose the suction cup by holding force (cup area × vacuum), not cylinder stroke.${need}${ejNote}${esdCaveat}`,
+      de: `Dies ist eine Vakuumgreif-Anwendung — den Saugnapf nach Haltekraft (Napffläche × Vakuum) wählen, nicht nach Zylinderhub.${need}${ejNote}${esdCaveat}`,
+      es: `Esta es una aplicación de agarre por vacío — elija la ventosa según la fuerza de sujeción (área de la ventosa × vacío), no según la carrera del cilindro.${need}${ejNote}${esdCaveat}`,
     });
     if (!options.length) options.push(buildCustomSolutionOption(0, locale, 0, false, customCtx) as Record<string, unknown>);
     logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: options[0]?.sku ?? null, option_count: options.length }, true);
@@ -669,10 +683,10 @@ async function handleEndEffectorOptions(
       })
     : "";
   const summary = pick(locale, {
-    sv: `Det här är en gripapplikation — gripdon dimensioneras på gripkraft, inte cylinderslag.${need} Förslagen är ${typeLabel}.`,
-    en: `This is a gripping application — grippers are sized by grip force, not cylinder stroke.${need} The options are ${typeLabel}.`,
-    de: `Dies ist eine Greifanwendung — Greifer werden nach Greifkraft dimensioniert, nicht nach Zylinderhub.${need} Die Vorschläge sind ${typeLabel}.`,
-    es: `Esta es una aplicación de agarre — las pinzas se dimensionan según la fuerza de agarre, no la carrera del cilindro.${need} Las opciones son ${typeLabel}.`,
+    sv: `Det här är en gripapplikation — gripdon dimensioneras på gripkraft, inte cylinderslag.${need} Förslagen är ${typeLabel}.${esdCaveat}`,
+    en: `This is a gripping application — grippers are sized by grip force, not cylinder stroke.${need} The options are ${typeLabel}.${esdCaveat}`,
+    de: `Dies ist eine Greifanwendung — Greifer werden nach Greifkraft dimensioniert, nicht nach Zylinderhub.${need} Die Vorschläge sind ${typeLabel}.${esdCaveat}`,
+    es: `Esta es una aplicación de agarre — las pinzas se dimensionan según la fuerza de agarre, no la carrera del cilindro.${need} Las opciones son ${typeLabel}.${esdCaveat}`,
   });
   if (!options.length) options.push(buildCustomSolutionOption(0, locale, 0, false, customCtx) as Record<string, unknown>);
   logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: options[0]?.sku ?? null, option_count: options.length }, true);
@@ -752,6 +766,23 @@ async function handleOptions(
   // frontend can draw a "required vs available" margin visual per option instead
   // of just prose reasoning (engineers expect a calculated load-curve feel here).
   const requiredForceN = loadKg > 0 ? Math.round(loadKg * 9.81 * 2) : 0;
+
+  // detectConflicts() already existed and is correct -- e.g. it flags exactly
+  // "high speed + high precision" (ball screws are rpm/resonance-limited, belts
+  // have backlash) -- but was only ever wired into handleBom, never here. A
+  // customer who only reaches the options step (a normal, valid path: chat,
+  // machine-builder's options display) never saw this engineering-conflict
+  // warning at all, even on a genuinely unsafe/unrealistic combination like
+  // 3 m/s + ±0.01 mm simultaneously. Found 2026-08-28 (adversarial test).
+  const cycleTimeS = extractCycleTimeS(combinedText, answers);
+  const isLowCost = needsLowCost(combinedText);
+  const is24x7 = needsContinuousDuty(combinedText);
+  const isDirtyEnv = needsDirtyEnv(combinedText);
+  const optDyn = computeDynamics(loadKg, maxRequiredStroke, cycleTimeS, isVerticalLoad);
+  const optConflicts = detectConflicts({
+    locale, precisionMm, isHighPrecision, speedMs, isDirtyEnv, isWashdown, isAtexDust,
+    isLowCost, is24x7, dyn: optDyn,
+  });
 
   // ── Shock-absorber application (decelerate an external moving mass) ──────────
   // Sized by kinetic energy ½·m·v², not bore/force — handled here so it skips the
@@ -1376,6 +1407,15 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
         es: `${topProducts.length} opciones seleccionadas para ${maxRequiredStroke > 0 ? `${maxRequiredStroke} mm de carrera` : "esta aplicación"}.`,
       }));
 
+  const finalSummary = optConflicts.length
+    ? `${summary} ` + pick(locale, {
+        sv: `⚠️ Kravkonflikter att notera: ${optConflicts.join(" | ")}`,
+        en: `⚠️ Requirement conflicts to note: ${optConflicts.join(" | ")}`,
+        de: `⚠️ Zu beachtende Anforderungskonflikte: ${optConflicts.join(" | ")}`,
+        es: `⚠️ Conflictos de requisitos a tener en cuenta: ${optConflicts.join(" | ")}`,
+      })
+    : summary;
+
   if (optRateLimited) {
     logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: true, top_sku: topProducts[0]?.sku ?? null }, false, "rate_limited");
     return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
@@ -1388,7 +1428,7 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     safety_factor: 2,
     pressure_bar: 6,
   };
-  return Response.json({ summary, options: finalOptions, requirements }, { headers: CORS });
+  return Response.json({ summary: finalSummary, options: finalOptions, requirements }, { headers: CORS });
 }
 
 // ── ACTION: bom (v40) ─────────────────────────────────────────────────────────
