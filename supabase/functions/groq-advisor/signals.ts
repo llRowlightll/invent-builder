@@ -583,6 +583,27 @@ export function extractCycleTimeS(text: string, answers: Record<string, string>)
   return m ? parseFloat(m[1].replace(",", ".")) : 0;
 }
 
+/**
+ * Number of identical stations/units in a multi-station request (e.g. "6
+ * identiska cylinderstationer på en sorteringslinje"). Consumed only by the
+ * BOM step: buildMandatoryBomRows() scales every row that represents
+ * genuinely per-station hardware by this count, while shared infrastructure
+ * (a valve terminal, a central FRL) and pure warning rows do not. Returns 1
+ * (a no-op multiplier) when no explicit count is stated, matching today's
+ * unchanged single-unit behavior. Deliberately requires a counting noun
+ * immediately next to the number -- a bare "6" is never enough -- so a
+ * bore/pressure/temperature value like "6 mm" or "6 bar" is never misread
+ * as a station count.
+ */
+export function extractUnitCount(text: string, answers: Record<string, string>): number {
+  const allText = text + " " + Object.values(answers).join(" ");
+  const m = allText.match(/(\d{1,3})\s*(?:st(?:ycken)?|identiska|parallella|stationer|celler|linjer|enheter|maskiner|units?|identical|parallel|stations?|cells?|lines?|machines?)\b/i)
+    || allText.match(/\b(?:st(?:ycken)?|identiska|antal)\s*(\d{1,3})\b/i);
+  if (!m) return 1;
+  const n = parseInt(m[1], 10);
+  return n >= 2 && n <= 200 ? n : 1;
+}
+
 export function needsLowCost(text: string): boolean {
   return /\blåg\s*kostnad\b|\bbillig\w*\b|\bkostnadseffektiv\w*\b|\bbudget\b|\blow[\s-]?cost\b|\bcheap\b|\bcost[\s-]?effective\b|\bminimera\s*kostnad/i.test(text);
 }

@@ -13,6 +13,7 @@ import {
   extractRequiredMaxTemp, extractMinStroke, extractPerAxisStrokes, extractSpeedMs,
   extractPrecisionMm, extractExplicitBoreMm, calcMinBoreMm, extractTorqueNm,
   extractRotationDeg, extractCycleTimeS, computeDynamics, detectConflicts,
+  extractUnitCount,
 } from "./signals.ts";
 
 // ── Explicit force statements must not round-trip through extractLoadKg ────────
@@ -222,4 +223,38 @@ Deno.test("detectHazards: perAxisStrokes stays gated on isMultiAxis -- two indep
   const h = detectHazards(text, answers, "sv");
   assertEquals(h.perAxisStrokes, []);
   assertEquals(h.requiredStrokeMm, extractMinStroke(answers, text));
+});
+
+// ── extractUnitCount: N identical stations in a BOM request ────────────────────
+// Found 2026-08-28: a "6 identiska cylinderstationer" request got a BOM sized
+// for exactly 1 -- buildMandatoryBomRows had no concept of station count at
+// all. BOM-only (not part of HazardFlags/detectHazards): the options step
+// recommends one representative product, it doesn't build a parts list.
+
+Deno.test("extractUnitCount detects a plain Swedish station count", () => {
+  assertEquals(extractUnitCount("6 identiska cylinderstationer på en sorteringslinje", {}), 6);
+});
+
+Deno.test("extractUnitCount detects '<N> st'", () => {
+  assertEquals(extractUnitCount("Pneumatisk cylinder, 12 st, till en förpackningslinje", {}), 12);
+});
+
+Deno.test("extractUnitCount detects English phrasing", () => {
+  assertEquals(extractUnitCount("4 identical pick-and-place stations", {}), 4);
+});
+
+Deno.test("extractUnitCount detects a count stated in an answer value", () => {
+  assertEquals(extractUnitCount("Pneumatisk cylinder", { antal_stationer: "8 stationer" }), 8);
+});
+
+Deno.test("extractUnitCount defaults to 1 (no-op) when no count is stated", () => {
+  assertEquals(extractUnitCount("Pneumatisk cylinder, slag 200mm", {}), 1);
+});
+
+Deno.test("extractUnitCount does not misread a bore/pressure/temperature number as a station count", () => {
+  assertEquals(extractUnitCount("Cylinder Ø6 mm, 6 bar, drifttemperatur 6°C", {}), 1);
+});
+
+Deno.test("extractUnitCount ignores an out-of-range count (typo guard)", () => {
+  assertEquals(extractUnitCount("300 identiska stationer", {}), 1);
 });

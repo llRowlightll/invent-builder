@@ -27,6 +27,7 @@ function bomCtx(over: Partial<BomCtx> = {}): BomCtx {
     products: [],
     primaryBoreMm: 0,
     primaryBrand: "",
+    unitCount: 1,
     // HazardFlags (see signals.ts) -- every field required by BomCtx extends
     // HazardFlags; TypeScript names exactly what's missing if this fixture
     // ever falls behind the interface again.
@@ -267,4 +268,73 @@ Deno.test("battery-dryroom BOM gets a deterministic Cu/Zn/Ni material-ban row, i
   const warnRow = rows.find((r) => /Cu\/Zn\/Ni/i.test(r.reason));
   assert(warnRow, "expected a deterministic Cu/Zn/Ni material-ban row for a battery-dryroom request");
   assertEquals(warnRow!.sku, "SPECIFY");
+});
+
+// ── unitCount: N identical stations scale per-station BOM rows ─────────────────
+// Found 2026-08-28: a "6 identiska cylinderstationer" request got a BOM sized
+// for exactly 1 -- every row below was a hardcoded literal with no concept of
+// station count. unitCount defaults to 1 (a no-op multiplier, see bomCtx()'s
+// default) so every existing test above is unaffected; these are the first
+// tests to exercise unitCount > 1.
+
+Deno.test("unitCount scales every genuinely per-station row", () => {
+  const products = [
+    prod("TEST-VALVE", "valve", "smc"),
+    prod("TEST-FC", "flow-control", "smc"),
+    prod("TEST-SIL", "silencer", "smc"),
+    prod("TEST-CV", "check-valve", "smc"),
+    prod("TEST-SA", "shock-absorber", "smc"),
+    prod("TEST-SENSOR", "sensor", "smc"),
+    prod("TEST-FITTING", "fitting", "smc"),
+  ];
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "TEST-PRIMARY", isVerticalLoad: true, isHighSpeed: true,
+    isEndPosDetect: true, unitCount: 6, products,
+  }));
+  const byRole = (re: RegExp) => rows.find((r) => re.test(r.role));
+  assertEquals(rows[0].quantity, 6, "primary actuator");
+  assertEquals(byRole(/pilotmanövrerad backslagsventil/i)?.quantity, 6, "check valve");
+  assertEquals(byRole(/magnetventil \(5\/2/i)?.quantity, 6, "individual valve");
+  assertEquals(byRole(/ljuddämpare/i)?.quantity, 12, "silencer (2 × 6, no valve terminal)");
+  assertEquals(byRole(/strypbackventil/i)?.quantity, 12, "flow control (2 × 6)");
+  assertEquals(byRole(/hydraulisk stötdämpare/i)?.quantity, 12, "shock absorber (2 × 6)");
+  assertEquals(byRole(/ändlägesgivare \(hemläge/i)?.quantity, 12, "end-position sensor (2 × 6)");
+  assertEquals(byRole(/snabbkoppling/i)?.quantity, 24, "push-in fitting (4 × 6)");
+});
+
+Deno.test("unitCount does NOT scale the valve terminal itself -- one manifold serves all stations by design", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "TEST-PRIMARY", valveTerminal: true, unitCount: 6,
+    products: [prod("TEST-VT", "valve-terminal", "festo")],
+  }));
+  const vtRow = rows.find((r) => /ventilramp/i.test(r.role));
+  assert(vtRow, "expected a valve-terminal row");
+  assertEquals(vtRow!.quantity, 1, "valve terminal stays a single shared manifold");
+  assert(/6 ventilposition/i.test(vtRow!.reason), "expected the sizing note to state the required valve-position count");
+});
+
+Deno.test("unitCount does NOT scale the FRL -- one central air-prep unit feeds all stations by design", () => {
+  const rows = buildMandatoryBomRows(bomCtx({ primarySku: "TEST-PRIMARY", unitCount: 6 }));
+  const frlRow = rows.find((r) => /FRL-enhet/i.test(r.role));
+  assert(frlRow, "expected an FRL row");
+  assertEquals(frlRow!.quantity, 1, "FRL stays a single shared unit");
+  assert(/6 station/i.test(frlRow!.reason), "expected the sizing note to state the station count");
+});
+
+Deno.test("unitCount does NOT scale the silencer when a valve terminal centralizes exhaust, but DOES when there's no terminal", () => {
+  const withTerminal = buildMandatoryBomRows(bomCtx({ primarySku: "TEST-PRIMARY", valveTerminal: true, unitCount: 6 }));
+  const withoutTerminal = buildMandatoryBomRows(bomCtx({ primarySku: "TEST-PRIMARY", valveTerminal: false, unitCount: 6 }));
+  assertEquals(withTerminal.find((r) => /ljuddämpare/i.test(r.role))?.quantity, 1);
+  assertEquals(withoutTerminal.find((r) => /ljuddämpare/i.test(r.role))?.quantity, 12);
+});
+
+Deno.test("unitCount does NOT scale pure warning/requirement rows -- they apply to the system once, not per station", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "TEST-PRIMARY", isWashdown: true, isHighTemp: true, isSilSafety: true, unitCount: 6,
+  }));
+  for (const role of [/Washdown IP69K/i, /Tätningsmaterial/i, /Säkerhetscertifierad magnetventil/i]) {
+    const row = rows.find((r) => role.test(r.role));
+    assert(row, `expected a row matching ${role}`);
+    assertEquals(row!.quantity, 1, `warning row ${role} must not scale with unitCount`);
+  }
 });
