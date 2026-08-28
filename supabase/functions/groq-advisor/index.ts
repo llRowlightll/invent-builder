@@ -542,11 +542,12 @@ async function handleEndEffectorOptions(
     const picks = cups.length <= 3 ? cups : [cups[0], cups[Math.floor(cups.length / 2)], cups[cups.length - 1]];
     // An explicitly stated holding force is a direct, already-usable spec --
     // use it as-is rather than reinterpreting it as a weight to reconvert
-    // (see extractHoldingForceN's comment for the bug this fixes). Reading
-    // hazards.holdingForceN instead of calling extractHoldingForceN(text, {})
-    // directly also closes a real gap: a force stated in an ANSWER field
-    // (not just free text) is now visible here too, since detectHazards()
-    // was given both.
+    // (see extractHoldingForceN's comment for the bug this fixes). Reads
+    // hazards.holdingForceN (computed once, upstream) instead of calling
+    // extractHoldingForceN(text, {}) again here -- behavior is unchanged
+    // (text was already combinedText, which already folds answers in), this
+    // just keeps this handler on the same single source of truth as the
+    // rest of the refactor instead of a second, redundant computation.
     const explicitHoldN = hazards.holdingForceN;
     const reqN = explicitHoldN > 0 ? explicitHoldN : (loadKg > 0 ? loadKg * 9.81 * 2 : 0); // 2× safety
     const options: Array<Record<string, unknown>> = picks.map((p, i) => {
@@ -626,9 +627,12 @@ async function handleEndEffectorOptions(
   // force was falling into extractLoadKg's generic N-to-kg fallback, then
   // getting multiplied by 100 again by the rule of thumb below -- a ~10×
   // inflated, wrong requirement derived from a number the customer already
-  // gave directly). Reading hazards.gripForceN instead of calling
-  // extractGripForceN(text, {}) directly also closes a real gap: a force
-  // stated in an ANSWER field (not just free text) is now visible here too.
+  // gave directly). Reads hazards.gripForceN (computed once, upstream)
+  // instead of calling extractGripForceN(text, {}) again here -- behavior
+  // is unchanged (text was already combinedText, which already folds
+  // answers in), this just keeps this handler on the same single source of
+  // truth as the rest of the refactor instead of a second, redundant
+  // computation.
   const explicitGripN = hazards.gripForceN;
   const reqN = explicitGripN > 0 ? explicitGripN : (loadKg > 0 ? Math.max(loadKg * 100, 20) : 0); // rule of thumb ≈ weight × 100 N
   let picks: CatalogProduct[];
