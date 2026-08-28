@@ -239,6 +239,7 @@ export interface BomCtx extends HazardFlags {
   products: CatalogProduct[];
   primaryBoreMm: number;   // fetched by SKU — `products` (30/category) may miss the primary
   primaryBrand: string;    // same as above — see fetchPrimaryInfo() call site
+  unitCount: number;       // extractUnitCount() — N identical stations; 1 when not stated
 }
 
 /**
@@ -250,8 +251,21 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   const { primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
           isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, locale, products,
           isMounting, isArticulated, isRodLock, primaryBoreMm, primaryBrand: primaryBrandFetched, isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
-          isMultiAxis, perAxisStrokes, isBatteryDryroom } = ctx;
+          isMultiAxis, perAxisStrokes, isBatteryDryroom, unitCount } = ctx;
   const isPneumatic = !isElectric && !isAtex && !isAtexDust;
+  // Found 2026-08-28 (adversarial test): a "6 identiska cylinderstationer"
+  // request got a BOM sized for exactly 1 -- every row below was a hardcoded
+  // literal with no concept of station count at all. unitCount defaults to 1
+  // (a no-op multiplier), so every existing single-unit request is byte-for-
+  // byte unchanged; it only takes effect when extractUnitCount() finds an
+  // explicit count. Applied per-row, not as a blanket post-pass, because not
+  // everything scales 1:1: genuinely per-station hardware (actuator, valve,
+  // sensors, fittings, mounts) does; shared infrastructure that consolidates
+  // across stations by design (a valve terminal's own unit count, a central
+  // FRL, the valve-terminal case's centralized silencer) and pure warning/
+  // requirement rows (⚠️/⛔ rows with no purchasable quantity) do not -- see
+  // each row below for which case it is.
+  const uc = unitCount > 0 ? unitCount : 1;
   const rows: Array<{ sku: string; quantity: number; role: string; reason: string }> = [];
 
   // ── 1. Primary actuator (ALWAYS first) ───────────────────────────
@@ -268,7 +282,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     es: " ⚠️ Familia de productos — indique el código de pedido completo (diámetro + carrera + variantes) al realizar el pedido.",
   }) : "";
   rows.push({
-    sku: primarySku, quantity: 1,
+    sku: primarySku, quantity: uc,
     role: pick(locale, { sv: "Primär aktuator", en: "Primary actuator", de: "Primäraktuator", es: "Actuador primario" })
       + (primaryAxisLabel ? pick(locale, { sv: ` — ${primaryAxisLabel}-axel`, en: ` — ${primaryAxisLabel}-axis`, de: ` — ${primaryAxisLabel}-Achse`, es: ` — eje ${primaryAxisLabel}` }) : ""),
     reason: pick(locale, { sv: "Vald primär aktuator", en: "Selected primary actuator", de: "Ausgewählter Primäraktuator", es: "Actuador primario seleccionado" }) + famNote,
@@ -303,7 +317,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
       // Hard-coding "Servomotor" produced the stepper/servo mix-up users flagged.
       const stepperMotor = /steg|stepper/i.test(`${motorMatch!.name} ${motorMatch!.sku}`);
       rows.push({
-        sku: motorMatch!.sku, quantity: 1,
+        sku: motorMatch!.sku, quantity: uc,
         role: isVerticalLoad
           ? pick(locale, { sv: "Bromsmotor (vertikal säkerhet)", en: "Brake motor (vertical safety)", de: "Bremsmotor (vertikale Sicherheit)", es: "Motor con freno (seguridad vertical)" })
           : pick(locale, stepperMotor
@@ -374,7 +388,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     const bU = primaryBrand ? primaryBrand.toUpperCase() : "";
     const stepperDrive = !!driveMatch && /steg|stepper/i.test(`${driveMatch.name} ${driveMatch.sku}`);
     rows.push({
-      sku: sameBrandDrive ? driveMatch!.sku : "SPECIFY", quantity: 1,
+      sku: sameBrandDrive ? driveMatch!.sku : "SPECIFY", quantity: uc,
       role: pick(locale, stepperDrive
         ? { sv: "Stegmotordrivare (drivsteg)", en: "Stepper drive (driver)", de: "Schrittmotortreiber (Endstufe)", es: "Controlador de motor paso a paso" }
         : { sv: "Servodrivare (drivsteg)", en: "Servo drive (amplifier)", de: "Servoantrieb (Endstufe)", es: "Accionamiento servo (amplificador)" }),
@@ -398,7 +412,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   if (isVerticalLoad && isPneumatic) {
     const cvMatch = findCatalogProductByType("check-valve", products);
     rows.push({
-      sku: cvMatch?.sku ?? "SPECIFY", quantity: 1,
+      sku: cvMatch?.sku ?? "SPECIFY", quantity: uc,
       role: pick(locale, { sv: "Pilotmanövrerad backslagsventil", en: "Pilot-operated check valve", de: "Pilotgesteuertes Rückschlagventil", es: "Válvula antirretorno pilotada" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK vid pneumatisk vertikal last — förhindrar att lasten faller vid lufttrycksförlust (IEC 60947-5-1)",
@@ -425,7 +439,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
       p.category === "rod-lock" && pBore > 0 &&
       (firstNumAbs(p.key_specs?.bore_mm) === pBore || firstNumAbs(p.name.match(/Ø\s?(\d+)/)?.[1]) === pBore));
     rows.push({
-      sku: lock?.sku ?? "SPECIFY", quantity: 1,
+      sku: lock?.sku ?? "SPECIFY", quantity: uc,
       role: pick(locale, { sv: "Stångbroms/mekaniskt lås (fail-safe)", en: "Rod lock / mechanical brake (fail-safe)", de: "Kolbenstangenbremse/mechanische Verriegelung (fail-safe)", es: "Bloqueo de vástago/freno mecánico (fail-safe)" }),
       reason: lock
         ? pick(locale, {
@@ -446,6 +460,16 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   // ── 4. Valve terminal (multi-actuator / fieldbus) OR single directional valve ─
   if (valveTerminal && isPneumatic) {
     const vtMatch = findCatalogProductByType("valve-terminal", products);
+    // Shared infrastructure -- one manifold consolidates N stations' valves by
+    // design, so this row does NOT scale by uc the way per-station hardware
+    // does. When uc > 1, the valve count it needs to be sized for is stated
+    // explicitly instead of the generic "specify valve count" phrasing.
+    const vtSizingNote = uc > 1 ? pick(locale, {
+      sv: ` Dimensionera för minst ${uc} ventilpositioner (en per station).`,
+      en: ` Size for at least ${uc} valve positions (one per station).`,
+      de: ` Für mindestens ${uc} Ventilpositionen dimensionieren (eine je Station).`,
+      es: ` Dimensione para al menos ${uc} posiciones de válvula (una por estación).`,
+    }) : "";
     rows.push({
       sku: vtMatch?.sku ?? "SPECIFY", quantity: 1,
       role: pick(locale, { sv: "Ventilramp (ventilterminal)", en: "Valve terminal (manifold)", de: "Ventilinsel (Ventilterminal)", es: "Terminal de válvulas (colector)" }),
@@ -454,12 +478,12 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
         en: "MANDATORY for fieldbus (PROFINET/EtherCAT) — valve terminal (CPV, VTSA, MPA) consolidates all valves, reduces wiring. Specify bus module and valve count.",
         de: "ZWINGEND ERFORDERLICH für Feldbusanbindung (PROFINET/EtherCAT) — die Ventilinsel (CPV, VTSA, MPA) fasst alle Ventile in einer Einheit zusammen und reduziert den Verkabelungsaufwand. Busmodul und Ventilanzahl angeben.",
         es: "OBLIGATORIO para conexión de bus de campo (PROFINET/EtherCAT) — el terminal de válvulas (CPV, VTSA, MPA) agrupa todas las válvulas en una unidad y reduce el cableado. Especifique el módulo de bus y el número de válvulas.",
-      }),
+      }) + vtSizingNote,
     });
   } else if (isPneumatic) {
     const valveMatch = findCatalogProductByType("valve", products);
     rows.push({
-      sku: valveMatch?.sku ?? "SPECIFY", quantity: 1,
+      sku: valveMatch?.sku ?? "SPECIFY", quantity: uc,
       role: pick(locale, { sv: "Magnetventil (5/2-vägs styrventil)", en: "Solenoid valve (5/2-way directional)", de: "Magnetventil (5/2-Wege-Steuerventil)", es: "Electroválvula (5/2 vías)" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK för pneumatisk cylinder — 5/2-vägs magnetventil styr cylinderns riktning (fram/åter). Välj spänning 24 V DC och anslutning G1/4.",
@@ -474,7 +498,11 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   if (isPneumatic) {
     const silMatch = findCatalogProductByType("silencer", products);
     rows.push({
-      sku: silMatch?.sku ?? "SPECIFY", quantity: valveTerminal ? 1 : 2,
+      // valveTerminal case: one central exhaust unit serves all stations by
+      // design (same shared-infrastructure reasoning as the valve terminal
+      // itself) -- does not scale by uc. Individual-valve case: each
+      // station's own valve needs its own exhaust silencing -- does.
+      sku: silMatch?.sku ?? "SPECIFY", quantity: valveTerminal ? 1 : 2 * uc,
       role: pick(locale, { sv: "Ljuddämpare (avluftning)", en: "Silencer (exhaust)", de: "Schalldämpfer (Entlüftung)", es: "Silenciador (escape)" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK på ventilens avluftningsportar (3/5) — sänker ljudnivån och skyddar mot smuts. En per avluftningsport (2 st för en 5/2-ventil); vid ventilramp räcker en central enhet.",
@@ -485,7 +513,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     });
     const fcMatch = findCatalogProductByType("flow-control", products);
     rows.push({
-      sku: fcMatch?.sku ?? "SPECIFY", quantity: 2,
+      sku: fcMatch?.sku ?? "SPECIFY", quantity: 2 * uc,
       role: pick(locale, { sv: "Strypbackventil (hastighetsreglering)", en: "One-way flow control (speed)", de: "Drosselrückschlagventil (Geschwindigkeitsregelung)", es: "Regulador de caudal unidireccional (velocidad)" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK för att ställa cylinderns hastighet — 2 st strypbackventiler (meter-out) på cylinderns portar ger jämn, kontrollerad rörelse fram och åter.",
@@ -499,6 +527,15 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   // ── 5. FRL (all pneumatic) ────────────────────────────────────────
   if (isPneumatic) {
     const frlMatch = findCatalogProductByType("frl", products);
+    // Shared infrastructure -- one central air-prep unit feeds N stations by
+    // design (same reasoning as the valve terminal), so this does NOT scale
+    // by uc; the flow capacity it needs to be sized for is stated instead.
+    const frlSizingNote = uc > 1 ? pick(locale, {
+      sv: ` Dimensionera flödeskapaciteten för ${uc} stationer.`,
+      en: ` Size the flow capacity for ${uc} stations.`,
+      de: ` Die Durchflusskapazität für ${uc} Stationen dimensionieren.`,
+      es: ` Dimensione la capacidad de caudal para ${uc} estaciones.`,
+    }) : "";
     rows.push({
       sku: frlMatch?.sku ?? "SPECIFY", quantity: 1,
       role: pick(locale, { sv: "FRL-enhet (Filter-Regulator-Smörjare)", en: "FRL unit (Filter-Regulator-Lubricator)", de: "FRL-Einheit (Filter-Regler-Öler)", es: "Unidad FRL (Filtro-Regulador-Lubricador)" }),
@@ -507,7 +544,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
         en: "MANDATORY for pneumatic system — air preparation ensures correct working pressure, filtered air (≥40 µm) and seal lubrication. Select regulator with pressure gauge 0–10 bar.",
         de: "ZWINGEND ERFORDERLICH für pneumatische Systeme — die Luftaufbereitung stellt den richtigen Arbeitsdruck, gefilterte Luft (≥40 µm) und die Schmierung der Zylinderdichtungen sicher. Regler mit Manometer 0–10 bar wählen.",
         es: "OBLIGATORIO para sistemas neumáticos — el tratamiento de aire garantiza la presión de trabajo correcta, aire filtrado (≥40 µm) y lubricación de las juntas del cilindro. Seleccione un regulador con manómetro de 0-10 bar.",
-      }),
+      }) + frlSizingNote,
     });
   }
 
@@ -515,7 +552,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   if (isHighSpeed) {
     const saMatch = findCatalogProductByType("shock-absorber", products);
     rows.push({
-      sku: saMatch?.sku ?? "SPECIFY", quantity: 2,
+      sku: saMatch?.sku ?? "SPECIFY", quantity: 2 * uc,
       role: pick(locale, { sv: "Hydraulisk stötdämpare", en: "Hydraulic shock absorber", de: "Hydraulischer Stoßdämpfer", es: "Amortiguador hidráulico" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK vid slaghastighet >1 m/s — förhindrar skador på cylinderände och maskinkonstruktion. Välj justerbar hydraulisk stötdämpare dimensionerad för cylinderkraft och massa.",
@@ -538,7 +575,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   // the honest answer, same pattern as the other ATEX-only rows below.
   if (isEndPosDetect && (isAtex || isAtexDust)) {
     rows.push({
-      sku: "SPECIFY", quantity: 2,
+      sku: "SPECIFY", quantity: 2 * uc,
       role: pick(locale, { sv: "ATEX-ändlägesgivare (zon-certifierad)", en: "ATEX end-position sensor (zone-certified)", de: "ATEX-Endlagensensor (zonzertifiziert)", es: "Sensor de fin de carrera ATEX (certificado para la zona)" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK — 2 st ATEX/IECEx-certifierade lägesgivare (en per ändläge) krävs för PLC-feedback. Standard 24V-givare är EJ tillåtna i zonen; vi har ingen zon-certifierad givare i lager, begär offert.",
@@ -561,7 +598,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     // for servo-motor/servo-drive above) — just wasn't being used here.
     const sensorMatch = findCatalogProductByType("sensor", brandSorted);
     rows.push({
-      sku: sensorMatch?.sku ?? "SPECIFY", quantity: 2,
+      sku: sensorMatch?.sku ?? "SPECIFY", quantity: 2 * uc,
       role: pick(locale, { sv: "Ändlägesgivare (hemläge + utsträckt läge)", en: "End-position sensor (home + extended)", de: "Endlagensensor (Grundstellung + ausgefahren)", es: "Sensor de fin de carrera (posición inicial + extendida)" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK — 2 st magnetgivare (en per ändläge) krävs för PLC-feedback. Välj givare som passar cylinderns givarspår (T-spår eller C-spår, beroende på fabrikat) samt styrsystem (24 V DC NPN/PNP).",
@@ -590,7 +627,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     const fittingMatch = findCatalogProductByType("fitting", products);
     if (fittingMatch) {
       rows.push({
-        sku: fittingMatch.sku, quantity: 4,
+        sku: fittingMatch.sku, quantity: 4 * uc,
         role: pick(locale, { sv: "Snabbkoppling (push-in fitting)", en: "Push-in fitting", de: "Steckverschraubung (Push-in-Fitting)", es: "Racor instantáneo (push-in)" }),
         reason: pick(locale, {
           sv: "Ansluter cylinder och ventil till luftslang — välj diameter (6/8/10 mm) för rätt slanganslutning till cylinderns G-port.",
@@ -606,6 +643,17 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   if (isPneumatic) {
     const tubeMatch = findCatalogProductByType("tubing", products);
     if (tubeMatch) {
+      // quantity stays 1 regardless of uc -- it's a "per metre" placeholder
+      // even for a single station (the real length is installation-specific
+      // and unknown here), so scaling the row count wouldn't map onto an
+      // actual metre figure. Total length scaling with station count is
+      // called out in the note instead.
+      const tubeNote = uc > 1 ? pick(locale, {
+        sv: ` Total längd skalar med antal stationer (${uc} st) och layout.`,
+        en: ` Total length scales with station count (${uc}) and layout.`,
+        de: ` Die Gesamtlänge skaliert mit der Stationsanzahl (${uc}) und dem Layout.`,
+        es: ` La longitud total escala con el número de estaciones (${uc}) y el diseño.`,
+      }) : "";
       rows.push({
         sku: tubeMatch.sku, quantity: 1,
         role: pick(locale, { sv: "Tryckluftsslang (per meter)", en: "Pneumatic tubing (per metre)", de: "Druckluftschlauch (pro Meter)", es: "Tubo neumático (por metro)" }),
@@ -614,7 +662,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
           en: "Connects valve, FRL and cylinder — select outer diameter (6/8/10 mm) and length per the installation. Sold per metre.",
           de: "Verbindet Ventil, FRL-Einheit und Zylinder — Außendurchmesser (6/8/10 mm) und Länge passend zur Installation wählen. Wird pro Meter angegeben.",
           es: "Conecta la válvula, la unidad FRL y el cilindro — seleccione el diámetro exterior (6/8/10 mm) y la longitud según la instalación. Se indica por metro.",
-        }),
+        }) + tubeNote,
       });
     }
   }
@@ -624,7 +672,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     const cableMatch = findCatalogProductByType("cable", products);
     if (cableMatch) {
       rows.push({
-        sku: cableMatch.sku, quantity: 1,
+        sku: cableMatch.sku, quantity: uc,
         role: pick(locale, { sv: "Motorkabel", en: "Motor cable", de: "Motorkabel", es: "Cable de motor" }),
         reason: pick(locale, {
           sv: "Anslutningskabel till drivenheten — välj längd och kontakttyp kompatibel med vald motor och drivare.",
@@ -658,7 +706,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
       const swivel = mounts.find(p => boreOk(p) && /svängfläns|swivel|pivå|trunnion|ledlager/i.test(p.name));
       const clevis = mounts.find(p => boreOk(p) && /gaffel|clevis/i.test(p.name));
       rows.push({
-        sku: swivel?.sku ?? "SPECIFY", quantity: 1,
+        sku: swivel?.sku ?? "SPECIFY", quantity: uc,
         role: pick(locale, { sv: "Svängfläns/ledlager (bakgavel)", en: "Rear swivel/pivot flange", de: "Schwenkflansch/Gelenklager (Hinterseite)", es: "Brida giratoria/rótula (parte trasera)" }),
         reason: swivel
           ? pick(locale, {
@@ -675,7 +723,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
             }),
       });
       rows.push({
-        sku: clevis?.sku ?? "SPECIFY", quantity: 1,
+        sku: clevis?.sku ?? "SPECIFY", quantity: uc,
         role: pick(locale, { sv: "Gaffelfäste (kolvstångsände)", en: "Rod clevis (rod end)", de: "Gabelkopf (Kolbenstangenende)", es: "Horquilla (extremo del vástago)" }),
         reason: clevis
           ? pick(locale, {
@@ -699,7 +747,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
       const footish = mounts.filter(p => !/gaffel|clevis|svängfläns|swivel|pivå|trunnion|ledlager/i.test(p.name));
       const mount = footish.find(p => boreOk(p) && /fotfäste|foot/i.test(p.name)) ?? footish.find(boreOk) ?? null;
       rows.push({
-        sku: mount?.sku ?? "SPECIFY", quantity: 1,
+        sku: mount?.sku ?? "SPECIFY", quantity: uc,
         role: pick(locale, { sv: "Monteringsfäste (fotfäste/flänsfäste)", en: "Mounting bracket (foot/flange mount)", de: "Befestigungswinkel (Fuß-/Flanschbefestigung)", es: "Soporte de montaje (pie/brida)" }),
         reason: mount
           ? pick(locale, {
@@ -728,7 +776,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
       // P0: match a REAL catalog actuator for this axis instead of a placeholder.
       const axMatch = findAxisActuator(brandSorted, ax.stroke, isElectric);
       rows.push({
-        sku: axMatch?.sku ?? "SPECIFY", quantity: 1,
+        sku: axMatch?.sku ?? "SPECIFY", quantity: uc,
         role: pick(locale, { sv: `Aktuator — ${axLabel}-axel`, en: `Actuator — ${axLabel}-axis`, de: `Aktuator — ${axLabel}-Achse`, es: `Actuador — eje ${axLabel}` }),
         reason: axMatch
           ? pick(locale, {
@@ -833,7 +881,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   // is forbidden in ATEX and handled elsewhere) or if no primary is pneumatic.
   if ((isAtex || isAtexDust) && !isElectric) {
     rows.push({
-      sku: "SPECIFY", quantity: 1,
+      sku: "SPECIFY", quantity: uc,
       role: pick(locale, { sv: "ATEX-magnetventil (zon-certifierad)", en: "ATEX solenoid valve (zone-certified)", de: "ATEX-Magnetventil (zonzertifiziert)", es: "Electroválvula ATEX (certificada para la zona)" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK styrventil för ATEX-zon — använd ATEX/IECEx-certifierad ventil (t.ex. Festo VOFC/tryckluftsstyrd) eller montera standardventil UTANFÖR zonen och dra slang in. Standardkatalogventiler är EJ zon-godkända.",
@@ -857,7 +905,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     // excludes ATEX), so add an explicit ATEX-rated load-holding row here.
     if (isVerticalLoad) {
       rows.push({
-        sku: "SPECIFY", quantity: 1,
+        sku: "SPECIFY", quantity: uc,
         role: pick(locale, { sv: "ATEX-fallspärr (pilotbackventil / mekanisk stångbroms)", en: "ATEX anti-drop (pilot check valve / mechanical rod lock)", de: "ATEX-Fallsicherung (pilotgesteuertes Rückschlagventil / mechanische Kolbenstangenbremse)", es: "Antirretorno ATEX (válvula antirretorno pilotada / bloqueo mecánico de vástago)" }),
         reason: pick(locale, {
           sv: "OBLIGATORISK vid vertikal last i ATEX-zon — förhindrar lastfall vid lufttrycksförlust. Använd ATEX/IECEx-klassad pilotmanövrerad backslagsventil eller mekanisk stångbroms. Elektrisk bromsmotor är EJ tillåten i zonen.",

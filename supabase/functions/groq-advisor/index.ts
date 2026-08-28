@@ -32,6 +32,7 @@ import {
   extractTorqueNm,
   extractRotationDeg,
   parseTorqueFromSpecs,
+  extractUnitCount,
   detectHazards,
   type HazardFlags,
   detectEndEffectorIntent,
@@ -1451,6 +1452,10 @@ async function handleBom(
   const combinedText = (description ?? "") + " " + Object.values(answers).join(" ");
   const categories = detectCategories(combinedText);
   const hazards = detectHazards(combinedText, answers, locale);
+  // N identical stations (e.g. "6 identiska cylinderstationer") -- BOM-only,
+  // not a hazard flag, so it isn't part of HazardFlags. Defaults to 1 (a
+  // no-op multiplier inside buildMandatoryBomRows) when not stated.
+  const unitCount = extractUnitCount(combinedText, answers);
   // Base isElectric on the ACTUAL chosen primary product, not the loose candidate
   // categories — a trigger like "noggrann"/"precis" can put electric-actuator into
   // the categories even when the chosen primary is a pneumatic cylinder, which then
@@ -1514,7 +1519,7 @@ async function handleBom(
   const bomCtx: BomCtx = {
     ...hazards,
     primarySku, primaryIsFamilyProd, isElectric, locale,
-    products: atexSafeProducts, primaryBoreMm, primaryBrand,
+    products: atexSafeProducts, primaryBoreMm, primaryBrand, unitCount,
   };
   const mandatoryBom = buildMandatoryBomRows(bomCtx);
   console.log(`[bom v49] primary=${primarySku} electric=${isElectric} vertical=${hazards.isVerticalLoad} highSpeed=${hazards.isHighSpeed} multiAxis=${hazards.isMultiAxis} mounting=${hazards.isMounting} mandatoryRows=${mandatoryBom.length}`);
