@@ -201,3 +201,23 @@ for (const [locale, keyword] of Object.entries(LOCALE_MANDATORY_KEYWORD)) {
     assert(keyword.test(sensorRow!.reason), `reason must contain ${keyword} for locale ${locale}, got: ${sensorRow!.reason}`);
   });
 }
+
+// ── Integrated-motor actuator (e.g. SMC LEY) must explain, not go silent (#new) ─
+// Found 2026-08-28 (adversarial test): SMC has zero standalone servo-motor
+// products -- its electric axes are integrated-motor units, so no separate
+// motor purchase is needed. The vertical-load branch already explained this
+// correctly on the primary row; the (more common) non-vertical case stayed
+// completely silent -- indistinguishable from "the BOM forgot the motor" to a
+// customer, even though nothing is actually missing.
+const MOTOR_ROLE = /servomotor|stegmotor|bromsmotor|stepper motor|brake motor|servo motor|schrittmotor|bremsmotor|motor paso a paso|motor con freno/i;
+
+Deno.test("integrated-motor actuator (no same-brand servo-motor product) explains itself on the primary row instead of going silent", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "SMC-LEY", primaryBrand: "smc", isElectric: true, isVerticalLoad: false,
+    products: [prod("SMC-LECA6", "servo-drive", "smc")], // no "servo-motor" category product for smc at all
+  }));
+  assertEquals(findRow(rows, MOTOR_ROLE), undefined, "must not invent a separate motor row when none exists");
+  const primaryRow = rows.find((r) => r.sku === "SMC-LEY");
+  assert(primaryRow, "expected the primary actuator row");
+  assert(/integrerad|integrated|integriert/i.test(primaryRow!.reason), "primary row must explain the motor is integrated, not stay silent");
+});

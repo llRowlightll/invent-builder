@@ -358,6 +358,20 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
         de: " Mit der Option integrierte Haltebremse für vertikale Sicherheit bestellen — hält die Last bei Stromausfall.",
         es: " Pedir con la opción de freno de retención integrado para seguridad vertical — sujeta la carga ante fallo de alimentación.",
       });
+    } else {
+      // Found 2026-08-28 (adversarial test): an SMC-LEY BOM (SMC has zero
+      // standalone servo-motor products -- its electric axes are integrated-
+      // motor units) got a servo-drive row but NO motor row and NO explanation
+      // -- the vertical-load branch above already correctly explains this for
+      // integrated-motor actuators, but the (more common) non-vertical case
+      // stayed completely silent. Indistinguishable from "the BOM forgot the
+      // motor" to a customer, even though nothing is actually missing to buy.
+      rows[0].reason += pick(locale, {
+        sv: " Motorn är integrerad i axeln — ingen separat servomotor behöver beställas.",
+        en: " The motor is integrated into the axis — no separate servo motor needs to be ordered.",
+        de: " Der Motor ist in die Achse integriert — es muss kein separater Servomotor bestellt werden.",
+        es: " El motor está integrado en el eje — no es necesario pedir un servomotor independiente.",
+      });
     }
   }
 
