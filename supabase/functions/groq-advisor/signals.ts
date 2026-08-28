@@ -799,7 +799,13 @@ export function detectHazards(
 
   const requiredMaxTempC = extractRequiredMaxTemp(text, answers);
   const minStrokeMm = extractMinStroke(answers, text);
-  const perAxisStrokes = extractPerAxisStrokes(answers);
+  // Gated on isMultiAxis, matching both call sites this replaced (handleBom's
+  // and handleOptions's own pre-refactor locals) -- extractPerAxisStrokes
+  // matches ANY answer key containing a stroke-ish term, not just genuinely
+  // separate axes, so ungated it can wrongly treat e.g. two independently-
+  // keyed stroke answers on a single-axis request as multiple axes and take
+  // their max instead of minStrokeMm's single (first-match) value.
+  const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
   const requiredStrokeMm = isSystemScope ? 0
     : perAxisStrokes.length > 0 ? Math.max(...perAxisStrokes.map(a => a.stroke))
     : minStrokeMm;

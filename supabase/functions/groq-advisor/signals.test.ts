@@ -164,9 +164,15 @@ for (const { text, answers } of EQUIVALENCE_CASES) {
 
     assertEquals(h.requiredMaxTempC, extractRequiredMaxTemp(text, answers));
     assertEquals(h.minStrokeMm, extractMinStroke(answers, text));
-    assertEquals(h.perAxisStrokes, extractPerAxisStrokes(answers));
+    // Gated on needsMultiAxis, matching both original call sites (handleBom's
+    // and handleOptions's own pre-refactor locals) -- NOT extractPerAxisStrokes
+    // unconditionally, which would just restate detectHazards's own
+    // implementation back at itself instead of checking it against the
+    // ground truth those two call sites already agreed on.
+    const expectedPerAxisStrokes = needsMultiAxis(text) ? extractPerAxisStrokes(answers) : [];
+    assertEquals(h.perAxisStrokes, expectedPerAxisStrokes);
     const expectedRequiredStroke = isMultiFunctionSystem(text) ? 0
-      : extractPerAxisStrokes(answers).length > 0 ? Math.max(...extractPerAxisStrokes(answers).map((a) => a.stroke))
+      : expectedPerAxisStrokes.length > 0 ? Math.max(...expectedPerAxisStrokes.map((a) => a.stroke))
       : extractMinStroke(answers, text);
     assertEquals(h.requiredStrokeMm, expectedRequiredStroke);
     assertEquals(h.speedMs, extractSpeedMs(text, answers));
@@ -193,4 +199,27 @@ Deno.test("detectHazards' isPureRotary-relevant fields: dynamics is always null 
   const h = detectHazards("Rotationsaktuator, vridmoment 20Nm, 90 graders rörelse", {}, "sv");
   assertEquals(h.requiredStrokeMm, 0);
   assertEquals(h.dynamics, null);
+});
+
+// Found 2026-08-28: perAxisStrokes was ungated in detectHazards, unlike both
+// original call sites (handleBom's and handleOptions's own pre-refactor
+// locals), which both computed `isMultiAxis ? extractPerAxisStrokes(answers)
+// : []`. extractPerAxisStrokes matches ANY answer key containing a stroke-ish
+// term, so ungated it could wrongly treat two independently-keyed stroke
+// answers on a single-axis request as separate axes and take their max
+// instead of minStrokeMm's single value. Slipped through PR 1's equivalence
+// tests because every EQUIVALENCE_CASES fixture used answers: {} -- this is
+// the first test in the file to exercise a multi-key answers object.
+Deno.test("detectHazards: perAxisStrokes stays gated on isMultiAxis -- two independently-keyed stroke answers on a single-axis request must not be treated as separate axes", () => {
+  const text = "Pneumatisk cylinder för enkel dörröppning";
+  const answers = { cylinder_a_stroke: "300", cylinder_b_stroke: "500" };
+  // Confirm the fixture actually exercises the gate: ungated, these two
+  // independently-keyed answers produce two entries, proving the old code
+  // really did diverge here rather than coincidentally agreeing either way.
+  assertEquals(needsMultiAxis(text), false);
+  assertEquals(extractPerAxisStrokes(answers).length, 2);
+
+  const h = detectHazards(text, answers, "sv");
+  assertEquals(h.perAxisStrokes, []);
+  assertEquals(h.requiredStrokeMm, extractMinStroke(answers, text));
 });
