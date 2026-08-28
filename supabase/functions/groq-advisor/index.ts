@@ -20,52 +20,18 @@ import {
   pick,
   balancedSlice,
   sortByStrokeMatch,
-  isMultiFunctionSystem,
   detectCategories,
   parseProductTempMax,
-  extractRequiredMaxTemp,
   strokeLabel,
-  extractMinStroke,
-  extractPerAxisStrokes,
-  needsMultiAxis,
-  needsVacuumGrip,
-  needsValveTerminal,
-  needsAtex,
-  needsVerticalLoad,
-  needsHighTemp,
-  needsLowTemp,
-  isHydraulicApplication,
-  needsVeryHighForce,
-  needsOxygenClean,
-  needsHighCycle,
-  needsHighSpeed,
-  needsSilSafety,
-  needsOutdoor,
-  needsPharmaGmp,
   detectRequestedBrands,
-  needsAtexDust,
-  needsBatteryDryroom,
-  extractSpeedMs,
-  extractPrecisionMm,
   isPneumaticByDrive,
   needsRodLock,
-  needsWashdown,
   needsEndPositionDetection,
-  extractExplicitBoreMm,
-  needsArticulatedMount,
   isNonArticulatingActuator,
   needsMounting,
-  calcMinBoreMm,
-  extractLoadKg,
   extractTorqueNm,
   extractRotationDeg,
   parseTorqueFromSpecs,
-  extractCycleTimeS,
-  needsLowCost,
-  needsContinuousDuty,
-  needsDirtyEnv,
-  computeDynamics,
-  detectConflicts,
   detectHazards,
   type HazardFlags,
   detectEndEffectorIntent,
@@ -413,11 +379,19 @@ async function handleQuestions(description: string, locale: string): Promise<Res
   // PDF context is more valuable in the options step where catalog matching matters.
   const pdfCtx = "";
   const lang = langName(locale);
-  const isMulti = needsMultiAxis(description);
-  const isVac = needsVacuumGrip(description);
-  const isWashdown = needsWashdown(description);
-  const isVertical = needsVerticalLoad(description);
-  const isFoodGrade = /livsmedel|food|slakteri|chark|mejeri|kött|meat|poultry|fjäderfä|dairy|fisk|fish|bageri|brewery|nsf|h1\b/i.test(description);
+  // No answers exist yet at this step (questions haven't been asked), matching
+  // every other detectHazards call site's behavior of passing the real answers
+  // object once one exists. isFoodGrade picks up detectHazards's canonical
+  // needsFoodGrade(text) || isPharmaGmp composition here -- a deliberate, named
+  // behavior delta from this file's old bespoke regex: it gains the wider
+  // nsf/h1 terms (harmless, was already a superset elsewhere) AND the pharma/
+  // GMP OR (new -- a GMP-only description now also triggers the food-grade
+  // question branch, consistent with how every other consumer already treats
+  // GMP as implying food-grade).
+  const hazards = detectHazards(description, {}, locale);
+  const {
+    isMultiAxis: isMulti, isVacuum: isVac, isWashdown, isVerticalLoad: isVertical, isFoodGrade,
+  } = hazards;
   const isSafetyMentioned = /livsfara|fallskydd|safe.stop|nödstopp|låsenhet|locking|sil\b|pl[bcd]\b|skyddsdörr|skyddsgrind|guard/i.test(description);
   const isElectric = /elektrisk|electric|servo|stepper|elaxel|eldriven|kuggrem|ball.screw/i.test(description);
   const isCylinder = !isElectric;
@@ -713,48 +687,36 @@ async function handleOptions(
   const t0 = Date.now();
   const combinedText = description + " " + Object.values(answers).join(" ");
   const categories = detectCategories(combinedText);
-  // Added now (PR 3/5) only to support handleEndEffectorOptions's migration --
-  // this function's OWN ~25 individually-duplicated locals below are
-  // deliberately left as-is for now (temporary, intentional duplication) and
-  // migrated onto `hazards` in a later PR, kept separate so each PR stays
-  // independently reviewable.
   const hazards = detectHazards(combinedText, answers, locale);
-  const minStroke = extractMinStroke(answers, description);
+  // Destructured (not individually re-derived) so every consumer below reads
+  // off the one computation detectHazards already did -- the bug class this
+  // whole refactor exists to close was exactly two call sites independently
+  // calling needsX(combinedText) and silently drifting (PR 3's #153 caught
+  // one still live in this very function, in the hydraulic/isPureRotary
+  // branches). Renamed on destructure only where this function's existing
+  // downstream code already used a different local name (maxRequiredStroke/
+  // requiredTemp) -- kept those names rather than renaming every downstream
+  // usage (some 30-40x each), which would be pure mechanical risk the actual
+  // fix doesn't require. cycleTimeS/isLowCost/is24x7/isDirtyEnv/minStrokeMm/
+  // dynamics aren't destructured here: their only past purpose in this
+  // function was feeding the local computeDynamics()/detectConflicts() calls
+  // this replaces, and detectHazards already does that internally.
+  const {
+    isMultiAxis, isSystemScope, isVacuum, valveTerminal, isWashdown, isAtex, isAtexDust,
+    isVerticalLoad, isHighTemp, isLowTemp, isHydraulic, isVeryHighForce, isOxygenClean,
+    isHighCycle, isHighSpeed, isSilSafety, isOutdoor, isPharmaGmp, isBatteryDryroom,
+    speedMs, precisionMm, isHighPrecision, loadKg, minBoreMm, perAxisStrokes,
+    requiredStrokeMm: maxRequiredStroke, requiredMaxTempC: requiredTemp, conflicts: optConflicts,
+  } = hazards;
   const isCleanroom = /\brenrum\b|\bcleanroom\b|\bclean\s+room\b/i.test(combinedText);
   const needsProgrammable = /programmer|stopp-position|servo|positioner/i.test(combinedText);
-  const isMultiAxis = needsMultiAxis(combinedText);
-  // Whole-line, multi-station request (weigh + identify + sort + robot/PLC). The
-  // catalog can't be a single "solution" here — we surface motion building blocks
-  // and the summary is honest about what needs system integration vs. our range.
-  const isSystemScope = isMultiFunctionSystem(combinedText);
-  const isVacuum = needsVacuumGrip(combinedText);
-  const valveTerminal = needsValveTerminal(combinedText);
-  const isWashdown = needsWashdown(combinedText);
-  const isAtex = needsAtex(combinedText);
-  const isAtexDust = needsAtexDust(combinedText);
-  const isVerticalLoad = needsVerticalLoad(combinedText);
-  const isHighTemp = needsHighTemp(combinedText);
-  const isLowTemp = needsLowTemp(combinedText);
-  const isHydraulic = isHydraulicApplication(combinedText);
-  const isVeryHighForce = needsVeryHighForce(combinedText, answers);
-  const isOxygenClean = needsOxygenClean(combinedText);
-  const isHighCycle = needsHighCycle(combinedText, answers);
-  const isHighSpeed = needsHighSpeed(combinedText, answers);
-  const isSilSafety = needsSilSafety(combinedText);
-  const isOutdoor = needsOutdoor(combinedText);
   // Outdoor/marine/salt-spray is just as corrosive as washdown, but wasn't wired
   // into the corrosion-resistant filter/scoring — a saltmiljö request got standard
   // aluminium ISO cylinders (no stainless boost, no washdown-only hard filter).
   // Only for filter/score: keep isWashdown itself pure for BOM text ("IP69K",
   // CIP/SIP) that shouldn't be claimed for a marine-only case.
   const needsCorrosionResistant = isWashdown || isOutdoor;
-  const isPharmaGmp = needsPharmaGmp(combinedText);
-  const isBatteryDryroom = needsBatteryDryroom(combinedText);
-  const speedMs = extractSpeedMs(combinedText, answers);
-  const precisionMm = extractPrecisionMm(combinedText, answers);
-  const isHighPrecision = precisionMm > 0 && precisionMm <= 0.1;
   const isHighPrecisionVertical = isVerticalLoad && isHighPrecision;
-  const requiredTemp = extractRequiredMaxTemp(combinedText, answers);
 
   // PRECISION FORCE-FETCH: a repeatability spec ≤0.1 mm can only be met by an
   // electric ball-screw/spindle axis — pneumatics physically can't. So whenever
@@ -769,37 +731,11 @@ async function handleOptions(
     if (!categories.includes("linear-module")) categories.push("linear-module");
   }
 
-  const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
-  // System scope: a number like "200-500 mm" is carton SIZE, not actuator stroke —
-  // don't treat it as a stroke requirement (it would falsely fail every cylinder).
-  const maxRequiredStroke = isSystemScope ? 0
-    : perAxisStrokes.length > 0 ? Math.max(...perAxisStrokes.map(a => a.stroke))
-    : minStroke;
-
   // ── Load → minimum bore calculation ──────────────────────────────
-  const loadKg = extractLoadKg(combinedText, answers);
-  const minBoreMm = calcMinBoreMm(loadKg);
   // Same formula as calcMinBoreMm's internal forceN — surfaced separately so the
   // frontend can draw a "required vs available" margin visual per option instead
   // of just prose reasoning (engineers expect a calculated load-curve feel here).
   const requiredForceN = loadKg > 0 ? Math.round(loadKg * 9.81 * 2) : 0;
-
-  // detectConflicts() already existed and is correct -- e.g. it flags exactly
-  // "high speed + high precision" (ball screws are rpm/resonance-limited, belts
-  // have backlash) -- but was only ever wired into handleBom, never here. A
-  // customer who only reaches the options step (a normal, valid path: chat,
-  // machine-builder's options display) never saw this engineering-conflict
-  // warning at all, even on a genuinely unsafe/unrealistic combination like
-  // 3 m/s + ±0.01 mm simultaneously. Found 2026-08-28 (adversarial test).
-  const cycleTimeS = extractCycleTimeS(combinedText, answers);
-  const isLowCost = needsLowCost(combinedText);
-  const is24x7 = needsContinuousDuty(combinedText);
-  const isDirtyEnv = needsDirtyEnv(combinedText);
-  const optDyn = computeDynamics(loadKg, maxRequiredStroke, cycleTimeS, isVerticalLoad);
-  const optConflicts = detectConflicts({
-    locale, precisionMm, isHighPrecision, speedMs, isDirtyEnv, isWashdown, isAtexDust,
-    isLowCost, is24x7, dyn: optDyn,
-  });
 
   // ── Shock-absorber application (decelerate an external moving mass) ──────────
   // Sized by kinetic energy ½·m·v², not bore/force — handled here so it skips the
@@ -1086,7 +1022,7 @@ async function handleOptions(
   // ROD cylinder can take a rear pivot flange + rod clevis. Slides/rodless/guided
   // units mount rigidly — surfacing one here (e.g. a linear slide as "Bästa valet"
   // for a swivel application) is a category error (package-sorter test).
-  const isArticulated = needsArticulatedMount(combinedText);
+  const isArticulated = hazards.isArticulated;
   const articulatedFiltered = isArticulated
     ? speedFiltered.filter(p =>
         !(["cylinder", "electric-actuator", "linear-module"].includes(p.category) && isNonArticulatingActuator(p)))
@@ -1103,7 +1039,7 @@ async function handleOptions(
   // the load-based "smallest adequate" — answering Ø50 and getting Ø40 back is a
   // trust-breaker (conveyor-stopper test). Falls back to all candidates when no
   // exact-bore product exists (then the honest inexact framing kicks in below).
-  const explicitBoreMm = extractExplicitBoreMm(combinedText, answers);
+  const explicitBoreMm = hazards.explicitBoreMm;
   const exactBoreSet = explicitBoreMm > 0
     ? boreFiltered.filter(p => parseFloat(String(p.key_specs?.bore_mm ?? "0")) === explicitBoreMm)
     : [];
