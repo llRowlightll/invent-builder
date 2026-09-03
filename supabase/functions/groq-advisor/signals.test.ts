@@ -56,6 +56,34 @@ Deno.test("extractHoldingForceN returns 0 when no holding-force keyword is prese
   assertEquals(extractHoldingForceN("Lyfter en glasskiva som väger 5kg", {}), 0);
 });
 
+// Found 2026-09-03 (adversarial test): the keyword ("greppkraft") lives in
+// the answer KEY, not the value, when a structured question puts the label
+// there -- e.g. answers: {"greppkraft": "150N"}. The old
+// `Object.values(answers).join(" ")` join only ever saw "150N", never the
+// key, so the keyword-requiring regex above never matched: extractGripForceN
+// returned 0, "150N" fell through to extractLoadKg's generic N-to-kg
+// fallback (150/9.81 ≈ 15.29 "kg"), and the gripper rule-of-thumb (weight ×
+// 100) re-inflated that into a fabricated ≈1529 N requirement -- presented
+// confidently, with no disclaimer, live in production. Fixed by joining
+// key+value (matching extractCycleTimeS's pre-existing pattern) across every
+// affected extractor in this file, not just this one.
+Deno.test("extractGripForceN reads a grip force stated via the answer KEY, not just inline in the value", () => {
+  assertEquals(extractGripForceN("Parallellgripdon för metalldetalj", { greppkraft: "150N" }), 150);
+});
+
+Deno.test("extractGripForceN via an answer key does NOT leak into extractLoadKg's generic N-fallback", () => {
+  const text = "Parallellgripdon för metalldetalj";
+  const answers = { greppkraft: "150N" };
+  assertEquals(extractGripForceN(text, answers), 150);
+  // Before the fix this was 15.29 (150/9.81) -- a fabricated "weight" derived
+  // from a force the customer already stated directly.
+  assertEquals(Math.round(extractLoadKg(text, answers)), 15);
+});
+
+Deno.test("extractHoldingForceN reads a holding force stated via the answer KEY, not just inline in the value", () => {
+  assertEquals(extractHoldingForceN("Vakuumgrepp för plåtdetalj", { hallkraft: "80N" }), 80);
+});
+
 // ── ESD-safety requirement detection ────────────────────────────────────────
 // Found 2026-08-28 (adversarial test): a stated ESD-safety requirement was
 // silently ignored for vacuum/gripper end-effector selection -- the catalog
@@ -245,6 +273,15 @@ Deno.test("extractUnitCount detects English phrasing", () => {
 
 Deno.test("extractUnitCount detects a count stated in an answer value", () => {
   assertEquals(extractUnitCount("Pneumatisk cylinder", { antal_stationer: "8 stationer" }), 8);
+});
+
+// Found 2026-09-03 (adversarial test), same root cause as the
+// extractGripForceN/extractHoldingForceN fixes above: a structured question
+// can put the counting word in the answer KEY with a bare number as the
+// VALUE. Requires joining key+value (not value alone) to see "antal 6"
+// as one adjacent phrase.
+Deno.test("extractUnitCount detects a count where the counting word is in the answer KEY and the value is a bare number", () => {
+  assertEquals(extractUnitCount("Pneumatisk cylinder", { antal: "6" }), 6);
 });
 
 Deno.test("extractUnitCount defaults to 1 (no-op) when no count is stated", () => {

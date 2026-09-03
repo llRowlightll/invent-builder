@@ -186,7 +186,7 @@ export function parseProductTempMax(specs: Record<string, unknown>): number {
  * anything above warrants a spec check.
  */
 export function extractRequiredMaxTemp(text: string, answers: Record<string, string>): number {
-  const allText = text + " " + Object.values(answers).join(" ");
+  const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
   const matches = [...allText.matchAll(/(\d{2,3})\s*°?\s*[cC]\b/gi)].map(m => parseInt(m[1]));
   const grad = allText.match(/(\d{2,3})\s*grad/i);
   if (grad) matches.push(parseInt(grad[1]));
@@ -314,7 +314,7 @@ export function isHydraulicApplication(text: string): boolean {
 
 /** Force requirement that likely exceeds pneumatic capability (>8 000 N at reasonable bore/pressure). */
 export function needsVeryHighForce(text: string, answers: Record<string, string>): boolean {
-  const allText = text + " " + Object.values(answers).join(" ");
+  const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
   const knMatch = allText.match(/(\d+(?:[.,]\d+)?)\s*kN/i);
   if (knMatch) return parseFloat(knMatch[1].replace(",", ".")) >= 8;
   const nMatch = allText.match(/(\d{5,})\s*[nN]\b/);
@@ -342,13 +342,13 @@ export function needsEsdSafe(text: string): boolean {
 
 /** High cycle frequency (>60 cycles/min) — thermal and lubrication issues with standard cylinders. */
 export function needsHighCycle(text: string, answers: Record<string, string>): boolean {
-  const allText = text + " " + Object.values(answers).join(" ");
+  const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
   return /\b[6-9]\d\s*(?:cyk|slag|cykel|cyc|stroke|takt).*(?:min|s)\b|\b1[0-9]\d\s*(?:cyk|slag|cykel|cyc|stroke|takt)\b|\bhög.*frekvens\b|\bhigh.*freq\b|\bhigh.*cycle\b|\bsnabb.*takt\b|\brapid.*cycling\b|\bfastcycl\b|\bhohe\s?frequenz\b|\bschneller?\s?takt\b|\balta\s?frecuencia\b|\bciclo\s?rápido\b/i.test(allText);
 }
 
 /** High speed > 1 m/s without deceleration control — end-stop impact damage. */
 export function needsHighSpeed(text: string, answers: Record<string, string>): boolean {
-  const allText = text + " " + Object.values(answers).join(" ");
+  const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
   // \b[1-9]\d{3,}\s*mm\/s\b catches "1200mm/s", "2000 mm/s" etc (≥1000 mm/s = >1 m/s)
   return /\b[1-9](?:[.,]\d+)?\s*m\/s\b|\b[1-9]\d{3,}\s*mm\/s\b|\bsnabb.*rörelse\b|\bhigh.*speed\b|\bhög.*hastighet\b|\bfast.*actuat\b|\bsnabb.*stans\b|\bslaghastighet.*[1-9]\b|\bschnelle\s?bewegung\b|\bhohe\s?geschwindigkeit\b|\bmovimiento\s?rápido\b|\balta\s?velocidad\b/i.test(allText);
 }
@@ -401,7 +401,7 @@ export function needsBatteryDryroom(text: string): boolean {
 
 /** Extract numeric speed in m/s from free text + answers (for mechanism compatibility check). */
 export function extractSpeedMs(text: string, answers: Record<string, string>): number {
-  const all = text + " " + Object.values(answers).join(" ");
+  const all = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
   // Match e.g. "1.2 m/s", "0,8m/s", "800 mm/s"
   const msMatch = all.match(/(\d+(?:[.,]\d+)?)\s*m\/s/i);
   if (msMatch) return parseFloat(msMatch[1].replace(",", "."));
@@ -416,7 +416,7 @@ export function extractSpeedMs(text: string, answers: Record<string, string>): n
  * Returns 0 if not found (unknown → do not apply precision filter).
  */
 export function extractPrecisionMm(text: string, answers: Record<string, string>): number {
-  const all = text + " " + Object.values(answers).join(" ");
+  const all = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
   // µm / mikrometer → convert to mm
   const umMatch = all.match(/(\d+(?:[.,]\d+)?)\s*(?:µm|um|mikrometer|micrometer)/i);
   if (umMatch) return parseFloat(umMatch[1].replace(",", ".")) / 1000;
@@ -517,7 +517,7 @@ export function calcMinBoreMm(loadKg: number, pressureBar = 6): number {
 
 /** Extract mass/load in kg from free text + answers. */
 export function extractLoadKg(text: string, answers: Record<string, string>): number {
-  const allText = text + " " + Object.values(answers).join(" ");
+  const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
   const kgMatch = allText.match(/(\d+(?:[.,]\d+)?)\s*kg/i);
   if (kgMatch) return parseFloat(kgMatch[1].replace(",", "."));
   const nMatch = allText.match(/(\d+(?:[.,]\d+)?)\s*N\b/);
@@ -535,9 +535,19 @@ export function extractLoadKg(text: string, answers: Record<string, string>): nu
  * ~10× too-high requirement from that misread "weight" -- silently ignoring
  * the customer's own directly-usable number. Checked BEFORE extractLoadKg in
  * the gripper path so an explicit grip-force statement is used as-is.
+ *
+ * Found again 2026-09-03 (adversarial test), same symptom via a different
+ * mechanism: answers: {"greppkraft": "150N"} still misread as a 15 kg
+ * "weight" (150/9.81) and re-inflated ×100 to 1529 N -- because the join
+ * below only concatenated answers VALUES, never the KEYS, so "greppkraft"
+ * (the keyword this function's own regex requires) was invisible whenever a
+ * structured question puts the semantic label in the key rather than inline
+ * in the value text. Same root cause affected 11 other extractors/detectors
+ * in this file; all fixed identically (join key+value, not value alone),
+ * matching extractCycleTimeS's pre-existing, already-correct pattern.
  */
 export function extractGripForceN(text: string, answers: Record<string, string>): number {
-  const allText = text + " " + Object.values(answers).join(" ");
+  const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
   const m = allText.match(/(?:greppkraft|gripkraft|klämkraft|klamkraft|grip(?:ping)?\s*force|clamping\s*force|greifkraft|klemmkraft|fuerza\s*de\s*agarre|fuerza\s*de\s*sujeci[oó]n)[^\d]{0,10}(\d+(?:[.,]\d+)?)\s*N\b/i)
     || allText.match(/(\d+(?:[.,]\d+)?)\s*N\b[^\d]{0,15}(?:greppkraft|gripkraft|klämkraft|klamkraft|grip(?:ping)?\s*force|clamping\s*force|greifkraft|klemmkraft)/i);
   return m ? parseFloat(m[1].replace(",", ".")) : 0;
@@ -549,21 +559,21 @@ export function extractGripForceN(text: string, answers: Record<string, string>)
  * the vacuum branch's ×9.81×2 weight-to-force derivation.
  */
 export function extractHoldingForceN(text: string, answers: Record<string, string>): number {
-  const allText = text + " " + Object.values(answers).join(" ");
+  const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
   const m = allText.match(/(?:håll[-\s]?kraft|hallkraft|hold(?:ing)?\s*force|haltekraft|fuerza\s*de\s*(?:sujeci[oó]n|retenci[oó]n))[^\d]{0,10}(\d+(?:[.,]\d+)?)\s*N\b/i)
     || allText.match(/(\d+(?:[.,]\d+)?)\s*N\b[^\d]{0,15}(?:håll[-\s]?kraft|hallkraft|hold(?:ing)?\s*force|haltekraft)/i);
   return m ? parseFloat(m[1].replace(",", ".")) : 0;
 }
 
 export function extractTorqueNm(text: string, answers: Record<string, string>): number {
-  const allText = text + " " + Object.values(answers).join(" ");
+  const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
   const m = allText.match(/(\d+(?:[.,]\d+)?)\s*Nm\b/i);
   return m ? parseFloat(m[1].replace(",", ".")) : 0;
 }
 
 /** Extract required rotation angle (degrees) for a rotary-actuator request. */
 export function extractRotationDeg(text: string, answers: Record<string, string>): number {
-  const allText = text + " " + Object.values(answers).join(" ");
+  const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
   const m = allText.match(/(\d{2,3})\s*(?:°|grad(?:er)?|degrees?)\b/i);
   return m ? parseFloat(m[1]) : 0;
 }
@@ -596,7 +606,7 @@ export function extractCycleTimeS(text: string, answers: Record<string, string>)
  * as a station count.
  */
 export function extractUnitCount(text: string, answers: Record<string, string>): number {
-  const allText = text + " " + Object.values(answers).join(" ");
+  const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
   const m = allText.match(/(\d{1,3})\s*(?:st(?:ycken)?|identiska|parallella|stationer|celler|linjer|enheter|maskiner|units?|identical|parallel|stations?|cells?|lines?|machines?)\b/i)
     || allText.match(/\b(?:st(?:ycken)?|identiska|antal)\s*(\d{1,3})\b/i);
   if (!m) return 1;
