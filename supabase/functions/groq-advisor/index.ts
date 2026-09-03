@@ -986,11 +986,29 @@ async function handleOptions(
 
   if (minBoreMm > 0) console.log(`[options] load=${loadKg}kg → minBore=${minBoreMm}mm`);
 
-  // System scope: surface only motion/actuator building blocks (drop loose
-  // sensor/vacuum/drive categories) so the 3 options are clean actuators; the
-  // summary already routes weighing/vision/PLC/robot to engineering.
+  // Surface only motion/actuator building blocks (drop loose sensor/vacuum/
+  // drive categories) so the ranked options are clean, complete actuators --
+  // not a bare drivetrain component. Originally gated on isSystemScope only
+  // (comment used to say "System scope: ..."), but the same pollution isn't
+  // system-scope-specific: detectCategories adds servo-motor/servo-drive
+  // alongside electric-actuator/linear-module for ANY precision/electric-
+  // keyword request (they're meant for BOM-step accessory matching only).
+  // Found 2026-09-03 (adversarial test): a single-product washdown+high-
+  // precision request ranked a bare, non-washdown-rated servo motor as
+  // "Bästa valet" with a nonsensical "exact stroke length chosen at order"
+  // note -- motors don't have a stroke. Root cause was two layers: (1) this
+  // narrowing only applied when isSystemScope, so servo-motor/servo-drive
+  // reached the general ranking pool for any other request; (2)
+  // isWashdownProduct/isAllowedForHighPrecision both exempt isAccessory(p)
+  // products unconditionally (correctly, for genuine accessories like
+  // sensors/fittings -- but servo-motor/servo-drive fall under the same
+  // exemption despite being scoped out of this pool for exactly the
+  // opposite reason). Fixing (1) removes servo-motor/servo-drive from the
+  // pool entirely, which is the more fundamental fix: a motor was never a
+  // valid standalone answer to "recommend an actuator" regardless of
+  // whether it happens to also dodge two unrelated filters.
   const motionCats = categories.filter(c => ["cylinder","electric-actuator","linear-module","rotary-actuator"].includes(c));
-  const systemMotionCats = isSystemScope && motionCats.length > 0 ? motionCats : categories;
+  const systemMotionCats = motionCats.length > 0 ? motionCats : categories;
 
   const [allProducts, pdfCtx] = await Promise.all([
     // High limit so the WHOLE category is considered: the fetch RPC orders by
