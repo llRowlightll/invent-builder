@@ -12,6 +12,7 @@ import {
   isAllowedForPrecisionVertical,
   isAllowedForHighSpeed,
   isElectricActuator,
+  isAtexCapableProduct,
   isWashdownProduct,
   rankActuators,
 } from "./scoring.ts";
@@ -1003,7 +1004,17 @@ async function handleOptions(
   const productMap = new Map<string, CatalogProduct>(allProducts.map(p => [p.sku, p]));
 
   // ── Hard pre-filters ──────────────────────────────────────────────
-  const atexFiltered = isAtex ? allProducts.filter(p => !isElectricActuator(p)) : allProducts;
+  // Found 2026-09-03 (adversarial test): this only ever excluded electric
+  // actuators -- it never actually checked ATEX certification, so any
+  // ordinary pneumatic cylinder ranked as "Bästa valet" for an explicit
+  // Zone 1/dust-zone request, ATEX mismatch buried in a cons bullet. The
+  // catalog isn't entirely ATEX-blank (checked directly against the DB):
+  // FESTO-DSBF and PARKER-ETH both have a documented ATEX variant. Electric-
+  // exclusion for isAtex (gas) preserved exactly as it was -- not extended
+  // to isAtexDust, matching the pre-existing asymmetry, which this fix
+  // doesn't touch.
+  const atexCapable = (isAtex || isAtexDust) ? allProducts.filter(isAtexCapableProduct) : allProducts;
+  const atexFiltered = isAtex ? atexCapable.filter(p => !isElectricActuator(p)) : atexCapable;
   const washdownFiltered = needsCorrosionResistant ? atexFiltered.filter(p => isWashdownProduct(p)) : atexFiltered;
   // v51: precision (≤0.1 mm) excludes PNEUMATICS on EVERY axis — they physically cannot
   // hold the tolerance. Single-axis / vertical-precision also exclude belt (ball-screw
@@ -1327,6 +1338,20 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
       });
       opt.cons = [...((opt.cons as string[]) ?? []), warn];
     }
+    // ATEX-capable products (isAtexCapableProduct filtered atexFiltered down to
+    // these already) still ship as a STANDARD SKU by default -- the ATEX
+    // variant is an order option (e.g. Parker ETH032/050 "ATEX available"),
+    // not the base part number. Deterministic, not left to the LLM: ordering
+    // the bare SKU as listed is not itself ATEX-certified.
+    if ((isAtex || isAtexDust) && isAtexCapableProduct(cat)) {
+      const warn = pick(locale, {
+        sv: `⛔ Standard-SKU — beställ uttryckligen ATEX-varianten (ej samma som baskoden) och begär ATEX/IECEx-intyg för er zon före köp.`,
+        en: `⛔ Standard SKU — explicitly order the ATEX variant (not the same as the base part number) and request the ATEX/IECEx certificate for your zone before purchase.`,
+        de: `⛔ Standard-SKU — ausdrücklich die ATEX-Variante bestellen (nicht identisch mit der Basisartikelnummer) und vor dem Kauf das ATEX/IECEx-Zertifikat für Ihre Zone anfordern.`,
+        es: `⛔ SKU estándar — pida explícitamente la variante ATEX (no es la misma que el número de pieza base) y solicite el certificado ATEX/IECEx para su zona antes de comprar.`,
+      });
+      opt.cons = [...((opt.cons as string[]) ?? []), warn];
+    }
     if (requiredTemp > 0) {
       const tMax = parseProductTempMax(cat.key_specs ?? {});
       if (tMax > 0 && tMax < requiredTemp) {
@@ -1505,8 +1530,15 @@ async function handleBom(
     products.push(p);
   }
 
-  // ATEX: strip electric actuators
-  const atexSafeProducts = (hazards.isAtex || hazards.isAtexDust) ? products.filter(p => !isElectricActuator(p)) : products;
+  // ATEX: strip electric actuators, and (matching the same fix in
+  // handleOptions -- see isAtexCapableProduct's comment) require documented
+  // ATEX certification too, not just "isn't electric". Electric-exclusion
+  // gating (isAtex||isAtexDust here, isAtex-only in handleOptions) is a
+  // pre-existing asymmetry between the two handlers this fix doesn't touch --
+  // not verified via adversarial testing, a separate question from the one
+  // this fix answers.
+  const atexCapableBom = (hazards.isAtex || hazards.isAtexDust) ? products.filter(isAtexCapableProduct) : products;
+  const atexSafeProducts = (hazards.isAtex || hazards.isAtexDust) ? atexCapableBom.filter(p => !isElectricActuator(p)) : atexCapableBom;
   const validBomSkus = new Set(atexSafeProducts.map(p => p.sku));
   validBomSkus.add("SPECIFY");
   validBomSkus.add(primarySku);
