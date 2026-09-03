@@ -10,6 +10,7 @@ import {
   isAccessory,
   isPneumaticActuatorProduct,
   isAllowedForHighPrecision,
+  isAtexCapableProduct,
   scoreProduct,
   rankActuators,
 } from "./scoring.ts";
@@ -26,6 +27,28 @@ function prod(
 const ctx = (over: Partial<ScoringCtx> = {}): ScoringCtx => ({
   requiredStroke: 0, minBoreMm: 0, isHighPrecision: false, isHighSpeed: false,
   isVertical: false, isWashdown: false, isAtex: false, ...over,
+});
+
+// ── isAtexCapableProduct: general options/BOM ATEX filtering ───────────────────
+// Found 2026-09-03 (adversarial test): a Zone 1 ATEX request ranked an
+// ordinary pneumatic cylinder as "Bästa valet" -- the filter only ever
+// excluded electric actuators, never checked ATEX certification at all.
+// Checked directly against the DB before fixing: the catalog isn't entirely
+// ATEX-blank -- FESTO-DSBF and PARKER-ETH both document an ATEX variant.
+
+Deno.test("isAtexCapableProduct matches a product with 'ATEX variant' in special_features", () => {
+  const p = prod("FESTO-DSBF", "cylinder", "festo", { special_features: "Easy-clean design; Through piston rod option; ATEX variant" });
+  assertEquals(isAtexCapableProduct(p), true);
+});
+
+Deno.test("isAtexCapableProduct matches a product with 'ATEX available' in special_features", () => {
+  const p = prod("PARKER-ETH", "electric-actuator", "parker", { special_features: "ISO 15552 flange compatible; ATEX available (ETH032/050)" });
+  assertEquals(isAtexCapableProduct(p), true);
+});
+
+Deno.test("isAtexCapableProduct returns false for an ordinary product with no ATEX mention", () => {
+  const p = prod("0822065003", "cylinder", "bosch-rexroth", { bore_mm: "40 mm", stroke_mm: "100 mm" });
+  assertEquals(isAtexCapableProduct(p), false);
 });
 
 // ── The core invariant ────────────────────────────────────────────────────────

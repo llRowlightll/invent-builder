@@ -218,6 +218,27 @@ export function isElectricActuator(p: CatalogProduct): boolean {
 }
 
 /**
+ * Detects whether a product has a documented ATEX-rated variant. Found
+ * 2026-09-03 (adversarial test): a Zone 1 ATEX request was ranking ANY
+ * pneumatic product (not excluded for being electric) as "Bästa valet",
+ * with the ATEX mismatch buried in a small cons bullet -- the general
+ * options path's own comment claims ATEX is a hard physical/material
+ * filter (same tier as washdown/precision/bore), but the actual filter
+ * only ever excluded electric actuators, never checked ATEX certification
+ * at all. Checked directly against the DB before fixing (not assumed):
+ * the catalog is NOT entirely ATEX-blank -- FESTO-DSBF and PARKER-ETH both
+ * carry "ATEX variant"/"ATEX available" in special_features, unlike every
+ * other product. Matches on that field (and the name, for consistency with
+ * isWashdownProduct's pattern) rather than hard-excluding the whole catalog
+ * the way isPureRotary does for its category, which currently has zero
+ * ATEX-capable products at all.
+ */
+export function isAtexCapableProduct(p: CatalogProduct): boolean {
+  const blob = `${p.key_specs?.special_features ?? ""} ${p.name}`.toLowerCase();
+  return /\batex\b|\biecex\b/.test(blob);
+}
+
+/**
  * Detects whether a product is suitable for washdown environments.
  * These applications require IP67/IP69K and stainless or food-grade plastic —
  * standard aluminum cylinders will corrode immediately.
