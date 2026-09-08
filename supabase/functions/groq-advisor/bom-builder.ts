@@ -247,7 +247,40 @@ export interface BomCtx extends HazardFlags {
  * This replaces per-component injections scattered across handleBom().
  * The LLM cannot affect these rows — they are always present.
  */
-export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantity: number; role: string; reason: string }> {
+/**
+ * Stabil, lokaloberoende komponenttyp. Skild från `role`, som är lokaliserad
+ * visningstext ("Primär aktuator" / "Primary actuator") och därför inte går
+ * att resonera kring i kod -- topologin nedan skulle bytt betydelse med språk.
+ *
+ * "warning" är ingen komponent utan en annotation (⚠️/⛔-rader). Den får
+ * aldrig kopplingar och ska aldrig ritas som en nod.
+ */
+export type BomKind =
+  | "actuator" | "motor" | "drive"
+  | "valve" | "valve_terminal" | "check_valve" | "flow_control" | "silencer"
+  | "frl" | "tubing" | "fitting"
+  | "rod_lock" | "shock_absorber" | "mount"
+  | "sensor" | "cable"
+  | "warning";
+
+export interface BomRow {
+  sku: string;
+  quantity: number;
+  kind: BomKind;
+  role: string;
+  reason: string;
+}
+
+/** En kant i maskingrafen. Relationstyperna är exakt de som bom_connections
+ *  tillåter, och delar vokabulär med product_relations. Riktningen är alltid
+ *  beroende -> det den beror på: (aktuator, controlled_by, ventil). */
+export interface BomConnection {
+  fromIndex: number;
+  toIndex: number;
+  relation: "controlled_by" | "air_supply" | "requires" | "accessory" | "mounted_on" | "senses";
+}
+
+export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   const { primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
           isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, locale, products,
           isMounting, isArticulated, isRodLock, primaryBoreMm, primaryBrand: primaryBrandFetched, isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
@@ -266,7 +299,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   // requirement rows (⚠️/⛔ rows with no purchasable quantity) do not -- see
   // each row below for which case it is.
   const uc = unitCount > 0 ? unitCount : 1;
-  const rows: Array<{ sku: string; quantity: number; role: string; reason: string }> = [];
+  const rows: BomRow[] = [];
 
   // ── 1. Primary actuator (ALWAYS first) ───────────────────────────
   // In a multi-axis job the primary covers the LONGEST-stroke axis — label rows by
@@ -283,6 +316,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   }) : "";
   rows.push({
     sku: primarySku, quantity: uc,
+    kind: "actuator",
     role: pick(locale, { sv: "Primär aktuator", en: "Primary actuator", de: "Primäraktuator", es: "Actuador primario" })
       + (primaryAxisLabel ? pick(locale, { sv: ` — ${primaryAxisLabel}-axel`, en: ` — ${primaryAxisLabel}-axis`, de: ` — ${primaryAxisLabel}-Achse`, es: ` — eje ${primaryAxisLabel}` }) : ""),
     reason: pick(locale, { sv: "Vald primär aktuator", en: "Selected primary actuator", de: "Ausgewählter Primäraktuator", es: "Actuador primario seleccionado" }) + famNote,
@@ -318,6 +352,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
       const stepperMotor = /steg|stepper/i.test(`${motorMatch!.name} ${motorMatch!.sku}`);
       rows.push({
         sku: motorMatch!.sku, quantity: uc,
+        kind: "motor",
         role: isVerticalLoad
           ? pick(locale, { sv: "Bromsmotor (vertikal säkerhet)", en: "Brake motor (vertical safety)", de: "Bremsmotor (vertikale Sicherheit)", es: "Motor con freno (seguridad vertical)" })
           : pick(locale, stepperMotor
@@ -389,6 +424,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     const stepperDrive = !!driveMatch && /steg|stepper/i.test(`${driveMatch.name} ${driveMatch.sku}`);
     rows.push({
       sku: sameBrandDrive ? driveMatch!.sku : "SPECIFY", quantity: uc,
+      kind: "drive",
       role: pick(locale, stepperDrive
         ? { sv: "Stegmotordrivare (drivsteg)", en: "Stepper drive (driver)", de: "Schrittmotortreiber (Endstufe)", es: "Controlador de motor paso a paso" }
         : { sv: "Servodrivare (drivsteg)", en: "Servo drive (amplifier)", de: "Servoantrieb (Endstufe)", es: "Accionamiento servo (amplificador)" }),
@@ -413,6 +449,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     const cvMatch = findCatalogProductByType("check-valve", products);
     rows.push({
       sku: cvMatch?.sku ?? "SPECIFY", quantity: uc,
+      kind: "check_valve",
       role: pick(locale, { sv: "Pilotmanövrerad backslagsventil", en: "Pilot-operated check valve", de: "Pilotgesteuertes Rückschlagventil", es: "Válvula antirretorno pilotada" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK vid pneumatisk vertikal last — förhindrar att lasten faller vid lufttrycksförlust (IEC 60947-5-1)",
@@ -440,6 +477,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
       (firstNumAbs(p.key_specs?.bore_mm) === pBore || firstNumAbs(p.name.match(/Ø\s?(\d+)/)?.[1]) === pBore));
     rows.push({
       sku: lock?.sku ?? "SPECIFY", quantity: uc,
+      kind: "rod_lock",
       role: pick(locale, { sv: "Stångbroms/mekaniskt lås (fail-safe)", en: "Rod lock / mechanical brake (fail-safe)", de: "Kolbenstangenbremse/mechanische Verriegelung (fail-safe)", es: "Bloqueo de vástago/freno mecánico (fail-safe)" }),
       reason: lock
         ? pick(locale, {
@@ -472,6 +510,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     }) : "";
     rows.push({
       sku: vtMatch?.sku ?? "SPECIFY", quantity: 1,
+      kind: "valve_terminal",
       role: pick(locale, { sv: "Ventilramp (ventilterminal)", en: "Valve terminal (manifold)", de: "Ventilinsel (Ventilterminal)", es: "Terminal de válvulas (colector)" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK för fältbussanslutning (PROFINET/EtherCAT) — ventilramp (CPV, VTSA, MPA) samlar alla ventiler i en enhet och reducerar kabelkostnad. Specificera bussmodul och ventilantal.",
@@ -484,6 +523,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     const valveMatch = findCatalogProductByType("valve", products);
     rows.push({
       sku: valveMatch?.sku ?? "SPECIFY", quantity: uc,
+      kind: "valve",
       role: pick(locale, { sv: "Magnetventil (5/2-vägs styrventil)", en: "Solenoid valve (5/2-way directional)", de: "Magnetventil (5/2-Wege-Steuerventil)", es: "Electroválvula (5/2 vías)" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK för pneumatisk cylinder — 5/2-vägs magnetventil styr cylinderns riktning (fram/åter). Välj spänning 24 V DC och anslutning G1/4.",
@@ -503,6 +543,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
       // itself) -- does not scale by uc. Individual-valve case: each
       // station's own valve needs its own exhaust silencing -- does.
       sku: silMatch?.sku ?? "SPECIFY", quantity: valveTerminal ? 1 : 2 * uc,
+      kind: "silencer",
       role: pick(locale, { sv: "Ljuddämpare (avluftning)", en: "Silencer (exhaust)", de: "Schalldämpfer (Entlüftung)", es: "Silenciador (escape)" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK på ventilens avluftningsportar (3/5) — sänker ljudnivån och skyddar mot smuts. En per avluftningsport (2 st för en 5/2-ventil); vid ventilramp räcker en central enhet.",
@@ -514,6 +555,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     const fcMatch = findCatalogProductByType("flow-control", products);
     rows.push({
       sku: fcMatch?.sku ?? "SPECIFY", quantity: 2 * uc,
+      kind: "flow_control",
       role: pick(locale, { sv: "Strypbackventil (hastighetsreglering)", en: "One-way flow control (speed)", de: "Drosselrückschlagventil (Geschwindigkeitsregelung)", es: "Regulador de caudal unidireccional (velocidad)" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK för att ställa cylinderns hastighet — 2 st strypbackventiler (meter-out) på cylinderns portar ger jämn, kontrollerad rörelse fram och åter.",
@@ -538,6 +580,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     }) : "";
     rows.push({
       sku: frlMatch?.sku ?? "SPECIFY", quantity: 1,
+      kind: "frl",
       role: pick(locale, { sv: "FRL-enhet (Filter-Regulator-Smörjare)", en: "FRL unit (Filter-Regulator-Lubricator)", de: "FRL-Einheit (Filter-Regler-Öler)", es: "Unidad FRL (Filtro-Regulador-Lubricador)" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK för pneumatiskt system — luftberedning säkerställer rätt arbetstryck, filtrerad luft (≥40 µm) och smörjning av cylindertätningar. Välj regulator med manometer 0–10 bar.",
@@ -553,6 +596,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     const saMatch = findCatalogProductByType("shock-absorber", products);
     rows.push({
       sku: saMatch?.sku ?? "SPECIFY", quantity: 2 * uc,
+      kind: "shock_absorber",
       role: pick(locale, { sv: "Hydraulisk stötdämpare", en: "Hydraulic shock absorber", de: "Hydraulischer Stoßdämpfer", es: "Amortiguador hidráulico" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK vid slaghastighet >1 m/s — förhindrar skador på cylinderände och maskinkonstruktion. Välj justerbar hydraulisk stötdämpare dimensionerad för cylinderkraft och massa.",
@@ -576,6 +620,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   if (isEndPosDetect && (isAtex || isAtexDust)) {
     rows.push({
       sku: "SPECIFY", quantity: 2 * uc,
+      kind: "sensor",
       role: pick(locale, { sv: "ATEX-ändlägesgivare (zon-certifierad)", en: "ATEX end-position sensor (zone-certified)", de: "ATEX-Endlagensensor (zonzertifiziert)", es: "Sensor de fin de carrera ATEX (certificado para la zona)" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK — 2 st ATEX/IECEx-certifierade lägesgivare (en per ändläge) krävs för PLC-feedback. Standard 24V-givare är EJ tillåtna i zonen; vi har ingen zon-certifierad givare i lager, begär offert.",
@@ -599,6 +644,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     const sensorMatch = findCatalogProductByType("sensor", brandSorted);
     rows.push({
       sku: sensorMatch?.sku ?? "SPECIFY", quantity: 2 * uc,
+      kind: "sensor",
       role: pick(locale, { sv: "Ändlägesgivare (hemläge + utsträckt läge)", en: "End-position sensor (home + extended)", de: "Endlagensensor (Grundstellung + ausgefahren)", es: "Sensor de fin de carrera (posición inicial + extendida)" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK — 2 st magnetgivare (en per ändläge) krävs för PLC-feedback. Välj givare som passar cylinderns givarspår (T-spår eller C-spår, beroende på fabrikat) samt styrsystem (24 V DC NPN/PNP).",
@@ -628,6 +674,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     if (fittingMatch) {
       rows.push({
         sku: fittingMatch.sku, quantity: 4 * uc,
+        kind: "fitting",
         role: pick(locale, { sv: "Snabbkoppling (push-in fitting)", en: "Push-in fitting", de: "Steckverschraubung (Push-in-Fitting)", es: "Racor instantáneo (push-in)" }),
         reason: pick(locale, {
           sv: "Ansluter cylinder och ventil till luftslang — välj diameter (6/8/10 mm) för rätt slanganslutning till cylinderns G-port.",
@@ -656,6 +703,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
       }) : "";
       rows.push({
         sku: tubeMatch.sku, quantity: 1,
+        kind: "tubing",
         role: pick(locale, { sv: "Tryckluftsslang (per meter)", en: "Pneumatic tubing (per metre)", de: "Druckluftschlauch (pro Meter)", es: "Tubo neumático (por metro)" }),
         reason: pick(locale, {
           sv: "Förbinder ventil, FRL och cylinder — välj ytterdiameter (6/8/10 mm) och längd efter installationen. Anges per meter.",
@@ -673,6 +721,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     if (cableMatch) {
       rows.push({
         sku: cableMatch.sku, quantity: uc,
+        kind: "cable",
         role: pick(locale, { sv: "Motorkabel", en: "Motor cable", de: "Motorkabel", es: "Cable de motor" }),
         reason: pick(locale, {
           sv: "Anslutningskabel till drivenheten — välj längd och kontakttyp kompatibel med vald motor och drivare.",
@@ -707,6 +756,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
       const clevis = mounts.find(p => boreOk(p) && /gaffel|clevis/i.test(p.name));
       rows.push({
         sku: swivel?.sku ?? "SPECIFY", quantity: uc,
+        kind: "mount",
         role: pick(locale, { sv: "Svängfläns/ledlager (bakgavel)", en: "Rear swivel/pivot flange", de: "Schwenkflansch/Gelenklager (Hinterseite)", es: "Brida giratoria/rótula (parte trasera)" }),
         reason: swivel
           ? pick(locale, {
@@ -724,6 +774,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
       });
       rows.push({
         sku: clevis?.sku ?? "SPECIFY", quantity: uc,
+        kind: "mount",
         role: pick(locale, { sv: "Gaffelfäste (kolvstångsände)", en: "Rod clevis (rod end)", de: "Gabelkopf (Kolbenstangenende)", es: "Horquilla (extremo del vástago)" }),
         reason: clevis
           ? pick(locale, {
@@ -748,6 +799,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
       const mount = footish.find(p => boreOk(p) && /fotfäste|foot/i.test(p.name)) ?? footish.find(boreOk) ?? null;
       rows.push({
         sku: mount?.sku ?? "SPECIFY", quantity: uc,
+        kind: "mount",
         role: pick(locale, { sv: "Monteringsfäste (fotfäste/flänsfäste)", en: "Mounting bracket (foot/flange mount)", de: "Befestigungswinkel (Fuß-/Flanschbefestigung)", es: "Soporte de montaje (pie/brida)" }),
         reason: mount
           ? pick(locale, {
@@ -777,6 +829,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
       const axMatch = findAxisActuator(brandSorted, ax.stroke, isElectric);
       rows.push({
         sku: axMatch?.sku ?? "SPECIFY", quantity: uc,
+        kind: "actuator",
         role: pick(locale, { sv: `Aktuator — ${axLabel}-axel`, en: `Actuator — ${axLabel}-axis`, de: `Aktuator — ${axLabel}-Achse`, es: `Actuador — eje ${axLabel}` }),
         reason: axMatch
           ? pick(locale, {
@@ -799,6 +852,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   if (isWashdown) {
     rows.push({
       sku: "SPECIFY", quantity: 1,
+      kind: "warning",
       role: pick(locale, { sv: "⚠️ Washdown IP69K — korrosionsbeständigt material", en: "⚠️ Washdown IP69K — corrosion-resistant materials", de: "⚠️ Washdown IP69K — korrosionsbeständiges Material", es: "⚠️ Washdown IP69K — material resistente a la corrosión" }),
       reason: pick(locale, {
         sv: "KRAV IP69K: Cylinder, ventil och givare måste ha IP69K-klassning och korrosionsbeständigt material (316L rostfritt stål eller ytbehandlad aluminium). Specificera variant -H1 (food-grade smörjning) vid livsmedelsproduktion.",
@@ -813,6 +867,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   if (isHighTemp) {
     rows.push({
       sku: "SPECIFY", quantity: 1,
+      kind: "warning",
       role: pick(locale, { sv: "⚠️ Tätningsmaterial — hög temperatur >80°C", en: "⚠️ Sealing material — high temperature >80°C", de: "⚠️ Dichtungsmaterial — hohe Temperatur >80 °C", es: "⚠️ Material de sellado — alta temperatura >80 °C" }),
       reason: pick(locale, {
         sv: "KRAV: PTFE- eller FKM-tätningar obligatoriska vid >80°C — standard-NBR-tätningar degraderar och läcker. Beställ cylinder med high-temp tätningssats eller PTFE-variant.",
@@ -827,6 +882,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   if (isSilSafety) {
     rows.push({
       sku: "SPECIFY", quantity: 1,
+      kind: "warning",
       role: pick(locale, { sv: "⚠️ Säkerhetscertifierad magnetventil SIL/PLd", en: "⚠️ Safety-certified solenoid valve SIL/PLd", de: "⚠️ Sicherheitszertifiziertes Magnetventil SIL/PLd", es: "⚠️ Electroválvula certificada de seguridad SIL/PLd" }),
       reason: pick(locale, {
         sv: "KRAV SIL 2 / PLd (ISO 13849): säkerhetscertifierad magnetventil med redundant styrsignal och diagnosfunktion krävs (t.ex. Festo VOFD-DT, SMC VFS). Standard-ventil är EJ tillräcklig.",
@@ -841,6 +897,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   if (isHydraulic || isVeryHighForce) {
     rows.push({
       sku: "SPECIFY", quantity: 1,
+      kind: "warning",
       role: pick(locale, { sv: "⚠️ Varning: utanför pneumatisk katalog", en: "⚠️ Warning: outside pneumatic catalog", de: "⚠️ Warnung: außerhalb des pneumatischen Katalogs", es: "⚠️ Aviso: fuera del catálogo neumático" }),
       reason: pick(locale, {
         sv: "UTANFÖR KATALOG: Hydrauliska cylindrar och kraft >5 kN hanteras ej av pneumatisk katalog. Kontakta hydraulikspecialist (Parker, Bosch Rexroth, Enerpac). Pneumatisk katalog täcker max ~2 kN vid 6 bar.",
@@ -864,6 +921,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   if (isBatteryDryroom) {
     rows.push({
       sku: "SPECIFY", quantity: 1,
+      kind: "warning",
       role: pick(locale, { sv: "⛔ Dryroom-krav: Cu/Zn/Ni-fritt", en: "⛔ Dryroom requirement: Cu/Zn/Ni-free", de: "⛔ Trockenraum-Anforderung: Cu/Zn/Ni-frei", es: "⛔ Requisito de sala seca: sin Cu/Zn/Ni" }),
       reason: pick(locale, {
         sv: "OBLIGATORISKT för torrumsmiljö (batteritillverkning): koppar (Cu), zink (Zn) och nickel (Ni) förbjudet i alla vätta/rörliga delar. Standardkulskruvar, zinkbelagda styrningar och de flesta fetter är EJ tillåtna. Begär materialdeklarationsintyg — SMC 25-serien (Cu/Zn/Ni-fri, PFPE-smörjd) är ett känt alternativ.",
@@ -882,6 +940,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
   if ((isAtex || isAtexDust) && !isElectric) {
     rows.push({
       sku: "SPECIFY", quantity: uc,
+      kind: "valve",
       role: pick(locale, { sv: "ATEX-magnetventil (zon-certifierad)", en: "ATEX solenoid valve (zone-certified)", de: "ATEX-Magnetventil (zonzertifiziert)", es: "Electroválvula ATEX (certificada para la zona)" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK styrventil för ATEX-zon — använd ATEX/IECEx-certifierad ventil (t.ex. Festo VOFC/tryckluftsstyrd) eller montera standardventil UTANFÖR zonen och dra slang in. Standardkatalogventiler är EJ zon-godkända.",
@@ -892,6 +951,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     });
     rows.push({
       sku: "SPECIFY", quantity: 1,
+      kind: "frl",
       role: pick(locale, { sv: "ATEX-luftberedning (FRL utanför zon)", en: "ATEX air preparation (FRL outside zone)", de: "ATEX-Luftaufbereitung (FRL außerhalb der Zone)", es: "Tratamiento de aire ATEX (FRL fuera de la zona)" }),
       reason: pick(locale, {
         sv: "OBLIGATORISK luftberedning — placera FRL-enheten utanför den klassade zonen. Använd antistatisk slang och jordning av cylinder/rör per EN 80079-36.",
@@ -906,6 +966,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     if (isVerticalLoad) {
       rows.push({
         sku: "SPECIFY", quantity: uc,
+        kind: "rod_lock",
         role: pick(locale, { sv: "ATEX-fallspärr (pilotbackventil / mekanisk stångbroms)", en: "ATEX anti-drop (pilot check valve / mechanical rod lock)", de: "ATEX-Fallsicherung (pilotgesteuertes Rückschlagventil / mechanische Kolbenstangenbremse)", es: "Antirretorno ATEX (válvula antirretorno pilotada / bloqueo mecánico de vástago)" }),
         reason: pick(locale, {
           sv: "OBLIGATORISK vid vertikal last i ATEX-zon — förhindrar lastfall vid lufttrycksförlust. Använd ATEX/IECEx-klassad pilotmanövrerad backslagsventil eller mekanisk stångbroms. Elektrisk bromsmotor är EJ tillåten i zonen.",
@@ -917,6 +978,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): Array<{ sku: string; quantit
     }
     rows.push({
       sku: "SPECIFY", quantity: 1,
+      kind: "warning",
       role: pick(locale, { sv: "⚠️ ATEX: alla komponenter zon-certifierade + jordade", en: "⚠️ ATEX: all components zone-certified + grounded", de: "⚠️ ATEX: alle Komponenten zonenzertifiziert + geerdet", es: "⚠️ ATEX: todos los componentes certificados para la zona + conectados a tierra" }),
       reason: pick(locale, {
         sv: "KRAV ATEX/IECEx: cylinder, givare, ventil och tillbehör måste vara märkta för aktuell zon/gasgrupp/temperaturklass. Inga standard-24V-givare utan ATEX-godkännande. Verifiera ekvipotential jordning och dokumentera enligt direktiv 2014/34/EU.",
@@ -952,3 +1014,117 @@ export function gripperTypeOf(p: CatalogProduct): "parallel" | "angular" | "radi
 }
 
 export const isGripperFamily = (p: CatalogProduct) => /,/.test(String(p.key_specs?.sizes ?? ""));
+
+/**
+ * Härleder maskingrafen ur stycklistan.
+ *
+ * Medvetet DETERMINISTISK och inte LLM-genererad. Rad 1714 i index.ts slår
+ * fast att all SKU-selektion redan är deterministisk och att modellen bara
+ * skriver prosa -- topologin i ett pneumatiskt system är lika bestämd av
+ * komponenttyperna, och att fråga en LLM om den vore att bjuda in exakt den
+ * sortens påhitt vi rättat på annat håll (uppdiktade kraftberäkningar,
+ * fabricerade ATEX-intyg). Luft går från beredning till ventil till aktuator,
+ * oavsett vad en modell tycker.
+ *
+ * Riktning: alltid beroende -> det den beror på. (aktuator, controlled_by,
+ * ventil) läses "aktuatorn styrs av ventilen".
+ *
+ * Parning vid flera aktuatorer (fleraxlig maskin): ventiler och givare paras
+ * mot aktuator i tur och ordning när antalen går jämnt ut, annars mot den
+ * primära. Att hellre koppla mot primären än att gissa är avsiktligt -- en
+ * felaktig kant är värre än en förenklad, eftersom den ser lika auktoritativ ut.
+ */
+export function deriveBomConnections(rows: BomRow[]): BomConnection[] {
+  const idx = (k: BomKind) => rows.map((r, i) => ({ r, i })).filter(x => x.r.kind === k).map(x => x.i);
+
+  const actuators = idx("actuator");
+  const valves = idx("valve");
+  const terminals = idx("valve_terminal");
+  const frls = idx("frl");
+  const motors = idx("motor");
+  const drives = idx("drive");
+
+  if (actuators.length === 0) return []; // ingen maskin att koppla ihop
+
+  const out: BomConnection[] = [];
+  const seen = new Set<string>();
+  const link = (fromIndex: number, toIndex: number, relation: BomConnection["relation"]) => {
+    if (fromIndex === toIndex) return;                 // bom_connections förbjuder självlänk
+    const key = `${fromIndex}>${toIndex}>${relation}`; // och dubbletter
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ fromIndex, toIndex, relation });
+  };
+
+  /** Aktuatorn som komponent nr n hör till: jämn parning när antalen matchar,
+   *  annars den primära (index 0). */
+  const actuatorFor = (n: number, total: number) =>
+    total === actuators.length ? actuators[n] : actuators[0];
+
+  // ── Luftvägen: FRL -> ventilramp -> ventil -> aktuator ────────────────────
+  const airSource = terminals[0] ?? frls[0];
+  if (terminals.length > 0 && frls.length > 0) link(terminals[0], frls[0], "air_supply");
+  valves.forEach((v, n) => {
+    if (airSource !== undefined && airSource !== v) link(v, airSource, "air_supply");
+    link(actuatorFor(n, valves.length), v, "controlled_by");
+  });
+  // Ingen ventil alls (t.ex. ren elektrisk lösning): koppla aktuatorn direkt
+  // till luftberedningen om sådan finns, annars lämna den fristående.
+  if (valves.length === 0 && frls.length > 0) link(actuators[0], frls[0], "air_supply");
+
+  // ── Elektrisk kedja: drivsteg styr motor, motor sitter på aktuatorn ───────
+  motors.forEach((m, n) => {
+    if (drives[n] !== undefined) link(m, drives[n], "controlled_by");
+    else if (drives[0] !== undefined) link(m, drives[0], "controlled_by");
+    link(m, actuatorFor(n, motors.length), "mounted_on");
+  });
+
+  // ── Sitter på aktuatorn ───────────────────────────────────────────────────
+  for (const k of ["rod_lock", "check_valve", "shock_absorber", "mount", "flow_control"] as const) {
+    idx(k).forEach((i, n) => link(i, actuatorFor(n, idx(k).length), "mounted_on"));
+  }
+  idx("sensor").forEach((i, n) => link(i, actuatorFor(n, idx("sensor").length), "senses"));
+
+  // ── Sitter på ventilen/rampen ─────────────────────────────────────────────
+  const exhaustHost = terminals[0] ?? valves[0];
+  if (exhaustHost !== undefined) idx("silencer").forEach(i => link(i, exhaustHost, "mounted_on"));
+
+  // ── Tillbehör utan egen plats i kedjan ────────────────────────────────────
+  // Slang och kopplingar hör till luftberedningen som system snarare än till
+  // någon enskild komponent; kabel till drivsteget om det finns, annars motorn.
+  if (frls[0] !== undefined) {
+    for (const k of ["tubing", "fitting"] as const) idx(k).forEach(i => link(i, frls[0], "accessory"));
+  }
+  const cableHost = drives[0] ?? motors[0];
+  if (cableHost !== undefined) idx("cable").forEach(i => link(i, cableHost, "accessory"));
+
+  return out;
+}
+
+/**
+ * Grupperar raderna i delsystem. Bär hierarkin maskin -> delsystem -> komponent
+ * som zoomnivån bygger på.
+ *
+ * Håller sig medvetet grov: delad infrastruktur (luftberedning, ramp, slang)
+ * mot "air_prep", varningsrader mot null eftersom de inte är komponenter, allt
+ * annat mot "main". Fleraxligt får en grupp per axel via aktuatorns egen
+ * axeletikett, som redan finns i `role`.
+ */
+export function deriveSubsystems(rows: BomRow[]): Array<string | null> {
+  const AIR_PREP = new Set<BomKind>(["frl", "valve_terminal", "tubing", "fitting", "silencer"]);
+  const axisOf = (role: string) => role.match(/\b([XYZ])-(?:axel|axis|Achse)\b/i)?.[1]?.toUpperCase()
+    ?? (/\beje ([XYZ])\b/i.exec(role)?.[1]?.toUpperCase() ?? null);
+
+  const actuatorAxes = rows.filter(r => r.kind === "actuator").map(r => axisOf(r.role));
+  const multiAxis = actuatorAxes.filter(Boolean).length > 1;
+
+  return rows.map(r => {
+    if (r.kind === "warning") return null;      // annotation, ingen komponent
+    if (AIR_PREP.has(r.kind)) return "air_prep";
+    if (multiAxis) {
+      const ax = axisOf(r.role);
+      if (ax) return `axis_${ax.toLowerCase()}`;
+    }
+    return "main";
+  });
+}
