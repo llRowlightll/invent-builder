@@ -9,6 +9,7 @@ import { loadCatalog } from "@/lib/catalog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import type { ProductRow } from "@/lib/types";
+import { callAdvisor } from "@/lib/advisor-client";
 
 export const Route = createFileRoute("/$locale/machine-builder")({
   head: ({ params }) => {
@@ -23,8 +24,6 @@ export const Route = createFileRoute("/$locale/machine-builder")({
   component: MachineBuilderPage,
 });
 
-const ADVISOR_URL = "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/groq-advisor";
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string ?? "";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface Question {
@@ -106,20 +105,7 @@ const EXAMPLES: Record<string, string[]> = {
 };
 
 // ── Advisor API calls ───────────────────────────────────────────────────────
-async function advisorCall(body: object) {
-  const res = await fetch(ADVISOR_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-    body: JSON.stringify(body),
-  });
-  if (res.status === 503) throw new Error("RATE_LIMITED");
-  if (!res.ok) throw new Error(`Advisor error ${res.status}`);
-  return res.json();
-}
+const advisorCall = callAdvisor;
 
 // Downscale a customer photo client-side (≤1024 px, JPEG) so the payload stays
 // small and under the vision API's 4 MB base64 cap regardless of camera size.

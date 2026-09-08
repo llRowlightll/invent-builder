@@ -10,6 +10,7 @@ import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
 import { addToShoppingList } from "@/lib/cart";
 import { diversifyResults } from "@/lib/search-diversity";
+import { callAdvisor } from "@/lib/advisor-client";
 
 export const Route = createFileRoute("/$locale/chat")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -63,24 +64,12 @@ interface AdvisorRequirements {
   pressure_bar: number;
 }
 
-const ADVISOR_URL = "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/groq-advisor";
-const ADVISOR_ANON_KEY = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string) ?? "";
 
-/** Direct call to groq-advisor — same client pattern as machine-builder.tsx's advisorCall. */
-async function advisorOptionsCall(description: string, locale: string): Promise<{
+/** Direct call to groq-advisor via the shared client (timeout + 503 handling). */
+function advisorOptionsCall(description: string, locale: string): Promise<{
   summary: string; options: AdvisorOption[]; requirements: AdvisorRequirements | null;
 }> {
-  const res = await fetch(ADVISOR_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "apikey": ADVISOR_ANON_KEY,
-      "Authorization": `Bearer ${ADVISOR_ANON_KEY}`,
-    },
-    body: JSON.stringify({ action: "options", description, answers: {}, locale }),
-  });
-  if (!res.ok) throw new Error(`Advisor error ${res.status}`);
-  return res.json();
+  return callAdvisor({ action: "options", description, answers: {}, locale });
 }
 
 /** Build conversation history from visible messages (last N text exchanges) */
