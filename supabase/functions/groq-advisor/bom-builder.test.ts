@@ -4,7 +4,10 @@
 import { assert, assertEquals } from "jsr:@std/assert@^1";
 import {
   type BomCtx,
+  type BomRow,
   buildMandatoryBomRows,
+  deriveBomConnections,
+  deriveSubsystems,
   findAxisActuator,
 } from "./bom-builder.ts";
 import { type CatalogProduct, normalizeKeySpecs } from "./scoring.ts";
@@ -337,4 +340,124 @@ Deno.test("unitCount does NOT scale pure warning/requirement rows -- they apply 
     assert(row, `expected a row matching ${role}`);
     assertEquals(row!.quantity, 1, `warning row ${role} must not scale with unitCount`);
   }
+});
+
+// ── Maskingrafen: deterministisk topologi ur stycklistan ─────────────────────
+// Steg 1 av maskinmodellen. Kopplingarna härleds ur komponenttyperna i stället
+// för att frågas av en LLM -- topologin i ett pneumatiskt system är bestämd,
+// och att låta en modell gissa den bjuder in samma sorts påhitt som de
+// uppdiktade kraftberäkningarna vi rättade 2026-09-08.
+
+function row(kind: BomRow["kind"], sku: string = kind.toUpperCase(), role: string = kind): BomRow {
+  return { sku, quantity: 1, kind, role, reason: "" };
+}
+
+/** Alla icke-varningsrader ska hänga ihop med aktuatorn — grinden för steg 1. */
+function isConnected(rows: BomRow[]): boolean {
+  const edges = deriveBomConnections(rows);
+  const adj = new Map<number, number[]>();
+  for (const e of edges) {
+    (adj.get(e.fromIndex) ?? adj.set(e.fromIndex, []).get(e.fromIndex)!).push(e.toIndex);
+    (adj.get(e.toIndex) ?? adj.set(e.toIndex, []).get(e.toIndex)!).push(e.fromIndex);
+  }
+  const start = rows.findIndex(r => r.kind === "actuator");
+  if (start < 0) return false;
+  const seen = new Set([start]);
+  const queue = [start];
+  while (queue.length) for (const n of adj.get(queue.pop()!) ?? []) {
+    if (!seen.has(n)) { seen.add(n); queue.push(n); }
+  }
+  return rows.every((r, i) => r.kind === "warning" || seen.has(i));
+}
+
+Deno.test("luftvägen kopplas FRL -> ramp -> ventil -> aktuator", () => {
+  const rows = [row("actuator"), row("valve"), row("valve_terminal"), row("frl")];
+  const e = deriveBomConnections(rows);
+  const has = (f: number, t: number, r: string) => e.some(x => x.fromIndex === f && x.toIndex === t && x.relation === r);
+  assert(has(0, 1, "controlled_by"), "aktuatorn styrs av ventilen");
+  assert(has(1, 2, "air_supply"), "ventilen matas från rampen");
+  assert(has(2, 3, "air_supply"), "rampen matas från FRL:en");
+});
+
+Deno.test("hela stycklistan hänger ihop med aktuatorn", () => {
+  const rows = [
+    row("actuator"), row("valve"), row("valve_terminal"), row("frl"), row("silencer"),
+    row("flow_control"), row("sensor"), row("check_valve"), row("rod_lock"),
+    row("mount"), row("tubing"), row("fitting"), row("shock_absorber"),
+  ];
+  assert(isConnected(rows), "varje komponent ska nås från aktuatorn");
+});
+
+Deno.test("elektrisk kedja: drivsteg styr motor, motor sitter på aktuatorn", () => {
+  const rows = [row("actuator"), row("motor"), row("drive"), row("cable")];
+  const e = deriveBomConnections(rows);
+  assert(e.some(x => x.fromIndex === 1 && x.toIndex === 2 && x.relation === "controlled_by"));
+  assert(e.some(x => x.fromIndex === 1 && x.toIndex === 0 && x.relation === "mounted_on"));
+  assert(e.some(x => x.fromIndex === 3 && x.toIndex === 2 && x.relation === "accessory"), "kabeln hör till drivsteget");
+  assert(isConnected(rows));
+});
+
+Deno.test("varningsrader får aldrig kopplingar", () => {
+  const rows = [row("actuator"), row("warning", "⚠️", "⚠️ ATEX"), row("valve")];
+  const e = deriveBomConnections(rows);
+  assert(!e.some(x => x.fromIndex === 1 || x.toIndex === 1), "en annotation är ingen nod");
+});
+
+Deno.test("fleraxligt: ventil och givare paras mot rätt axel", () => {
+  const rows = [
+    { ...row("actuator"), role: "Aktuator — X-axel" },
+    { ...row("actuator"), role: "Aktuator — Y-axel" },
+    row("valve"), row("valve"),
+    row("sensor"), row("sensor"),
+  ];
+  const e = deriveBomConnections(rows);
+  assert(e.some(x => x.fromIndex === 0 && x.toIndex === 2 && x.relation === "controlled_by"));
+  assert(e.some(x => x.fromIndex === 1 && x.toIndex === 3 && x.relation === "controlled_by"));
+  assert(e.some(x => x.fromIndex === 4 && x.toIndex === 0 && x.relation === "senses"));
+  assert(e.some(x => x.fromIndex === 5 && x.toIndex === 1 && x.relation === "senses"));
+});
+
+Deno.test("ojämna antal faller tillbaka på primäraktuatorn i stället för att gissa", () => {
+  const rows = [row("actuator"), row("actuator"), row("valve")];
+  const e = deriveBomConnections(rows);
+  assertEquals(e.filter(x => x.relation === "controlled_by").length, 1);
+  assert(e.some(x => x.fromIndex === 0 && x.toIndex === 2), "faller tillbaka på primären");
+});
+
+Deno.test("inga självlänkar och inga dubbletter — bom_connections förbjuder båda", () => {
+  const rows = [
+    row("actuator"), row("valve"), row("frl"), row("sensor"), row("sensor"),
+    row("mount"), row("mount"), row("mount"),
+  ];
+  const e = deriveBomConnections(rows);
+  assert(!e.some(x => x.fromIndex === x.toIndex), "självlänk");
+  const keys = e.map(x => `${x.fromIndex}>${x.toIndex}>${x.relation}`);
+  assertEquals(keys.length, new Set(keys).size, "dubblett");
+});
+
+Deno.test("utan aktuator finns ingen maskin att koppla ihop", () => {
+  assertEquals(deriveBomConnections([row("valve"), row("frl")]).length, 0);
+});
+
+Deno.test("delsystem: delad infrastruktur skiljs från maskinen, varningar grupperas inte", () => {
+  const rows = [row("actuator"), row("frl"), row("valve_terminal"), row("valve"), row("warning")];
+  assertEquals(deriveSubsystems(rows), ["main", "air_prep", "air_prep", "main", null]);
+});
+
+Deno.test("delsystem: fleraxligt ger en grupp per axel", () => {
+  const rows = [
+    { ...row("actuator"), role: "Aktuator — X-axel" },
+    { ...row("actuator"), role: "Aktuator — Y-axel" },
+    row("frl"),
+  ];
+  assertEquals(deriveSubsystems(rows), ["axis_x", "axis_y", "air_prep"]);
+});
+
+Deno.test("en riktig stycklista från buildMandatoryBomRows ger en sammanhängande graf", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    isVerticalLoad: true, isRodLock: true, isEndPosDetect: true, isMounting: true,
+  }));
+  assert(rows.length > 3, "stycklistan ska ha innehåll");
+  assert(rows.every(r => typeof r.kind === "string"), "varje rad måste ha en kind");
+  assert(isConnected(rows), "den verkliga stycklistan ska hänga ihop");
 });

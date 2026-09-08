@@ -44,6 +44,8 @@ import {
   findAxisActuator,
   type BomCtx,
   buildMandatoryBomRows,
+  deriveBomConnections,
+  deriveSubsystems,
   firstNumAbs,
   gripperForceN,
   gripperTypeOf,
@@ -1772,13 +1774,29 @@ JSON: { "title": "...", "explanation": "..." }`;
     return true;
   });
 
+  // Maskingrafen. Härleds EFTER ATEX-filtreringen ovan -- den tar bort rader,
+  // och kopplingarna refererar till index i den utlevererade listan. Att
+  // härleda före filtret hade förskjutit varenda kant.
+  //
+  // Deterministisk med flit: rad 1714 slår fast att all SKU-selektion redan är
+  // deterministisk och att modellen bara skriver prosa. Topologin i ett
+  // pneumatiskt system är lika bestämd av komponenttyperna -- luft går från
+  // beredning till ventil till aktuator oavsett vad en LLM tycker -- och att
+  // fråga en modell om den vore att bjuda in samma sorts påhitt som de
+  // uppdiktade kraftberäkningarna (fixade 2026-09-08).
+  const subsystems = deriveSubsystems(finalBom);
+  const connections = deriveBomConnections(finalBom);
+  const bomWithGroups = finalBom.map((r, i) => ({ ...r, subsystem: subsystems[i] }));
+
   logAdvisorEvent("bom", {
     locale, primary_sku: primarySku, bom_rows: finalBom.length,
     rate_limited: wasRateLimited, duration_ms: Date.now() - t0,
     specify_rows: finalBom.filter(r => r.sku === "SPECIFY").length,
+    connections: connections.length,
+    subsystems: [...new Set(subsystems.filter(Boolean))].length,
   }, true, wasRateLimited ? "rate_limited" : undefined);
 
-  return Response.json({ title, explanation, bom: finalBom }, { headers: CORS });
+  return Response.json({ title, explanation, bom: bomWithGroups, connections }, { headers: CORS });
 }
 
 
