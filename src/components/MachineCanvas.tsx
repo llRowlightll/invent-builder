@@ -13,7 +13,7 @@
  */
 import { useMemo, useState, useCallback } from "react";
 import {
-  ReactFlow, Background, Controls, MiniMap,
+  ReactFlow, Background, Controls, MiniMap, ViewportPortal,
   type Node, type Edge, type NodeProps, Handle, Position, MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -43,6 +43,15 @@ const COLUMN: Record<string, number> = {
   valve: 2, flow_control: 2, check_valve: 2, motor: 2,
   actuator: 3, rod_lock: 3, mount: 3, shock_absorber: 3,
   sensor: 4, cable: 4,
+};
+
+/** Delsystemens visningsnamn. Nycklarna är serverns egna (deriveSubsystems). */
+const SUBSYSTEM_LABEL: Record<string, { sv: string; en: string }> = {
+  air_prep: { sv: "Luftberedning", en: "Air preparation" },
+  main:     { sv: "Maskin",        en: "Machine" },
+  axis_x:   { sv: "X-axel",        en: "X axis" },
+  axis_y:   { sv: "Y-axel",        en: "Y axis" },
+  axis_z:   { sv: "Z-axel",        en: "Z axis" },
 };
 
 const RELATION_LABEL: Record<string, string> = {
@@ -96,7 +105,71 @@ function ComponentNode({ data }: NodeProps<Node<ComponentNodeData>>) {
   );
 }
 
-const nodeTypes = { component: ComponentNode };
+type GroupNodeData = {
+  label: string;
+  count: number;
+  collapsed: boolean;
+  onToggle: () => void;
+};
+
+/** Ihopfällt delsystem: EN nod som står för hela gruppen. Kanter som korsade
+ *  gränsen flyttas hit av remapEndpoint(), så maskinen hänger ihop även på
+ *  delsystemsnivå -- det är det som gör zoomen meningsfull i stället för att
+ *  bara dölja saker. */
+function CollapsedGroupNode({ data }: NodeProps<Node<GroupNodeData>>) {
+  return (
+    <div
+      onClick={data.onToggle}
+      className="rounded-lg border-2 border-dashed border-info/50 bg-info/5 px-4 py-3 w-52 cursor-pointer hover:border-info transition shadow-sm"
+    >
+      <Handle type="target" position={Position.Left} className="!bg-muted-foreground !w-1.5 !h-1.5 !border-0" />
+      <div className="text-[10px] uppercase tracking-wider text-info">delsystem</div>
+      <div className="text-xs font-medium text-foreground">{data.label}</div>
+      <div className="text-[10px] text-muted-foreground mt-0.5">
+        {data.count} {data.count === 1 ? "komponent" : "komponenter"} — klicka för att fälla ut
+      </div>
+      <Handle type="source" position={Position.Right} className="!bg-muted-foreground !w-1.5 !h-1.5 !border-0" />
+    </div>
+  );
+}
+
+/**
+ * Utfällt delsystem: en ram bakom sina komponenter.
+ *
+ * Medvetet INTE en React Flow-nod. En ram är dekoration, inte en del av
+ * grafen -- den har inga kanter och deltar inte i topologin. Som nod bröt den
+ * dessutom React Flows initiering: med en handtagslös containernod nådde
+ * flödet aldrig "nodesInitialized", och då renderades varken kanter eller
+ * fitView (verifierat: samma stycklista gav 6 kanter utan ramen, 0 med).
+ * ViewportPortal ritar i flödets koordinatsystem och panorerar/zoomar med
+ * innehållet, utan att röra nodgrafen.
+ */
+function SubsystemFrame({ x, y, width, height, label, onToggle }: {
+  x: number; y: number; width: number; height: number; label: string; onToggle: () => void;
+}) {
+  return (
+    <div
+      className="absolute rounded-xl border border-dashed border-border bg-muted/20"
+      style={{ left: x, top: y, width, height, pointerEvents: "none" }}
+    >
+      <button
+        onClick={onToggle}
+        style={{ pointerEvents: "auto" }}
+        className="absolute -top-2.5 left-3 px-2 py-0.5 rounded bg-card border border-border text-[10px] uppercase tracking-wider text-muted-foreground hover:text-info hover:border-info transition"
+      >
+        {label} — fäll ihop
+      </button>
+    </div>
+  );
+}
+
+const nodeTypes = { component: ComponentNode, groupCollapsed: CollapsedGroupNode };
+
+const NODE_W = 208;
+const NODE_H = 84;
+const COL_GAP = 250;
+const ROW_GAP = 104;
+const BAND_PAD = 34;
 
 export default function MachineCanvas({
   bom, connections, isSv,
@@ -106,49 +179,150 @@ export default function MachineCanvas({
   isSv: boolean;
 }) {
   const [picked, setPicked] = useState<number | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const onPick = useCallback((i: number) => setPicked(p => (p === i ? null : i)), []);
+  const toggle = useCallback((sub: string) => setCollapsed(prev => {
+    const next = new Set(prev);
+    if (next.has(sub)) next.delete(sub); else next.add(sub);
+    return next;
+  }), []);
 
   // Varningsrader är annotationer, inte komponenter -- servern ger dem aldrig
   // kanter, och de ritas som en lista under schemat i stället för som noder.
   const warnings = useMemo(() => bom.filter(l => l.kind === "warning"), [bom]);
 
-  const nodes = useMemo<Node<ComponentNodeData>[]>(() => {
-    const perColumn = new Map<number, number>();
-    return bom.flatMap((line, index) => {
-      if (line.kind === "warning") return [];
-      const col = COLUMN[line.kind ?? ""] ?? 5;
-      const row = perColumn.get(col) ?? 0;
-      perColumn.set(col, row + 1);
+  /**
+   * Delsystem i läsordning: luftberedningen först (den matar allt annat),
+   * sedan maskinen, sedan axlarna. Varje delsystem får ett eget vågrätt band,
+   * och inom bandet placeras komponenterna i kolumner efter typ -- så behåller
+   * schemat sin igenkännbara luftväg samtidigt som hierarkin blir synlig.
+   */
+  const layout = useMemo(() => {
+    const order = (sub: string) => (sub === "air_prep" ? 0 : sub === "main" ? 1 : 2);
+    const subs = [...new Set(bom.filter(l => l.kind !== "warning").map(l => l.subsystem ?? "main"))]
+      .sort((a, b) => order(a) - order(b) || a.localeCompare(b));
+
+    const bands = new Map<string, { y: number; height: number; members: number[] }>();
+    const pos = new Map<number, { x: number; y: number }>();
+    let cursorY = 0;
+
+    for (const sub of subs) {
+      const members = bom.map((l, i) => ({ l, i }))
+        .filter(x => x.l.kind !== "warning" && (x.l.subsystem ?? "main") === sub)
+        .map(x => x.i);
+      const perColumn = new Map<number, number>();
+      let rows = 1;
+      for (const i of members) {
+        const col = COLUMN[bom[i].kind ?? ""] ?? 5;
+        const row = perColumn.get(col) ?? 0;
+        perColumn.set(col, row + 1);
+        rows = Math.max(rows, row + 1);
+        pos.set(i, { x: col * COL_GAP, y: cursorY + BAND_PAD + row * ROW_GAP });
+      }
+      const height = BAND_PAD + rows * ROW_GAP;
+      bands.set(sub, { y: cursorY, height, members });
+      cursorY += height + 26;
+    }
+    return { subs, bands, pos };
+  }, [bom]);
+
+  const nodes = useMemo<Node[]>(() => {
+    const out: Node[] = [];
+    const maxCol = Math.max(0, ...bom.filter(l => l.kind !== "warning").map(l => COLUMN[l.kind ?? ""] ?? 5));
+    const label = (sub: string) =>
+      SUBSYSTEM_LABEL[sub]?.[isSv ? "sv" : "en"] ?? sub;
+
+    for (const sub of layout.subs) {
+      const band = layout.bands.get(sub)!;
+      const isCollapsed = collapsed.has(sub);
+      // Ett delsystem med en enda komponent är ingen hierarki -- att rita en
+      // ram runt den hade varit brus. Den komponenten står för sig själv.
+      const showFrame = band.members.length > 1;
+
+      if (isCollapsed && showFrame) {
+        out.push({
+          id: `grp-${sub}`,
+          type: "groupCollapsed",
+          position: { x: 0, y: band.y + BAND_PAD },
+          data: { label: label(sub), count: band.members.length, collapsed: true, onToggle: () => toggle(sub) },
+        });
+        continue; // barnen ritas inte alls när gruppen är ihopfälld
+      }
+
+      for (const i of band.members) {
+        out.push({
+          id: String(i),
+          type: "component",
+          // Färskt objekt per render: React Flow muterar noders position
+          // internt, och en delad referens ur den memoiserade layouten skulle
+          // matas tillbaka muterad nästa render.
+          position: { ...layout.pos.get(i)! },
+          data: { line: bom[i], index: i, selected: picked === i, onPick },
+        });
+      }
+    }
+    return out;
+  }, [bom, layout, collapsed, picked, onPick, toggle, isSv]);
+
+  /** Ramarna ritas som overlay i flödets koordinatsystem, inte som noder. */
+  const frames = useMemo(() => {
+    const maxCol = Math.max(0, ...bom.filter(l => l.kind !== "warning").map(l => COLUMN[l.kind ?? ""] ?? 5));
+    return layout.subs.flatMap(sub => {
+      const band = layout.bands.get(sub)!;
+      // Ett delsystem med en enda komponent är ingen hierarki -- en ram runt
+      // den hade varit brus.
+      if (band.members.length <= 1 || collapsed.has(sub)) return [];
       return [{
-        id: String(index),
-        type: "component",
-        position: { x: col * 250, y: row * 104 },
-        data: { line, index, selected: picked === index, onPick },
+        sub,
+        x: -16,
+        y: band.y,
+        width: maxCol * COL_GAP + NODE_W + 32,
+        height: band.height + 12,
+        label: SUBSYSTEM_LABEL[sub]?.[isSv ? "sv" : "en"] ?? sub,
       }];
     });
-  }, [bom, picked, onPick]);
+  }, [bom, layout, collapsed, isSv]);
 
   const edges = useMemo<Edge[]>(() => {
     const drawn = new Set(nodes.map(n => n.id));
-    return connections
-      // En kant vars ändpunkt inte ritats (t.ex. en varningsrad) hoppas över
+    /** En ändpunkt inuti ett ihopfällt delsystem ersätts av gruppnoden, så
+     *  kanten överlever ihopfällningen i stället för att försvinna. */
+    const remapEndpoint = (index: number): string | null => {
+      const sub = bom[index]?.subsystem ?? "main";
+      if (collapsed.has(sub) && drawn.has(`grp-${sub}`)) return `grp-${sub}`;
+      return drawn.has(String(index)) ? String(index) : null;
+    };
+
+    const seen = new Set<string>();
+    return connections.flatMap((c, i) => {
+      const source = remapEndpoint(c.toIndex);
+      const target = remapEndpoint(c.fromIndex);
+      // Kant vars ändpunkt inte ritats alls (t.ex. en varningsrad) hoppas över
       // hellre än att ge React Flow ett id som inte finns.
-      .filter(c => drawn.has(String(c.fromIndex)) && drawn.has(String(c.toIndex)))
-      .map((c, i) => ({
+      if (!source || !target) return [];
+      // Båda ändarna i samma ihopfällda grupp = en intern koppling. Den blir en
+      // självlänk på gruppnoden och ska inte ritas.
+      if (source === target) return [];
+      // Två kanter kan kollapsa till samma par när en grupp fälls ihop.
+      const key = `${source}->${target}`;
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [{
         id: `e${i}`,
         // Riktningen i datan är beroende -> det den beror på. I schemat vill
         // ögat följa flödet åt andra hållet (luften går FRÅN beredningen), så
         // pilen vänds medvetet: source = det man beror på.
-        source: String(c.toIndex),
-        target: String(c.fromIndex),
+        source,
+        target,
         label: RELATION_LABEL[c.relation] ?? c.relation,
         labelStyle: { fontSize: 10, fill: "var(--muted-foreground, #888)" },
         labelBgStyle: { fill: "var(--background, #fff)", fillOpacity: 0.85 },
         style: { strokeWidth: 1.4 },
         markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
         animated: c.relation === "air_supply",
-      }));
-  }, [connections, nodes]);
+      }];
+    });
+  }, [connections, nodes, bom, collapsed]);
 
   const sel = picked !== null ? bom[picked] : null;
 
@@ -177,6 +351,11 @@ export default function MachineCanvas({
             nodesConnectable={false}
             onPaneClick={() => setPicked(null)}
           >
+            <ViewportPortal>
+              {frames.map(f => (
+                <SubsystemFrame key={f.sub} {...f} onToggle={() => toggle(f.sub)} />
+              ))}
+            </ViewportPortal>
             <Background gap={18} size={1} />
             <Controls showInteractive={false} />
             <MiniMap pannable zoomable className="!bg-muted" />
