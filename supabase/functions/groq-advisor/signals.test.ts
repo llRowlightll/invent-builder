@@ -295,3 +295,35 @@ Deno.test("extractUnitCount does not misread a bore/pressure/temperature number 
 Deno.test("extractUnitCount ignores an out-of-range count (typo guard)", () => {
   assertEquals(extractUnitCount("300 identiska stationer", {}), 1);
 });
+
+// ── isHighPrecision threshold: pneumatics must be excluded at ±0.5 mm ─────────
+// Reported 2026-09-08: a pallet stacker needing "±0,5 mm vid varje stopp"
+// (35 kg, 900 mm vertical, 12 cycles/min, 24/7, dusty) came back with three
+// PNEUMATIC rodless cylinders as "Bästa valet". precisionMm parsed correctly as
+// 0.5, but the trigger was `precisionMm <= 0.1`, so isHighPrecision stayed
+// false and isAllowedForHighPrecision -- which exists precisely to exclude
+// pneumatics -- never ran. Per scoring.ts's own documented figures, pneumatic
+// repeatability is ±0.1–0.5 mm, so a requirement AT 0.5 mm has zero margin.
+
+Deno.test("isHighPrecision fires at ±0,5 mm (the reported pallet-stacker case)", () => {
+  const h = detectHazards(
+    "Kartongen ska lyftas vertikalt 900 mm. Precision krävs inom ±0,5 mm vid varje stopp.",
+    {}, "sv",
+  );
+  assertEquals(h.precisionMm, 0.5);
+  assertEquals(h.isHighPrecision, true, "±0,5 mm must exclude pneumatics");
+});
+
+Deno.test("isHighPrecision still fires well below the threshold", () => {
+  assertEquals(detectHazards("repeterbarhet ±0,02 mm", {}, "sv").isHighPrecision, true);
+});
+
+Deno.test("isHighPrecision does NOT fire at ±1 mm (cushioned pneumatic end stops are fine)", () => {
+  const h = detectHazards("positionering ±1 mm räcker", {}, "sv");
+  assertEquals(h.precisionMm, 1);
+  assertEquals(h.isHighPrecision, false, "±1 mm must not exclude pneumatics");
+});
+
+Deno.test("isHighPrecision stays false when no precision is stated at all", () => {
+  assertEquals(detectHazards("pneumatisk cylinder för stopp på transportband", {}, "sv").isHighPrecision, false);
+});

@@ -171,11 +171,19 @@ export function isPneumaticActuatorProduct(p: CatalogProduct): boolean {
 }
 
 /**
- * PRECISION RULE (ALL AXES, v34): if precision ≤ 0.1 mm, belt drives and pneumatics
- * are physically excluded regardless of axis orientation.
- * • Pneumatic repeatability: ±0.1–0.5 mm → cannot achieve ≤0.1 mm
- * • Belt backlash: 0.05–0.3 mm → violates ≤0.1 mm precision budget
- * • Ball screw / spindle: 0.003–0.05 mm → physically capable
+ * PRECISION RULE (ALL AXES): if the stated precision is ≤ 0.5 mm, belt drives
+ * and pneumatics are physically excluded regardless of axis orientation.
+ * • Pneumatic repeatability: ±0.1–0.5 mm → cannot hold ≤0.5 mm with any margin
+ * • Belt backlash:           0.05–0.3 mm → eats the whole ≤0.5 mm budget
+ * • Ball screw / spindle:    0.003–0.05 mm → an order of magnitude of headroom
+ *
+ * v34 set the trigger at ≤0.1 mm; widened to ≤0.5 mm on 2026-09-08 after a
+ * user-reported bad answer (see signals.ts, isHighPrecision). A requirement AT
+ * 0.5 mm sits at the very worst edge of pneumatic capability per the figures
+ * above — zero margin — and you do not spec a component at 100% of its best
+ * case. The trigger lives in signals.ts; this function only decides which
+ * products survive once it fires.
+ *
  * Returns true if product is ALLOWED for high-precision application.
  */
 export function isAllowedForHighPrecision(p: CatalogProduct): boolean {
