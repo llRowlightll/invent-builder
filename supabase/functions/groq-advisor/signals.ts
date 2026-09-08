@@ -849,7 +849,26 @@ export function detectHazards(
     : minStrokeMm;
   const speedMs = extractSpeedMs(text, answers);
   const precisionMm = extractPrecisionMm(text, answers);
-  const isHighPrecision = precisionMm > 0 && precisionMm <= 0.1;
+  // Threshold raised 0.1 -> 0.5 on 2026-09-08 after a user-reported bad answer:
+  // a pallet stacker needing "±0,5 mm vid varje stopp" (35 kg, 900 mm vertical,
+  // 12 cycles/min, 24/7, dusty) was answered with three PNEUMATIC rodless
+  // cylinders as "Bästa valet". precisionMm parsed correctly as 0.5, but 0.5 >
+  // 0.1 meant isHighPrecision stayed false, so isAllowedForHighPrecision --
+  // which exists precisely to exclude pneumatics -- was never applied.
+  //
+  // 0.5 comes from this repo's own documented figures (scoring.ts:173):
+  // pneumatic repeatability is +-0.1..0.5 mm, belt backlash 0.05..0.3 mm, ball
+  // screw 0.003..0.05 mm. A requirement AT 0.5 mm therefore sits at the very
+  // worst edge of what the best pneumatic can do -- zero margin, before you
+  // add a vertical axis whose load varies, 12 cycles/min and a dusty
+  // environment. You do not spec a component at 100% of its best case, so a
+  // stated requirement of 0.5 mm or tighter means electric.
+  //
+  // Deliberately NOT looser than 0.5: a casual "±1 mm" usually describes
+  // end-position repeatability, which a cushioned pneumatic cylinder with hard
+  // stops genuinely does meet, and excluding pneumatics there would be wrong
+  // in the opposite direction.
+  const isHighPrecision = precisionMm > 0 && precisionMm <= 0.5;
   const explicitBoreMm = extractExplicitBoreMm(text, answers);
   const loadKg = extractLoadKg(text, answers);
   const minBoreMm = calcMinBoreMm(loadKg);

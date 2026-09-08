@@ -1215,6 +1215,14 @@ async function handleOptions(
   // brings the options action's requirement summary up to the same coverage.
   const reqSummary = [
     maxRequiredStroke > 0 ? `Stroke: ${maxRequiredStroke} mm` : "",
+    // Found 2026-09-08 (user-reported bad answer): the LLM was never given the
+    // load or the required force, only the raw description, so it did its own
+    // arithmetic -- 35 kg x 9.81 = "≈343 N required" -- silently dropping the
+    // safety factor of 2 the server applies. Its prose then contradicted the
+    // requirements block rendered on the same page (687 N). Hand it the numbers
+    // the server already computed instead of leaving it to re-derive them.
+    loadKg > 0 ? `Last: ${loadKg} kg` : "",
+    requiredForceN > 0 ? `Erforderlig kraft: ${requiredForceN} N (last x 9,81 x säkerhetsfaktor 2 — använd DENNA siffra, räkna inte om den)` : "",
     precisionMm > 0 ? `Precision: ±${precisionMm} mm` : "",
     isVerticalLoad ? pick(locale, { sv: "Vertikal last", en: "Vertical load", de: "Vertikale Last", es: "Carga vertical" }) : "",
     isWashdown ? "Washdown/IP69K" : "",
@@ -1232,8 +1240,23 @@ async function handleOptions(
     isHighCycle ? "Kontinuerlig drift/högfrekvent — dimensionera för livslängd" : "",
   ].filter(Boolean).join(" | ");
 
+  // Found 2026-09-08 (user-reported bad answer): the payload showed
+  // `force_n: "754 N"` sitting directly next to `max_pressure: "10 bar"`, with
+  // nothing saying which pressure the force is quoted at. The model drew the
+  // reasonable-but-wrong conclusion that 754 N was the figure at 10 bar and
+  // derated it for the customer's 6 bar supply -- "754 N x 6/10 ≈ 452 N" -- a
+  // number that appears nowhere in the data. normalizeKeySpecs() already
+  // guarantees force_n is at 6 bar (it reads piston_force_6bar_N, or computes
+  // bore x 6 bar when absent), so the fix is to say so in the key name rather
+  // than to argue with the model about arithmetic it had every reason to do.
+  const labelForceAtPressure = (specs: Record<string, unknown>): Record<string, unknown> => {
+    if (specs.force_n == null) return specs;
+    const { force_n, ...rest } = specs;
+    return { force_n_at_6bar: force_n, ...rest };
+  };
+
   const preselectedStr = topProducts.map((p, i) =>
-    `${i+1}. SKU="${p.sku}" | ${p.name} [${p.brand}/${p.category}] stroke=${strokeLabel(p.key_specs??{})} specs:${JSON.stringify(p.key_specs??{})}`
+    `${i+1}. SKU="${p.sku}" | ${p.name} [${p.brand}/${p.category}] stroke=${strokeLabel(p.key_specs??{})} specs:${JSON.stringify(labelForceAtPressure(p.key_specs??{}))}`
   ).join("\n");
 
   // SECURITY/SAFETY: found via adversarial testing 2026-08-16 — asked for a Zone 1
@@ -1245,7 +1268,7 @@ async function handleOptions(
   // for a confident, specific engineering justification — it did. The BOM action
   // already has correct, server-injected ATEX warning text; this path had none.
   const atexWarning = (isAtex || isAtexDust) ? `
-4. ATEX/Ex-zone request detected. These 3 products are STANDARD catalog items — NONE are ATEX/IECEx zone-certified (verify: no catalog product carries explosion-protection certification). You MUST NOT state or imply that any of them is ATEX-rated, explosion-proof, or zone-safe. "why" and "summary" MUST explicitly say these are standard, non-certified components shown for dimensioning/reference only, and that genuine ATEX/IECEx-certified equivalents (e.g. Parker P1X ATEX, SMC CDQMB-ATEX, Norgren Excelon ATEX-series) must be sourced and verified against the stated zone before purchase — recommend contacting us for a certified solution rather than ordering these directly.` : "";
+5. ATEX/Ex-zone request detected. These 3 products are STANDARD catalog items — NONE are ATEX/IECEx zone-certified (verify: no catalog product carries explosion-protection certification). You MUST NOT state or imply that any of them is ATEX-rated, explosion-proof, or zone-safe. "why" and "summary" MUST explicitly say these are standard, non-certified components shown for dimensioning/reference only, and that genuine ATEX/IECEx-certified equivalents (e.g. Parker P1X ATEX, SMC CDQMB-ATEX, Norgren Excelon ATEX-series) must be sourced and verified against the stated zone before purchase — recommend contacting us for a certified solution rather than ordering these directly.` : "";
 
   // SECURITY/CORRECTNESS: adversarial-tested 2026-08-17 — even a completely
   // ordinary, non-adversarial request ("cylinder for a stop function on a
@@ -1263,7 +1286,8 @@ async function handleOptions(
 MANDATORY RULES:
 1. Use EXACTLY these SKUs: ${topProducts.map(p => p.sku).join(", ")} — do NOT change them
 2. "why" = engineering justification grounded ONLY in the specs actually given for that product below (its specs:{...} JSON — bore, stroke, force, pressure, temperature, etc). Cite real numbers from there. Do NOT invent material, weight, coatings, heat treatment, integrated safety features (e.g. "built-in pressure relief"), or certifications that aren't listed — if a product's data doesn't cover something, leave it out rather than guessing. A short, fully-grounded "why" is correct; a longer one padded with invented details is not.
-3. pros/cons: same rule — only claims backed by the listed specs. 2-3 pros, 1-2 cons.${atexWarning}
+3. pros/cons: same rule — only claims backed by the listed specs. 2-3 pros, 1-2 cons.
+4. NEVER recalculate force, pressure or load. force_n_at_6bar is ALREADY the force at 6 bar — do not scale it by any pressure ratio. Use "Erforderlig kraft" from Requirements verbatim as the requirement; do not derive your own from the mass. Quote both numbers exactly as given, or omit them. An invented calculation is the worst possible error here: an engineer who checks it stops trusting everything else on the page.${atexWarning}
 Do NOT output a badge field — badges are assigned server-side and must not be set by you.
 
 JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "EXACT_SKU", "why": "...", "pros": [...], "cons": [...] } ] }`;
