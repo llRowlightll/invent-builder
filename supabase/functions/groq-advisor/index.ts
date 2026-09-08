@@ -1168,7 +1168,7 @@ async function handleOptions(
   // ── v40/v51: Server-side product selection ───────────────────────
   // rankActuators() tiers candidates so a configurable family NEVER outranks a
   // concrete-stroke product that meets the requirement (regression-tested).
-  const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, isHighPrecision, isHighSpeed, isVertical: isVerticalLoad, isWashdown: needsCorrosionResistant, isAtex, preferredBrands: detectRequestedBrands(combinedText) };
+  const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, requiredForceN, isHighPrecision, isHighSpeed, isVertical: isVerticalLoad, isWashdown: needsCorrosionResistant, isAtex, preferredBrands: detectRequestedBrands(combinedText) };
   const topProducts = rankActuators(catalogProducts, scoringCtx).slice(0, 3);
 
   // Build server-side option objects (correct data, LLM fills in text)
