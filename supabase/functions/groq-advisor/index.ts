@@ -210,6 +210,23 @@ async function callGroq(
   }
 
   if (primary.rateLimited) throw new Error("RATE_LIMITED");
+
+  // Found 2026-09-03 (adversarial test): a transient "json_validate_failed"
+  // (Groq's own structured-output validator occasionally rejects a
+  // generation -- not a rate limit) had zero retry. handleQuestions calls
+  // LLM_MODEL_FAST directly, so there's no lower fallback tier for it to
+  // fall through to -- one hiccup went straight to a silent, success-
+  // indistinguishable empty response ({summary: "", questions: []}) with no
+  // error surfaced anywhere. One retry with the same model/prompt before
+  // giving up -- LLM sampling is stochastic, a malformed generation on one
+  // attempt doesn't mean the next one fails too. Benefits every caller of
+  // callGroq uniformly, not just handleQuestions.
+  const retry = await tryModel(model);
+  if (retry.ok) {
+    const data = JSON.parse(retry.text);
+    return data.choices?.[0]?.message?.content ?? null;
+  }
+  if (retry.rateLimited) throw new Error("RATE_LIMITED");
   return null;
 }
 
@@ -375,6 +392,25 @@ async function fetchEndEffectorProducts(slug: string, limit: number): Promise<Ca
 
 
 // ── ACTION: questions ─────────────────────────────────────────────────────────
+// Found 2026-09-08 (audit): all three of handleQuestions's failure paths used to
+// return HTTP 200 with {summary:"", questions:[]} -- a body the client cannot
+// tell apart from success. machine-builder.tsx's advisorCall only throws on
+// !res.ok, so handleDescribe advanced to the questions step with an empty list,
+// where `allAnswered = questions.length > 0 && ...` leaves the continue button
+// permanently disabled: a hard dead-end with no error, no retry, no explanation.
+// It was invisible in telemetry too -- none of the three paths called
+// logAdvisorEvent, so integration_logs only ever recorded the successes.
+// scripts/test-advisor.sh:426 documents this exact failure ("0 questions in the
+// 3 runs before this fix, always silently forgiven") back on 2026-08-21 -- only
+// the test harness got a retry then, never the real customer path.
+// 502 makes advisorCall throw, which surfaces "Something went wrong. Please try
+// again." and keeps the user on the describe step with their typed description
+// intact, ready to resubmit.
+function questionsFailed(locale: string, t0: number, reason: string): Response {
+  logAdvisorEvent("questions", { locale, question_count: 0, duration_ms: Date.now() - t0 }, false, reason);
+  return Response.json({ error: "questions_unavailable", reason }, { status: 502, headers: CORS });
+}
+
 async function handleQuestions(description: string, locale: string): Promise<Response> {
   const t0 = Date.now();
   // Skip PDF context for questions step — questions are short and context bloats tokens.
@@ -458,7 +494,7 @@ async function handleQuestions(description: string, locale: string): Promise<Res
       { role: "system", content: system },
       { role: "user", content: `Application: ${description}` },
     ], 1200, true, 0.2, LLM_MODEL_FAST);
-    if (!raw) return Response.json({ summary: "", questions: [] }, { headers: CORS });
+    if (!raw) return questionsFailed(locale, t0, "empty_llm_response");
     try {
       const parsed = JSON.parse(raw);
       // Deduplicate by id first, then by label prefix
@@ -471,15 +507,19 @@ async function handleQuestions(description: string, locale: string): Promise<Res
         seenLabels.add(labelKey);
         return true;
       }).slice(0, 6); // T19: hard cap at 6 questions
+      // A valid JSON body carrying zero questions is still a failed step for the
+      // customer -- the prompt always asks for 4-6, there is no branch where none
+      // is the right answer, and the UI has nothing to render.
+      if (parsed.questions.length === 0) return questionsFailed(locale, t0, "zero_questions");
       logAdvisorEvent("questions", { locale, question_count: parsed.questions.length, duration_ms: Date.now() - t0 }, true);
       return Response.json(parsed, { headers: CORS });
     }
-    catch { return Response.json({ summary: "", questions: [] }, { headers: CORS }); }
+    catch { return questionsFailed(locale, t0, "json_parse_failed"); }
   } catch (e) {
     if ((e as Error).message === "RATE_LIMITED") {
       return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
     }
-    return Response.json({ summary: "", questions: [] }, { headers: CORS });
+    return questionsFailed(locale, t0, (e as Error).message || "unknown");
   }
 }
 

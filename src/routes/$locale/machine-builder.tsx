@@ -254,6 +254,15 @@ function MachineBuilderPage() {
     setStep("q_loading");
     try {
       const data = await advisorCall({ action: "questions", description, locale });
+      // Never advance to the questions step with nothing to answer: `allAnswered`
+      // requires questions.length > 0, so an empty list disables the continue
+      // button forever and strands the user with no error and no way forward.
+      // Throwing instead reuses the existing catch, which shows "something went
+      // wrong, try again" and keeps them here with their description intact.
+      // The advisor returns 502 for this now (groq-advisor questionsFailed), so
+      // this is the belt to that braces -- it also covers a 200 with an empty
+      // list from any future/older deployed version of the function.
+      if (!data.questions?.length) throw new Error("NO_QUESTIONS");
       setQSummary(data.summary ?? "");
       setQuestions(data.questions ?? []);
       setAnswers({});
