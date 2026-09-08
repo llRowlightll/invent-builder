@@ -149,3 +149,52 @@ Deno.test("bore range/list normalizes to the MAX bore (family can cover high loa
   assertEquals(parseFloat(String(concrete.key_specs.bore_mm)), 40); // single value unchanged, not a family
   assertEquals(concrete.key_specs.is_family, undefined);
 });
+
+// ── Force adequacy for electric actuators (no bore to check) ──────────────────
+// Found 2026-09-08 live-verifying the pallet-stacker fix: with pneumatics
+// correctly excluded by the precision gate, the top pick became a ball-screw
+// family whose own justification read "ingen angiven kraft så den kan inte
+// garanteras leverera de 687 N som krävs" -- ranked ABOVE two axes stating
+// 3000 N and 1500 N that do meet it. The bore check never fires for an
+// electric actuator, so nothing weighed force at all.
+
+const forceCtx = (over: Partial<ScoringCtx> = {}): ScoringCtx =>
+  ctx({ minBoreMm: 39, requiredForceN: 687, ...over }); // 35 kg x 9.81 x 2
+
+Deno.test("electric axis that meets the required force outranks one with no stated force", () => {
+  const stated = prod("FESTO-EGC-BS", "electric-actuator", "festo", { force_n: "3000 N", stroke_mm: "3000 mm" });
+  const unknown = prod("FESTO-8024918", "electric-actuator", "festo", { stroke_mm: "2000 mm" });
+  assertEquals(rankActuators([unknown, stated], forceCtx())[0].sku, "FESTO-EGC-BS");
+});
+
+Deno.test("electric axis below the required force ranks last", () => {
+  // Both SKUs deliberately avoid the FESTO-/PARKER-/SMC- family prefix: a
+  // family is tiered below every concrete product regardless of score, which
+  // would decide this comparison before force ever got a look in.
+  const enough = prod("OSPE25SB-3200", "electric-actuator", "parker", { force_n: "1500 N", stroke_mm: "3200 mm" });
+  const tooWeak = prod("WEAK-AXIS-3200", "electric-actuator", "festo", { force_n: "200 N", stroke_mm: "3200 mm" });
+  const ranked = rankActuators([tooWeak, enough], forceCtx());
+  assertEquals(ranked[0].sku, "OSPE25SB-3200");
+  assert(ranked.indexOf(tooWeak) > ranked.indexOf(enough));
+});
+
+Deno.test("a known-adequate force beats an unknown one, which beats a known-inadequate one", () => {
+  const c = forceCtx();
+  const ok = prod("A", "electric-actuator", "festo", { force_n: "3000 N" });
+  const unknown = prod("B", "electric-actuator", "festo", {});
+  const weak = prod("C", "electric-actuator", "festo", { force_n: "100 N" });
+  assert(scoreProduct(ok, c) > scoreProduct(unknown, c), "adequate must beat unknown");
+  assert(scoreProduct(unknown, c) > scoreProduct(weak, c), "unknown must beat known-inadequate");
+});
+
+Deno.test("force check does NOT double-count for a pneumatic that has a bore", () => {
+  // normalizeKeySpecs derives force_n from bore, so running both checks would
+  // weight the same physical fact twice and make electric/pneumatic scores
+  // incomparable. A bore-carrying product must score identically whether or
+  // not requiredForceN is supplied.
+  const pneu = prod("0822040200", "cylinder", "bosch-rexroth", { bore_mm: "40 mm", stroke_mm: "1000 mm" });
+  assertEquals(
+    scoreProduct(pneu, ctx({ minBoreMm: 39, requiredForceN: 687 })),
+    scoreProduct(pneu, ctx({ minBoreMm: 39 })),
+  );
+});

@@ -25,6 +25,11 @@ export interface CatalogProduct {
 export interface ScoringCtx {
   requiredStroke: number;
   minBoreMm: number;       // minimum bore from load calculation (0 = unknown)
+  // Force the load actually demands, incl. safety factor (0 = unknown). The
+  // bore check below only works for pneumatics -- an electric actuator has no
+  // bore, so before this existed nothing checked an electric candidate's force
+  // against the load at all. See the fallback in scoreProduct().
+  requiredForceN?: number;
   isHighPrecision: boolean;
   isHighSpeed: boolean;
   isVertical: boolean;
@@ -317,6 +322,24 @@ export function scoreProduct(p: CatalogProduct, ctx: ScoringCtx): number {
         score += Math.max(0, 20 - oversize * 30); // 20pts at exact, 0 at 67%+
       } else {
         score -= 40; // bore too small for load — hard penalty
+      }
+    } else if ((ctx.requiredForceN ?? 0) > 0) {
+      // No bore ⇒ electric actuator. Found 2026-09-08 live-verifying the
+      // pallet-stacker fix: with pneumatics correctly excluded, the top pick
+      // became a ball-screw family whose own justification read "ingen angiven
+      // kraft så den kan inte garanteras leverera de 687 N som krävs" -- ranked
+      // ABOVE two axes that state 3000 N and 1500 N and do meet it. The bore
+      // check never fires for electric, so nothing weighed force at all.
+      // Deliberately in the else-branch: normalizeKeySpecs() derives force_n
+      // from bore for pneumatics, so running both would double-weight the same
+      // physical check there and make the two paths incomparable.
+      const forceN = parseFloat(String(p.key_specs?.force_n ?? "0"));
+      if (forceN > 0) {
+        score += forceN >= (ctx.requiredForceN ?? 0) ? 20 : -40;
+      } else {
+        // Force unknown: cannot be presented as meeting a stated load, but it
+        // is not disqualified either -- a smaller penalty than a known miss.
+        score -= 10;
       }
     }
   } else {
