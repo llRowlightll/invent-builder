@@ -465,6 +465,16 @@ async function handleQuestions(description: string, locale: string): Promise<Res
       ? `- COMMUNICATION PROTOCOL ALREADY STATED in description. Do NOT ask about it again unless clarification is needed. Accept the stated protocol.`
       : "",
     `- If stroke is already stated, do NOT ask if they want a longer stroke. Accept stated value as absolute.`,
+    // Found 2026-09-08 (user-reported): a long, highly specified pallet-stacker
+    // description came back with a SINGLE question -- asking for the precision
+    // the customer had already stated as "±0,5 mm vid varje stopp", with that
+    // very value pre-filled in the unit field. Anti-redundancy rules existed
+    // per-topic (stroke above, protocol) but never as a general principle, so
+    // every parameter without its own rule was fair game to re-ask. Naming the
+    // genuinely-open parameters matters as much as the prohibition: without
+    // them a well-specified description leaves the model with nothing it
+    // believes it may ask, and it returns one padded question instead of four.
+    `- NEVER ask for a value the customer has ALREADY stated in the description. Re-asking something they just told you is the fastest way to lose their trust. Read the description first, then ask only about what is genuinely still open — typically: mounting and orientation, guiding/anti-rotation, control system and fieldbus, ambient temperature, duty cycle, and available installation space. If a parameter is already given, treat it as settled.`,
     `- Do NOT ask hypothetical questions. Only ask what is needed to select the right product.`,
     `- If programmable stops: ask about number of positions and accuracy.`,
     `- CRITICAL: Every question MUST have a completely unique id AND unique label. NEVER repeat the same question twice. No duplicates allowed.`,
