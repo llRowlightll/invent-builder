@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import type { ProductRow } from "@/lib/types";
 import { callAdvisor } from "@/lib/advisor-client";
+import { saveBomNormalized } from "@/lib/bom-store";
 
 export const Route = createFileRoute("/$locale/machine-builder")({
   head: ({ params }) => {
@@ -183,14 +184,22 @@ function MachineBuilderPage() {
       sku: l.sku, role: l.role, qty: l.quantity,
       name: l.product?.name ?? l.sku,
     }));
-    supabase.from("projects").insert({
-      user_id: user.id,
-      name,
-      description: description.trim() || null,
-      locale,
-      answers,
-      bom_lines: bomSnapshot,
-    }).then(() => setAutoSaved(true));
+    // Skriv den normaliserade stycklistan först och koppla projektet till den.
+    // Hjälparen kastar aldrig och returnerar null om något gick fel -- projektet
+    // sparas då ändå via bom_lines-snapshotten, precis som förut.
+    void (async () => {
+      const bomId = await saveBomNormalized(user.id, bom, description);
+      await supabase.from("projects").insert({
+        user_id: user.id,
+        name,
+        description: description.trim() || null,
+        locale,
+        answers,
+        bom_lines: bomSnapshot,
+        bom_id: bomId,
+      });
+      setAutoSaved(true);
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, user]);
 
@@ -1236,6 +1245,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
       sku: l.sku, role: l.role, qty: l.quantity,
       name: l.product?.name ?? l.sku,
     }));
+    const bomId = await saveBomNormalized(user.id, activeBom, projectDesc);
     await supabase.from("projects").insert({
       user_id: user.id,
       name: projectName.trim(),
@@ -1243,6 +1253,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
       locale,
       answers,
       bom_lines: bomSnapshot,
+      bom_id: bomId,
     });
     setProjectSaving(false);
     setProjectSaved(true);

@@ -226,6 +226,58 @@ export type Database = {
         }
         Relationships: []
       }
+      bom_connections: {
+        Row: {
+          bom_id: string
+          created_at: string
+          from_item_id: string
+          id: string
+          notes: string | null
+          relation_type: string
+          to_item_id: string
+        }
+        Insert: {
+          bom_id: string
+          created_at?: string
+          from_item_id: string
+          id?: string
+          notes?: string | null
+          relation_type: string
+          to_item_id: string
+        }
+        Update: {
+          bom_id?: string
+          created_at?: string
+          from_item_id?: string
+          id?: string
+          notes?: string | null
+          relation_type?: string
+          to_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bom_connections_bom_id_fkey"
+            columns: ["bom_id"]
+            isOneToOne: false
+            referencedRelation: "boms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bom_connections_from_item_id_fkey"
+            columns: ["from_item_id"]
+            isOneToOne: false
+            referencedRelation: "bom_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bom_connections_to_item_id_fkey"
+            columns: ["to_item_id"]
+            isOneToOne: false
+            referencedRelation: "bom_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bom_items: {
         Row: {
           bom_id: string
@@ -233,7 +285,11 @@ export type Database = {
           notes: string | null
           product_id: string | null
           qty: number | null
+          reason: string | null
           role: string | null
+          sku: string | null
+          sort_order: number | null
+          subsystem: string | null
         }
         Insert: {
           bom_id: string
@@ -241,7 +297,11 @@ export type Database = {
           notes?: string | null
           product_id?: string | null
           qty?: number | null
+          reason?: string | null
           role?: string | null
+          sku?: string | null
+          sort_order?: number | null
+          subsystem?: string | null
         }
         Update: {
           bom_id?: string
@@ -249,7 +309,11 @@ export type Database = {
           notes?: string | null
           product_id?: string | null
           qty?: number | null
+          reason?: string | null
           role?: string | null
+          sku?: string | null
+          sort_order?: number | null
+          subsystem?: string | null
         }
         Relationships: [
           {
@@ -2261,90 +2325,36 @@ export type Database = {
       get_order_by_id: {
         Args: { p_id: string }
         Returns: {
-          carrier: string | null
           created_at: string
           currency: string
-          customer_company: string | null
+          customer_company: string
           customer_email: string
           customer_name: string
-          customer_org_nr: string | null
-          delivered_at: string | null
-          estimated_delivery: string | null
-          fortnox_invoice_id: string | null
+          customer_org_nr: string
+          estimated_delivery: string
           id: string
-          internal_notes: string | null
-          invoice_date: string | null
-          invoice_due_date: string | null
-          invoice_number: string | null
-          invoice_url: string | null
           items: Json
-          paid_at: string | null
-          payment_status: string
-          peppol_id: string | null
-          po_number: string | null
-          project_id: string | null
-          rfq_id: string | null
-          shipped_at: string | null
+          po_number: string
           status: string
-          total_ex_vat: number | null
-          total_inc_vat: number | null
-          tracking_number: string | null
-          updated_at: string
-          user_id: string | null
-          vat_rate: number
+          total_ex_vat: number
+          total_inc_vat: number
         }[]
-        SetofOptions: {
-          from: "*"
-          to: "orders"
-          isOneToOne: false
-          isSetofReturn: true
-        }
       }
       get_quote_by_id: {
         Args: { p_id: string }
         Returns: {
-          address_city: string | null
-          address_country: string | null
-          address_postal: string | null
-          address_street: string | null
-          bom_id: string | null
-          carrier: string | null
-          company: string | null
-          contact_email: string | null
-          contact_name: string | null
-          contact_phone: string | null
-          created_at: string | null
+          company: string
+          contact_email: string
+          contact_name: string
+          created_at: string
           discount_pct: number
-          estimated_delivery: string | null
-          fortnox_order_id: string | null
-          hubspot_contact_id: string | null
-          hubspot_deal_id: string | null
           id: string
-          integration_error: string | null
-          integration_synced_at: string | null
-          internal_notes: string | null
-          label_url: string | null
-          message: string | null
-          org_number: string | null
-          po_number: string | null
-          quote_amount: number | null
-          quote_currency: string | null
-          shipment_status: string | null
-          shipped_at: string | null
-          status: string | null
-          title: string | null
-          tracking_code: string | null
-          tracking_number: string | null
-          updated_at: string | null
-          user_id: string | null
-          vat_number: string | null
+          org_number: string
+          po_number: string
+          quote_amount: number
+          quote_currency: string
+          status: string
         }[]
-        SetofOptions: {
-          from: "*"
-          to: "rfqs"
-          isOneToOne: false
-          isSetofReturn: true
-        }
       }
       get_quote_items: {
         Args: { p_rfq_id: string }
@@ -2477,12 +2487,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2506,11 +2516,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2531,11 +2541,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2556,11 +2566,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2573,11 +2583,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
