@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/auth-context";
 import type { ProductRow } from "@/lib/types";
 import { callAdvisor } from "@/lib/advisor-client";
 import { saveBomNormalized } from "@/lib/bom-store";
+import MachineCanvas, { type CanvasConnection } from "@/components/MachineCanvas";
 
 export const Route = createFileRoute("/$locale/machine-builder")({
   head: ({ params }) => {
@@ -65,6 +66,13 @@ interface BomLine {
   quantity: number;
   role: string;
   reason: string;
+  /** Stabil, lokaloberoende komponenttyp från servern (actuator, valve, ...).
+   *  Skild från `role`, som är lokaliserad visningstext. Schemat grupperar och
+   *  placerar på `kind`; `role` är bara det användaren läser. */
+  kind?: string;
+  /** Delsystemsgruppering från servern. null för varningsrader, som är
+   *  annotationer och inte komponenter. */
+  subsystem?: string | null;
   product?: ProductRow;
 }
 
@@ -142,6 +150,7 @@ function MachineBuilderPage() {
   const [selected, setSelected] = useState<ActuatorOption | null>(null);
   const [bom, setBom] = useState<BomLine[]>([]);
   const [bomTitle, setBomTitle] = useState("");
+  const [connections, setConnections] = useState<CanvasConnection[]>([]);
   const [bomExplanation, setBomExplanation] = useState("");
   const [catalog, setCatalog] = useState<ProductRow[]>([]);
   const [error, setError] = useState("");
@@ -306,6 +315,7 @@ function MachineBuilderPage() {
       const data = await advisorCall({ action: "bom", description, answers, primarySku: opt.sku, locale });
       const enriched = enrichWithCatalog<BomLine>(data.bom ?? []);
       setBom(enriched);
+      setConnections(data.connections ?? []);
       setBomTitle(data.title ?? "");
       setBomExplanation(data.explanation ?? "");
       setStep("result");
@@ -414,6 +424,7 @@ function MachineBuilderPage() {
           selected={selected}
           requirements={requirements}
           bom={bom}
+          connections={connections}
           catalog={catalog}
           description={description}
           answers={answers}
@@ -1188,11 +1199,11 @@ function findAlternativesTiered(
 }
 
 // ── Result Step ─────────────────────────────────────────────────────────────
-function ResultStep({ t, locale, title, explanation, selected, requirements, bom, catalog, description, answers,
+function ResultStep({ t, locale, title, explanation, selected, requirements, bom, connections, catalog, description, answers,
   rfqName, rfqEmail, rfqCompany, rfqPhone, rfqPoNumber, rfqOrgNumber, rfqSent, rfqId, autoSaved,
   setRfqName, setRfqEmail, setRfqCompany, setRfqPhone, setRfqPoNumber, setRfqOrgNumber, setRfqSent, setRfqId, onRestart, onBack }: {
   t: (key: import("@/lib/i18n").TKey) => string; locale: string; title: string; explanation: string;
-  selected: ActuatorOption; requirements: Requirements | null; bom: BomLine[]; catalog: ProductRow[]; description: string; answers: Record<string, string>;
+  selected: ActuatorOption; requirements: Requirements | null; bom: BomLine[]; connections: CanvasConnection[]; catalog: ProductRow[]; description: string; answers: Record<string, string>;
   rfqName: string; rfqEmail: string; rfqCompany: string; rfqPhone: string; rfqPoNumber: string; rfqOrgNumber: string;
   rfqSent: boolean; rfqId: string; autoSaved: boolean;
   setRfqName: (v: string) => void; setRfqEmail: (v: string) => void;
@@ -1202,6 +1213,9 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
   onRestart: () => void; onBack: () => void;
 }) {
   const [mounted, setMounted] = useState(false);
+  // Schemat är bara meningsfullt när servern faktiskt gav kanter; annars
+  // startar vyn i listan och växlaren döljs helt.
+  const [view, setView] = useState<"list" | "canvas">("list");
   const [rfqLoading, setRfqLoading] = useState(false);
   const [rfqError, setRfqError] = useState("");
   const [rfqHp, setRfqHp] = useState(""); // honeypot — real users never see or fill this
@@ -1388,6 +1402,26 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Växlaren visas bara när servern faktiskt gav kanter -- ett tomt
+                schema är sämre än ingen knapp alls. */}
+            {connections.length > 0 && (
+              <div className="inline-flex rounded-md border border-border overflow-hidden">
+                {(["list", "canvas"] as const).map(v => (
+                  <button
+                    key={v}
+                    onClick={() => setView(v)}
+                    aria-pressed={view === v}
+                    className={`text-xs px-3 py-1.5 transition ${
+                      view === v ? "bg-info/10 text-info font-medium" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {v === "list"
+                      ? (locale === "sv" ? "Lista" : "List")
+                      : (locale === "sv" ? "Schema" : "Schematic")}
+                  </button>
+                ))}
+              </div>
+            )}
             {compareSkus && (
               <a
                 href={`/${locale}/compare?skus=${encodeURIComponent(compareSkus)}`}
@@ -1412,6 +1446,15 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
             </button>
           </div>
         </div>
+        {/* Samma stycklista, två vyer. Schemat ritar exakt den graf servern
+            levererar -- inget härleds i klienten, så det kan aldrig visa en
+            koppling som stycklistan inte innehåller. */}
+        {view === "canvas" && (
+          <div className="p-4">
+            <MachineCanvas bom={activeBom} connections={connections} isSv={locale === "sv"} />
+          </div>
+        )}
+        {view === "list" && (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -1558,6 +1601,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
             </tbody>
           </table>
         </div>
+        )}
         <div className="px-4 py-2 bg-muted/20 border-t border-border text-xs text-muted-foreground">
           {bom.length} {t("machineBuilder.articlesTotal")}
         </div>
