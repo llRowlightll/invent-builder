@@ -1022,6 +1022,46 @@ function exportBomPdf(bom: BomLine[], title: string, explanation: string, select
 // ── Economic BOM helpers ────────────────────────────────────────────────────
 
 /** Guess catalog category slug from BOM role text / SKU. Null = skip (hoses, fittings etc.) */
+/**
+ * Stabil komponenttyp -> katalogkategori.
+ *
+ * Servern sätter `kind` sedan steg 1 av maskinmodellen, och till skillnad från
+ * `role` är den lokaloberoende. "actuator" är medvetet utelämnad: den kan vara
+ * cylinder, electric-actuator, linear-module eller rotary-actuator, och det
+ * avgörs av produktens egen kategori -- inte av en gissning.
+ */
+const KIND_TO_CATEGORY: Record<string, string> = {
+  motor: "servo-motor", drive: "servo-drive",
+  valve: "valve", valve_terminal: "valve-terminal", check_valve: "check-valve",
+  flow_control: "flow-control", silencer: "silencer",
+  frl: "frl", tubing: "tubing", fitting: "fitting",
+  rod_lock: "rod-lock", shock_absorber: "shock-absorber", mount: "mounting",
+  sensor: "sensor", cable: "cable",
+};
+
+/**
+ * Kategorin för en stycklisterad, i fallande tillförlitlighet.
+ *
+ * Found 2026-09-08: roleToCategory() nedan regex-tolkar `role`, som är
+ * LOKALISERAD visningstext, och mönstren täcker i praktiken bara svenska och
+ * engelska. För en tysk eller spansk kund returnerade den null för nästan
+ * varje rad, och då visades inga alternativ alls -- en hel funktion som tyst
+ * försvann på två av fyra språk.
+ *
+ * Raden bär redan svaret: har SKU:n matchats mot katalogen finns produktens
+ * egen kategori på den, och den är per definition rätt. Saknas produkten
+ * (SPECIFY, varningsrader) duger serverns `kind`. Texttolkningen är kvar
+ * sist, för sparade projekt vars rader skrevs innan `kind` fanns.
+ */
+function categoryForLine(line: BomLine): string | null {
+  const fromProduct = line.product?.category?.slug;
+  if (fromProduct) return fromProduct;
+  const fromKind = line.kind ? KIND_TO_CATEGORY[line.kind] : undefined;
+  if (fromKind) return fromKind;
+  if (line.kind === "warning") return null; // annotation, ingen komponent
+  return roleToCategory(line.role, line.sku);
+}
+
 function roleToCategory(role: string, sku: string): string | null {
   const r = role.toLowerCase();
   const s = sku.toLowerCase();
@@ -1129,7 +1169,7 @@ function findAlternativesTiered(
   catalog: ProductRow[],
   answers: Record<string, string>,
 ): AltTiers {
-  const cat = roleToCategory(line.role, line.sku);
+  const cat = categoryForLine(line);
   if (!cat) return { economic: [], best: [], compact: [] };
 
   const { minForce, minStroke, needsHighIP } = parseRequirements(answers);
