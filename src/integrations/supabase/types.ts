@@ -2340,6 +2340,18 @@ export type Database = {
           total_inc_vat: number
         }[]
       }
+      get_product_relations: {
+        Args: { p_sku: string }
+        Returns: {
+          brand: string
+          category: string
+          direction: string
+          name: string
+          quality: string
+          relation_type: string
+          sku: string
+        }[]
+      }
       get_quote_by_id: {
         Args: { p_id: string }
         Returns: {
@@ -2376,6 +2388,18 @@ export type Database = {
           message: string
           status: string
           triggered_by: string
+        }[]
+      }
+      get_similar_products: {
+        Args: { p_limit?: number; p_sku: string }
+        Returns: {
+          bore_mm: number
+          brand: string
+          category: string
+          match_basis: string
+          name: string
+          sku: string
+          stroke_mm: number
         }[]
       }
       has_role: { Args: { check_role: string; uid: string }; Returns: boolean }

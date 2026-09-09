@@ -112,6 +112,11 @@ function ProductDetail() {
   const t = makeT(locale as Locale);
   const [related, setRelated] = useState<ProductRow[]>([]);
   const [alternatives, setAlternatives] = useState<ProductRow[]>([]);
+  /** Vad varje alternativ-träff vilar på, per SKU. Visas för kunden -- en
+   *  beräknad likhet är inte en verifierad korsreferens, och att presentera
+   *  det ena som det andra är inte hederligt mot en ingenjör. */
+  const [altBasis, setAltBasis] = useState<Record<string, string>>({});
+  const isSv = locale === "sv";
   const navigate = useNavigate();
   const [addedToCart, setAddedToCart] = useState(false);
   const [configSlug, setConfigSlug] = useState<string | null>(null);
@@ -126,11 +131,24 @@ function ProductDetail() {
         .eq("product_id", product.id);
       const relIds = new Set((rels ?? []).map((r) => r.related_product_id));
       setRelated(cat.filter((p) => relIds.has(p.id)));
-      // Dynamic alternatives: same category, different brand, max 6
-      const alts = cat
-        .filter((p) => p.category.slug === product.category.slug && p.brand.slug !== product.brand.slug && p.sku !== product.sku)
-        .slice(0, 6);
-      setAlternatives(alts);
+      // Alternativ via get_similar_products(): samma kategori, annat fabrikat,
+      // borrning inom ±10 %, rangordnat på borrnings- och slaglängdsavstånd.
+      //
+      // Ersätter 2026-09-09 en filtrering som tog de sex FÖRSTA i katalogordning
+      // utan någon storlekskontroll alls. Med 325 cylindrar i katalogen blev
+      // resultatet slumpmässigt: för en Norgren Ø80 visades Ø12, Ø25, Ø32, Ø40,
+      // Ø50 och Ø63 som "alternativ". En Ø12 har en fyrtiofjärdedel av kraften
+      // -- arean skalar med diametern i kvadrat. Filtret "annat fabrikat" gav
+      // inte heller något i praktiken, eftersom katalogordningen grupperar per
+      // fabrikat och alla sex därför blev samma märke.
+      const { data: sim } = await supabase.rpc("get_similar_products", {
+        p_sku: product.sku,
+        p_limit: 6,
+      });
+      const bySku = new Map(cat.map((p) => [p.sku, p]));
+      // Serverns ordning är rangordningen; behåll den i stället för katalogens.
+      setAlternatives((sim ?? []).map((r) => bySku.get(r.sku)).filter((p): p is ProductRow => !!p));
+      setAltBasis(Object.fromEntries((sim ?? []).map((r) => [r.sku, r.match_basis])));
       // Show a "Configure" button when this product's family has a configurator.
       const fam = product.family?.toLowerCase().trim();
       if (fam) {
@@ -325,7 +343,22 @@ function ProductDetail() {
             </Link>
           </div>
           <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {alternatives.map((r) => <ProductMini key={r.id} p={r} locale={locale} />)}
+            {alternatives.map((r) => (
+              <li key={r.id} className="contents">
+                <div>
+                  <ProductMini p={r} locale={locale} />
+                  {altBasis[r.sku] && (
+                    <div className="mt-1 text-[11px] text-muted-foreground">
+                      {altBasis[r.sku] === "bore+stroke"
+                        ? (isSv ? "Samma borrning och slaglängd" : "Same bore and stroke")
+                        : altBasis[r.sku] === "bore"
+                          ? (isSv ? "Samma borrning" : "Same bore")
+                          : (isSv ? "Samma produkttyp — jämför specifikationerna" : "Same product type — compare specs")}
+                    </div>
+                  )}
+                </div>
+              </li>
+            ))}
           </ul>
         </section>
       )}
