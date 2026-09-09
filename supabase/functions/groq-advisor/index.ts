@@ -1540,11 +1540,6 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
       })
     : summary;
 
-  if (optRateLimited) {
-    logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: true, top_sku: topProducts[0]?.sku ?? null }, false, "rate_limited");
-    return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
-  }
-  logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: finalOptions[0]?.sku ?? null, option_count: finalOptions.length }, true);
   const requirements = {
     load_kg: loadKg > 0 ? loadKg : null,
     required_force_n: requiredForceN > 0 ? requiredForceN : null,
@@ -1552,6 +1547,42 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     safety_factor: 2,
     pressure_bar: 6,
   };
+
+  // LLM:en kvot-strypt: leverera det deterministiska resultatet i stället för
+  // ingenting.
+  //
+  // Fram till 2026-09-09 returnerade den här grenen 503 och kastade bort allt
+  // som redan var uträknat: topProducts var serverrankade, finalOptions byggda
+  // och requirements klara. Modellen skriver bara prosan -- why/pros/cons --
+  // och serverOptions bär redan ett fallbackWhy med "real numbers only, never
+  // invented", byggt för precis det här fallet när modellen trunkerar sitt
+  // svar.
+  //
+  // handleBom degraderade redan korrekt ("If LLM is rate-limited, the BOM
+  // skeleton is returned as-is — never an empty BOM", v40). Options gjorde det
+  // inte. Kunden fick alltså ingenting när dygnskvoten tog slut, trots att
+  // rätt dimensionerade produkter låg färdiga.
+  //
+  // Texten säger uttryckligen att motiveringen saknas. Att tyst leverera
+  // specifikationer utan förklaring, som om en AI granskat dem, vore sämre än
+  // ett felmeddelande.
+  if (optRateLimited) {
+    logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: true, top_sku: topProducts[0]?.sku ?? null, option_count: finalOptions.length }, false, "rate_limited");
+    const degradedNote = pick(locale, {
+      sv: "⚠️ AI-motiveringen är inte tillgänglig just nu. Komponenterna nedan är valda av våra egna beräkningar utifrån dina krav, och specifikationerna är hämtade ur katalogen — men den skrivna motiveringen saknas. Försök igen om en stund för den fullständiga analysen.",
+      en: "⚠️ The AI rationale is unavailable right now. The components below were selected by our own calculations from your requirements, and the specifications come from the catalogue — but the written justification is missing. Try again shortly for the full analysis.",
+      de: "⚠️ Die KI-Begründung ist derzeit nicht verfügbar. Die Komponenten unten wurden von unseren eigenen Berechnungen anhand Ihrer Anforderungen ausgewählt, und die Spezifikationen stammen aus dem Katalog — die schriftliche Begründung fehlt jedoch. Versuchen Sie es in Kürze erneut.",
+      es: "⚠️ La justificación de la IA no está disponible ahora mismo. Los componentes siguientes fueron seleccionados por nuestros propios cálculos a partir de sus requisitos, y las especificaciones proceden del catálogo — pero falta la justificación escrita. Inténtelo de nuevo en breve.",
+    });
+    return Response.json({
+      summary: `${degradedNote}\n\n${finalSummary}`,
+      options: finalOptions,
+      requirements,
+      degraded: "llm_unavailable",
+    }, { headers: CORS });
+  }
+
+  logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: finalOptions[0]?.sku ?? null, option_count: finalOptions.length }, true);
   return Response.json({ summary: finalSummary, options: finalOptions, requirements }, { headers: CORS });
 }
 
