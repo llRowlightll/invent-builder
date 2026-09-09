@@ -1198,8 +1198,16 @@ function findAlternativesTiered(
       const stroke = parseFloat(p.specs["stroke_max"]?.value ?? p.specs["stroke_mm"]?.value ?? "0");
 
       if (bore <= 0) return false;
-      // Bore range: allow ±25 mm of current for general pool
-      if (currentBore > 0 && Math.abs(bore - currentBore) > 25) return false;
+      // Borrningsband. Var ±25 mm ABSOLUT, vilket är oförsvarbart vid små
+      // borrningar: för en Ø10 tillät det Ø35, som ger drygt tolv gånger
+      // kraften (kraften skalar med arean, alltså med diametern i kvadrat).
+      // Ingenting annat i filtret fångade det -- minForce sållar bara bort de
+      // för SVAGA, och bara när kunden angett en kraft.
+      // Relativt band i stället, med ett golv så listan inte töms vid små
+      // borrningar: ±30 % eller ±6 mm, det största av dem. För Ø25 ger det
+      // Ø17,5–32,5, alltså de närmaste ISO-storlekarna Ø20/Ø25/Ø32.
+      const boreBand = Math.max(currentBore * 0.30, 6);
+      if (currentBore > 0 && Math.abs(bore - currentBore) > boreBand) return false;
       // Must deliver enough force
       if (minForce > 0 && boreForce(bore) < minForce) return false;
       // Must have enough stroke
