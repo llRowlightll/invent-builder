@@ -11,7 +11,6 @@ import { useAuth } from "@/lib/auth-context";
 import type { ProductRow } from "@/lib/types";
 import { callAdvisor } from "@/lib/advisor-client";
 import { saveBomNormalized } from "@/lib/bom-store";
-import MachineCanvas, { type CanvasConnection } from "@/components/MachineCanvas";
 
 export const Route = createFileRoute("/$locale/machine-builder")({
   head: ({ params }) => {
@@ -59,6 +58,15 @@ interface Requirements {
   required_stroke_mm: number | null;
   safety_factor: number;
   pressure_bar: number;
+}
+
+/** En kant i maskingrafen, som groq-advisor levererar den (se
+ *  deriveBomConnections i bom-builder.ts). Index pekar in i bom-arrayen.
+ *  Riktning: beroende -> det den beror på. */
+export interface BomConnection {
+  fromIndex: number;
+  toIndex: number;
+  relation: string;
 }
 
 interface BomLine {
@@ -150,7 +158,7 @@ function MachineBuilderPage() {
   const [selected, setSelected] = useState<ActuatorOption | null>(null);
   const [bom, setBom] = useState<BomLine[]>([]);
   const [bomTitle, setBomTitle] = useState("");
-  const [connections, setConnections] = useState<CanvasConnection[]>([]);
+  const [connections, setConnections] = useState<BomConnection[]>([]);
   const [bomExplanation, setBomExplanation] = useState("");
   const [catalog, setCatalog] = useState<ProductRow[]>([]);
   const [error, setError] = useState("");
@@ -1243,7 +1251,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
   rfqName, rfqEmail, rfqCompany, rfqPhone, rfqPoNumber, rfqOrgNumber, rfqSent, rfqId, autoSaved,
   setRfqName, setRfqEmail, setRfqCompany, setRfqPhone, setRfqPoNumber, setRfqOrgNumber, setRfqSent, setRfqId, onRestart, onBack }: {
   t: (key: import("@/lib/i18n").TKey) => string; locale: string; title: string; explanation: string;
-  selected: ActuatorOption; requirements: Requirements | null; bom: BomLine[]; connections: CanvasConnection[]; catalog: ProductRow[]; description: string; answers: Record<string, string>;
+  selected: ActuatorOption; requirements: Requirements | null; bom: BomLine[]; connections: BomConnection[]; catalog: ProductRow[]; description: string; answers: Record<string, string>;
   rfqName: string; rfqEmail: string; rfqCompany: string; rfqPhone: string; rfqPoNumber: string; rfqOrgNumber: string;
   rfqSent: boolean; rfqId: string; autoSaved: boolean;
   setRfqName: (v: string) => void; setRfqEmail: (v: string) => void;
@@ -1253,9 +1261,6 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
   onRestart: () => void; onBack: () => void;
 }) {
   const [mounted, setMounted] = useState(false);
-  // Schemat är bara meningsfullt när servern faktiskt gav kanter; annars
-  // startar vyn i listan och växlaren döljs helt.
-  const [view, setView] = useState<"list" | "canvas">("list");
   const [rfqLoading, setRfqLoading] = useState(false);
   const [rfqError, setRfqError] = useState("");
   const [rfqHp, setRfqHp] = useState(""); // honeypot — real users never see or fill this
@@ -1419,7 +1424,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
       )}
 
       {/* System overview — schematic + component cards */}
-      <BomSystemView bom={bom} selected={selected} locale={locale} />
+      <BomSystemView bom={bom} connections={connections} selected={selected} locale={locale} />
 
       {/* BOM Table */}
       <div className="rounded-xl border border-border overflow-hidden">
@@ -1442,26 +1447,6 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Växlaren visas bara när servern faktiskt gav kanter -- ett tomt
-                schema är sämre än ingen knapp alls. */}
-            {connections.length > 0 && (
-              <div className="inline-flex rounded-md border border-border overflow-hidden">
-                {(["list", "canvas"] as const).map(v => (
-                  <button
-                    key={v}
-                    onClick={() => setView(v)}
-                    aria-pressed={view === v}
-                    className={`text-xs px-3 py-1.5 transition ${
-                      view === v ? "bg-info/10 text-info font-medium" : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {v === "list"
-                      ? (locale === "sv" ? "Lista" : "List")
-                      : (locale === "sv" ? "Schema" : "Schematic")}
-                  </button>
-                ))}
-              </div>
-            )}
             {compareSkus && (
               <a
                 href={`/${locale}/compare?skus=${encodeURIComponent(compareSkus)}`}
@@ -1486,15 +1471,6 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
             </button>
           </div>
         </div>
-        {/* Samma stycklista, två vyer. Schemat ritar exakt den graf servern
-            levererar -- inget härleds i klienten, så det kan aldrig visa en
-            koppling som stycklistan inte innehåller. */}
-        {view === "canvas" && (
-          <div className="p-4">
-            <MachineCanvas bom={activeBom} connections={connections} isSv={locale === "sv"} />
-          </div>
-        )}
-        {view === "list" && (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -1641,7 +1617,6 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
             </tbody>
           </table>
         </div>
-        )}
         <div className="px-4 py-2 bg-muted/20 border-t border-border text-xs text-muted-foreground">
           {bom.length} {t("machineBuilder.articlesTotal")}
         </div>
@@ -1896,7 +1871,9 @@ const NODE_META: Record<NodeType, { label: string; color: string; fill: string; 
   other:    { label: "Tillbehör",       color: "#94a3b8", fill: "#f8fafc", icon: "·" },
 };
 
-function BomSystemView({ bom, selected, locale }: { bom: BomLine[]; selected: ActuatorOption; locale: string }) {
+function BomSystemView({ bom, connections, selected, locale }: {
+  bom: BomLine[]; connections: BomConnection[]; selected: ActuatorOption; locale: string;
+}) {
   const [active, setActive] = useState<number | null>(null);
   const [view, setView] = useState<"diagram" | "3d" | "cards">("diagram");
 
@@ -1907,6 +1884,32 @@ function BomSystemView({ bom, selected, locale }: { bom: BomLine[]; selected: Ac
     nodeType: (line.kind ? KIND_TO_NODE[line.kind] : undefined) ?? classifyRole(line.role, line.sku),
     idx: i,
   }));
+
+  /**
+   * Vad den valda komponenten hänger ihop med, enligt serverns härledda graf
+   * (deriveBomConnections). Tidigare var tillbehören sammanhangslösa -- en
+   * snabbkoppling stod bara som "QS-G1/4-10" utan att säga vad den hör till.
+   * Grafen vet det redan; det enda som saknades var att visa den.
+   *
+   * Riktningen i datan är beroende -> det den beror på, så en kant där raden
+   * är `fromIndex` läses "den här sitter på/styrs av X".
+   */
+  const RELATION_TEXT: Record<string, { egen: string; omvänd: string }> = {
+    air_supply:    { egen: "Matas från",  omvänd: "Matar" },
+    controlled_by: { egen: "Styrs av",    omvänd: "Styr" },
+    mounted_on:    { egen: "Sitter på",   omvänd: "Bär" },
+    senses:        { egen: "Avkänner",    omvänd: "Avkänns av" },
+    accessory:     { egen: "Hör till",    omvänd: "Tillbehör" },
+    requires:      { egen: "Kräver",      omvänd: "Krävs av" },
+  };
+  const namn = (i: number) => bom[i]?.product?.name ?? bom[i]?.role ?? bom[i]?.sku ?? "";
+  const kopplingarFör = (idx: number) => connections.flatMap(c => {
+    const t = RELATION_TEXT[c.relation];
+    if (!t) return [];
+    if (c.fromIndex === idx) return [`${t.egen} ${namn(c.toIndex)}`];
+    if (c.toIndex === idx) return [`${t.omvänd} ${namn(c.fromIndex)}`];
+    return [];
+  });
 
   // Build pipeline: main flow nodes in order
   const pipelineOrder: NodeType[] = isElectric
@@ -2004,6 +2007,13 @@ function BomSystemView({ bom, selected, locale }: { bom: BomLine[]; selected: Ac
           <div className="flex-1 min-w-0">
             <div className="text-sm font-semibold">{bom[active].product?.name ?? bom[active].sku}</div>
             <div className="text-xs text-muted-foreground font-mono">{bom[active].sku} · {bom[active].role}</div>
+            {kopplingarFör(active).length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {kopplingarFör(active).map((k, i) => (
+                  <span key={i} className="text-[11px] px-1.5 py-0.5 rounded bg-info/10 text-info">{k}</span>
+                ))}
+              </div>
+            )}
             <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{bom[active].reason}</div>
           </div>
           <div className="text-xs text-muted-foreground shrink-0">Antal: <span className="font-semibold text-foreground">{bom[active].quantity}</span></div>
