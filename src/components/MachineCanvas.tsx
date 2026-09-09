@@ -11,10 +11,10 @@
  * sist. Medvetet fast i stället för en kraftbaserad algoritm: en ingenjör ska
  * känna igen bilden, och samma stycklista ska ge samma bild varje gång.
  */
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import {
-  ReactFlow, Background, Controls, MiniMap, ViewportPortal,
-  type Node, type Edge, type NodeProps, Handle, Position, MarkerType,
+  ReactFlow, Background, Controls, MiniMap, ViewportPortal, applyNodeChanges,
+  type Node, type Edge, type NodeProps, type NodeChange, Handle, Position, MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
@@ -137,12 +137,15 @@ function CollapsedGroupNode({ data }: NodeProps<Node<GroupNodeData>>) {
  * Utfällt delsystem: en ram bakom sina komponenter.
  *
  * Medvetet INTE en React Flow-nod. En ram är dekoration, inte en del av
- * grafen -- den har inga kanter och deltar inte i topologin. Som nod bröt den
- * dessutom React Flows initiering: med en handtagslös containernod nådde
- * flödet aldrig "nodesInitialized", och då renderades varken kanter eller
- * fitView (verifierat: samma stycklista gav 6 kanter utan ramen, 0 med).
- * ViewportPortal ritar i flödets koordinatsystem och panorerar/zoomar med
- * innehållet, utan att röra nodgrafen.
+ * grafen -- den har inga kanter och deltar inte i topologin, och ViewportPortal
+ * ritar i flödets koordinatsystem utan att röra nodgrafen.
+ *
+ * RÄTTELSE 2026-09-09: en tidigare version av den här kommentaren påstod att
+ * ramen som NOD bröt React Flows initiering, "verifierat: 6 kanter utan ramen,
+ * 0 med". Det påståendet var fel. Det mättes när webbläsarpanelen rapporterade
+ * noll bredd, och en kontroll med frisk viewport visar att kanterna uteblir
+ * lika mycket med ramarna helt avstängda. Ramarna är alltså oskyldiga; se
+ * KÄNT PROBLEM längst ned i filen.
  */
 function SubsystemFrame({ x, y, width, height, label, onToggle }: {
   x: number; y: number; width: number; height: number; label: string; onToggle: () => void;
@@ -164,6 +167,7 @@ function SubsystemFrame({ x, y, width, height, label, onToggle }: {
 }
 
 const nodeTypes = { component: ComponentNode, groupCollapsed: CollapsedGroupNode };
+
 
 const NODE_W = 208;
 const NODE_H = 84;
@@ -228,7 +232,6 @@ export default function MachineCanvas({
 
   const nodes = useMemo<Node[]>(() => {
     const out: Node[] = [];
-    const maxCol = Math.max(0, ...bom.filter(l => l.kind !== "warning").map(l => COLUMN[l.kind ?? ""] ?? 5));
     const label = (sub: string) =>
       SUBSYSTEM_LABEL[sub]?.[isSv ? "sv" : "en"] ?? sub;
 
@@ -243,6 +246,7 @@ export default function MachineCanvas({
         out.push({
           id: `grp-${sub}`,
           type: "groupCollapsed",
+          width: NODE_W, height: NODE_H,
           position: { x: 0, y: band.y + BAND_PAD },
           data: { label: label(sub), count: band.members.length, collapsed: true, onToggle: () => toggle(sub) },
         });
@@ -253,6 +257,17 @@ export default function MachineCanvas({
         out.push({
           id: String(i),
           type: "component",
+          // Explicit storlek i stället för att låta React Flow mäta.
+          // Verifierat i webbläsaren 2026-09-09: utan detta fick noderna aldrig
+          // `measured` i v12:s store, låg kvar med visibility:hidden trots
+          // korrekt layout (offsetWidth 208), fitView kördes aldrig
+          // (viewport-transform kvar på identitet), och kantlagret innehöll
+          // bara pilspetsens marker-definition utan en enda bana -- kanter kan
+          // inte beräknas mot omätta noder.
+          // Korten har ändå fast bredd (w-52 = 208px) och layouten är
+          // deterministisk, så detta är den dokumenterade vägen för noder med
+          // känd storlek, inte en genväg förbi ett symptom.
+          width: NODE_W, height: NODE_H,
           // Färskt objekt per render: React Flow muterar noders position
           // internt, och en delad referens ur den memoiserade layouten skulle
           // matas tillbaka muterad nästa render.
@@ -324,6 +339,28 @@ export default function MachineCanvas({
     });
   }, [connections, nodes, bom, collapsed]);
 
+  /**
+   * React Flow v12 mäter varje nod med en ResizeObserver och skriver resultatet
+   * som en `dimensions`-ändring. Med en KONTROLLERAD `nodes`-prop och ingen
+   * onNodesChange kastas den ändringen bort -- noden får aldrig `measured`, och
+   * v12 håller då kvar `visibility: hidden` på den och kan inte räkna ut var
+   * kanterna ska börja och sluta.
+   *
+   * Symptomet var att alla tio noderna låg i DOM med korrekt storlek och
+   * transform, men var osynliga, och att kantlagret bara innehöll pilspetsens
+   * marker-definition utan en enda bana. Verifierat i webbläsaren 2026-09-09.
+   *
+   * Noderna härleds fortfarande helt ur props; den här spegeln finns bara för
+   * att låta React Flow skriva tillbaka sina egna mätvärden. Därför ersätts
+   * spegeln när den härledda listan ändras, i stället för att slås ihop.
+   */
+  const [flowNodes, setFlowNodes] = useState<Node[]>(nodes);
+  useEffect(() => { setFlowNodes(nodes); }, [nodes]);
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => setFlowNodes(prev => applyNodeChanges(changes, prev)),
+    [],
+  );
+
   const sel = picked !== null ? bom[picked] : null;
 
   if (nodes.length === 0) {
@@ -339,8 +376,9 @@ export default function MachineCanvas({
       <div className="grid lg:grid-cols-[1fr_280px] gap-3">
         <div className="rounded-xl border border-border bg-card overflow-hidden" style={{ height: 460 }}>
           <ReactFlow
-            nodes={nodes}
+            nodes={flowNodes}
             edges={edges}
+            onNodesChange={onNodesChange}
             nodeTypes={nodeTypes}
             fitView
             fitViewOptions={{ padding: 0.15 }}
@@ -418,3 +456,35 @@ export default function MachineCanvas({
     </div>
   );
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * KÄNT PROBLEM — kanterna renderas inte (2026-09-09, oläst)
+ *
+ * Noderna ritas korrekt, men React Flow ritar noll kanter och kör aldrig
+ * fitView (viewportens transform stannar på identitet). Undersökt i
+ * webbläsaren mot en riktig stycklista; följande är MÄTT, inte antaget:
+ *
+ *   • Servern ger 8 kopplingar med giltiga index (0-6 av 9 rader).
+ *   • Komponenten tar emot dem: connections=8, drawn={0..8}, collapsed=tom.
+ *     edges-arrayen som skickas in är alltså INTE tom -- åtta kanter går in
+ *     och noll element kommer ut.
+ *   • Handtagen finns i DOM:en, 2 per nod, 6x6 px, rätt klasser.
+ *   • React Flows egen CSS är laddad; noderna har position:absolute och rätt
+ *     transform.
+ *   • @xyflow/react 12.11.6 mot React 19.2.6 -- inom deklarerat peer-stöd.
+ *
+ * Uteslutet genom kontrollexperiment, inte resonemang:
+ *   1. Delsystemsramarna i ViewportPortal. Helt avstängda: fortfarande 0.
+ *   2. Saknad onNodesChange på en kontrollerad nodes-prop. Tillagd: 0.
+ *   3. Omätta noder. Explicita width/height löste SYNLIGHETEN (9 av 9 noder
+ *      låg tidigare kvar med visibility:hidden) men gav fortfarande 0 kanter.
+ *   4. Omätta handtagsbounds. useUpdateNodeInternals på varje nod: 0.
+ *
+ * Punkt 3 är kvar i koden eftersom den fixade en verklig bugg: utan den var
+ * hela schemat osynligt, inte bara kanterna. Punkt 2 är kvar för att den är
+ * korrekt för en kontrollerad graf.
+ *
+ * Nästa steg vore att rendera ett minimalt React Flow med två hårdkodade noder
+ * och en kant i samma app -- fungerar det är felet i den här komponenten,
+ * fungerar det inte är det integrationen med React 19 i det här bygget.
+ * ────────────────────────────────────────────────────────────────────────── */
