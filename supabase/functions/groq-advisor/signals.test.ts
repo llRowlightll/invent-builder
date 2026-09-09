@@ -1,9 +1,11 @@
 // Regression tests for pure text/spec extraction and hazard-detection helpers.
 // Run: deno test supabase/functions/groq-advisor/signals.test.ts
-import { assertEquals } from "jsr:@std/assert@^1";
+import { assert, assertEquals } from "jsr:@std/assert@^1";
 import {
   extractGripForceN, extractHoldingForceN, extractLoadKg, needsEsdSafe,
   detectHazards, needsFoodGrade,
+  theoreticalForceN, usableForceN, requiredForceN,
+  SEAL_EFFICIENCY, LOAD_SAFETY_FACTOR,
   isMultiFunctionSystem, needsMultiAxis, needsVacuumGrip, needsValveTerminal,
   needsAtex, needsAtexDust, needsVerticalLoad, needsHighTemp, needsLowTemp,
   isHydraulicApplication, needsVeryHighForce, needsOxygenClean, needsHighCycle,
@@ -326,4 +328,81 @@ Deno.test("isHighPrecision does NOT fire at ±1 mm (cushioned pneumatic end stop
 
 Deno.test("isHighPrecision stays false when no precision is stated at all", () => {
   assertEquals(detectHazards("pneumatisk cylinder för stopp på transportband", {}, "sv").isHighPrecision, false);
+});
+
+// ── Husets kraftmodell ───────────────────────────────────────────────────────
+// Talen här är LÅSTA med flit. Samma modell finns i src/lib/physics.ts för
+// frontend-runtimen, och de två kan inte dela modul (Deno respektive Vite).
+// Testerna på båda sidor pinnar samma värden, så att en ändring på ena sidan
+// gör CI röd tills den andra följt efter.
+//
+// Bakgrund 2026-09-09: sajten hade fyra oberoende kraftformler. För en Ø50 gav
+// de 884, 1178, 1178 och 1531 N. Chatten och maskinbyggaren rekommenderade
+// olika borrning för samma last, och båda syntes för kunden.
+
+Deno.test("kraftmodell: teoretisk kraft är π/4·d²·P utan verkningsgrad", () => {
+  // Ø50 vid 6 bar: π/4 · 2500 · 0,6 = 1178 N. Samma tal som katalogens
+  // piston_force_6bar_N, vilket är hela poängen -- de får inte glida isär.
+  assertEquals(Math.round(theoreticalForceN(50)), 1178);
+  assertEquals(Math.round(theoreticalForceN(40)), 754);
+  assertEquals(Math.round(theoreticalForceN(80)), 3016);
+});
+
+Deno.test("kraftmodell: användbar kraft är teoretisk gånger 0,75", () => {
+  assertEquals(Math.round(usableForceN(50)), 884);
+  assertEquals(Math.round(usableForceN(40)), 565);
+  assertEquals(SEAL_EFFICIENCY, 0.75);
+});
+
+Deno.test("kraftmodell: kravet inkluderar säkerhetsfaktor 2", () => {
+  assertEquals(Math.round(requiredForceN(35)), 687);
+  assertEquals(LOAD_SAFETY_FACTOR, 2);
+  assertEquals(requiredForceN(0), 0);
+});
+
+Deno.test("calcMinBoreMm dimensionerar mot användbar kraft, inte teoretisk", () => {
+  // Det konkreta fallet ur genomgången: 35 kg krävde 687 N, och den gamla
+  // modellen gav Ø39 -- en Ø40 som levererar 565 N. Nu Ø45, alltså
+  // standardborrning Ø50, samma som chatten rekommenderar.
+  assertEquals(calcMinBoreMm(35), 45);
+  assertEquals(calcMinBoreMm(0), 0);
+});
+
+Deno.test("calcMinBoreMm: vald borrning klarar alltid kravet", () => {
+  // Grinden för hela modellen. Håller den inte är dimensioneringen fel.
+  for (const kg of [1, 5, 15, 35, 60, 80, 150]) {
+    const bore = calcMinBoreMm(kg);
+    assert(
+      usableForceN(bore) >= requiredForceN(kg),
+      `Ø${bore} ger ${usableForceN(bore).toFixed(0)} N men ${kg} kg kräver ${requiredForceN(kg).toFixed(0)} N`,
+    );
+  }
+});
+
+// ── Synk mellan runtimes ─────────────────────────────────────────────────────
+// Kraftmodellen finns i två exemplar: här för Deno-runtimen och i
+// src/lib/physics.ts för Vite-runtimen. De kan inte dela modul, så det här
+// testet läser frontend-filen och gör CI röd om konstanterna glider isär.
+//
+// Att en avvikelse ska fälla bygget, i stället för att upptäckas av en kund som
+// får två olika borrningar rekommenderade av samma sajt, är hela poängen.
+// Testet kräver --allow-read; utan den behörigheten hoppar det över sig självt
+// hellre än att falla, eftersom ett falskt rött är värre än ett uteblivet test.
+
+Deno.test("kraftmodellen är densamma i frontend-runtimen", async () => {
+  let src: string;
+  try {
+    src = await Deno.readTextFile(new URL("../../../src/lib/physics.ts", import.meta.url));
+  } catch {
+    console.warn("  [hoppar över] kunde inte läsa src/lib/physics.ts (kräver --allow-read)");
+    return;
+  }
+  const tal = (namn: string) => {
+    const m = src.match(new RegExp(`export const ${namn}\\s*=\\s*([0-9.]+)`));
+    return m ? parseFloat(m[1]) : null;
+  };
+  assertEquals(tal("SEAL_EFFICIENCY"), SEAL_EFFICIENCY,
+    "SEAL_EFFICIENCY skiljer sig mellan signals.ts och physics.ts");
+  assertEquals(tal("LOAD_SAFETY_FACTOR"), LOAD_SAFETY_FACTOR,
+    "LOAD_SAFETY_FACTOR skiljer sig mellan signals.ts och physics.ts");
 });

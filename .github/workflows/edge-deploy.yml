@@ -49,7 +49,11 @@ jobs:
         # resolution instead, which needs no local node_modules at all.
         run: |
           deno check --no-lock --node-modules-dir=none supabase/functions/groq-advisor/index.ts
-          deno test --no-lock --node-modules-dir=none supabase/functions/groq-advisor/
+          # --allow-read krävs av synktestet, som läser src/lib/physics.ts och
+          # gör bygget rött om husets kraftmodell glidit isär mellan
+          # Deno-runtimen och Vite-runtimen. Utan behörigheten hoppar testet
+          # tyst över sig självt och kontrollerar ingenting.
+          deno test --allow-read --no-lock --node-modules-dir=none supabase/functions/groq-advisor/
 
       - name: Setup Node
         uses: actions/setup-node@v5
