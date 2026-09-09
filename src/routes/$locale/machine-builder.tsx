@@ -1832,6 +1832,31 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
 // Classifies a BOM line's role into a visual system node type
 type NodeType = "supply" | "frl" | "valve" | "actuator" | "sensor" | "fitting" | "drive" | "psu" | "cable" | "mount" | "gripper" | "vacuum" | "other";
 
+/**
+ * Serverns stabila komponenttyp -> diagrammets nodtyp.
+ *
+ * Rapporterat 2026-09-09 med skärmbild: schemat visade "U-1/4 ljuddämpare"
+ * som LUFTTILLFÖRSEL, först i luftvägen. En ljuddämpare sitter på ventilens
+ * AVLUFTNINGSportar -- motsatt ände av luftvägen. Orsaken var att
+ * classifyRole() regexar den lokaliserade `role`-strängen, och dess första
+ * gren innehåller bara "luft", vilket matchar "av-LUFT-ning". Samma gren
+ * fångade "TryckLUFTsslang" och, eftersom den ligger före "luftbered",
+ * även "ATEX-LUFTberedning" -- alla tre blev lufttillförsel.
+ *
+ * Det är samma grundfel som återkommit hela dagen: klassificering ur
+ * visningstext i stället för en maskinnyckel. Sedan steg 1 bär varje BOM-rad
+ * ett stabilt, lokaloberoende `kind` från servern. Det används nu först;
+ * classifyRole() finns kvar som reserv för sparade projekt från tiden före
+ * steg 1, som saknar kind.
+ */
+const KIND_TO_NODE: Record<string, NodeType> = {
+  actuator: "actuator", motor: "actuator", drive: "drive",
+  valve: "valve", valve_terminal: "valve", check_valve: "valve", flow_control: "valve",
+  frl: "frl", silencer: "other", tubing: "fitting", fitting: "fitting",
+  rod_lock: "mount", shock_absorber: "mount", mount: "mount",
+  sensor: "sensor", cable: "cable", warning: "other",
+};
+
 function classifyRole(role: string, sku: string): NodeType {
   const r = role.toLowerCase();
   const s = sku.toLowerCase();
@@ -1878,7 +1903,8 @@ function BomSystemView({ bom, selected, locale }: { bom: BomLine[]; selected: Ac
   const isElectric = /DNCE|LEY|LEF|EGC|ELGA|EGSK|EGSP|LESH|LEFS|LECP|HMR|OSPE|LBB|HLR|PARKER-ETH|PARKER-HMR|PARKER-LBB|PARKER-HLR|PARKER-OSPE/i.test(selected.sku);
   const classified = bom.map((line, i) => ({
     ...line,
-    nodeType: classifyRole(line.role, line.sku),
+    // `kind` kommer från servern och är språkoberoende; role är visningstext.
+    nodeType: (line.kind ? KIND_TO_NODE[line.kind] : undefined) ?? classifyRole(line.role, line.sku),
     idx: i,
   }));
 
