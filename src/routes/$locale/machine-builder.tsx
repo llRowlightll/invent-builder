@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import type { ProductRow } from "@/lib/types";
 import { callAdvisor } from "@/lib/advisor-client";
-import { saveBomNormalized } from "@/lib/bom-store";
+import { saveBomNormalized, loadBomNormalized } from "@/lib/bom-store";
 import { usableForceN } from "@/lib/physics";
 
 export const Route = createFileRoute("/$locale/machine-builder")({
@@ -206,7 +206,7 @@ function MachineBuilderPage() {
     // Hjälparen kastar aldrig och returnerar null om något gick fel -- projektet
     // sparas då ändå via bom_lines-snapshotten, precis som förut.
     void (async () => {
-      const bomId = await saveBomNormalized(user.id, bom, description);
+      const bomId = await saveBomNormalized(user.id, bom, description, connections);
       await supabase.from("projects").insert({
         user_id: user.id,
         name,
@@ -230,6 +230,7 @@ function MachineBuilderPage() {
       const proj = JSON.parse(raw) as {
         id: string; name: string; description: string | null;
         answers: Record<string, string>; bom_lines: Array<{ sku: string; role: string; qty: number; unit_price?: number; name?: string }>;
+        bom_id?: string | null;
       };
       // Fyll i beskrivning och hoppa till resultatsteget
       setDescription(proj.description ?? proj.name);
@@ -243,6 +244,21 @@ function MachineBuilderPage() {
         product: undefined, // fylls i av enrichWithCatalog nedan
       }));
       setBom(loadedBom);
+      // Topologin ligger i bom_items/bom_connections, inte i JSON-snapshotten.
+      // Utan den här återställningen står detaljraden tom där det borde stå
+      // "Sitter på FRL-enhet" -- kopplingarna sätts annars bara av rådgivarens
+      // live-svar, som ett återöppnat projekt aldrig får.
+      // Bäst-möjligt: misslyckas den ligger JSON-vägen kvar precis som förut.
+      if (proj.bom_id) {
+        void loadBomNormalized(proj.bom_id).then(saved => {
+          if (!saved) return;
+          setBom(saved.lines.map(l => ({
+            sku: l.sku, role: l.role, quantity: l.quantity,
+            reason: l.reason, subsystem: l.subsystem, product: undefined,
+          })));
+          setConnections(saved.connections);
+        });
+      }
       setBomTitle(proj.name);
       setBomExplanation((locale === "sv" ? "Laddat från sparat projekt: " : "Loaded from saved project: ") + proj.name);
       setSelected({ id: "loaded", name: proj.name, desc: "", tags: [] } as never);
@@ -1321,7 +1337,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
       sku: l.sku, role: l.role, qty: l.quantity,
       name: l.product?.name ?? l.sku,
     }));
-    const bomId = await saveBomNormalized(user.id, activeBom, projectDesc);
+    const bomId = await saveBomNormalized(user.id, activeBom, projectDesc, connections);
     await supabase.from("projects").insert({
       user_id: user.id,
       name: projectName.trim(),
