@@ -1998,7 +1998,15 @@ function BomSystemView({ bom, connections, selected, locale }: {
               isElectric={isElectric}
               hasVacuum={classified.some(c => c.nodeType === "vacuum")}
               hasGripper={classified.some(c => c.nodeType === "gripper")}
-              isMultiAxis={bom.some(l => /axel 2|axis 2|X-axel/i.test(l.role))}
+              // Fleraxlighet ur serverns `subsystem`, inte ur `role`.
+              // Rättat 2026-09-09: mönstret /axel 2|axis 2|X-axel/ matchade
+              // LOKALISERAD visningstext och täckte bara svenska och engelska.
+              // En tysk ("Achse") eller spansk ("eje") kund med en tvåaxlig
+              // maskin fick en enaxlig 3D-modell -- fel antal ventilblock och
+              // ingen andra axel.
+              // deriveSubsystems() sätter axis_x/axis_y/axis_z endast när
+              // maskinen faktiskt har flera axlar, och gör det språkoberoende.
+              isMultiAxis={new Set(bom.map(l => l.subsystem).filter(sub => sub?.startsWith("axis_"))).size > 1}
               hasSensors={classified.some(c => c.nodeType === "sensor")}
             />
           </Suspense>
