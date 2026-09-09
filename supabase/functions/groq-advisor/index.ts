@@ -505,7 +505,27 @@ async function handleQuestions(description: string, locale: string): Promise<Res
     const raw = await callGroq([
       { role: "system", content: system },
       { role: "user", content: `Application: ${description}` },
-    ], 1200, true, 0.2, LLM_MODEL_FAST);
+      // 1200->2200, 2026-09-09. Telemetrin som lades till 2026-09-08 (PR #162)
+      // gjorde felen synliga för första gången: 5 av 7 anrop föll på
+      // `empty_llm_response`, och Groqs råa svar visar varför --
+      // json_validate_failed med failed_generation "" respektive "ma".
+      // Modellen hinner inte producera något synligt alls.
+      //
+      // Samma orsak som redan är dokumenterad för optionsanropet nedan
+      // (index.ts:1311): gpt-oss är resonemangsmodeller, och deras dolda
+      // resonemangstokens räknas mot max_tokens INNAN första synliga token.
+      // Det anropet höjdes 1200->2200 av exakt detta skäl 2026-08-17. Frågornas
+      // systemprompt är minst lika stor -- villkorliga regler på fyra språk,
+      // plus hint-kvalitetsregeln med exempel -- så samma budget är lika tight
+      // här.
+      //
+      // Notera: det går INTE att säga att gårdagens nya anti-upprepningsregel
+      // orsakade felen. Felloggningen började samma eftermiddag, så allt före
+      // den var osynligt, och scripts/test-advisor.sh:426 beskriver samma
+      // symptom redan 2026-08-21 ("0 questions ... always silently forgiven").
+      // Regeln kan ha gjort ett latent problem vanligare; budgeten är hur som
+      // helst mekanismen.
+    ], 2200, true, 0.2, LLM_MODEL_FAST);
     if (!raw) return questionsFailed(locale, t0, "empty_llm_response");
     try {
       const parsed = JSON.parse(raw);
