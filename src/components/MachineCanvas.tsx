@@ -458,33 +458,32 @@ export default function MachineCanvas({
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
- * KÄNT PROBLEM — kanterna renderas inte (2026-09-09, oläst)
+ * OM DU FELSÖKER "SCHEMAT RITAR INGA KANTER" (löst 2026-09-09)
  *
- * Noderna ritas korrekt, men React Flow ritar noll kanter och kör aldrig
- * fitView (viewportens transform stannar på identitet). Undersökt i
- * webbläsaren mot en riktig stycklista; följande är MÄTT, inte antaget:
+ * Symptomet går att reproducera i Claude Codes webbläsarpanel och har INGET med
+ * den här komponenten att göra. Orsaken är att panelens `ResizeObserver` finns
+ * men aldrig fyrar -- verifierat med ett fristående element som både
+ * observerades och tvingades byta storlek: noll callbacks.
  *
- *   • Servern ger 8 kopplingar med giltiga index (0-6 av 9 rader).
- *   • Komponenten tar emot dem: connections=8, drawn={0..8}, collapsed=tom.
- *     edges-arrayen som skickas in är alltså INTE tom -- åtta kanter går in
- *     och noll element kommer ut.
- *   • Handtagen finns i DOM:en, 2 per nod, 6x6 px, rätt klasser.
- *   • React Flows egen CSS är laddad; noderna har position:absolute och rätt
- *     transform.
- *   • @xyflow/react 12.11.6 mot React 19.2.6 -- inom deklarerat peer-stöd.
+ * React Flow mäter varje nod med ResizeObserver. Utan den får noderna aldrig
+ * `measured`, och då kan kanterna inte fästa vid några handtag och fitView får
+ * inga gränser att räkna på. Därför: noder syns, kanter saknas, viewportens
+ * transform står kvar på identitet.
  *
- * Uteslutet genom kontrollexperiment, inte resonemang:
- *   1. Delsystemsramarna i ViewportPortal. Helt avstängda: fortfarande 0.
- *   2. Saknad onNodesChange på en kontrollerad nodes-prop. Tillagd: 0.
- *   3. Omätta noder. Explicita width/height löste SYNLIGHETEN (9 av 9 noder
- *      låg tidigare kvar med visibility:hidden) men gav fortfarande 0 kanter.
- *   4. Omätta handtagsbounds. useUpdateNodeInternals på varje nod: 0.
+ * Bevisat med ett minimalt flöde på en tillfällig route -- två standardnoder,
+ * en kant, inga egna nodtyper, rakt ur React Flows dokumentation. Samma
+ * resultat: 2 noder, 0 kanter, ingen fitView. Ingen rad av den här filen var
+ * inblandad.
  *
- * Punkt 3 är kvar i koden eftersom den fixade en verklig bugg: utan den var
- * hela schemat osynligt, inte bara kanterna. Punkt 2 är kvar för att den är
- * korrekt för en kontrollerad graf.
+ * Innan den kontrollen kördes hann fyra hypoteser prövas och förkastas
+ * (delsystemsramarna, saknad onNodesChange, omätta noder, omätta
+ * handtagsbounds). Lärdomen är att det minimala reproduktionsfallet skulle
+ * körts FÖRST -- det tog två minuter och pekade direkt på miljön.
  *
- * Nästa steg vore att rendera ett minimalt React Flow med två hårdkodade noder
- * och en kant i samma app -- fungerar det är felet i den här komponenten,
- * fungerar det inte är det integrationen med React 19 i det här bygget.
+ * Verifiera schemat i en riktig webbläsare, inte i panelen.
+ *
+ * Det som blev kvar av felsökningen och är värt att behålla:
+ *   • explicita width/height på noderna -- gör renderingen oberoende av
+ *     nodmätning och layouten deterministisk. Korten har ändå fast bredd.
+ *   • onNodesChange -- korrekt för en kontrollerad nodes-prop.
  * ────────────────────────────────────────────────────────────────────────── */
