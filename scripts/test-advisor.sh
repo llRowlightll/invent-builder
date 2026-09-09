@@ -16,21 +16,38 @@ PASS=0; FAIL=0; SKIP=0
 FAILURES=()
 
 # Call with automatic retry on rate_limited (waits 15s and retries once)
+# Takt mellan anrop. Groqs gratisnivå ger 8 000 tokens/minut, och ett
+# rådgivar-anrop drar grovt 2 000 -- alltså cirka fyra anrop per minut innan
+# taket slår i. Sviten gjorde tidigare sina 47 anrop i en skur och brände hela
+# budgeten på sig själv: mätt i integration_logs 2026-09-09 var 100 av 110
+# anrop under en CI-körning kvot-strypta, och 12 tester skippade.
+#
+# Att pacea proaktivt är långsammare men gör körningen meningsfull. Sätt
+# ADVISOR_PACE_S=0 lokalt när kvoten är ledig.
+PACE_S="${ADVISOR_PACE_S:-16}"
+FIRST_CALL=1
+
 advisor_call() {
   local body="$1"
-  local result
-  result=$(curl -s -X POST "$URL" \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $KEY" \
-    -d "$body")
-  if echo "$result" | grep -q '"rate_limited"'; then
-    echo "  ⏳ rate limit hit — waiting 20s..." >&2
-    sleep 20
+  local result attempt wait_s
+  # Inte före det allra första anropet -- ingen anledning att vänta i onödan.
+  if [[ "$FIRST_CALL" == "1" ]]; then FIRST_CALL=0
+  elif [[ "$PACE_S" -gt 0 ]]; then sleep "$PACE_S"; fi
+
+  for attempt in 1 2 3; do
     result=$(curl -s -X POST "$URL" \
       -H "Content-Type: application/json" \
       -H "Authorization: Bearer $KEY" \
       -d "$body")
-  fi
+    echo "$result" | grep -q '"rate_limited"' || break
+    # TPM-fönstret är 60 sekunder. Den gamla retryn väntade 20 och hann därför
+    # aldrig över fönstergränsen -- den misslyckades nästan alltid igen.
+    wait_s=$(( attempt * 30 ))
+    if [[ $attempt -lt 3 ]]; then
+      echo "  ⏳ kvot slog i (försök $attempt) — väntar ${wait_s}s..." >&2
+      sleep "$wait_s"
+    fi
+  done
   echo "$result"
 }
 
@@ -730,6 +747,28 @@ if [[ ${#FAILURES[@]} -gt 0 ]]; then
   exit 1
 fi
 
+# En svit som inte körde är inte en svit som gick igenom.
+#
+# Skips fällde tidigare aldrig bygget, oavsett hur många. En körning där varje
+# test skippades på kvot skrev alltså ut "Alla tester OK — redo att deploya".
+# Det hände i praktiken: 2026-09-09 skippade 12 av 48 tester, däribland precis
+# de som skulle fångat en dimensioneringsregression som deployades samma dag.
+# Krysset var grönt för att testerna inte kördes.
+TOTAL=$((PASS+FAIL+SKIP))
+MAX_SKIP_PCT="${ADVISOR_MAX_SKIP_PCT:-15}"
+if [[ $TOTAL -gt 0 ]] && [[ $(( SKIP * 100 / TOTAL )) -gt $MAX_SKIP_PCT ]]; then
+  echo ""
+  echo "  ❌ $SKIP av $TOTAL tester skippades ($(( SKIP * 100 / TOTAL )) % > ${MAX_SKIP_PCT} %)."
+  echo "     Körningen validerade för lite för att lita på. Vanligaste orsaken är"
+  echo "     att Groq-kvoten tog slut — höj ADVISOR_PACE_S eller kör om senare."
+  echo ""
+  exit 1
+fi
+
 echo ""
-echo "  Alla tester OK — redo att deploya."
+if [[ $SKIP -gt 0 ]]; then
+  echo "  Alla körda tester OK ($SKIP skippade) — redo att deploya."
+else
+  echo "  Alla tester OK — redo att deploya."
+fi
 echo ""
