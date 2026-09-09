@@ -9,12 +9,30 @@
 // Standard pneumatic bore sizes (mm) — ISO / manufacturer standard
 export const STANDARD_BORES = [8, 10, 12, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200];
 
+// ── Husets kraftmodell ───────────────────────────────────────────────────────
+// Samma konstanter och formler finns i supabase/functions/groq-advisor/signals.ts
+// för edge-runtimen. De två kan inte dela modul (Vite respektive Deno), så de
+// hålls i synk av tester på båda sidor som låser fast samma tal. Ändras något
+// här måste signals.ts och dess test ändras likadant.
+//
+// Bakgrund 2026-09-09: sajten hade fyra oberoende kraftformler, och chatten och
+// maskinbyggaren rekommenderade olika borrning för samma last. Den här filen
+// hade rätt modell hela tiden -- den var bara inte den enda.
+
 // Working pressure assumption (Pa) — industry standard 6 bar
 const WORKING_PRESSURE_PA = 600_000;
-// Pneumatic efficiency factor (seals, friction)
-const EFFICIENCY = 0.75;
-// Safety factor on required force
-const SAFETY_FACTOR = 2.0;
+/** Tätningsfriktion. 0,75 ligger inom standardpraxis (0,7–0,9). */
+export const SEAL_EFFICIENCY = 0.75;
+const EFFICIENCY = SEAL_EFFICIENCY;
+/** Säkerhetsfaktor på lastens statiska vikt. */
+export const LOAD_SAFETY_FACTOR = 2.0;
+const SAFETY_FACTOR = LOAD_SAFETY_FACTOR;
+
+/** Kraften man får räkna med efter tätningsfriktion (N). Den som ska jämföras
+ *  mot ett kraftkrav — till skillnad från katalogens teoretiska värde. */
+export function usableForceN(bore_mm: number, pressure_bar = 6): number {
+  return Math.PI / 4 * bore_mm * bore_mm * pressure_bar * 0.1 * SEAL_EFFICIENCY;
+}
 
 /**
  * Compute minimum pneumatic bore diameter for a given load.
@@ -29,11 +47,19 @@ export function minBoreForMass(mass_kg: number): number {
 }
 
 /**
- * Compute theoretical push force at 6 bar for a given bore (N).
+ * Teoretisk tryckkraft vid 6 bar för en given borrning (N) — utan
+ * verkningsgrad. Det här är talet KATALOGEN anger (piston_force_6bar_N), och
+ * det som ska visas när man refererar till en produkts specifikation.
+ *
+ * Jämför aldrig ett kraftkrav mot det här värdet; använd usableForceN().
+ * Rättat 2026-09-09: funktionen multiplicerade tidigare med EFFICIENCY trots
+ * namnet, alltså returnerade den användbar kraft under etiketten teoretisk.
+ * Den hade noll anropsställen, så inget gick fel i praktiken -- men den var
+ * den enda av husets fyra kraftformler som såg auktoritativ ut.
  */
 export function theoreticalForce(bore_mm: number): number {
   const d_m = bore_mm / 1000;
-  return (Math.PI / 4) * d_m * d_m * WORKING_PRESSURE_PA * EFFICIENCY;
+  return (Math.PI / 4) * d_m * d_m * WORKING_PRESSURE_PA;
 }
 
 export type Precision = "low" | "medium" | "high" | "very_high";

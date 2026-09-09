@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/auth-context";
 import type { ProductRow } from "@/lib/types";
 import { callAdvisor } from "@/lib/advisor-client";
 import { saveBomNormalized } from "@/lib/bom-store";
+import { usableForceN } from "@/lib/physics";
 
 export const Route = createFileRoute("/$locale/machine-builder")({
   head: ({ params }) => {
@@ -1160,7 +1161,15 @@ function parseRequirements(answers: Record<string, string>) {
 }
 
 /** Approximate force in N at 6 bar for a bore_mm. */
-const boreForce = (bore: number) => Math.PI * (bore / 2) ** 2 * 6 * 0.1; // bar→N/mm²
+/**
+ * Kraften en borrning kan räknas med vid 6 bar. Använder husets kraftmodell
+ * (usableForceN i physics.ts), som räknar in tätningsfriktion.
+ *
+ * Ändrad 2026-09-09: räknade tidigare TEORETISK kraft och jämförde den mot
+ * kundens kraftkrav nedan, vilket släppte igenom cylindrar som inte klarar
+ * kravet i verkligheten. En Ø40 ser ut att ge 754 N men levererar 565 N.
+ */
+const boreForce = (bore: number) => usableForceN(bore);
 
 export interface AltTiers {
   economic: ProductRow[];  // meets requirements, lowest price

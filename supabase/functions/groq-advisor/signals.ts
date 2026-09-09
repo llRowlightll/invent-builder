@@ -508,10 +508,59 @@ export function needsMounting(text: string): boolean {
  * Calculate minimum required bore (mm) from load (kg) at given pressure (bar).
  * Uses F = P × A formula with safety factor 2.
  */
+// ── Husets kraftmodell ───────────────────────────────────────────────────────
+// Samma konstanter och formler finns i src/lib/physics.ts för frontend-runtimen.
+// De två kan inte dela modul (Deno respektive Vite), så de hålls i synk av
+// tester på båda sidor som låser fast samma tal. Ändras något här måste
+// physics.ts och dess test ändras likadant.
+//
+// Bakgrund 2026-09-09: sajten hade FYRA oberoende kraftformler. För en Ø50 gav
+// de 884 N, 1178 N, 1178 N och 1531 N. Chatten dimensionerade med
+// verkningsgrad, maskinbyggaren utan -- för 35 kg rekommenderade de Ø50
+// respektive Ø40. Båda syntes för kunden.
+//
+// TVÅ TAL SOM MÅSTE HÅLLAS ISÄR:
+//   teoretisk kraft = π/4 · d² · P        -- vad katalogen anger
+//   användbar kraft = teoretisk · η       -- vad man får räkna med
+// Dimensionering jämför krav mot ANVÄNDBAR. Kataloguppslag visar teoretisk.
+// Att blanda ihop dem är hur en Ø40 kan se ut att klara 754 N när den ger 565.
+
+/** Tätningsfriktion. 0,75 ligger inom standardpraxis (0,7–0,9 beroende på
+ *  tätningstyp) och är värdet frontendens physics.ts redan använde. */
+export const SEAL_EFFICIENCY = 0.75;
+
+/** Säkerhetsfaktor på lastens statiska vikt. */
+export const LOAD_SAFETY_FACTOR = 2.0;
+
+/** Kraften en borrning ger i teorin vid givet tryck (N). Det katalogen anger. */
+export function theoreticalForceN(boreMm: number, pressureBar = 6): number {
+  return Math.PI / 4 * boreMm * boreMm * pressureBar * 0.1; // bar → N/mm²
+}
+
+/** Kraften man får räkna med efter tätningsfriktion (N). Den som ska jämföras
+ *  mot ett kraftkrav. */
+export function usableForceN(boreMm: number, pressureBar = 6): number {
+  return theoreticalForceN(boreMm, pressureBar) * SEAL_EFFICIENCY;
+}
+
+/** Kraftkravet en last ställer, inklusive säkerhetsfaktor (N). */
+export function requiredForceN(loadKg: number): number {
+  return loadKg <= 0 ? 0 : loadKg * 9.81 * LOAD_SAFETY_FACTOR;
+}
+
+/**
+ * Minsta borrning som klarar lasten.
+ *
+ * Ändrad 2026-09-09: räknar nu mot ANVÄNDBAR kraft. Tidigare jämfördes kravet
+ * mot teoretisk kraft, vilket underdimensionerade -- för 35 kg gav den Ø39,
+ * men en Ø40 levererar bara 565 N mot kravets 687 N när friktionen räknas in.
+ * Säkerhetsfaktorn åts alltså upp av förluster modellen inte kände till.
+ * Underdimensionering är den farliga riktningen: en cylinder som inte orkar är
+ * ett haveri, en överdimensionerad kostar bara mer luft.
+ */
 export function calcMinBoreMm(loadKg: number, pressureBar = 6): number {
   if (loadKg <= 0) return 0;
-  const forceN = loadKg * 9.81 * 2; // safety factor 2
-  const areaMm2 = (forceN / (pressureBar * 0.1)); // bar→N/mm²
+  const areaMm2 = requiredForceN(loadKg) / (pressureBar * 0.1 * SEAL_EFFICIENCY);
   return Math.ceil(2 * Math.sqrt(areaMm2 / Math.PI));
 }
 
