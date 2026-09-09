@@ -26,10 +26,25 @@ FAILURES=()
 # ADVISOR_PACE_S=0 lokalt när kvoten är ledig.
 PACE_S="${ADVISOR_PACE_S:-16}"
 FIRST_CALL=1
+# Sätts när dygnskvoten bedöms slut. Skillnaden mot minutkvoten är avgörande:
+# ett TPM-tak släpper efter en minut och är värt att vänta ut, ett TPD-tak
+# släpper vid midnatt UTC och är det inte.
+QUOTA_DEAD=0
+CONSECUTIVE_LIMITED=0
 
 advisor_call() {
   local body="$1"
   local result attempt wait_s
+  # Bail-kontrollen FÖRE pacing-sömnen. Ligger den efter kostar varje
+  # överhoppat anrop ändå sina 16 sekunder -- 44 kvarvarande tester blir då
+  # nästan 12 minuter väntan på svar vi redan vet inte kommer, och timeouten
+  # fälls ändå. (Jag hade den i fel ordning först och märkte det när jag
+  # räknade på körtiden.)
+  if [[ "$QUOTA_DEAD" == "1" ]]; then
+    echo '{"error":"rate_limited"}'
+    return
+  fi
+
   # Inte före det allra första anropet -- ingen anledning att vänta i onödan.
   if [[ "$FIRST_CALL" == "1" ]]; then FIRST_CALL=0
   elif [[ "$PACE_S" -gt 0 ]]; then sleep "$PACE_S"; fi
@@ -39,7 +54,10 @@ advisor_call() {
       -H "Content-Type: application/json" \
       -H "Authorization: Bearer $KEY" \
       -d "$body")
-    echo "$result" | grep -q '"rate_limited"' || break
+    if ! echo "$result" | grep -q '"rate_limited"'; then
+      CONSECUTIVE_LIMITED=0
+      break
+    fi
     # TPM-fönstret är 60 sekunder. Den gamla retryn väntade 20 och hann därför
     # aldrig över fönstergränsen -- den misslyckades nästan alltid igen.
     wait_s=$(( attempt * 30 ))
@@ -48,6 +66,23 @@ advisor_call() {
       sleep "$wait_s"
     fi
   done
+
+  # Tre tester i rad som strypts trots full backoff över 90 sekunder är inte
+  # ett minuttak -- då är dygnsbudgeten slut. Rådgivaren svarar bara
+  # {"error":"rate_limited"} utan att skilja på TPD och TPM, så skillnaden
+  # måste härledas här. (Att låta funktionen säga vilket vore bättre, och
+  # skulle dessutom ge kunden ett ärligare felmeddelande -- separat ärende.)
+  if echo "$result" | grep -q '"rate_limited"'; then
+    CONSECUTIVE_LIMITED=$(( CONSECUTIVE_LIMITED + 1 ))
+    if [[ $CONSECUTIVE_LIMITED -ge 3 ]]; then
+      QUOTA_DEAD=1
+      echo "" >&2
+      echo "  ⛔ Dygnskvoten bedöms slut — tre anrop i rad strypta trots full" >&2
+      echo "     backoff. Resten av sviten hoppas över utan att fråga, i" >&2
+      echo "     stället för att bränna CI-klockan på svar som inte kommer." >&2
+      echo "" >&2
+    fi
+  fi
   echo "$result"
 }
 
@@ -756,11 +791,26 @@ fi
 # Krysset var grönt för att testerna inte kördes.
 TOTAL=$((PASS+FAIL+SKIP))
 MAX_SKIP_PCT="${ADVISOR_MAX_SKIP_PCT:-15}"
+
+# Dygnskvoten slut är ett eget utfall, inte ett testfel. Åtgärden är att vänta
+# till midnatt UTC eller uppgradera planen -- inte att leta i koden. Att säga
+# det rakt ut är skillnaden mellan en användbar signal och brus som man vänjer
+# sig vid att ignorera.
+if [[ "$QUOTA_DEAD" == "1" ]]; then
+  echo ""
+  echo "  ⛔ DYGNSKVOTEN SLUT — $SKIP av $TOTAL tester kunde inte köras."
+  echo "     Groqs gratisnivå ger 200 000 tokens/dygn och de är förbrukade."
+  echo "     Ingen kodåtgärd hjälper: kvoten återställs vid midnatt UTC."
+  echo "     $PASS tester hann köras och godkändes innan taket nåddes."
+  echo ""
+  exit 1
+fi
+
 if [[ $TOTAL -gt 0 ]] && [[ $(( SKIP * 100 / TOTAL )) -gt $MAX_SKIP_PCT ]]; then
   echo ""
   echo "  ❌ $SKIP av $TOTAL tester skippades ($(( SKIP * 100 / TOTAL )) % > ${MAX_SKIP_PCT} %)."
   echo "     Körningen validerade för lite för att lita på. Vanligaste orsaken är"
-  echo "     att Groq-kvoten tog slut — höj ADVISOR_PACE_S eller kör om senare."
+  echo "     att minutkvoten slog i — höj ADVISOR_PACE_S eller kör om senare."
   echo ""
   exit 1
 fi
