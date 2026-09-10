@@ -34,6 +34,9 @@ interface Param {
   param_type: string;
   sort_order: number;
   required: boolean;
+  /** Eget spann för numeriska positioner; faller tillbaka på familjens slag. */
+  min_value: number | null;
+  max_value: number | null;
   values: ParamValue[];
 }
 interface Accessory {
@@ -146,6 +149,23 @@ function buildOrderCode(
 
   // Städa separatorerna som blev över när valfria positioner föll bort.
   return code.replace(/-{2,}/g, "-").replace(/-+$/g, "");
+}
+
+/**
+ * Koden visas redan på egen rad ovanför etiketten, så en etikett som inleds med
+ * samma kod ska inte upprepa den.
+ *
+ * Den tidigare varianten gjorde `.replace(code, "")` utan ankare och klippte
+ * därför koden var den än råkade förekomma: "Låg friktion" med koden "L" blev
+ * "åg friktion", och "Ø32 mm" med koden "32" blev "Ø mm". Här klipps bara ett
+ * ledande förekomst, och bara när ett avgränsningstecken följer.
+ */
+function stripLeadingCode(label: string, code: string): string {
+  if (!code) return label.slice(0, 28);
+  const escaped = code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const stripped = label.replace(new RegExp(`^${escaped}(?=[\\s\\-–:]|$)\\s*`), "");
+  // Blev ingenting kvar var etiketten bara koden -- behåll originalet då.
+  return (stripped.trim() || label).slice(0, 28);
 }
 
 function ConfiguratorPage() {
@@ -407,13 +427,19 @@ function ConfiguratorPage() {
                 )}
               </div>
 
-              {param.param_type === "number" && (
+              {param.param_type === "number" && (() => {
+                // Varje numerisk position har sitt eget spann. Tidigare ärvde
+                // alla slaglängdens, så kolvstångsförlängningen (max 500) och
+                // gängförlängningen (max 70) bjöd in till 2800 mm.
+                const lo = param.min_value ?? family.stroke_min_mm ?? 1;
+                const hi = param.max_value ?? family.stroke_max_mm ?? 99999;
+                return (
                 <div className="flex items-center gap-3">
                   <input
                     type="number"
-                    min={family.stroke_min_mm ?? 1}
-                    max={family.stroke_max_mm ?? 99999}
-                    placeholder={`${family.stroke_min_mm ?? 1}–${family.stroke_max_mm ?? "∞"}`}
+                    min={lo}
+                    max={hi}
+                    placeholder={`${lo}–${hi}`}
                     value={(selections[param.param_key] as string) || ""}
                     onChange={(e) =>
                       setSelections((prev) => ({
@@ -424,13 +450,12 @@ function ConfiguratorPage() {
                     className="w-36 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   <span className="text-sm text-gray-500">mm</span>
-                  {family.stroke_min_mm != null && (
-                    <span className="text-xs text-gray-400">
-                      ({family.stroke_min_mm}–{family.stroke_max_mm} mm)
-                    </span>
-                  )}
+                  <span className="text-xs text-gray-400">
+                    ({lo}–{hi} mm)
+                  </span>
                 </div>
-              )}
+                );
+              })()}
 
               {(param.param_type === "select" ||
                 param.param_type === "multiselect") && (
@@ -459,11 +484,7 @@ function ConfiguratorPage() {
                         <span
                           className={`block text-xs mt-0.5 ${selected ? "text-blue-100" : "text-gray-500"}`}
                         >
-                          {val.label
-                            .replace(val.code + " ", "")
-                            .replace(val.code, "")
-                            .trim()
-                            .slice(0, 28)}
+                          {stripLeadingCode(val.label, val.code)}
                         </span>
                       </button>
                     );

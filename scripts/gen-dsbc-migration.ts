@@ -67,6 +67,10 @@ const paramRows = DSBC_POSITIONS.map((pos, i) => ({
   param_type: pos.values === null ? "number" : "select",
   sort_order: i + 1,
   required: pos.key === "bore_mm" || pos.key === "stroke_mm" || pos.key === "cushioning",
+  // Varje numerisk position bär sitt eget spann. Utan dem ärvde
+  // kolvstångsförlängningen slaglängdens 2800 mm i formuläret.
+  min_value: pos.range?.min ?? null,
+  max_value: pos.range?.max ?? null,
 }));
 
 const valueRows = DSBC_POSITIONS.flatMap((pos) =>
@@ -76,11 +80,16 @@ const valueRows = DSBC_POSITIONS.flatMap((pos) =>
 );
 
 out.push(`
-insert into configurator_params (family_id, param_key, label, param_type, sort_order, required)
-select f.id, r.param_key, r.label, r.param_type, r.sort_order, r.required
+alter table configurator_params
+  add column if not exists min_value numeric,
+  add column if not exists max_value numeric;
+
+insert into configurator_params (family_id, param_key, label, param_type, sort_order, required, min_value, max_value)
+select f.id, r.param_key, r.label, r.param_type, r.sort_order, r.required, r.min_value, r.max_value
 from configurator_families f,
      jsonb_to_recordset(${q(JSON.stringify(paramRows))}::jsonb)
-       as r(param_key text, label text, param_type text, sort_order int, required boolean)
+       as r(param_key text, label text, param_type text, sort_order int, required boolean,
+            min_value numeric, max_value numeric)
 where f.slug = 'dsbc';
 
 insert into configurator_param_values (param_id, code, label, sort_order)

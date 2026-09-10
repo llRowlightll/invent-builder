@@ -78,9 +78,11 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "004",
     key: "bore_mm",
     label_sv: "Kolvdiameter",
+    // Etiketten upprepar inte talet: konfiguratorn visar koden på egen rad
+    // ovanför, så "32" + "mm" läser rätt medan "32" + "Ø32 mm" blir dubbelt.
     values: [32, 40, 50, 63, 80, 100, 125].map((n) => ({
       code: String(n),
-      label_sv: `Ø${n} mm`,
+      label_sv: "mm",
     })),
   },
   {
