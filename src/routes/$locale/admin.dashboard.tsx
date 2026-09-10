@@ -45,6 +45,7 @@ const ADMIN_LINKS = [
   { to: "/$locale/admin/knowledge", label: "Knowledge base", icon: "🧠" },
   { to: "/$locale/admin/crm",       label: "CRM", icon: "👥" },
   { to: "/$locale/admin/images",    label: "Bilder", icon: "🖼" },
+  { to: "/$locale/admin/assemblies", label: "Sprängskisser", icon: "⚙" },
   { to: "/$locale/admin/audit",     label: "Audit log", icon: "🔍" },
   { to: "/$locale/admin/settings",  label: "Inställningar", icon: "⚙️" },
 ];
