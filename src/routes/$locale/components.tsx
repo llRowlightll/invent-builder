@@ -50,7 +50,7 @@ function ComponentsPage() {
   const search = Route.useSearch();
   const [useCases, setUseCases] = useState<UseCase[]>([]);
   const [families, setFamilies] = useState<Family[]>([]);
-  const [hasSchema, setHasSchema] = useState<Set<string>>(new Set());
+  const [hasSchema, setHasSchema] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     if (!search.cat) {
@@ -80,8 +80,15 @@ function ComponentsPage() {
       .from("config_schemas")
       .select("schema_id,category_slug")
       .then(({ data }) => {
-        const cats = new Set((data ?? []).map((r) => r.category_slug as string));
-        setHasSchema(cats);
+        // Kategori -> schema. Knappen länkade tidigare hårdkodat till
+        // "EA-LINEAR-AXIS", ett schema som inte finns i config_schemas, så
+        // den ledde till en tom konfigurator oavsett kategori.
+        const m = new Map<string, string>();
+        for (const r of data ?? []) {
+          const cat = r.category_slug as string | null;
+          if (cat && !m.has(cat)) m.set(cat, r.schema_id as string);
+        }
+        setHasSchema(m);
       });
   }, [search.uc, useCases]);
 
@@ -152,10 +159,10 @@ function ComponentsPage() {
                     {f.description ?? (locale === "sv" ? "Komponentfamilj." : "Component family.")}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    {hasSchema.has(search.cat ?? "") && (
+                    {hasSchema.get(search.cat ?? "") && (
                       <Link
                         to="/$locale/configurator/schema/$schemaId"
-                        params={{ locale, schemaId: "EA-LINEAR-AXIS" }}
+                        params={{ locale, schemaId: hasSchema.get(search.cat ?? "")! }}
                         className="text-xs px-3 py-1.5 rounded-md bg-foreground text-background"
                       >
                         {t("common.configure")}

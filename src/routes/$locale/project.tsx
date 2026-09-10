@@ -164,15 +164,11 @@ function ProjectPage() {
             <BomTable result={cheap} />
           </div>
         )}
-        {(best || cheap) && (
-          <Link
-            to="/$locale/configurator/schema/$schemaId"
-            params={{ locale, schemaId: "EA-LINEAR-AXIS" }}
-            className="inline-block text-sm rounded-md bg-foreground text-background px-4 py-2"
-          >
-            {t("project.openConfigurator")} →
-          </Link>
-        )}
+        {/* Knappen länkade till schemat "EA-LINEAR-AXIS", som inte finns i
+            config_schemas -- den har alltså alltid lett till en tom
+            konfigurator. Den är borttagen tills det finns ett schema som
+            svarar mot ett projektresultat; att länka till fel schema vore
+            sämre än att inte länka alls. */}
       </section>
     </div>
   );

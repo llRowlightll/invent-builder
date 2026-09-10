@@ -12,6 +12,7 @@ import {
   type ValidationMessage,
   buildOrderCode,
   defaultsFromSchema,
+  normalizeSchema,
   validate,
 } from "@/lib/configurator-engine";
 
@@ -49,7 +50,10 @@ function ConfiguratorRunner() {
           .eq("schema_id", schemaId),
       ]);
       if (s) {
-        const sj = s.schema_json as unknown as ConfigSchemaJson;
+        // Det lagrade formatet skiljer sig från typerna; normalizeSchema
+        // översätter. Utan den kastade defaultsFromSchema direkt och hela
+        // sidan visade "This page didn't load".
+        const sj = normalizeSchema(s.schema_json);
         setSchema(sj);
         setTitle((locale === "sv" ? s.title_sv : s.title_en) ?? schemaId);
         setValues(defaultsFromSchema(sj));
@@ -132,7 +136,7 @@ function ConfiguratorRunner() {
               {locale === "sv" ? current.title_sv : current.title_en}
             </h2>
             <div className="mt-5 grid sm:grid-cols-2 gap-4">
-              {current.fields.map((f) => (
+              {(current.fields ?? []).map((f) => (
                 <FieldInput
                   key={f.key}
                   field={f}
@@ -221,8 +225,8 @@ function FieldInput({
           className="mt-1 w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
         >
           {field.options.map((o) => (
-            <option key={o} value={o}>
-              {o}
+            <option key={o.value} value={o.value}>
+              {o.label}
             </option>
           ))}
         </select>
