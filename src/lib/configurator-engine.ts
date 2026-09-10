@@ -42,9 +42,11 @@ export interface SchemaField {
   label_en: string;
   label_sv: string;
   default?: unknown;
-  options?: string[];
+  /** Värde och etikett -- det lagrade formatet bär båda ({v, label}). */
+  options?: Array<{ value: string; label: string }>;
   min?: number;
   max?: number;
+  unit?: string;
 }
 export interface SchemaStep {
   id: string;
@@ -54,6 +56,81 @@ export interface SchemaStep {
 }
 export interface ConfigSchemaJson {
   steps: SchemaStep[];
+}
+
+/**
+ * Översätter det LAGRADE schemaformatet till det koden ovan beskriver.
+ *
+ * De två gick isär: typerna här beskriver steg som INNEHÅLLER fält
+ * (`steps[].fields[]`), medan alla fem scheman i config_schemas lagrar steget
+ * SOM fältet -- `{id, step, type: "single_select", title, options: [{v,label}]}`.
+ *
+ * Följden var att `defaultsFromSchema()` körde `for (const f of step.fields)`
+ * mot undefined och kastade direkt vid inladdning. Hela
+ * /configurator/schema/:id kraschade i produktion med "o.fields is not
+ * iterable" -- för samtliga scheman, trots att routen länkas från både
+ * komponentsidan och projektsidan.
+ *
+ * Datan är konsekvent över alla fem scheman, så det är koden som haft fel bild.
+ * Normaliseringen görs här i stället för att skriva om schemana, eftersom
+ * formatet är det som faktiskt används och en migrering av fem JSON-dokument
+ * hade riskerat att tappa fält.
+ */
+export function normalizeSchema(raw: unknown): ConfigSchemaJson {
+  const rawSteps = (raw as { steps?: unknown[] } | null)?.steps;
+  if (!Array.isArray(rawSteps)) return { steps: [] };
+
+  const steps: SchemaStep[] = [];
+  for (const r of rawSteps) {
+    const st = r as Record<string, unknown>;
+
+    // Redan i det beskrivna formatet: lämna orört.
+    if (Array.isArray(st.fields)) {
+      steps.push(st as unknown as SchemaStep);
+      continue;
+    }
+
+    const id = String(st.id ?? "");
+    if (!id) continue;
+    const title = String(st.title ?? id);
+
+    const rawType = String(st.type ?? "text");
+    const type: SchemaField["type"] =
+      rawType === "numeric" || rawType === "number"
+        ? "number"
+        : rawType === "boolean"
+          ? "boolean"
+          : rawType.includes("select")
+            ? "select"
+            : "text";
+
+    const options = Array.isArray(st.options)
+      ? (st.options as Record<string, unknown>[]).map((o) => ({
+          value: String(o.v ?? o.value ?? ""),
+          label: String(o.label ?? o.v ?? o.value ?? ""),
+        }))
+      : undefined;
+
+    steps.push({
+      id,
+      title_en: title,
+      title_sv: title,
+      fields: [{
+        key: id,
+        type,
+        label_en: title,
+        label_sv: title,
+        options,
+        min: typeof st.min === "number" ? st.min : undefined,
+        max: typeof st.max === "number" ? st.max : undefined,
+        unit: st.unit ? String(st.unit) : undefined,
+        // Utan default blir select-fältet tomt medan orderkoden redan räknar
+        // med ett värde; första alternativet är vad kunden ser valt.
+        default: type === "select" ? options?.[0]?.value : undefined,
+      }],
+    });
+  }
+  return { steps };
 }
 
 export interface ConfigRule {
@@ -75,7 +152,7 @@ export interface ValidationMessage {
 export function defaultsFromSchema(schema: ConfigSchemaJson): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const step of schema.steps) {
-    for (const f of step.fields) {
+    for (const f of step.fields ?? []) {
       if (f.default !== undefined) out[f.key] = f.default;
     }
   }
