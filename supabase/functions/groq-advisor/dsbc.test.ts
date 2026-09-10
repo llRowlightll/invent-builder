@@ -24,6 +24,10 @@ import {
   validateDsbc,
 } from "../../../src/lib/catalog/dsbc-code.ts";
 import { DSBC_CORPUS } from "../../../src/lib/catalog/dsbc-corpus.ts";
+import {
+  fillOrderCodeTemplate,
+  stripLeadingCode,
+} from "../../../src/lib/catalog/order-code-template.ts";
 
 Deno.test("facit: alla 455 katalogkoder parsar", () => {
   assertEquals(DSBC_CORPUS.length, 455, "corpus ska ha 455 verifierade koder");
@@ -151,6 +155,54 @@ Deno.test("en giltig specialkonfiguration godkänns", () => {
   const v = validateDsbc(c);
   assert(v.ok, `borde godkännas, fick: ${v.errors.map((e) => e.message_sv).join(" | ")}`);
   assertEquals(buildDsbcCode(c), "DSBC-63-400-D3-PPVA-R3-EX4");
+});
+
+Deno.test("konfiguratorns mall reproducerar alla 455 katalogkoder", () => {
+  // Mallen som ligger i configurator_families genereras ur positionerna
+  // (scripts/gen-dsbc-migration.ts). Här körs samma konstruktion genom samma
+  // mallmotor som konfiguratorsidan använder, mot facit. Tappar mallen en
+  // position -- vilket den handskrivna gjorde, 6 av 21 -- failar det här.
+  const template =
+    "DSBC" +
+    DSBC_POSITIONS.map((p) => {
+      const ph = p.numeric_suffix ? `{${p.key}:${p.numeric_suffix}}` : `{${p.key}}`;
+      return p.key === "sensing" ? ph : `-${ph}`;
+    }).join("");
+
+  const required = new Set(["bore_mm", "stroke_mm", "cushioning"]);
+  const broken: string[] = [];
+  for (const row of DSBC_CORPUS) {
+    const { config } = parseDsbcCode(row.code);
+    // Nollor är "ej valt" för de numeriska positionerna.
+    const sel: Record<string, string> = {};
+    for (const [k, v] of Object.entries(config)) {
+      sel[k] = typeof v === "number" ? (v === 0 ? "" : String(v)) : String(v);
+    }
+    const built = fillOrderCodeTemplate(template, sel, required);
+    if (built !== row.code) broken.push(`${row.code} -> ${built}`);
+  }
+  assertEquals(broken, [], `mallen gav fel kod:\n${broken.slice(0, 10).join("\n")}`);
+});
+
+Deno.test("mallen täcker varje position i beställnyckeln", () => {
+  const template =
+    "DSBC" +
+    DSBC_POSITIONS.map((p) => {
+      const ph = p.numeric_suffix ? `{${p.key}:${p.numeric_suffix}}` : `{${p.key}}`;
+      return p.key === "sensing" ? ph : `-${ph}`;
+    }).join("");
+  const missing = DSBC_POSITIONS.filter((p) => !template.includes(`{${p.key}`));
+  assertEquals(missing.map((p) => p.key), [], "positioner som mallen tappar");
+});
+
+Deno.test("etiketten klipps bara när koden står först", () => {
+  // "Låg friktion" med koden "L" blev "åg friktion" med den gamla varianten.
+  assertEquals(stripLeadingCode("Låg friktion", "L"), "Låg friktion");
+  assertEquals(stripLeadingCode("Ø32 mm", "32"), "Ø32 mm");
+  assertEquals(stripLeadingCode("Q Med vridskydd", "Q"), "Med vridskydd");
+  assertEquals(stripLeadingCode("D3 – Givarspår", "D3"), "– Givarspår");
+  // Är etiketten bara koden finns inget att visa -- behåll den då.
+  assertEquals(stripLeadingCode("N3", "N3"), "N3");
 });
 
 Deno.test("modellen bär sin källa", () => {

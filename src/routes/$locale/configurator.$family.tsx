@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { makeT, type Locale } from "@/lib/i18n";
 import { validate, type ConfigRule } from "@/lib/configurator-engine";
+import { fillOrderCodeTemplate, stripLeadingCode } from "@/lib/catalog/order-code-template";
 import { SITE, hreflangLinks } from "@/lib/site";
 
 // Types
@@ -128,46 +129,6 @@ export const Route = createFileRoute("/$locale/configurator/$family")({
   component: ConfiguratorPage,
 });
 
-function buildOrderCode(
-  template: string,
-  selections: Record<string, string | string[]>,
-  required: Set<string> = new Set(),
-): string {
-  let code = template;
-  for (const [key, val] of Object.entries(selections)) {
-    const v = Array.isArray(val) ? val.join("-") : val;
-    code = code.replace(`{${key}}`, v || "");
-  }
-
-  // Kvarvarande platshållare: obligatoriska visas som "..." så att kunden ser
-  // att något fattas, valfria försvinner helt. En beställnyckel utelämnar sina
-  // ovalda positioner -- DSBC har 21 stycken varav de flesta är valfria, och
-  // "DSBC-50-100-...-PPSA-..." vore varken en giltig kod eller läsbar.
-  code = code.replace(/\{([^}]+)\}/g, (_m, key: string) =>
-    required.has(key) ? "..." : "",
-  );
-
-  // Städa separatorerna som blev över när valfria positioner föll bort.
-  return code.replace(/-{2,}/g, "-").replace(/-+$/g, "");
-}
-
-/**
- * Koden visas redan på egen rad ovanför etiketten, så en etikett som inleds med
- * samma kod ska inte upprepa den.
- *
- * Den tidigare varianten gjorde `.replace(code, "")` utan ankare och klippte
- * därför koden var den än råkade förekomma: "Låg friktion" med koden "L" blev
- * "åg friktion", och "Ø32 mm" med koden "32" blev "Ø mm". Här klipps bara ett
- * ledande förekomst, och bara när ett avgränsningstecken följer.
- */
-function stripLeadingCode(label: string, code: string): string {
-  if (!code) return label.slice(0, 28);
-  const escaped = code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const stripped = label.replace(new RegExp(`^${escaped}(?=[\\s\\-–:]|$)\\s*`), "");
-  // Blev ingenting kvar var etiketten bara koden -- behåll originalet då.
-  return (stripped.trim() || label).slice(0, 28);
-}
-
 function ConfiguratorPage() {
   const { locale, family: familySlug } = Route.useParams();
   const t = makeT(locale as Locale);
@@ -256,7 +217,7 @@ function ConfiguratorPage() {
 
   const orderCode = useMemo(() => {
     if (!family) return "";
-    return buildOrderCode(
+    return fillOrderCodeTemplate(
       family.order_code_template || family.name,
       selections,
       new Set(params.filter((p) => p.required).map((p) => p.param_key)),
