@@ -909,6 +909,7 @@ export type Database = {
           id: string
           name: string
           order_code_template: string | null
+          rules_schema_id: string | null
           slug: string
           standard: string | null
           stroke_max_mm: number | null
@@ -922,6 +923,7 @@ export type Database = {
           id?: string
           name: string
           order_code_template?: string | null
+          rules_schema_id?: string | null
           slug: string
           standard?: string | null
           stroke_max_mm?: number | null
@@ -935,13 +937,22 @@ export type Database = {
           id?: string
           name?: string
           order_code_template?: string | null
+          rules_schema_id?: string | null
           slug?: string
           standard?: string | null
           stroke_max_mm?: number | null
           stroke_min_mm?: number | null
           title?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "configurator_families_rules_schema_id_fkey"
+            columns: ["rules_schema_id"]
+            isOneToOne: false
+            referencedRelation: "config_schemas"
+            referencedColumns: ["schema_id"]
+          },
+        ]
       }
       configurator_param_values: {
         Row: {
@@ -983,6 +994,8 @@ export type Database = {
           family_id: string | null
           id: string
           label: string
+          max_value: number | null
+          min_value: number | null
           param_key: string
           param_type: string
           required: boolean | null
@@ -992,6 +1005,8 @@ export type Database = {
           family_id?: string | null
           id?: string
           label: string
+          max_value?: number | null
+          min_value?: number | null
           param_key: string
           param_type: string
           required?: boolean | null
@@ -1001,6 +1016,8 @@ export type Database = {
           family_id?: string | null
           id?: string
           label?: string
+          max_value?: number | null
+          min_value?: number | null
           param_key?: string
           param_type?: string
           required?: boolean | null
@@ -1180,6 +1197,32 @@ export type Database = {
           source_file?: string
         }
         Relationships: []
+      }
+      knowledge_doc_families: {
+        Row: {
+          doc_title: string | null
+          family_slug: string
+          source_file: string
+        }
+        Insert: {
+          doc_title?: string | null
+          family_slug: string
+          source_file: string
+        }
+        Update: {
+          doc_title?: string | null
+          family_slug?: string
+          source_file?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_doc_families_family_slug_fkey"
+            columns: ["family_slug"]
+            isOneToOne: false
+            referencedRelation: "configurator_families"
+            referencedColumns: ["slug"]
+          },
+        ]
       }
       orders: {
         Row: {
@@ -2321,6 +2364,14 @@ export type Database = {
       fetch_products_for_advisor: {
         Args: { p_category_slug?: string; p_limit?: number }
         Returns: Json
+      }
+      get_family_documents: {
+        Args: { p_family_slug: string }
+        Returns: {
+          chunks: number
+          doc_title: string
+          source_file: string
+        }[]
       }
       get_order_by_id: {
         Args: { p_id: string }
