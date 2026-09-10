@@ -30,6 +30,8 @@ export interface DsbcPosition {
   pos: string;
   key: string;
   label_sv: string;
+  /** Katalogens egen engelska rubrik för positionen. */
+  label_en: string;
   /** Tillåtna koder. Tom sträng = "standard", dvs positionen utelämnas. */
   values: Array<{ code: string; label_sv: string }> | null;
   /** För numeriska positioner. */
@@ -58,6 +60,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "002",
     key: "rotation_lock",
     label_sv: "Vridskydd",
+    label_en: "Protection against rotation",
     values: [
       { code: "", label_sv: "Utan" },
       { code: "Q", label_sv: "Med vridskydd" },
@@ -67,6 +70,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "003",
     key: "running",
     label_sv: "Gångegenskaper",
+    label_en: "Running characteristics",
     values: [
       { code: "", label_sv: "Standard" },
       { code: "L", label_sv: "Låg friktion" },
@@ -78,6 +82,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "004",
     key: "bore_mm",
     label_sv: "Kolvdiameter",
+    label_en: "Piston diameter",
     // Etiketten upprepar inte talet: konfiguratorn visar koden på egen rad
     // ovanför, så "32" + "mm" läser rätt medan "32" + "Ø32 mm" blir dubbelt.
     values: [32, 40, 50, 63, 80, 100, 125].map((n) => ({
@@ -89,6 +94,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "005",
     key: "stroke_mm",
     label_sv: "Slaglängd",
+    label_en: "Stroke",
     values: null,
     // Katalogen: "1 ... 2800 mm". Den tidigare modellen sa 2000 -- fel.
     range: { min: 1, max: 2800, unit: "mm" },
@@ -97,6 +103,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "006",
     key: "clamping",
     label_sv: "Klämenhet",
+    label_en: "Clamping unit",
     values: [
       { code: "", label_sv: "Utan" },
       { code: "C", label_sv: "Påbyggd klämenhet" },
@@ -106,6 +113,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "007",
     key: "end_lock",
     label_sv: "Ändlägeslåsning",
+    label_en: "End-position locking",
     values: [
       { code: "", label_sv: "Utan" },
       { code: "E1", label_sv: "Båda sidor" },
@@ -117,6 +125,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "008",
     key: "rod_type",
     label_sv: "Kolvstångstyp",
+    label_en: "Piston rod type",
     values: [
       { code: "", label_sv: "Enkelsidig" },
       { code: "T", label_sv: "Genomgående kolvstång" },
@@ -126,6 +135,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "009",
     key: "rod_thread",
     label_sv: "Kolvstångsgänga",
+    label_en: "Piston rod thread type",
     values: [
       { code: "", label_sv: "Utvändig gänga" },
       { code: "F", label_sv: "Invändig gänga" },
@@ -135,6 +145,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "010",
     key: "profile",
     label_sv: "Profiltyp",
+    label_en: "Profile type",
     values: [
       { code: "", label_sv: "Givarspår på en sida" },
       { code: "D3", label_sv: "Givarspår på tre sidor" },
@@ -144,6 +155,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "011",
     key: "cushioning",
     label_sv: "Dämpning",
+    label_en: "Cushioning",
     values: [
       { code: "P", label_sv: "Elastiska dämpringar i båda ändar" },
       { code: "PPS", label_sv: "Pneumatisk dämpning, självjusterande i båda ändar" },
@@ -154,6 +166,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "012",
     key: "sensing",
     label_sv: "Lägesavkänning",
+    label_en: "Position sensing",
     values: [
       { code: "", label_sv: "Utan" },
       { code: "A", label_sv: "För cylindergivare" },
@@ -163,6 +176,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "N3",
     key: "standard_conformity",
     label_sv: "Standard",
+    label_en: "Standard",
     values: [
       { code: "", label_sv: "Baserad på ISO 15552" },
       // N3 är en STANDARDKONFORMITETSKOD, inte en kapslingsklass. Rådgivaren
@@ -175,6 +189,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "013",
     key: "corrosion",
     label_sv: "Korrosionsskydd",
+    label_en: "Corrosion protection",
     values: [
       { code: "", label_sv: "Standard" },
       { code: "R3", label_sv: "Högt korrosionsskydd" },
@@ -184,6 +199,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "014",
     key: "temperature",
     label_sv: "Temperaturområde",
+    label_en: "Temperature range",
     values: [
       { code: "", label_sv: "Standard" },
       { code: "T1", label_sv: "Värmetåliga tätningar max 120 °C" },
@@ -195,6 +211,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "015",
     key: "particles",
     label_sv: "Partikelskydd",
+    label_en: "Protection against particles",
     values: [
       { code: "", label_sv: "Standard" },
       { code: "P2", label_sv: "Bälg på lagerlocket" },
@@ -204,6 +221,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "016",
     key: "scraper",
     label_sv: "Avstrykarvariant",
+    label_en: "Scraper variant",
     values: [
       { code: "", label_sv: "Standard" },
       { code: "A1", label_sv: "Ökad kemikalieresistens" },
@@ -216,6 +234,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "017",
     key: "material",
     label_sv: "Särskilda materialegenskaper",
+    label_en: "Special material properties",
     values: [
       { code: "", label_sv: "Standard" },
       { code: "F1A", label_sv: "Rekommenderad för tillverkning av litiumjonbatterier" },
@@ -225,6 +244,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "018",
     key: "eu_cert",
     label_sv: "EU-certifiering",
+    label_en: "EU certification",
     values: [
       { code: "", label_sv: "Utan" },
       { code: "EX4", label_sv: "II 2GD (ATEX)" },
@@ -234,6 +254,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "KE",
     key: "stroke_adjust_mm",
     label_sv: "Slagjustering, utgående",
+    label_en: "Stroke adjustment, extending",
     values: null,
     // Katalogen: 0...25 mm för Ø32, 0...50 mm från Ø40. Storleksberoendet
     // ligger som regel nedan; range är det yttersta spannet.
@@ -244,6 +265,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "019",
     key: "rod_extension_mm",
     label_sv: "Kolvstångsförlängning",
+    label_en: "Piston rod extension",
     values: null,
     range: { min: 0, max: 500, unit: "mm" },
     numeric_suffix: "E",
@@ -252,6 +274,7 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
     pos: "020",
     key: "rod_thread_extension_mm",
     label_sv: "Gängförlängning på kolvstång",
+    label_en: "Piston rod thread extension",
     values: null,
     // Katalogen: 1...35 för Ø32/40, 1...70 från Ø50. Storleksberoendet ligger
     // som regel nedan, inte här -- range är det yttersta spannet.
@@ -530,3 +553,229 @@ export const DSBC_RULES: DsbcRule[] = [
     message_en: "Thread extension is limited to 35 mm for Ø32 and Ø40.",
   },
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VARIANTERNA
+//
+// DSBC är inte EN konfigurationsrymd. Katalogen har fyra separata
+// beställtabeller med olika storlekar, slagintervall, optionsutbud och
+// villkor. Den första modellen platt-till dem till en enda, vilket godkände
+// t.ex. klämenhet med 2500 mm slag -- katalogen tillåter 2000.
+//
+// Positionerna ovan är ordlistan: vad varje kod BETYDER. Varianterna nedan är
+// tabellerna: vilka positioner som ERBJUDS, med vilka värden och gränser.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type DsbcVariantId = "base" | "clamping" | "end_lock" | "li_ion";
+
+export interface DsbcVariantPosition {
+  key: string;
+  /** Inskränker ordlistans värden när tabellen har färre alternativ. */
+  values?: string[];
+  /** Positionen som definierar varianten och måste ha ett värde. */
+  required?: boolean;
+}
+
+export interface DsbcVariantSpec {
+  id: DsbcVariantId;
+  label_sv: string;
+  label_en: string;
+  /** Festos modulnummer per borrning. Li-ion-varianten har helt egna. */
+  moduleNo: Record<string, string>;
+  bores: string[];
+  stroke: { min: number; max: number };
+  positions: DsbcVariantPosition[];
+  rules: DsbcRule[];
+}
+
+const BASE_MODULES: Record<string, string> = {
+  "32": "1463250", "40": "1461995", "50": "1463770", "63": "1463475",
+  "80": "1463495", "100": "1463520", "125": "1722457",
+};
+
+const ALL_BORES = ["32", "40", "50", "63", "80", "100", "125"];
+
+export const DSBC_VARIANTS: DsbcVariantSpec[] = [
+  {
+    id: "base",
+    label_sv: "Standard hålbild",
+    label_en: "Standard hole pattern",
+    moduleNo: BASE_MODULES,
+    bores: ALL_BORES,
+    stroke: { min: 1, max: 2800 },
+    // Bastabellen erbjuder VARKEN klämenhet, ändlägeslåsning eller F1A --
+    // verifierat mot katalogen: de orden förekommer noll gånger i tabellen.
+    positions: [
+      { key: "rotation_lock" }, { key: "running" },
+      { key: "bore_mm" }, { key: "stroke_mm" },
+      { key: "rod_type" }, { key: "rod_thread" }, { key: "profile" },
+      { key: "cushioning" }, { key: "sensing" }, { key: "standard_conformity" },
+      { key: "corrosion" }, { key: "temperature" }, { key: "particles" },
+      { key: "scraper" }, { key: "eu_cert" },
+      { key: "stroke_adjust_mm" }, { key: "rod_extension_mm" },
+      { key: "rod_thread_extension_mm" },
+    ],
+    rules: DSBC_RULES,
+  },
+  {
+    id: "clamping",
+    label_sv: "Med klämenhet",
+    label_en: "With clamping unit",
+    moduleNo: BASE_MODULES,
+    bores: ALL_BORES,
+    stroke: { min: 10, max: 2000 },
+    positions: [
+      { key: "rotation_lock" },
+      { key: "bore_mm" }, { key: "stroke_mm" },
+      { key: "clamping", required: true },
+      { key: "rod_type" }, { key: "rod_thread" }, { key: "profile" },
+      { key: "cushioning" }, { key: "sensing" },
+      { key: "stroke_adjust_mm" }, { key: "rod_extension_mm" },
+      { key: "rod_thread_extension_mm" },
+    ],
+    rules: [
+      {
+        note: "C1", severity: "error",
+        when: { and: [eq("rotation_lock", "Q"), strokeOver(1500)] },
+        message_sv: "Vridskydd Q går bara upp till 1500 mm slaglängd.",
+        message_en: "Protection against rotation Q is only available up to 1500 mm stroke.",
+      },
+      {
+        note: "C1b", severity: "error",
+        // Katalogen markerar Q med "–" under storlek 125 i den här tabellen.
+        when: { and: [eq("rotation_lock", "Q"), eq("bore_mm", "125")] },
+        message_sv: "Vridskydd Q finns inte för Ø125 med klämenhet.",
+        message_en: "Protection against rotation Q is not available for Ø125 with a clamping unit.",
+      },
+      {
+        note: "C2", severity: "error",
+        // "[2] T Mandatory with Q" -- den enda regeln i hela katalogen som
+        // KRÄVER en position i stället för att förbjuda den.
+        when: { and: [eq("rotation_lock", "Q"), { "!=": [{ var: "rod_type" }, "T"] }] },
+        message_sv: "Med klämenhet kräver vridskydd Q genomgående kolvstång T.",
+        message_en: "With a clamping unit, protection against rotation Q requires through piston rod T.",
+      },
+      {
+        note: "C3", severity: "error",
+        when: {
+          and: [
+            { ">": [{ var: "stroke_adjust_mm" }, 0] },
+            { or: [strokeOver(1500), eq("rotation_lock", "Q")] },
+          ],
+        },
+        message_sv: "Slagjustering KE går bara upp till 1500 mm och inte med vridskydd Q.",
+        message_en: "Stroke adjustment KE is limited to 1500 mm and cannot be combined with Q.",
+      },
+      {
+        note: "C4", severity: "error",
+        when: { and: [{ ">": [{ var: "rod_thread_extension_mm" }, 0] }, eq("rod_thread", "F")] },
+        message_sv: "Gängförlängning kan inte kombineras med invändig gänga F.",
+        message_en: "Thread extension cannot be combined with female thread F.",
+      },
+    ],
+  },
+  {
+    id: "end_lock",
+    label_sv: "Med ändlägeslåsning",
+    label_en: "With end-position locking",
+    moduleNo: BASE_MODULES,
+    // Katalogen listar bara sex storlekar för den här tabellen -- Ø125 saknas.
+    bores: ["32", "40", "50", "63", "80", "100"],
+    stroke: { min: 10, max: 2000 },
+    positions: [
+      { key: "bore_mm" }, { key: "stroke_mm" },
+      { key: "end_lock", required: true },
+      { key: "rod_thread" }, { key: "profile" },
+      // Tabellen erbjuder bara P och PPV. Självjusterande PPS saknas.
+      { key: "cushioning", values: ["P", "PPV"] },
+      { key: "sensing" },
+      { key: "rod_extension_mm" }, { key: "rod_thread_extension_mm" },
+    ],
+    rules: [
+      {
+        note: "E1r", severity: "error",
+        when: { and: [{ ">": [{ var: "rod_thread_extension_mm" }, 0] }, eq("rod_thread", "F")] },
+        message_sv: "Gängförlängning kan inte kombineras med invändig gänga F.",
+        message_en: "Thread extension cannot be combined with female thread F.",
+      },
+    ],
+  },
+  {
+    id: "li_ion",
+    label_sv: "För tillverkning av litiumjonbatterier",
+    label_en: "For Li-ion battery production",
+    // Egen modulserie -- inte samma cylinder med en flagga påsatt.
+    moduleNo: {
+      "32": "8150687", "40": "8150688", "50": "8150689", "63": "8150690",
+      "80": "8150691", "100": "8150692", "125": "8150693",
+    },
+    bores: ALL_BORES,
+    stroke: { min: 1, max: 2800 },
+    positions: [
+      { key: "bore_mm" }, { key: "stroke_mm" },
+      { key: "rod_type" }, { key: "rod_thread" }, { key: "profile" },
+      { key: "cushioning" }, { key: "sensing" }, { key: "standard_conformity" },
+      { key: "material", required: true },
+      { key: "rod_extension_mm" }, { key: "rod_thread_extension_mm" },
+    ],
+    rules: [
+      {
+        note: "L1r", severity: "error",
+        when: {
+          and: [
+            {
+              or: [
+                eq("rod_thread", "F"),
+                { ">": [{ var: "rod_extension_mm" }, 0] },
+                { ">": [{ var: "rod_thread_extension_mm" }, 0] },
+              ],
+            },
+            eq("standard_conformity", "N3"),
+          ],
+        },
+        message_sv: "Invändig gänga F och kolvstångsförlängning kan inte kombineras med N3.",
+        message_en: "Female thread F and piston rod extensions cannot be combined with N3.",
+      },
+      {
+        note: "L2r", severity: "error",
+        when: {
+          and: [
+            {
+              or: [
+                { ">": [{ var: "rod_extension_mm" }, 0] },
+                { ">": [{ var: "rod_thread_extension_mm" }, 0] },
+              ],
+            },
+            strokeOver(2000),
+          ],
+        },
+        message_sv: "Kolvstångsförlängning går bara upp till 2000 mm slaglängd.",
+        message_en: "Piston rod extensions are only available up to 2000 mm stroke.",
+      },
+      {
+        note: "L3r", severity: "error",
+        when: { and: [{ ">": [{ var: "rod_thread_extension_mm" }, 0] }, eq("rod_thread", "F")] },
+        message_sv: "Gängförlängning kan inte kombineras med invändig gänga F.",
+        message_en: "Thread extension cannot be combined with female thread F.",
+      },
+    ],
+  },
+];
+
+/**
+ * Avgör vilken beställtabell en konfiguration hör till.
+ *
+ * Varianten framgår av vilken definierande position som är satt: klämenhet C,
+ * ändlägeslåsning E1/E2/E3, eller materialkoden F1A. Ingen av dem betyder
+ * bastabellen.
+ */
+export function variantOf(config: Record<string, string | number>): DsbcVariantSpec {
+  const id: DsbcVariantId = config.clamping === "C"
+    ? "clamping"
+    : String(config.end_lock ?? "").startsWith("E")
+      ? "end_lock"
+      : config.material === "F1A"
+        ? "li_ion"
+        : "base";
+  return DSBC_VARIANTS.find((v) => v.id === id)!;
+}

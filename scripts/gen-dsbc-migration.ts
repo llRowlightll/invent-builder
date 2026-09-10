@@ -9,7 +9,8 @@
  * när katalogen sa 2800. Ändras modellen kör man om det här; ändras SQL:en
  * direkt failar CI-testet som jämför databasen mot modellen.
  */
-import { DSBC_POSITIONS, DSBC_RULES, DSBC_SOURCE } from "../src/lib/catalog/dsbc.ts";
+import { DSBC_POSITIONS, DSBC_SOURCE } from "../src/lib/catalog/dsbc.ts";
+import { buildDsbcDbRules } from "../src/lib/catalog/dsbc-db-rules.ts";
 
 const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 const out: string[] = [];
@@ -126,27 +127,7 @@ join configurator_families f on f.id = p.family_id and f.slug = 'dsbc';
 // som evalLogic inte kan tolka: den returnerar objektet när det har fler än en
 // nyckel, och ett objekt är sant. Reglerna larmade alltså ALLTID, oavsett
 // konfiguration. Här skrivs de i den JSON-logik motorn faktiskt kör.
-const ruleRows = [
-  ...DSBC_RULES.map((r) => ({
-    severity: r.severity, if_json: r.when,
-    message_sv: r.message_sv, message_en: r.message_en, goto_step: r.note,
-  })),
-  // De två bevarade råden, omskrivna till körbar JSON-logik.
-  {
-    severity: "warn",
-    if_json: { and: [{ "==": [{ var: "cushioning" }, "P"] }, { ">": [{ var: "speed_ms" }, 0.3] }] },
-    message_sv: "Elastisk dämpning P är avsedd för låga hastigheter (<0,3 m/s). Välj PPV eller PPS.",
-    message_en: "Elastic cushioning P is intended for low speeds (<0.3 m/s). Choose PPV or PPS.",
-    goto_step: null as string | null,
-  },
-  {
-    severity: "info",
-    if_json: { ">=": [{ var: "bore_mm" }, 80] },
-    message_sv: "Ø80 mm och uppåt: kontrollera portdimension G3/4 och flödesventilernas dimensionering.",
-    message_en: "Ø80 mm and above: check port size G3/4 and flow valve sizing.",
-    goto_step: null as string | null,
-  },
-];
+const ruleRows = buildDsbcDbRules();
 
 out.push(`
 delete from config_rules where schema_id = 'SCHEMA-DSBC-V1';
