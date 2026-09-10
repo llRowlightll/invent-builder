@@ -543,8 +543,24 @@ export function usableForceN(boreMm: number, pressureBar = 6): number {
   return theoreticalForceN(boreMm, pressureBar) * SEAL_EFFICIENCY;
 }
 
-/** Kraftkravet en last ställer, inklusive säkerhetsfaktor (N). */
-export function requiredForceN(loadKg: number): number {
+/**
+ * Kraftkravet, i newton.
+ *
+ * En MASSA får säkerhetsfaktor: lasten accelereras, friktion tillkommer, och
+ * faktorn täcker det. En uttryckligen ANGIVEN kraft får det inte -- den är
+ * redan ett krav som någon räknat fram.
+ *
+ * Rättat 2026-09-10 efter en verifieringsomgång: "kräver 900 N klämkraft" gick
+ * genom extractLoadKg:s generiska N-fallback, blev 900/9,81 = 91,7 kg, och
+ * dubblades sedan till 1 800 N. Rekommendationen blev Ø80 där Ø50 räcker.
+ * Systemet visste redan bättre -- extractGripForceN hittade 900 -- men den
+ * signalen användes bara i gripdon-grenen, inte för cylinderdimensionering.
+ *
+ * Skillnaden mot "lasten är 500 N": där är newton en VIKT, inte ett kraftkrav,
+ * och säkerhetsfaktorn hör hemma. Den vägen är oförändrad.
+ */
+export function requiredForceN(loadKg: number, statedForceN = 0): number {
+  if (statedForceN > 0) return statedForceN;
   return loadKg <= 0 ? 0 : loadKg * 9.81 * LOAD_SAFETY_FACTOR;
 }
 
@@ -558,9 +574,10 @@ export function requiredForceN(loadKg: number): number {
  * Underdimensionering är den farliga riktningen: en cylinder som inte orkar är
  * ett haveri, en överdimensionerad kostar bara mer luft.
  */
-export function calcMinBoreMm(loadKg: number, pressureBar = 6): number {
-  if (loadKg <= 0) return 0;
-  const areaMm2 = requiredForceN(loadKg) / (pressureBar * 0.1 * SEAL_EFFICIENCY);
+export function calcMinBoreMm(loadKg: number, pressureBar = 6, statedForceN = 0): number {
+  const needN = requiredForceN(loadKg, statedForceN);
+  if (needN <= 0) return 0;
+  const areaMm2 = needN / (pressureBar * 0.1 * SEAL_EFFICIENCY);
   return Math.ceil(2 * Math.sqrt(areaMm2 / Math.PI));
 }
 
@@ -920,9 +937,12 @@ export function detectHazards(
   const isHighPrecision = precisionMm > 0 && precisionMm <= 0.5;
   const explicitBoreMm = extractExplicitBoreMm(text, answers);
   const loadKg = extractLoadKg(text, answers);
-  const minBoreMm = calcMinBoreMm(loadKg);
+  // Före minBoreMm: en uttryckligen angiven kraft ÄR kravet och ska inte
+  // dubblas av säkerhetsfaktorn. Se requiredForceN().
   const gripForceN = extractGripForceN(text, answers);
   const holdingForceN = extractHoldingForceN(text, answers);
+  const statedForceN = gripForceN || holdingForceN;
+  const minBoreMm = calcMinBoreMm(loadKg, 6, statedForceN);
   const torqueNm = extractTorqueNm(text, answers);
   const rotationDeg = extractRotationDeg(text, answers);
   const cycleTimeS = extractCycleTimeS(text, answers);

@@ -406,3 +406,45 @@ Deno.test("kraftmodellen är densamma i frontend-runtimen", async () => {
   assertEquals(tal("LOAD_SAFETY_FACTOR"), LOAD_SAFETY_FACTOR,
     "LOAD_SAFETY_FACTOR skiljer sig mellan signals.ts och physics.ts");
 });
+
+// ── Angiven kraft är ett krav, inte en last ──────────────────────────────────
+// Hittat 2026-09-10 i en verifieringsomgång efter kraftmodellsändringen:
+// "kräver 900 N klämkraft" gick genom extractLoadKg:s generiska N-fallback,
+// blev 900/9,81 = 91,7 kg, och dubblades sedan av säkerhetsfaktorn till
+// 1 800 N. Rekommendationen blev Ø80 där Ø50 räcker -- överdimensionering,
+// spegelbilden av underdimensioneringen vi rättade dagen innan.
+//
+// Systemet visste redan bättre: extractGripForceN hittade 900. Signalen
+// användes bara i gripdon-grenen, inte för cylinderdimensionering.
+
+Deno.test("angiven klämkraft används som krav, utan säkerhetsfaktor", () => {
+  const h = detectHazards("Klämmer fast en detalj, kräver 900 N klämkraft, slag 50 mm", {}, "sv");
+  assertEquals(h.gripForceN, 900);
+  assertEquals(requiredForceN(h.loadKg, h.gripForceN), 900);
+});
+
+Deno.test("angiven greppkraft dubblas inte heller", () => {
+  const h = detectHazards("Greppkraft 200 N behövs för att hålla detaljen", {}, "sv");
+  assertEquals(requiredForceN(h.loadKg, h.gripForceN), 200);
+});
+
+Deno.test("en MASSA får fortfarande säkerhetsfaktor", () => {
+  const h = detectHazards("Lyft en last på 35 kg vertikalt 300 mm", {}, "sv");
+  assertEquals(h.gripForceN, 0);
+  assertEquals(Math.round(requiredForceN(h.loadKg, 0)), 687);
+});
+
+Deno.test("en last uttryckt i newton är en vikt, inte ett kraftkrav", () => {
+  // Skillnaden mot fallen ovan: ingen kraftterm i texten. 500 N är då vad
+  // lasten VÄGER, och säkerhetsfaktorn hör hemma. Den vägen är oförändrad.
+  const h = detectHazards("Lasten är 500 N och ska lyftas 100 mm", {}, "sv");
+  assertEquals(h.gripForceN, 0);
+  assertEquals(Math.round(requiredForceN(h.loadKg, 0)), 1000);
+});
+
+Deno.test("minBoreMm dimensioneras mot den angivna kraften", () => {
+  const h = detectHazards("Klämmer fast en detalj, kräver 900 N klämkraft", {}, "sv");
+  // 900 N / (0,6 N/mm² x 0,75) = 2000 mm² -> Ø50,5 -> 51
+  assertEquals(h.minBoreMm, 51);
+  assert(usableForceN(h.minBoreMm) >= 900, "vald borrning måste klara den angivna kraften");
+});
