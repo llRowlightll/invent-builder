@@ -193,43 +193,49 @@ async function callGroq(
     return { ok: true, text, rateLimited: false };
   };
 
+  const contentOf = (text: string): string | null =>
+    JSON.parse(text).choices?.[0]?.message?.content ?? null;
+
   // 1. Try primary model
   const primary = await tryModel(model);
-  if (primary.ok) {
-    const data = JSON.parse(primary.text);
-    return data.choices?.[0]?.message?.content ?? null;
-  }
+  if (primary.ok) return contentOf(primary.text);
 
   // 2. If rate-limited AND primary wasn't already the fast model, retry with fast model
   if (primary.rateLimited && model !== LLM_MODEL_FAST) {
     console.log("Primary model rate-limited, falling back to", LLM_MODEL_FAST);
     const fallback = await tryModel(LLM_MODEL_FAST);
-    if (fallback.ok) {
-      const data = JSON.parse(fallback.text);
-      return data.choices?.[0]?.message?.content ?? null;
-    }
+    if (fallback.ok) return contentOf(fallback.text);
     if (fallback.rateLimited) throw new Error("RATE_LIMITED");
     return null;
   }
 
   if (primary.rateLimited) throw new Error("RATE_LIMITED");
 
-  // Found 2026-09-03 (adversarial test): a transient "json_validate_failed"
-  // (Groq's own structured-output validator occasionally rejects a
-  // generation -- not a rate limit) had zero retry. handleQuestions calls
-  // LLM_MODEL_FAST directly, so there's no lower fallback tier for it to
-  // fall through to -- one hiccup went straight to a silent, success-
-  // indistinguishable empty response ({summary: "", questions: []}) with no
-  // error surfaced anywhere. One retry with the same model/prompt before
-  // giving up -- LLM sampling is stochastic, a malformed generation on one
-  // attempt doesn't mean the next one fails too. Benefits every caller of
-  // callGroq uniformly, not just handleQuestions.
-  const retry = await tryModel(model);
-  if (retry.ok) {
-    const data = JSON.parse(retry.text);
-    return data.choices?.[0]?.message?.content ?? null;
+  // Omförsök vid TOM GENERERING, inte vid kvot.
+  //
+  // Groqs egen JSON-validering avvisar då och då en generering som kommer
+  // tillbaka tom ("json_validate_failed" med failed_generation ""). Det är inte
+  // ett kvottak utan samplingsbrus -- samma prompt lyckas nästa gång.
+  // handleQuestions anropar LLM_MODEL_FAST direkt och har därför ingen lägre
+  // nivå att falla igenom till, så utan omförsök gick en hicka rakt igenom till
+  // användaren.
+  //
+  // Mätt i integration_logs:
+  //   före token-budgetfixen (#173)   18 % av frågeanropen föll
+  //   efter, med ETT omförsök         10 %
+  // Ett andra omförsök tar det mot ~1 % om utfallen är oberoende, vilket de
+  // beter sig som. Kostar en sekund i det sällsynta felfallet och ingenting i
+  // normalfallet, eftersom slingan bara snurrar vidare vid fel.
+  //
+  // Kvot behandlas inte så: den släpper inte av att man frågar igen, och
+  // RATE_LIMITED kastas direkt så anroparen kan svara vettigt.
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 2; attempt <= MAX_ATTEMPTS; attempt++) {
+    const retry = await tryModel(model);
+    if (retry.ok) return contentOf(retry.text);
+    if (retry.rateLimited) throw new Error("RATE_LIMITED");
+    console.warn(`LLM tom generering, försök ${attempt}/${MAX_ATTEMPTS} misslyckades`);
   }
-  if (retry.rateLimited) throw new Error("RATE_LIMITED");
   return null;
 }
 
