@@ -41,6 +41,11 @@ interface Param {
   max_value: number | null;
   values: ParamValue[];
 }
+interface FamilyDoc {
+  source_file: string;
+  doc_title: string | null;
+  chunks: number;
+}
 interface Accessory {
   id: string;
   accessory_code: string;
@@ -146,6 +151,10 @@ function ConfiguratorPage() {
   // orderkoder tillverkaren inte kan leverera -- den byggde koden med ren
   // strängersättning och kontrollerade ingenting.
   const [rules, setRules] = useState<ConfigRule[]>([]);
+  // Tillverkarens underlag för familjen. Dokumenten har legat inlästa i
+  // knowledge_chunks hela tiden men gick inte att nå per familj: chunkarna
+  // taggades med kategori ("cylinder"), inte familj ("dsbc").
+  const [docs, setDocs] = useState<FamilyDoc[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -203,6 +212,11 @@ function ConfiguratorPage() {
       } else {
         setRules([]);
       }
+
+      const { data: docRows } = await supabase.rpc("get_family_documents", {
+        p_family_slug: familySlug,
+      });
+      setDocs((docRows ?? []) as FamilyDoc[]);
 
       const { data: acc } = await supabase
         .from("product_accessories")
@@ -567,6 +581,29 @@ function ConfiguratorPage() {
               >
                 Rensa alla val
               </button>
+            </div>
+          )}
+
+          {/* Tillverkarens underlag — visar VAD valen bygger på. Utan den här
+              raden är konfiguratorn ett påstående; med den går den att spåra. */}
+          {docs.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-xl p-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                {locale === "sv" ? "Underlag" : "Source documents"}
+              </p>
+              <ul className="space-y-1.5">
+                {docs.map((d) => (
+                  <li key={d.source_file} className="text-xs text-gray-600 leading-snug">
+                    <span className="text-gray-400 mr-1.5">📄</span>
+                    {d.doc_title ?? d.source_file}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-[11px] text-gray-400 leading-snug">
+                {locale === "sv"
+                  ? "Beställnyckel och villkor är hämtade ur tillverkarens katalog."
+                  : "Ordering key and conditions are taken from the manufacturer's catalogue."}
+              </p>
             </div>
           )}
 
