@@ -34,6 +34,7 @@ import {
   extractRotationDeg,
   parseTorqueFromSpecs,
   extractUnitCount,
+  requiredForceN as sigRequiredForceN,
   detectHazards,
   type HazardFlags,
   detectEndEffectorIntent,
@@ -809,7 +810,10 @@ async function handleOptions(
   // Same formula as calcMinBoreMm's internal forceN — surfaced separately so the
   // frontend can draw a "required vs available" margin visual per option instead
   // of just prose reasoning (engineers expect a calculated load-curve feel here).
-  const requiredForceN = loadKg > 0 ? Math.round(loadKg * 9.81 * 2) : 0;
+  // En angiven kraft (klämkraft, greppkraft, hållkraft) är redan ett krav och
+  // får inte säkerhetsfaktorn ovanpå. Se requiredForceN() i signals.ts.
+  const statedForceN = hazards.gripForceN || hazards.holdingForceN;
+  const requiredForceN = Math.round(sigRequiredForceN(loadKg, statedForceN));
 
   // ── Shock-absorber application (decelerate an external moving mass) ──────────
   // Sized by kinetic energy ½·m·v², not bore/force — handled here so it skips the
