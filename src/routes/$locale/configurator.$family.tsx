@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { makeT, type Locale } from "@/lib/i18n";
+import { validate, type ConfigRule } from "@/lib/configurator-engine";
 import { SITE, hreflangLinks } from "@/lib/site";
 
 // Types
@@ -16,6 +17,8 @@ interface Family {
   standard: string;
   stroke_min_mm: number;
   stroke_max_mm: number;
+  /** Pekar ut vilket regelset i config_rules som gäller för familjen. */
+  rules_schema_id: string | null;
 }
 interface ParamValue {
   id: string;
@@ -124,16 +127,25 @@ export const Route = createFileRoute("/$locale/configurator/$family")({
 
 function buildOrderCode(
   template: string,
-  selections: Record<string, string | string[]>
+  selections: Record<string, string | string[]>,
+  required: Set<string> = new Set(),
 ): string {
   let code = template;
   for (const [key, val] of Object.entries(selections)) {
     const v = Array.isArray(val) ? val.join("-") : val;
-    code = code.replace(`{${key}}`, v || "...");
+    code = code.replace(`{${key}}`, v || "");
   }
-  // Replace any remaining placeholders with ...
-  code = code.replace(/\{[^}]+\}/g, "...");
-  return code;
+
+  // Kvarvarande platshållare: obligatoriska visas som "..." så att kunden ser
+  // att något fattas, valfria försvinner helt. En beställnyckel utelämnar sina
+  // ovalda positioner -- DSBC har 21 stycken varav de flesta är valfria, och
+  // "DSBC-50-100-...-PPSA-..." vore varken en giltig kod eller läsbar.
+  code = code.replace(/\{([^}]+)\}/g, (_m, key: string) =>
+    required.has(key) ? "..." : "",
+  );
+
+  // Städa separatorerna som blev över när valfria positioner föll bort.
+  return code.replace(/-{2,}/g, "-").replace(/-+$/g, "");
 }
 
 function ConfiguratorPage() {
@@ -148,6 +160,10 @@ function ConfiguratorPage() {
   >({});
   const [loading, setLoading] = useState(true);
   const [addedToBom, setAddedToBom] = useState(false);
+  // Katalogens villkor för familjen. Utan dem kunde konfiguratorn bygga
+  // orderkoder tillverkaren inte kan leverera -- den byggde koden med ren
+  // strängersättning och kontrollerade ingenting.
+  const [rules, setRules] = useState<ConfigRule[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -193,6 +209,19 @@ function ConfiguratorPage() {
       );
       setParams(enriched as unknown as Param[]);
 
+      // Reglerna ligger i config_rules, som configurator-engine redan kan köra.
+      // Familjespåret läste dem bara aldrig.
+      const schemaId = (fam as Record<string, unknown>).rules_schema_id as string | null;
+      if (schemaId) {
+        const { data: ruleRows } = await supabase
+          .from("config_rules")
+          .select("severity, if_json, message_sv, message_en, goto_step")
+          .eq("schema_id", schemaId);
+        setRules((ruleRows || []) as unknown as ConfigRule[]);
+      } else {
+        setRules([]);
+      }
+
       const { data: acc } = await supabase
         .from("product_accessories")
         .select("*")
@@ -209,17 +238,39 @@ function ConfiguratorPage() {
     if (!family) return "";
     return buildOrderCode(
       family.order_code_template || family.name,
-      selections
+      selections,
+      new Set(params.filter((p) => p.required).map((p) => p.param_key)),
     );
-  }, [family, selections]);
+  }, [family, selections, params]);
 
-  const isComplete = params
+  /**
+   * Kör katalogens villkor mot valen. Numeriska fält kommer in som strängar
+   * från formuläret, men reglerna jämför tal (t.ex. slag > 1500), så de
+   * konverteras först -- annars blir "600" > 500 en strängjämförelse.
+   */
+  const validation = useMemo(() => {
+    if (rules.length === 0) return [];
+    const ctx: Record<string, unknown> = {};
+    for (const p of params) {
+      const raw = selections[p.param_key];
+      const v = Array.isArray(raw) ? raw.join(" ") : (raw ?? "");
+      ctx[p.param_key] = p.param_type === "number" ? Number(v || 0) : v;
+    }
+    return validate(rules, ctx, locale);
+  }, [rules, params, selections, locale]);
+
+  const blocking = validation.filter((m) => m.level === "error");
+
+  const allRequiredChosen = params
     .filter((p) => p.required)
     .every((p) => {
       const val = selections[p.param_key];
       if (val === undefined || val === "") return false;
       return true;
     });
+
+  // En kod som bryter mot katalogen är inte beställbar, hur ifylld den än är.
+  const isComplete = allRequiredChosen && blocking.length === 0;
 
   function select(key: string, value: string, type: string) {
     if (type === "multiselect") {
@@ -434,13 +485,42 @@ function ConfiguratorPage() {
               {orderCode || family.name + "-..."}
             </p>
 
+            {validation.length > 0 && (
+              <ul className="mt-4 space-y-2">
+                {validation.map((m, i) => (
+                  <li
+                    key={i}
+                    className={`text-xs leading-snug rounded-md px-2.5 py-2 ${
+                      m.level === "error"
+                        ? "bg-red-500/15 text-red-200 border border-red-500/30"
+                        : m.level === "warn"
+                          ? "bg-amber-500/15 text-amber-200 border border-amber-500/30"
+                          : "bg-sky-500/10 text-sky-200 border border-sky-500/25"
+                    }`}
+                  >
+                    {m.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+
             <div className="mt-4 pt-4 border-t border-gray-700">
               <div className="flex items-center gap-2 mb-3">
                 <div
-                  className={`w-2 h-2 rounded-full ${isComplete ? "bg-green-400" : "bg-yellow-400"}`}
+                  className={`w-2 h-2 rounded-full ${
+                    blocking.length > 0
+                      ? "bg-red-400"
+                      : isComplete
+                        ? "bg-green-400"
+                        : "bg-yellow-400"
+                  }`}
                 />
                 <span className="text-xs text-gray-400">
-                  {isComplete ? "Klar att beställa" : "Fyll i alla obligatoriska val"}
+                  {blocking.length > 0
+                    ? "Kombinationen går inte att beställa"
+                    : isComplete
+                      ? "Klar att beställa"
+                      : "Fyll i alla obligatoriska val"}
                 </span>
               </div>
               <button
