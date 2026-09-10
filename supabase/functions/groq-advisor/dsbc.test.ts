@@ -14,6 +14,8 @@ import {
   DSBC_POSITIONS,
   DSBC_RULES,
   DSBC_SOURCE,
+  DSBC_VARIANTS,
+  variantOf,
 } from "../../../src/lib/catalog/dsbc.ts";
 import {
   buildDsbcCode,
@@ -28,6 +30,8 @@ import {
   fillOrderCodeTemplate,
   stripLeadingCode,
 } from "../../../src/lib/catalog/order-code-template.ts";
+import { buildDsbcDbRules } from "../../../src/lib/catalog/dsbc-db-rules.ts";
+import { evalLogic } from "../../../src/lib/configurator-engine.ts";
 
 Deno.test("facit: alla 455 katalogkoder parsar", () => {
   assertEquals(DSBC_CORPUS.length, 455, "corpus ska ha 455 verifierade koder");
@@ -219,4 +223,191 @@ Deno.test("alla 18 fotnoter i katalogen är implementerade", () => {
     (n) => !covered.has(n),
   );
   assertEquals(missing, [], `fotnoter utan regel: ${missing.join(", ")}`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VARIANTERNA
+//
+// Katalogen har fyra beställtabeller, inte en. Den första modellen platt-till
+// dem och godkände därför kombinationer Festo inte säljer. Testerna nedan är
+// hämtade direkt ur tabellernas egna rubrikrader och fotnoter.
+// ─────────────────────────────────────────────────────────────────────────────
+
+Deno.test("varianterna bär katalogens fyra tabeller", () => {
+  assertEquals(DSBC_VARIANTS.map((v) => v.id), ["base", "clamping", "end_lock", "li_ion"]);
+
+  const byId = (id: string) => DSBC_VARIANTS.find((v) => v.id === id)!;
+  // Slagintervallen skiljer sig mellan tabellerna -- det var hela poängen.
+  assertEquals(byId("base").stroke, { min: 1, max: 2800 });
+  assertEquals(byId("clamping").stroke, { min: 10, max: 2000 });
+  assertEquals(byId("end_lock").stroke, { min: 10, max: 2000 });
+  assertEquals(byId("li_ion").stroke, { min: 1, max: 2800 });
+
+  // Ändlägeslåsning listas bara i sex storlekar; Ø125 saknas.
+  assertEquals(byId("end_lock").bores, ["32", "40", "50", "63", "80", "100"]);
+  // Li-ion är en egen modulserie, inte basen med en flagga.
+  assertEquals(byId("li_ion").moduleNo["32"], "8150687");
+  assertEquals(byId("base").moduleNo["32"], "1463250");
+});
+
+Deno.test("varianten avgörs av konfigurationen", () => {
+  const c = emptyConfig();
+  assertEquals(variantOf(c).id, "base");
+  assertEquals(variantOf({ ...c, clamping: "C" }).id, "clamping");
+  assertEquals(variantOf({ ...c, end_lock: "E2" }).id, "end_lock");
+  assertEquals(variantOf({ ...c, material: "F1A" }).id, "li_ion");
+});
+
+Deno.test("varianternas gränser avvisar det katalogen inte säljer", () => {
+  const base = () => ({ ...emptyConfig(), bore_mm: "50", stroke_mm: 100, cushioning: "PPV" });
+
+  // Klämenhet: slag 10-2000, inte basens 2800.
+  const c1 = { ...base(), clamping: "C", stroke_mm: 2500 };
+  assert(!validateDsbc(c1).ok, "klämenhet med 2500 mm slag ska avvisas");
+  assertEquals(validateDsbc(c1).variant, "clamping");
+
+  // Ändlägeslåsning finns inte för Ø125.
+  const c2 = { ...base(), end_lock: "E1", bore_mm: "125", stroke_mm: 100 };
+  assert(!validateDsbc(c2).ok, "ändlägeslåsning på Ø125 ska avvisas");
+
+  // Ändlägeslåsningstabellen erbjuder bara P och PPV -- inte PPS.
+  const c3 = { ...base(), end_lock: "E1", cushioning: "PPS" };
+  assert(!validateDsbc(c3).ok, "PPS med ändlägeslåsning ska avvisas");
+  const c3ok = { ...base(), end_lock: "E1", cushioning: "PPV" };
+  assert(validateDsbc(c3ok).ok, `PPV med ändlägeslåsning ska godkännas: ${validateDsbc(c3ok).errors.map((e) => e.message_sv).join(" | ")}`);
+
+  // "[2] T Mandatory with Q" -- katalogens enda KRÄVANDE regel.
+  const c4 = { ...base(), clamping: "C", rotation_lock: "Q" };
+  assert(!validateDsbc(c4).ok, "Q med klämenhet utan T ska avvisas");
+  assert(validateDsbc(c4).errors.some((e) => e.note === "C2"));
+  assert(validateDsbc({ ...c4, rod_type: "T" }).ok, "Q + T med klämenhet ska godkännas");
+
+  // Vridskydd Q finns inte för Ø125 med klämenhet.
+  const c5 = { ...base(), clamping: "C", rotation_lock: "Q", rod_type: "T", bore_mm: "125" };
+  assert(!validateDsbc(c5).ok, "Q på Ø125 med klämenhet ska avvisas");
+});
+
+Deno.test("en position som tabellen inte erbjuder avvisas", () => {
+  const base = () => ({ ...emptyConfig(), bore_mm: "50", stroke_mm: 100, cushioning: "PPV" });
+  // Ändlägeslåsningstabellen har varken vridskydd, korrosionsskydd eller ATEX.
+  for (const [key, val] of [["rotation_lock", "Q"], ["corrosion", "R3"], ["eu_cert", "EX4"]]) {
+    const c = { ...base(), end_lock: "E1", [key]: val };
+    assert(!validateDsbc(c).ok, `${key}=${val} ska avvisas med ändlägeslåsning`);
+  }
+  // Bastabellen erbjuder varken klämenhet eller F1A -- de har egna tabeller,
+  // så de byter variant i stället för att avvisas.
+  assertEquals(validateDsbc({ ...base(), clamping: "C", stroke_mm: 100 }).variant, "clamping");
+});
+
+Deno.test("li-ion-varianten följer sina egna fotnoter", () => {
+  const li = () => ({
+    ...emptyConfig(), bore_mm: "50", stroke_mm: 100, cushioning: "PPV", material: "F1A",
+  });
+  assert(validateDsbc(li()).ok, "ren F1A-konfiguration ska godkännas");
+  // [1] F, ...E, ...L inte med N3
+  assert(!validateDsbc({ ...li(), rod_thread: "F", standard_conformity: "N3" }).ok);
+  // [2] ...E bara upp till 2000 mm
+  assert(!validateDsbc({ ...li(), stroke_mm: 2500, rod_extension_mm: 50 }).ok);
+  assert(validateDsbc({ ...li(), stroke_mm: 2500 }).ok, "2500 mm utan förlängning är OK");
+});
+
+Deno.test("alla 455 katalogkoder hör till bastabellen", () => {
+  // Lagerkoderna bär varken C, E1/E2/E3 eller F1A. Skulle någon göra det vore
+  // corpus fel, inte modellen.
+  const wrong: string[] = [];
+  for (const row of DSBC_CORPUS) {
+    const { config } = parseDsbcCode(row.code);
+    if (variantOf(config).id !== "base") wrong.push(`${row.code} -> ${variantOf(config).id}`);
+  }
+  assertEquals(wrong, [], `koder som hamnade i fel tabell:\n${wrong.slice(0, 5).join("\n")}`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DE GENERERADE DATABASREGLERNA
+//
+// Modellen kan vara rätt och översättningen till databasen ändå fel -- mallen i
+// PR #190 var korrekt härledd och tappade ändå 15 av 21 positioner. Därför
+// jämförs reglerna som FAKTISKT hamnar i config_rules mot validateDsbc(), med
+// samma evalLogic som produktionen kör.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Kör de genererade reglerna precis som configurator-engine.validate() gör. */
+function runDbRules(config: Record<string, string | number>): string[] {
+  // Konfiguratorn räknar ut varianten en gång och skickar den i kontexten;
+  // reglerna vaktas på den i stället för att upprepa villkoret 63 gånger.
+  const ctx = { ...config, variant: variantOf(config).id };
+  return buildDsbcDbRules()
+    .filter((r) => r.severity === "error" && evalLogic(r.if_json, ctx))
+    .map((r) => r.message_sv);
+}
+
+Deno.test("databasreglerna godkänner alla 455 katalogkoder", () => {
+  // En kod Festo säljer får inte utlösa ett enda fel i produktionen.
+  const rejected: string[] = [];
+  for (const row of DSBC_CORPUS) {
+    const { config } = parseDsbcCode(row.code);
+    const hits = runDbRules(config);
+    if (hits.length > 0) rejected.push(`${row.code}: ${hits[0]}`);
+  }
+  assertEquals(rejected, [], `giltiga koder avvisades av DB-reglerna:\n${rejected.slice(0, 8).join("\n")}`);
+});
+
+Deno.test("databasreglerna avvisar samma sak som modellen", () => {
+  const base = () => ({ ...emptyConfig(), bore_mm: "50", stroke_mm: 100, cushioning: "PPV" });
+  const cases: Array<[string, Record<string, string | number>]> = [
+    ["klämenhet 2500 mm", { ...base(), clamping: "C", stroke_mm: 2500 }],
+    ["ändlägeslåsning Ø125", { ...base(), end_lock: "E1", bore_mm: "125" }],
+    ["PPS med ändlägeslåsning", { ...base(), end_lock: "E1", cushioning: "PPS" }],
+    ["Q med klämenhet utan T", { ...base(), clamping: "C", rotation_lock: "Q" }],
+    ["R3 med ändlägeslåsning", { ...base(), end_lock: "E1", corrosion: "R3" }],
+    ["EX4 med li-ion", { ...base(), material: "F1A", eu_cert: "EX4" }],
+    ["Q över 1500 mm (bas)", { ...base(), rotation_lock: "Q", stroke_mm: 1600 }],
+    ["F med N3 (bas)", { ...base(), rod_thread: "F", standard_conformity: "N3" }],
+    ["P2 över 500 mm (bas)", { ...base(), particles: "P2", stroke_mm: 600 }],
+  ];
+
+  const mismatch: string[] = [];
+  for (const [namn, config] of cases) {
+    const modell = !validateDsbc(config).ok;
+    const databas = runDbRules(config).length > 0;
+    if (modell !== databas) {
+      mismatch.push(`${namn}: modellen ${modell ? "avvisar" : "godkänner"}, databasen ${databas ? "avvisar" : "godkänner"}`);
+    }
+    assert(modell, `"${namn}" borde avvisas av modellen`);
+  }
+  assertEquals(mismatch, [], `modell och databasregler går isär:\n${mismatch.join("\n")}`);
+});
+
+Deno.test("giltiga variantkonfigurationer släpps igenom av databasreglerna", () => {
+  const ok: Array<[string, Record<string, string | number>]> = [
+    ["klämenhet med Q och T", {
+      ...emptyConfig(), bore_mm: "50", stroke_mm: 400, cushioning: "PPV",
+      clamping: "C", rotation_lock: "Q", rod_type: "T",
+    }],
+    ["ändlägeslåsning E2 med PPV", {
+      ...emptyConfig(), bore_mm: "63", stroke_mm: 300, cushioning: "PPV", end_lock: "E2",
+    }],
+    ["li-ion med N3", {
+      ...emptyConfig(), bore_mm: "80", stroke_mm: 1000, cushioning: "PPS",
+      material: "F1A", standard_conformity: "N3",
+    }],
+    ["bas med R3 och EX4", {
+      ...emptyConfig(), bore_mm: "63", stroke_mm: 400, cushioning: "PPV",
+      sensing: "A", profile: "D3", corrosion: "R3", eu_cert: "EX4",
+    }],
+  ];
+  for (const [namn, config] of ok) {
+    const hits = runDbRules(config);
+    assertEquals(hits, [], `"${namn}" borde godkännas, fick: ${hits.join(" | ")}`);
+    assert(validateDsbc(config).ok, `"${namn}" borde godkännas av modellen`);
+  }
+});
+
+Deno.test("varje genererad regel bär en variantvakt", () => {
+  // Utan vakt skulle bastabellens villkor köras på en klämenhetskonfiguration.
+  // Undantaget är de två allmänna råden, som gäller oavsett utförande.
+  const utanVakt = buildDsbcDbRules()
+    .filter((r) => r.severity === "error")
+    .filter((r) => !JSON.stringify(r.if_json).includes('{"var":"variant"}'));
+  assertEquals(utanVakt.map((r) => r.message_sv), [], "felregler utan variantvakt");
 });

@@ -11,7 +11,12 @@
  * för alla sju borrningar (483/754/1178/1870/3016/4712/7363 N vid 6 bar), så
  * siffrorna hör hemma i en funktion, inte i en databas där de kan drifta.
  */
-import { DSBC_POSITIONS, DSBC_RULES, DSBC_SERIES } from "./dsbc";
+import {
+  DSBC_POSITIONS,
+  DSBC_SERIES,
+  variantOf,
+  type DsbcVariantId,
+} from "./dsbc";
 // Relativ sökväg, inte @-aliaset: filen typkontrolleras och testas av
 // `deno test` i CI, och Deno känner inte till Vites aliasupplösning.
 import { evalLogic } from "../configurator-engine";
@@ -170,60 +175,112 @@ export function buildDsbcCode(config: DsbcConfig): string {
 
 export interface DsbcValidation {
   ok: boolean;
+  /** Vilken av katalogens fyra beställtabeller konfigurationen hör till. */
+  variant: DsbcVariantId;
   errors: Array<{ note: string; message_sv: string; message_en: string }>;
   warnings: Array<{ note: string; message_sv: string; message_en: string }>;
 }
 
 /**
- * Kör katalogens 18 villkor mot en konfiguration.
+ * Validerar en konfiguration mot rätt beställtabell.
  *
- * Använder samma evalLogic som configurator-engine redan har -- motorn fanns,
- * den var bara aldrig inkopplad på familjespåret.
+ * DSBC har fyra tabeller med olika storlekar, slagintervall, optionsutbud och
+ * villkor. Vilken som gäller framgår av konfigurationen själv: klämenhet C,
+ * ändlägeslåsning E1/E2/E3 eller materialkoden F1A pekar var sin tabell ut.
+ *
+ * Den första modellen körde bastabellens regler på allt och godkände därför
+ * klämenhet med 2500 mm slag, ändlägeslåsning på Ø125 och självjusterande
+ * dämpning PPS på en variant som inte erbjuder den.
+ *
+ * Kör samma evalLogic som configurator-engine -- motorn fanns redan.
  */
 export function validateDsbc(config: DsbcConfig): DsbcValidation {
   const errors: DsbcValidation["errors"] = [];
   const warnings: DsbcValidation["warnings"] = [];
+  const variant = variantOf(config);
+  const offered = new Map(variant.positions.map((p) => [p.key, p]));
 
-  for (const r of DSBC_RULES) {
+  for (const r of variant.rules) {
     if (evalLogic(r.when, config)) {
       const entry = { note: r.note, message_sv: r.message_sv, message_en: r.message_en };
       (r.severity === "error" ? errors : warnings).push(entry);
     }
   }
 
-  // Positionernas egna gränser, utöver kombinationsreglerna.
+  // Borrning: varianten kan erbjuda färre storlekar än familjen.
+  const bore = String(config.bore_mm ?? "");
+  if (bore && !variant.bores.includes(bore)) {
+    errors.push({
+      note: "storlek",
+      message_sv: `Ø${bore} finns inte i utförandet "${variant.label_sv}" (${variant.bores.join(", ")} mm).`,
+      message_en: `Ø${bore} is not available as "${variant.label_en}" (${variant.bores.join(", ")} mm).`,
+    });
+  }
+
+  // Slaglängd: varianternas intervall skiljer sig (1–2800 mot 10–2000).
+  const stroke = Number(config.stroke_mm ?? 0);
+  if (stroke < variant.stroke.min || stroke > variant.stroke.max) {
+    errors.push({
+      note: "slag",
+      message_sv: `Slaglängden måste vara ${variant.stroke.min}–${variant.stroke.max} mm i utförandet "${variant.label_sv}".`,
+      message_en: `Stroke must be ${variant.stroke.min}–${variant.stroke.max} mm for "${variant.label_en}".`,
+    });
+  }
+
   for (const p of DSBC_POSITIONS) {
-    const v = config[p.key];
-    if (p.values === null && p.range) {
-      const n = Number(v ?? 0);
-      const required = p.key === "stroke_mm";
-      if (required && (n < p.range.min || n > p.range.max)) {
+    const raw = config[p.key];
+    const code = String(raw ?? "");
+    const spec = offered.get(p.key);
+    const isSet = p.values === null ? Number(raw ?? 0) > 0 : code !== "";
+
+    // En position som tabellen inte erbjuder får inte vara satt.
+    if (!spec) {
+      if (isSet && p.key !== "stroke_mm" && p.key !== "bore_mm") {
         errors.push({
           note: p.pos,
-          message_sv: `${p.label_sv} måste vara ${p.range.min}–${p.range.max} ${p.range.unit}.`,
-          message_en: `${p.key} must be ${p.range.min}–${p.range.max} ${p.range.unit}.`,
+          message_sv: `${p.label_sv} erbjuds inte i utförandet "${variant.label_sv}".`,
+          message_en: `${p.label_sv} is not offered for "${variant.label_en}".`,
         });
       }
-      if (!required && n > p.range.max) {
+      continue;
+    }
+
+    if (spec.required && !isSet) {
+      errors.push({
+        note: p.pos,
+        message_sv: `${p.label_sv} måste anges i utförandet "${variant.label_sv}".`,
+        message_en: `${p.label_sv} is required for "${variant.label_en}".`,
+      });
+    }
+
+    if (p.values === null && p.range) {
+      const n = Number(raw ?? 0);
+      // Slaglängden är redan kontrollerad mot variantens intervall ovan.
+      if (p.key !== "stroke_mm" && n > p.range.max) {
         errors.push({
           note: p.pos,
           message_sv: `${p.label_sv} är max ${p.range.max} ${p.range.unit}.`,
           message_en: `${p.key} is limited to ${p.range.max} ${p.range.unit}.`,
         });
       }
-    } else if (p.values && v !== undefined) {
-      const code = String(v);
-      if (code && !p.values.some((x) => x.code === code)) {
+      continue;
+    }
+
+    if (code) {
+      // Tabellens egen värdelista går före ordlistans när den är smalare --
+      // ändlägeslåsning erbjuder t.ex. bara P och PPV, inte PPS.
+      const allowed = spec.values ?? (p.values ?? []).map((x) => x.code);
+      if (!allowed.includes(code)) {
         errors.push({
           note: p.pos,
-          message_sv: `"${code}" är inget giltigt värde för ${p.label_sv}.`,
-          message_en: `"${code}" is not a valid value for ${p.key}.`,
+          message_sv: `"${code}" är inget giltigt värde för ${p.label_sv} i utförandet "${variant.label_sv}".`,
+          message_en: `"${code}" is not a valid value for ${p.key} in "${variant.label_en}".`,
         });
       }
     }
   }
 
-  return { ok: errors.length === 0, errors, warnings };
+  return { ok: errors.length === 0, variant: variant.id, errors, warnings };
 }
 
 /** ISO 15552-kolvstångsdiameter per borrning, ur katalogens måttabell. */

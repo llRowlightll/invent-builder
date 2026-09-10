@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { makeT, type Locale } from "@/lib/i18n";
 import { validate, type ConfigRule } from "@/lib/configurator-engine";
 import { fillOrderCodeTemplate, stripLeadingCode } from "@/lib/catalog/order-code-template";
+import { variantOf } from "@/lib/catalog/dsbc";
 import { SITE, hreflangLinks } from "@/lib/site";
 
 // Types
@@ -237,6 +238,18 @@ function ConfiguratorPage() {
       const v = Array.isArray(raw) ? raw.join(" ") : (raw ?? "");
       ctx[p.param_key] = p.param_type === "number" ? Number(v || 0) : v;
     }
+    // Beställnyckeln kan ha flera utföranden med olika gränser och tillval --
+    // DSBC har fyra tabeller där t.ex. klämenhet går till 2000 mm medan basen
+    // går till 2800. Vilken som gäller framgår av valen själva, och reglerna
+    // vaktas på det här fältet i stället för att upprepa villkoret i var och
+    // en av dem.
+    //
+    // BEGRÄNSNING: variantOf() känner bara DSBC:s fyra tabeller. För övriga
+    // 158 familjer returnerar den "base", vilket är ofarligt (deras regler
+    // vaktas inte på variant) men inte generellt. När nästa familj visar sig
+    // ha flera beställtabeller hör mappningen hemma i configurator_families,
+    // inte i en importerad funktion -- den här raden är då platsen att ändra.
+    ctx.variant = variantOf(ctx as Record<string, string | number>).id;
     return validate(rules, ctx, locale);
   }, [rules, params, selections, locale]);
 
