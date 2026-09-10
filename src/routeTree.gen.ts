@@ -65,6 +65,7 @@ import { Route as LocaleAdminDashboardRouteImport } from './routes/$locale/admin
 import { Route as LocaleAdminCrmRouteImport } from './routes/$locale/admin.crm'
 import { Route as LocaleAdminClaimsRouteImport } from './routes/$locale/admin.claims'
 import { Route as LocaleAdminAuditRouteImport } from './routes/$locale/admin.audit'
+import { Route as LocaleAdminAssembliesRouteImport } from './routes/$locale/admin.assemblies'
 import { Route as ApiPublicNotifyRfqRouteImport } from './routes/api/public/notify/rfq'
 import { Route as LocaleConfiguratorSchemaSchemaIdRouteImport } from './routes/$locale/configurator.schema.$schemaId'
 import { Route as LocaleAdminOrderbekraftelseOrderIdRouteImport } from './routes/$locale/admin.orderbekraftelse.$orderId'
@@ -351,6 +352,11 @@ const LocaleAdminAuditRoute = LocaleAdminAuditRouteImport.update({
   path: '/audit',
   getParentRoute: () => LocaleAdminRoute,
 } as any)
+const LocaleAdminAssembliesRoute = LocaleAdminAssembliesRouteImport.update({
+  id: '/assemblies',
+  path: '/assemblies',
+  getParentRoute: () => LocaleAdminRoute,
+} as any)
 const ApiPublicNotifyRfqRoute = ApiPublicNotifyRfqRouteImport.update({
   id: '/api/public/notify/rfq',
   path: '/api/public/notify/rfq',
@@ -407,6 +413,7 @@ export interface FileRoutesByFullPath {
   '/$locale/wizard': typeof LocaleWizardRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/$locale/': typeof LocaleIndexRoute
+  '/$locale/admin/assemblies': typeof LocaleAdminAssembliesRoute
   '/$locale/admin/audit': typeof LocaleAdminAuditRoute
   '/$locale/admin/claims': typeof LocaleAdminClaimsRoute
   '/$locale/admin/crm': typeof LocaleAdminCrmRoute
@@ -466,6 +473,7 @@ export interface FileRoutesByTo {
   '/$locale/wizard': typeof LocaleWizardRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/$locale': typeof LocaleIndexRoute
+  '/$locale/admin/assemblies': typeof LocaleAdminAssembliesRoute
   '/$locale/admin/audit': typeof LocaleAdminAuditRoute
   '/$locale/admin/claims': typeof LocaleAdminClaimsRoute
   '/$locale/admin/crm': typeof LocaleAdminCrmRoute
@@ -529,6 +537,7 @@ export interface FileRoutesById {
   '/$locale/wizard': typeof LocaleWizardRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/$locale/': typeof LocaleIndexRoute
+  '/$locale/admin/assemblies': typeof LocaleAdminAssembliesRoute
   '/$locale/admin/audit': typeof LocaleAdminAuditRoute
   '/$locale/admin/claims': typeof LocaleAdminClaimsRoute
   '/$locale/admin/crm': typeof LocaleAdminCrmRoute
@@ -593,6 +602,7 @@ export interface FileRouteTypes {
     | '/$locale/wizard'
     | '/auth/callback'
     | '/$locale/'
+    | '/$locale/admin/assemblies'
     | '/$locale/admin/audit'
     | '/$locale/admin/claims'
     | '/$locale/admin/crm'
@@ -652,6 +662,7 @@ export interface FileRouteTypes {
     | '/$locale/wizard'
     | '/auth/callback'
     | '/$locale'
+    | '/$locale/admin/assemblies'
     | '/$locale/admin/audit'
     | '/$locale/admin/claims'
     | '/$locale/admin/crm'
@@ -714,6 +725,7 @@ export interface FileRouteTypes {
     | '/$locale/wizard'
     | '/auth/callback'
     | '/$locale/'
+    | '/$locale/admin/assemblies'
     | '/$locale/admin/audit'
     | '/$locale/admin/claims'
     | '/$locale/admin/crm'
@@ -1146,6 +1158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAdminAuditRouteImport
       parentRoute: typeof LocaleAdminRoute
     }
+    '/$locale/admin/assemblies': {
+      id: '/$locale/admin/assemblies'
+      path: '/assemblies'
+      fullPath: '/$locale/admin/assemblies'
+      preLoaderRoute: typeof LocaleAdminAssembliesRouteImport
+      parentRoute: typeof LocaleAdminRoute
+    }
     '/api/public/notify/rfq': {
       id: '/api/public/notify/rfq'
       path: '/api/public/notify/rfq'
@@ -1178,6 +1197,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface LocaleAdminRouteChildren {
+  LocaleAdminAssembliesRoute: typeof LocaleAdminAssembliesRoute
   LocaleAdminAuditRoute: typeof LocaleAdminAuditRoute
   LocaleAdminClaimsRoute: typeof LocaleAdminClaimsRoute
   LocaleAdminCrmRoute: typeof LocaleAdminCrmRoute
@@ -1197,6 +1217,7 @@ interface LocaleAdminRouteChildren {
 }
 
 const LocaleAdminRouteChildren: LocaleAdminRouteChildren = {
+  LocaleAdminAssembliesRoute: LocaleAdminAssembliesRoute,
   LocaleAdminAuditRoute: LocaleAdminAuditRoute,
   LocaleAdminClaimsRoute: LocaleAdminClaimsRoute,
   LocaleAdminCrmRoute: LocaleAdminCrmRoute,
