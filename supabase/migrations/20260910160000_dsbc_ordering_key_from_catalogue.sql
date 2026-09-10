@@ -28,7 +28,7 @@ create table if not exists backup.dsbc_before_20260910 as
 update configurator_families set
   stroke_min_mm = 1,
   stroke_max_mm = 2800,
-  order_code_template = 'DSBC-{bore_mm}-{stroke_mm}-{profile}-{cushioning}{sensing}-{standard_conformity}',
+  order_code_template = 'DSBC-{rotation_lock}-{running}-{bore_mm}-{stroke_mm}-{clamping}-{end_lock}-{rod_type}-{rod_thread}-{profile}-{cushioning}{sensing}-{standard_conformity}-{corrosion}-{temperature}-{particles}-{scraper}-{material}-{eu_cert}-{stroke_adjust_mm:KE}-{rod_extension_mm:E}-{rod_thread_extension_mm:L}',
   standard = 'ISO 15552'
 where slug = 'dsbc';
 

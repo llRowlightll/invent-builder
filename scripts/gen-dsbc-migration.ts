@@ -40,6 +40,18 @@ create table if not exists backup.dsbc_before_20260910 as
   where f.slug = 'dsbc';
 `);
 
+// Mallen byggs ur positionerna i stället för att skrivas som en sträng, så
+// den kan aldrig tappa en position. Den tidigare handskrivna mallen täckte 6
+// av 21 -- en kund som valde R3 eller EX4 fick en orderkod utan dem.
+//
+// {key:SUFFIX} används för de numeriska positionerna, som bär sin bokstav i
+// koden (25 -> "25KE"). Lägesavkänningen fogas till dämpningen utan bindestreck
+// eftersom Festo trycker dem ihop: PPV + A -> PPVA.
+const orderCodeTemplate = "DSBC" + DSBC_POSITIONS.map((p) => {
+  const ph = p.numeric_suffix ? `{${p.key}:${p.numeric_suffix}}` : `{${p.key}}`;
+  return p.key === "sensing" ? ph : `-${ph}`;
+}).join("");
+
 // ── familjen ────────────────────────────────────────────────────────────────
 const strokePos = DSBC_POSITIONS.find((p) => p.key === "stroke_mm")!;
 out.push(`
@@ -47,7 +59,7 @@ out.push(`
 update configurator_families set
   stroke_min_mm = ${strokePos.range!.min},
   stroke_max_mm = ${strokePos.range!.max},
-  order_code_template = ${q("DSBC-{bore_mm}-{stroke_mm}-{profile}-{cushioning}{sensing}-{standard_conformity}")},
+  order_code_template = ${q(orderCodeTemplate)},
   standard = ${q("ISO 15552")}
 where slug = 'dsbc';
 `);
