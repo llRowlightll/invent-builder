@@ -65,7 +65,16 @@ export function fillOrderCodeTemplate(
 export function stripLeadingCode(label: string, code: string): string {
   if (!code) return label.slice(0, 28);
   const escaped = code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const stripped = label.replace(new RegExp(`^${escaped}(?=[\\s\\-–:]|$)\\s*`), "");
+  // Koden tas bort TILLSAMMANS med avskiljaren. Den tidigare varianten lämnade
+  // kvar tankstrecket, så "D3 – Givarspår" visades som "– Givarspår".
+  //
+  // Ett bindestreck UTAN mellanslag är däremot ingen avskiljare utan en
+  // sammansättning: svenskan skriver "M5-gänga", och att klippa där gav
+  // "-gänga" i ventilkonfiguratorn. Därför krävs blanksteg runt strecket.
+  const stripped = label.replace(
+    new RegExp(`^${escaped}(?:\\s*[-–—:]\\s+|\\s*[-–—:]$|\\s+|$)`),
+    "",
+  );
   // Blev ingenting kvar var etiketten bara koden -- behåll originalet då.
   return (stripped.trim() || label).slice(0, 28);
 }

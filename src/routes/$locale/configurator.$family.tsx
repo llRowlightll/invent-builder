@@ -5,6 +5,10 @@ import { makeT, type Locale } from "@/lib/i18n";
 import { validate, type ConfigRule } from "@/lib/configurator-engine";
 import { fillOrderCodeTemplate, stripLeadingCode } from "@/lib/catalog/order-code-template";
 import { variantOf } from "@/lib/catalog/dsbc";
+// configurator_params.label och .value-label är EN kolumn, skriven på
+// engelska. 154 av 156 familjer visade därför "Bore diameter (mm)" och
+// "Without sensing" mitt på den svenska sidan.
+import { paramLabel, valueLabel } from "@/lib/catalog/labels-sv";
 import { SITE, hreflangLinks } from "@/lib/site";
 
 // Types
@@ -399,7 +403,7 @@ function ConfiguratorPage() {
                 <span className="w-7 h-7 flex items-center justify-center rounded-full bg-blue-600 text-white text-sm font-bold flex-shrink-0">
                   {idx + 1}
                 </span>
-                <h3 className="font-semibold text-gray-800">{param.label}</h3>
+                <h3 className="font-semibold text-gray-800">{paramLabel(param.label, locale)}</h3>
                 {!param.required && (
                   <span className="text-xs text-gray-400 ml-auto bg-gray-100 px-2 py-0.5 rounded">
                     Valfritt
@@ -461,7 +465,7 @@ function ConfiguratorPage() {
                         onClick={() =>
                           select(param.param_key, val.code, param.param_type)
                         }
-                        title={val.description || val.label}
+                        title={val.description || valueLabel(val.label, locale)}
                         className={`px-3 py-2 rounded-lg border text-sm font-medium transition-all text-left ${
                           selected
                             ? "bg-blue-600 text-white border-blue-600 shadow-sm"
@@ -472,7 +476,7 @@ function ConfiguratorPage() {
                         <span
                           className={`block text-xs mt-0.5 ${selected ? "text-blue-100" : "text-gray-500"}`}
                         >
-                          {stripLeadingCode(val.label, val.code)}
+                          {stripLeadingCode(valueLabel(val.label, locale), val.code)}
                         </span>
                       </button>
                     );
@@ -567,7 +571,7 @@ function ConfiguratorPage() {
                     : val;
                   return (
                     <div key={p.id} className="flex justify-between text-sm gap-2">
-                      <span className="text-gray-500 shrink-0">{p.label}</span>
+                      <span className="text-gray-500 shrink-0">{paramLabel(p.label, locale)}</span>
                       <span className="font-medium text-gray-800 text-right">
                         {display}
                       </span>
