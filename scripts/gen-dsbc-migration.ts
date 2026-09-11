@@ -9,7 +9,7 @@
  * när katalogen sa 2800. Ändras modellen kör man om det här; ändras SQL:en
  * direkt failar CI-testet som jämför databasen mot modellen.
  */
-import { DSBC_POSITIONS, DSBC_SOURCE } from "../src/lib/catalog/dsbc.ts";
+import { DSBC_FIELDS, DSBC_POSITIONS, DSBC_SOURCE } from "../src/lib/catalog/dsbc.ts";
 import { buildDsbcDbRules } from "../src/lib/catalog/dsbc-db-rules.ts";
 
 const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
@@ -74,7 +74,7 @@ delete from configurator_params p using configurator_families f
   where p.family_id = f.id and f.slug = 'dsbc';
 `);
 
-const paramRows = DSBC_POSITIONS.map((pos, i) => ({
+const paramRows = DSBC_FIELDS.map((pos, i) => ({
   param_key: pos.key,
   label: pos.label_sv,
   param_type: pos.values === null ? "number" : "select",
@@ -86,7 +86,7 @@ const paramRows = DSBC_POSITIONS.map((pos, i) => ({
   max_value: pos.range?.max ?? null,
 }));
 
-const valueRows = DSBC_POSITIONS.flatMap((pos) =>
+const valueRows = DSBC_FIELDS.flatMap((pos) =>
   (pos.values ?? [])
     .filter((v) => v.code) // "standard" = positionen utelämnas, inget val att lagra
     .map((v, j) => ({ param_key: pos.key, code: v.code, label: v.label_sv, sort_order: j })),
@@ -111,6 +111,52 @@ from jsonb_to_recordset(${q(JSON.stringify(valueRows))}::jsonb)
        as r(param_key text, code text, label text, sort_order int)
 join configurator_params p on p.param_key = r.param_key
 join configurator_families f on f.id = p.family_id and f.slug = 'dsbc';
+`);
+
+// ── schemat ─────────────────────────────────────────────────────────────────
+//
+// Schemaspåret (/configurator/schema/SCHEMA-DSBC-V1) hade kvar den
+// HANDSKRIVNA modellen: slag max 2000, sex borrningar (Ø125 saknades) och
+// dämpningskoderna "PPV-A"/"YSR", som inte förekommer i Festos katalog.
+// Värre: stegen hette bore/stroke/mounting medan reglerna läser
+// bore_mm/stroke_mm/clamping, och normalizeSchema sätter field.key = step.id.
+// Samtliga 63 villkor var därför döda på det spåret.
+//
+// Steg-id:na ÄR parameternycklarna nu, precis som i P1D:s schema. Ett test
+// jämför de två listorna så de inte kan glida isär igen.
+const schemaSteps = DSBC_FIELDS.map((pos, i) => {
+  const base = {
+    id: pos.key,
+    step: i + 1,
+    title: pos.label_en,
+    title_sv: pos.label_sv,
+    title_en: pos.label_en,
+    required: pos.key === "bore_mm" || pos.key === "stroke_mm" || pos.key === "cushioning",
+  };
+  if (pos.values === null) {
+    return { ...base, type: "numeric", min: pos.range!.min, max: pos.range!.max, unit: pos.range!.unit };
+  }
+  return {
+    ...base,
+    type: "single_select",
+    // Till skillnad från familjespåret behålls den TOMMA koden här. Där
+    // betyder "inte vald" standard; här har varje select alltid ett värde,
+    // så standardvalet måste finnas som ett alternativ att välja.
+    options: pos.values.map((v) => ({
+      v: v.code,
+      label: pos.key === "bore_mm" ? `\u00d8${v.code} mm` : v.code ? `${v.code} \u2013 ${v.label_sv}` : v.label_sv,
+    })),
+  };
+});
+
+out.push(`
+insert into config_schemas (schema_id, schema_json, title_sv, title_en, category_slug)
+values ('SCHEMA-DSBC-V1', ${q(JSON.stringify({ version: "1.0", steps: schemaSteps }))}::jsonb,
+        'Festo DSBC ISO-cylinder', 'Festo DSBC ISO cylinder', 'cylinder')
+on conflict (schema_id) do update set
+  schema_json = excluded.schema_json,
+  title_sv = excluded.title_sv,
+  title_en = excluded.title_en;
 `);
 
 // ── reglerna ────────────────────────────────────────────────────────────────

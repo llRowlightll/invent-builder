@@ -47,6 +47,8 @@ export interface SchemaField {
   min?: number;
   max?: number;
   unit?: string;
+  /** Måste fyllas för att orderkoden ska bli komplett. */
+  required?: boolean;
 }
 export interface SchemaStep {
   id: string;
@@ -92,7 +94,13 @@ export function normalizeSchema(raw: unknown): ConfigSchemaJson {
 
     const id = String(st.id ?? "");
     if (!id) continue;
+    // Det lagrade formatet hade bara ett `title`, och det var skrivet på
+    // engelska. Schemaspåret visade därför "Bore diameter" och "Stroke length"
+    // mitt på den svenska sidan. `title_sv`/`title_en` läses när de finns;
+    // `title` är kvar som reserv för de scheman som ännu bara har ett.
     const title = String(st.title ?? id);
+    const titleSv = String(st.title_sv ?? title);
+    const titleEn = String(st.title_en ?? title);
 
     const rawType = String(st.type ?? "text");
     const type: SchemaField["type"] =
@@ -113,17 +121,18 @@ export function normalizeSchema(raw: unknown): ConfigSchemaJson {
 
     steps.push({
       id,
-      title_en: title,
-      title_sv: title,
+      title_en: titleEn,
+      title_sv: titleSv,
       fields: [{
         key: id,
         type,
-        label_en: title,
-        label_sv: title,
+        label_en: titleEn,
+        label_sv: titleSv,
         options,
         min: typeof st.min === "number" ? st.min : undefined,
         max: typeof st.max === "number" ? st.max : undefined,
         unit: st.unit ? String(st.unit) : undefined,
+        required: st.required === true,
         // Utan default blir select-fältet tomt medan orderkoden redan räknar
         // med ett värde; första alternativet är vad kunden ser valt.
         default: type === "select" ? options?.[0]?.value : undefined,
@@ -157,6 +166,40 @@ export function defaultsFromSchema(schema: ConfigSchemaJson): Record<string, unk
     }
   }
   return out;
+}
+
+/**
+ * Bygger kontexten reglerna körs mot.
+ *
+ * Två konfiguratorspår renderar samma familjer: familjespåret
+ * (/configurator/:family, drivet av configurator_params) och schemaspåret
+ * (/configurator/schema/:id, drivet av config_schemas.schema_json). Båda kör
+ * samma regler ur config_rules, och de MÅSTE därför bygga kontexten likadant.
+ *
+ * Det gjorde de inte. Familjespåret konverterade numeriska fält till tal och
+ * la till `variant`; schemaspåret skickade in formulärets råa värden. Följden
+ * var att samtliga 63 DSBC-villkor var döda på schemaspåret -- de är vaktade
+ * på `variant`, och `undefined == "base"` är falskt. Reglerna syntes i
+ * databasen, gick att granska, och larmade aldrig.
+ *
+ * `numericKeys` är de fält som ska läsas som tal: reglerna jämför slag > 1500,
+ * och utan konverteringen blir "600" > 1500 en strängjämförelse som säger sant.
+ */
+export function buildRuleContext(
+  values: Record<string, unknown>,
+  numericKeys: Iterable<string>,
+  deriveVariant?: (ctx: Record<string, string | number>) => string,
+): Record<string, unknown> {
+  const numeric = new Set(numericKeys);
+  const ctx: Record<string, unknown> = {};
+  for (const [k, raw] of Object.entries(values)) {
+    const v = Array.isArray(raw) ? raw.join(" ") : (raw ?? "");
+    ctx[k] = numeric.has(k) ? Number(v || 0) : v;
+  }
+  // En beställnyckel kan ha flera utföranden med olika gränser och tillval --
+  // DSBC har fyra tabeller. Vilken som gäller framgår av valen själva.
+  if (deriveVariant) ctx.variant = deriveVariant(ctx as Record<string, string | number>);
+  return ctx;
 }
 
 export function validate(

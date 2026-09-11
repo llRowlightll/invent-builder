@@ -283,6 +283,40 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
   },
 ];
 
+/**
+ * Frågor som INTE är positioner i typkoden.
+ *
+ * Skilda från DSBC_POSITIONS med flit, och det är inte kosmetik: varje variant
+ * i DSBC_VARIANTS listar uttryckligen vilka positioner tabellen erbjuder, och
+ * både validateDsbc() och buildDsbcDbRules() larmar om en position som är satt
+ * men inte listad. En fråga som låg i DSBC_POSITIONS skulle alltså ge
+ * "Hastighet erbjuds inte i utförandet ..." så fort kunden svarade.
+ *
+ * Hastigheten behövs ändå: katalogens råd om elastisk dämpning gäller under
+ * 0,3 m/s, och regeln som bär det rådet läste `speed_ms` medan ingen
+ * konfigurator hade något sådant fält. Regeln fanns i databasen, gick att
+ * granska, och kunde aldrig bli sann. Jämför `atex` i p1d.ts -- samma sak,
+ * samma orsak.
+ */
+export const DSBC_QUESTIONS: DsbcPosition[] = [
+  {
+    pos: "—",
+    key: "speed_ms",
+    label_sv: "Kolvhastighet",
+    label_en: "Piston speed",
+    values: null,
+    range: { min: 0, max: 3, unit: "m/s" },
+  },
+];
+
+/**
+ * Allt konfiguratorn erbjuder: kodens positioner plus frågorna.
+ *
+ * Det här är listan en regel får läsa ur. Använd DSBC_POSITIONS när det
+ * handlar om ORDERKODEN, DSBC_FIELDS när det handlar om vad kunden ser.
+ */
+export const DSBC_FIELDS: DsbcPosition[] = [...DSBC_POSITIONS, ...DSBC_QUESTIONS];
+
 /** Villkorsregel. `when` är JSON-logik som configurator-engine.evalLogic kör. */
 export interface DsbcRule {
   /** Festos fotnotsnummer i beställtabellen, för spårbarhet. */

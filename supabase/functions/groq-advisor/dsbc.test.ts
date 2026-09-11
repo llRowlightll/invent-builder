@@ -11,7 +11,9 @@
  */
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import {
+  DSBC_FIELDS,
   DSBC_POSITIONS,
+  DSBC_QUESTIONS,
   DSBC_RULES,
   DSBC_SOURCE,
   DSBC_VARIANTS,
@@ -31,7 +33,7 @@ import {
   stripLeadingCode,
 } from "../../../src/lib/catalog/order-code-template.ts";
 import { buildDsbcDbRules } from "../../../src/lib/catalog/dsbc-db-rules.ts";
-import { evalLogic } from "../../../src/lib/configurator-engine.ts";
+import { buildRuleContext, evalLogic } from "../../../src/lib/configurator-engine.ts";
 
 Deno.test("facit: alla 455 katalogkoder parsar", () => {
   assertEquals(DSBC_CORPUS.length, 455, "corpus ska ha 455 verifierade koder");
@@ -410,4 +412,109 @@ Deno.test("varje genererad regel bär en variantvakt", () => {
     .filter((r) => r.severity === "error")
     .filter((r) => !JSON.stringify(r.if_json).includes('{"var":"variant"}'));
   assertEquals(utanVakt.map((r) => r.message_sv), [], "felregler utan variantvakt");
+});
+
+Deno.test("varje variabel en regel läser finns som fält i konfiguratorn", () => {
+  // Samma invariant som p1d.test.ts bär, och den fällde två fel här:
+  //
+  //   `variant`  -- familjespåret räknar ut den, schemaspåret gjorde inte det,
+  //                 så alla 63 vaktade villkor var döda där.
+  //   `speed_ms` -- ingen av spåren hade något sådant fält, så de två råden om
+  //                 dämpning kontra hastighet kunde aldrig bli sanna.
+  //
+  // En regel som läser ett fält som inte erbjuds syns i databasen, går att
+  // granska, ser riktig ut -- och larmar aldrig.
+  const fields = new Set(DSBC_FIELDS.map((p) => p.key));
+  // `variant` är inget formulärfält utan härleds ur valen. Den räknas som
+  // erbjuden eftersom buildRuleContext() alltid sätter den -- testet nedan
+  // bevisar det i stället för att lita på det.
+  fields.add("variant");
+
+  const varsIn = (node: unknown, acc: Set<string>): Set<string> => {
+    if (Array.isArray(node)) { for (const n of node) varsIn(n, acc); return acc; }
+    if (node && typeof node === "object") {
+      for (const [op, arg] of Object.entries(node as Record<string, unknown>)) {
+        if (op === "var") acc.add(String(Array.isArray(arg) ? arg[0] : arg));
+        else varsIn(arg, acc);
+      }
+    }
+    return acc;
+  };
+
+  const saknas: string[] = [];
+  for (const r of buildDsbcDbRules()) {
+    for (const v of varsIn(r.if_json, new Set())) {
+      if (!fields.has(v)) saknas.push(`${r.goto_step ?? "?"} läser "${v}"`);
+    }
+  }
+  assertEquals(saknas, [], `regler utan fält:\n${saknas.join("\n")}`);
+});
+
+Deno.test("buildRuleContext sätter variant och läser tal som tal", () => {
+  // Funktionen båda spåren delar. Går den sönder blir 63 villkor tysta igen.
+  const numeriska = DSBC_FIELDS.filter((p) => p.values === null).map((p) => p.key);
+  const ctx = buildRuleContext(
+    { bore_mm: "50", stroke_mm: "600", clamping: "C", speed_ms: "0.5" },
+    numeriska,
+    (c) => variantOf(c).id,
+  );
+  assertEquals(ctx.variant, "clamping", "klämenheten ska byta tabell");
+  assertEquals(ctx.stroke_mm, 600, "slaget ska vara ett tal, inte strängen");
+  assertEquals(ctx.speed_ms, 0.5);
+  // Utan talkonverteringen jämför evalLogic strängen "600" mot 1500.
+  assertEquals(evalLogic({ ">": [{ var: "stroke_mm" }, 1500] }, ctx), false);
+  const raa = { stroke_mm: "600" };
+  assertEquals(evalLogic({ ">": [{ var: "stroke_mm" }, 1500] }, raa), false,
+    "evalLogic konverterar själv -- skyddet behövs för jämförelser den INTE gör");
+});
+
+Deno.test("hastighetsrådet larmar nu — det kunde det inte förut", () => {
+  const numeriska = DSBC_FIELDS.filter((p) => p.values === null).map((p) => p.key);
+  const regler = buildDsbcDbRules().filter((r) => /speed_ms/.test(JSON.stringify(r.if_json)));
+  assert(regler.length > 0, "det ska finnas regler som läser hastigheten");
+
+  const snabb = buildRuleContext(
+    { bore_mm: "50", stroke_mm: "200", cushioning: "P", speed_ms: "0.8" },
+    numeriska, (c) => variantOf(c).id,
+  );
+  const langsam = { ...snabb, speed_ms: 0.1 };
+  assert(regler.some((r) => evalLogic(r.if_json, snabb)), "0,8 m/s med elastisk dämpning ska varna");
+  assert(!regler.some((r) => evalLogic(r.if_json, langsam)), "0,1 m/s ska vara tyst");
+});
+
+Deno.test("frågorna ligger utanför orderkoden", () => {
+  // DSBC_QUESTIONS får aldrig hamna i typkoden: varianterna listar uttryckligen
+  // vilka POSITIONER som erbjuds, och en fråga i den listan skulle ge
+  // "Hastighet erbjuds inte i utförandet ..." så fort kunden svarade.
+  for (const q of DSBC_QUESTIONS) {
+    assert(!DSBC_POSITIONS.some((p) => p.key === q.key), `${q.key} hör inte i typkoden`);
+    for (const v of DSBC_VARIANTS) {
+      assert(!v.positions.some((p) => p.key === q.key), `${q.key} listas i varianten ${v.id}`);
+    }
+  }
+  // ...men de ska finnas bland fälten kunden ser.
+  assertEquals(DSBC_FIELDS.length, DSBC_POSITIONS.length + DSBC_QUESTIONS.length);
+});
+
+Deno.test("en fråga bryter inte orderkoden för facit", () => {
+  // Mallen byggs ur DSBC_POSITIONS, inte DSBC_FIELDS. Skulle någon slarva och
+  // byta lista faller det här testet, inte kunden.
+  const mall = "DSBC" + DSBC_POSITIONS.map((p) => {
+    const ph = p.numeric_suffix ? `{${p.key}:${p.numeric_suffix}}` : `{${p.key}}`;
+    return p.key === "sensing" ? ph : `-${ph}`;
+  }).join("");
+  assert(!mall.includes("speed_ms"), "hastigheten är ingen position i koden");
+  const trasiga: string[] = [];
+  for (const row of DSBC_CORPUS.slice(0, 60)) {
+    const r = parseDsbcCode(row.code);
+    // Nollor är "ej valt" för de numeriska positionerna, precis som i testet
+    // ovan. Hastigheten läggs till för att bevisa att den INTE hamnar i koden.
+    const sel: Record<string, string> = { speed_ms: "0.5" };
+    for (const [k, v] of Object.entries(r.config)) {
+      sel[k] = typeof v === "number" ? (v === 0 ? "" : String(v)) : String(v);
+    }
+    const byggd = fillOrderCodeTemplate(mall, sel, new Set(["bore_mm", "stroke_mm"]));
+    if (byggd !== row.code) trasiga.push(`${row.code} -> ${byggd}`);
+  }
+  assertEquals(trasiga, [], trasiga.join("\n"));
 });

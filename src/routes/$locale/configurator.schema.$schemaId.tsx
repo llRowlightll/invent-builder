@@ -11,10 +11,13 @@ import {
   type ConfigSchemaJson,
   type ValidationMessage,
   buildOrderCode,
+  buildRuleContext,
   defaultsFromSchema,
   normalizeSchema,
   validate,
 } from "@/lib/configurator-engine";
+import { variantOf } from "@/lib/catalog/dsbc";
+import { fillOrderCodeTemplate } from "@/lib/catalog/order-code-template";
 
 export const Route = createFileRoute("/$locale/configurator/schema/$schemaId")({
   head: ({ params }) => {
@@ -35,6 +38,11 @@ function ConfiguratorRunner() {
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [stepIdx, setStepIdx] = useState(0);
   const [catalog, setCatalog] = useState<ProductRow[] | null>(null);
+  // Familjen schemat hör till, när det finns en. Den bär den RIKTIGA
+  // orderkodsmallen; utan den föll sidan tillbaka på buildOrderCode(), som är
+  // skriven för EA-LINEAR-AXIS och gav "SCHEMA-DSBC-V1-BEST-X-X-X-X-X" --
+  // ett artikelnummer som inte betyder någonting, visat för kunden.
+  const [family, setFamily] = useState<{ slug: string; order_code_template: string | null } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -59,14 +67,32 @@ function ConfiguratorRunner() {
         setValues(defaultsFromSchema(sj));
       }
       setRules((r as ConfigRule[]) ?? []);
+
+      const { data: fam } = await supabase
+        .from("configurator_families")
+        .select("slug,order_code_template")
+        .eq("rules_schema_id", schemaId)
+        .maybeSingle();
+      setFamily((fam as { slug: string; order_code_template: string | null } | null) ?? null);
     })();
     loadCatalog().then(setCatalog).catch(console.error);
   }, [schemaId, locale]);
 
-  const messages: ValidationMessage[] = useMemo(
-    () => (rules.length ? validate(rules, values, locale) : []),
-    [rules, values, locale],
-  );
+  /**
+   * Samma kontext som familjespåret bygger -- via samma funktion, så de inte
+   * kan glida isär igen. Tidigare skickades formulärets råa värden rakt in,
+   * och eftersom DSBC:s 63 villkor är vaktade på `variant` (som ingen satte)
+   * kunde inte ett enda av dem bli sant här.
+   */
+  const messages: ValidationMessage[] = useMemo(() => {
+    if (rules.length === 0) return [];
+    const numeriska = schema?.steps
+      .flatMap((st) => st.fields ?? [])
+      .filter((f) => f.type === "number")
+      .map((f) => f.key) ?? [];
+    const ctx = buildRuleContext(values, numeriska, (c) => variantOf(c).id);
+    return validate(rules, ctx, locale);
+  }, [rules, values, locale, schema]);
   const hasError = messages.some((m) => m.level === "error");
 
   const result: SelectionResult | null = useMemo(() => {
@@ -83,7 +109,22 @@ function ConfiguratorRunner() {
     return runSelection(catalog, input);
   }, [catalog, values, schemaId]);
 
-  const orderCode = result?.orderCode ?? buildOrderCode(schemaId, values);
+  const orderCode = useMemo(() => {
+    if (result?.orderCode) return result.orderCode;
+    // Hör schemat till en familj är det familjens beställnyckel som gäller --
+    // samma mall, samma motor och samma resultat som familjespåret ger.
+    if (family?.order_code_template) {
+      const sel: Record<string, string> = {};
+      for (const [k, v] of Object.entries(values)) sel[k] = Array.isArray(v) ? v.join("-") : String(v ?? "");
+      const kravs = new Set(
+        (schema?.steps.flatMap((st) => st.fields ?? []) ?? [])
+          .filter((f) => f.required)
+          .map((f) => f.key),
+      );
+      return fillOrderCodeTemplate(family.order_code_template, sel, kravs);
+    }
+    return buildOrderCode(schemaId, values);
+  }, [result, family, values, schema, schemaId]);
 
   if (!schema) {
     return <div className="container-page py-16 text-sm text-muted-foreground">{t("common.loading")}</div>;
