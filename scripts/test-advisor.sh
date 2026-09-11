@@ -121,6 +121,47 @@ try:
 except: sys.exit(0)" 2>/dev/null
 }
 
+# Som check(), men tittar BARA på en BOM-rads artikelnummer.
+#
+# check() matchar mot hela JSON-svaret, och svaret innehåller LLM-skriven
+# prosa (title, explanation, reason). En "får inte förekomma"-kontroll mot
+# hela dokumentet kan därför fällas av att modellen NÄMNER en artikel i en
+# mening -- utan att den valts. T26 föll rött 2026-09-11 på "MC-FR (found,
+# should not be)" medan samma anrop, kört om direkt efteråt, gav
+# FE-MS4-LF-14-CRG på FRL-raden och inget MC-FR alls.
+#
+# Handlar kravet om VAD SOM VALTS hör kontrollen hemma på raden, inte i
+# prosan. Handlar det om vad rådgivaren PÅSTÅR är check() fortfarande rätt.
+check_bom_row() {
+  local name="$1" json="$2" kind="$3" pattern="$4" expect_absent="${5:-}"
+
+  if echo "$json" | python3 -c "import sys,json; d=json.load(sys.stdin); sys.exit(0 if d.get('error')=='rate_limited' else 1)" 2>/dev/null; then
+    echo "  ⚠️  $name [SKIP — rate limited]"
+    ((SKIP++)); return
+  fi
+
+  local sku
+  sku=$(echo "$json" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+rader=[r for r in (d.get('bom') or []) if isinstance(r,dict) and r.get('kind')=='$kind']
+print(' '.join(str(r.get('sku','')) for r in rader) or 'INGEN-RAD')
+" 2>/dev/null || echo "ERROR")
+
+  local ok=true
+  echo "$sku" | grep -qE "$pattern" || ok=false
+  if [[ -n "$expect_absent" ]] && echo "$sku" | grep -qE "$expect_absent"; then ok=false; fi
+
+  if $ok; then
+    echo "  ✅ $name ($sku)"; ((PASS++))
+  else
+    echo "  ❌ $name"
+    echo "     rad '$kind' gav: $sku"
+    echo "     krävde: $pattern${expect_absent:+   fick inte innehålla: $expect_absent}"
+    ((FAIL++)); FAILURES+=("$name sku=$sku")
+  fi
+}
+
 check() {
   local name="$1" json="$2" pattern="$3" expect_absent="${4:-}"
   local ok=true
@@ -599,7 +640,7 @@ R=$(call_bom \
   "Standard pneumatisk cylinder 100mm stroke, 6 bar" \
   '{}' \
   "0822121007")
-check "T26 FRL är Festo MS4" "$R" "MS4|FE-MS4|FE-MS6" "MC-FR"
+check_bom_row "T26 FRL är Festo MS4" "$R" "frl" "MS4|MS6" "MC-FR"
 
 # Test 27: 3-axlig XYZ → minst 3 aktuatorrader i BOM
 echo "  [27] XYZ 3-axlad → ≥3 aktuatorrader..."
