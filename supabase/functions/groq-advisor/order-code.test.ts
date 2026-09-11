@@ -108,3 +108,40 @@ Deno.test("flera koder i samma förfrågan läses var för sig", () => {
   const r = readOrderCodes("Ersätt DSBC-50-100 med CQ2B32-100", FAMILJER);
   assertEquals(r.resolved.map((x) => `${x.familySlug}:${x.boreMm}`), ["dsbc:50", "cq2:32"]);
 });
+
+Deno.test("katalogens fakta följer med, och resten förbjuds", () => {
+  // Med rätt mått men UTAN fakta hittade modellen på resten: DSBC kallades
+  // "hydraulisk borrcylinder" med 250 bar och en "PPSA-seal
+  // (poly-phenyl-sulfon-akryl)". DSBC är pneumatisk, max 10 bar, och PPSA är
+  // dämpning. Instruktionen ska bära de riktiga uppgifterna och stänga dörren
+  // för de påhittade.
+  const facts = new Map([["dsbc", {
+    sku: "FESTO-DSBC",
+    name: "DSBC – ISO 15552 Standard Cylinder",
+    brand: "Festo",
+    specs: {
+      mode_of_operation: "Double-acting",
+      medium: "Compressed air ISO 8573-1 [7:4:4]",
+      max_pressure: "10",
+      standard: "ISO 15552",
+      cushioning_types: "P, PPV-A, YSR",
+    },
+  }]]);
+
+  const r = readOrderCodes("Ersätt DSBC-50-100-PPSA-N3", FAMILJER);
+  const s = orderCodeInstruction(r, "sv", facts);
+
+  assert(s.includes("Double-acting"), "verkningssättet måste med");
+  assert(s.includes("Compressed air"), "mediet måste med — den sa 'hydraulisk'");
+  assert(s.includes("10"), "maxtrycket måste med — den sa 250 bar");
+  assert(s.includes("P, PPV-A, YSR"), "dämpningstyperna måste med");
+  assert(/ENDA du får ange/.test(s), "resten måste uttryckligen förbjudas");
+  assert(/inte finns i katalogen/.test(s), "måste anvisa ett ärligt 'vet ej'");
+});
+
+Deno.test("utan fakta låses ändå måtten", () => {
+  // Faller faktahämtningen bort ska instruktionen fortfarande finnas kvar och
+  // låsa borrningen -- det var det ursprungliga felet.
+  const s = orderCodeInstruction(readOrderCodes("DSBC-50-100", FAMILJER), "sv");
+  assert(s.includes("EXAKT Ø50 mm"));
+});

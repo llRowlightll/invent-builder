@@ -42,3 +42,35 @@ as $$
 $$;
 
 grant execute on function public.get_family_briefs() to anon, authenticated;
+
+-- ── Katalogens VERKLIGA uppgifter om en familj ───────────────────────────────
+--
+-- Att bara slå upp borrning och slaglängd räckte inte. Med rätt mått men utan
+-- fakta fyllde modellen i resten själv och kallade DSBC "hydraulisk
+-- borrcylinder" med 250 bar arbetstryck och en påhittad "PPSA-seal
+-- (poly-phenyl-sulfon-akryl)". DSBC är pneumatisk, max 10 bar, och PPSA är
+-- dämpning. Med de här raderna i promptet finns det något att svara UR.
+
+create or replace function public.get_family_facts(p_slug text)
+returns table (sku text, name text, brand text, specs jsonb)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  select p.sku,
+         p.name,
+         coalesce(b.name, ''),
+         coalesce((
+           select jsonb_object_agg(s.key, s.value)
+           from product_specs s where s.product_id = p.id
+         ), '{}'::jsonb)
+  from products p
+  left join brands b on b.id = p.brand_id
+  where lower(coalesce(p.family,'')) = lower(p_slug)
+    and p.status = 'active'
+  order by (select count(*) from product_specs s where s.product_id = p.id) desc
+  limit 1;
+$$;
+
+grant execute on function public.get_family_facts(text) to anon, authenticated;

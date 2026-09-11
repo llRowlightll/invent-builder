@@ -1,5 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { orderCodeInstruction, readOrderCodes, type FamilyBrief } from "./order-code.ts";
+import {
+  orderCodeInstruction,
+  readOrderCodes,
+  type FamilyBrief,
+  type FamilyFacts,
+} from "./order-code.ts";
 import {
   type CatalogProduct,
   type ScoringCtx,
@@ -298,6 +303,35 @@ async function fetchFamilyBriefs(): Promise<FamilyBrief[]> {
   } catch { return []; }
 }
 
+/**
+ * Katalogens verkliga uppgifter för de familjer en orderkod pekade ut.
+ *
+ * Utan dem räckte uppslagningen bara till måtten: modellen fick rätt Ø50 och
+ * 100 mm men hittade på resten och kallade DSBC "hydraulisk borrcylinder" med
+ * 250 bar. Nu finns det något att svara UR.
+ */
+async function fetchFamilyFacts(slugs: string[]): Promise<Map<string, FamilyFacts>> {
+  const out = new Map<string, FamilyFacts>();
+  await Promise.all([...new Set(slugs)].slice(0, 4).map(async (slug) => {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_family_facts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ p_slug: slug }),
+      });
+      if (!res.ok) return;
+      const rows = await res.json();
+      const r = Array.isArray(rows) ? rows[0] : null;
+      if (!r) return;
+      out.set(slug, {
+        sku: String(r.sku ?? ""), name: String(r.name ?? ""), brand: String(r.brand ?? ""),
+        specs: (r.specs ?? {}) as Record<string, string>,
+      });
+    } catch { /* fakta saknas -> instruktionen säger bara "inte i katalogen" */ }
+  }));
+  return out;
+}
+
 async function fetchProducts(categorySlugs: string[], limit = 30): Promise<CatalogProduct[]> {
   const results = await Promise.all(
     categorySlugs.map(async (slug) => {
@@ -552,9 +586,10 @@ async function handleQuestions(description: string, locale: string): Promise<Res
   // Orderkoder i förfrågan slås upp i katalogen och låses som EXAKTA mått.
   // Utan det tolkade modellen dem fritt: DSBC-50-100 lästes som ett tak och
   // besvarades med en Ø32, och N3/PPSA fick påhittade betydelser.
+  const qReading = readOrderCodes(description, await fetchFamilyBriefs());
   const codeNote = orderCodeInstruction(
-    readOrderCodes(description, await fetchFamilyBriefs()),
-    locale,
+    qReading, locale,
+    await fetchFamilyFacts(qReading.resolved.map((r) => r.familySlug)),
   );
 
   const system = `You are a senior automation engineer helping a customer who is very likely NOT an automation engineer. Generate 4-6 precise technical questions. All text in ${lang}.\n\nRULES:\n${contextRules}${codeNote ? "\n\n" + codeNote : ""}\n\nJSON:\n{ "summary": "one precise sentence in ${lang}", "questions": [ { "id": "snake_case", "label": "question in ${lang}", "hint": "plain-language explanation of the term and how to decide — see PLAIN-LANGUAGE HINTS rule", "type": "choice", "options": ["opt1","opt2"] } ] }\ntype = 'choice' (with options) or 'number' (with unit).${pdfCtx ? "\n\nDocs:\n" + pdfCtx : ""}`;
@@ -1376,7 +1411,10 @@ async function handleOptions(
   // not mentioning them. Confirmed across 4 independent test calls (SIL,
   // oxygen-clean, pharma/GMP, and one plain query) before concluding this
   // was systemic rather than a one-off sampling fluke.
-  const codeNote = orderCodeInstruction(codeReading, locale);
+  const codeNote = orderCodeInstruction(
+    codeReading, locale,
+    await fetchFamilyFacts(codeReading.resolved.map((r) => r.familySlug)),
+  );
   const optSystem = `You are a senior automation engineer. Write product descriptions for 3 pre-selected products. All text in ${lang}.
 
 MANDATORY RULES:
@@ -1924,9 +1962,10 @@ async function handleChat(
   // klistrar in en orderkod rakt av. Det var här DSBC-50-100-PPSA-N3 gav två
   // Bosch Rexroth Ø32/Ø40 och tre påhittade tekniska påståenden.
   const chatText = [contextQuery ?? "", ...messages.map((m) => m.content)].join(" ");
+  const chatReading = readOrderCodes(chatText, await fetchFamilyBriefs());
   const codeNote = orderCodeInstruction(
-    readOrderCodes(chatText, await fetchFamilyBriefs()),
-    "sv",
+    chatReading, "sv",
+    await fetchFamilyFacts(chatReading.resolved.map((r) => r.familySlug)),
   );
   const system = `Du är Maskinvals AI-assistent, expert på industriell automation. Hjälper ingenjörer välja komponenter och lösa tekniska problem. Svar på svenska.${codeNote ? `\n\n${codeNote}` : ""}${pdfCtx ? `\n\nReferensdokumentation:\n${pdfCtx}` : ""}`;
   const raw = await callGroq([{ role: "system", content: system }, ...messages], 4000, false);
