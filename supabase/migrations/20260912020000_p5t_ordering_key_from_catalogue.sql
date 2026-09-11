@@ -1,0 +1,13 @@
+-- P5T: beställnyckeln enligt Parker katalog 0900P-7, avsnitt E.
+-- Modell: src/lib/catalog/p5t.ts. Källa: chunk 6-8.
+-- Katalogens exempel: P5T – J 032 D H S N 100
+--
+-- Rättar: mallen 'P5T-{bore_mm}A{stroke_mm}' gav "P5T-32A100"; slagets undre
+-- gräns var 5 mm när katalogen säger 10; fem av kodens sju positioner fanns
+-- inte som parametrar.
+--
+-- Produktraderna hade ett EXTRA bindestreck före optionspositionen
+-- ("P5T-J016DHS-N025" mot katalogens "P5T-J016DHSN025"). Allt annat stämde, så
+-- de var inte påhittade -- bara ett tecken för långa. Rättade i samma migration.
+--
+-- Tillämpad 2026-09-12 via mcp apply_migration.
