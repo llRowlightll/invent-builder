@@ -287,7 +287,10 @@ export const DSBC_POSITIONS: DsbcPosition[] = [
 export interface DsbcRule {
   /** Festos fotnotsnummer i beställtabellen, för spårbarhet. */
   note: string;
-  severity: "error" | "warning";
+  // "warn", inte "warning": databasen, ConfigRule i configurator-engine och
+  // ValidationList i Bom.tsx använder alla den stavningen. Typen sa "warning"
+  // och ingen märkte det, eftersom DSBC:s egna regler alla är "error".
+  severity: "error" | "warn";
   when: Record<string, unknown>;
   message_sv: string;
   message_en: string;
