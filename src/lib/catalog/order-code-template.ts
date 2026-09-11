@@ -32,12 +32,20 @@ export function fillOrderCodeTemplate(
   for (const [key, val] of Object.entries(selections)) {
     const v = Array.isArray(val) ? val.join("-") : String(val ?? "");
     code = code.replace(
-      new RegExp(`\\{${key}(?::([A-Z]+))?\\}`, "g"),
-      (_m, suffix: string | undefined) => (v ? `${v}${suffix ?? ""}` : ""),
+      new RegExp(`\\{${key}(?::([A-Z]+))?(?:#(\\d))?\\}`, "g"),
+      (_m, suffix: string | undefined, pad: string | undefined) => {
+        if (!v) return "";
+        // {key#3} nollutfyller till tre tecken. Parkers P1D-koder är
+        // POSITIONELLA: "P1D-S050MS-0200" finns, "P1D-S50MS-200" gör det inte.
+        // Utan utfyllnad producerade mallen koder som inte går att beställa --
+        // och det gällde varenda en av de 25 P1D-artiklar vi säljer.
+        const t = pad ? v.padStart(Number(pad), "0") : v;
+        return `${t}${suffix ?? ""}`;
+      },
     );
   }
 
-  code = code.replace(/\{([^}:]+)(?::[A-Z]+)?\}/g, (_m, key: string) =>
+  code = code.replace(/\{([^}:#]+)(?::[A-Z]+)?(?:#\d)?\}/g, (_m, key: string) =>
     required.has(key) ? "..." : "",
   );
 
