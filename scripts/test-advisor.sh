@@ -768,6 +768,40 @@ echo "  [40] Marin/saltdimma miljö → rostfri pool, ej standard aluminium..."
 R=$(call_options "Cylinder installerad utomhus i marin miljö med saltdimma, lyfter 20 kg last vertikalt, slaglängd 250 mm." '{}')
 check "T40 marin/salt → rostfri/HCR-pool" "$R" "HCR|90M2|DSBF|rostfri|Stainless" ""
 
+# Test 41: ORDERKOD. Hämtad ur ett verkligt felsvar: en sökning på sajtens egen
+# exempelprodukt DSBC-50-100-PPSA-N3 gav två Bosch Rexroth Ø32/Ø40 med
+# motiveringen att de låg "inom det maximala bore-kravet på 50 mm" -- en EXAKT
+# storlek läst som ett TAK, och 483 N levererat mot kravets 1178 N.
+echo "  [41] Orderkod DSBC-50-100 → Ø50 exakt, ingen mindre borrning..."
+R=$(call_options "Vi behöver ersätta en DSBC-50-100-PPSA-N3." '{}')
+if options_unusable "$R"; then
+  echo "  ⚠️  T41 [SKIP — rate limited / empty response]"; ((SKIP++))
+else
+  BORE41=$(echo "$R" | python3 -c '
+import sys, json, re
+d = json.load(sys.stdin)
+s = json.dumps(d, ensure_ascii=False)
+bores = [int(x) for x in re.findall(r"Ø\s*(\d{2,3})", s)]
+bores += [int(x) for x in re.findall(r"bore_mm\D{0,4}(\d{2,3})", s)]
+small = sorted({b for b in bores if b < 50})
+print("SMALLER:" + ",".join(map(str, small)) if small else "OK")
+' 2>/dev/null || echo "ERR")
+  if [[ "$BORE41" == OK* ]]; then
+    echo "  ✅ T41 ingen borrning under Ø50 föreslogs"; ((PASS++))
+  else
+    echo "  ❌ T41 föreslog mindre borrning än angivna Ø50: $BORE41"; ((FAIL++))
+    FAILURES+=("T41 order code bore treated as maximum: $BORE41")
+  fi
+fi
+
+sleep 4
+# Test 42: En beteckning vi INTE kan slå upp får inte ges påhittad betydelse.
+# Påhitten som hände: "N3-klassningen motsvarar IP-67-skydd" (N3 är en
+# standardkonformitetskod) och "PPSA-trycknivåer" (PPSA är dämpning).
+echo "  [42] Okänd beteckning → säger 'känner inte igen', hittar inte på..."
+R=$(call_options "Kunden har skickat beteckningen ZQX-8841-KK och vill ha en motsvarighet." '{}')
+check "T42 okänd beteckning erkänns" "$R" "känner inte igen|inte igen|okänd|unrecognis|not recognis|förtydlig|clarif" "ZQX.{0,40}IP6"
+
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════"

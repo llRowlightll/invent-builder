@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { orderCodeInstruction, readOrderCodes, type FamilyBrief } from "./order-code.ts";
 import {
   type CatalogProduct,
   type ScoringCtx,
@@ -255,6 +256,48 @@ async function searchKnowledge(query: string, limit = 6): Promise<string> {
   } catch { return ""; }
 }
 
+/**
+ * Familjerna med sina borrningslistor -- underlaget för att LÄSA en orderkod.
+ *
+ * Utan den här kunde rådgivaren bara mönstermatcha koden som fri text, och
+ * LLM:en fick tolka den. Resultatet blev att DSBC-50-100 lästes som ett TAK och
+ * besvarades med en Ø32 (41 % av kraften), plus påhittade betydelser för N3
+ * och PPSA. Nu slås koden upp; går den inte att slå upp sägs det rakt ut.
+ *
+ * Misslyckas anropet returneras en tom lista: orderkodsläsningen tystnar då
+ * helt i stället för att gissa, och resten av svaret fungerar som förut.
+ */
+let familyBriefCache: { at: number; rows: FamilyBrief[] } | null = null;
+const FAMILY_BRIEF_TTL_MS = 10 * 60_000;
+
+async function fetchFamilyBriefs(): Promise<FamilyBrief[]> {
+  // Familjerna ändras när någon lägger till en produktfamilj, alltså sällan.
+  // Utan cache blir det en extra rundtur per förfrågan i tre olika steg, och
+  // instansen lever länge nog att det märks.
+  if (familyBriefCache && Date.now() - familyBriefCache.at < FAMILY_BRIEF_TTL_MS) {
+    return familyBriefCache.rows;
+  }
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_family_briefs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+      body: "{}",
+    });
+    if (!res.ok) return [];
+    const rows = await res.json();
+    if (!Array.isArray(rows)) return [];
+    const mapped: FamilyBrief[] = rows.map((r: Record<string, unknown>) => ({
+      slug: String(r.slug ?? ""),
+      name: String(r.name ?? ""),
+      bores: Array.isArray(r.bores) ? (r.bores as number[]) : [],
+      strokeMin: typeof r.stroke_min === "number" ? r.stroke_min : null,
+      strokeMax: typeof r.stroke_max === "number" ? r.stroke_max : null,
+    })).filter((f) => f.name.length >= 2 && f.bores.length > 0);
+    familyBriefCache = { at: Date.now(), rows: mapped };
+    return mapped;
+  } catch { return []; }
+}
+
 async function fetchProducts(categorySlugs: string[], limit = 30): Promise<CatalogProduct[]> {
   const results = await Promise.all(
     categorySlugs.map(async (slug) => {
@@ -506,7 +549,15 @@ async function handleQuestions(description: string, locale: string): Promise<Res
     })}" (that just repeats the term). A hint with no real explanation is a failed question, not an optional field.`,
   ].filter(Boolean).join("\n");
 
-  const system = `You are a senior automation engineer helping a customer who is very likely NOT an automation engineer. Generate 4-6 precise technical questions. All text in ${lang}.\n\nRULES:\n${contextRules}\n\nJSON:\n{ "summary": "one precise sentence in ${lang}", "questions": [ { "id": "snake_case", "label": "question in ${lang}", "hint": "plain-language explanation of the term and how to decide — see PLAIN-LANGUAGE HINTS rule", "type": "choice", "options": ["opt1","opt2"] } ] }\ntype = 'choice' (with options) or 'number' (with unit).${pdfCtx ? "\n\nDocs:\n" + pdfCtx : ""}`;
+  // Orderkoder i förfrågan slås upp i katalogen och låses som EXAKTA mått.
+  // Utan det tolkade modellen dem fritt: DSBC-50-100 lästes som ett tak och
+  // besvarades med en Ø32, och N3/PPSA fick påhittade betydelser.
+  const codeNote = orderCodeInstruction(
+    readOrderCodes(description, await fetchFamilyBriefs()),
+    locale,
+  );
+
+  const system = `You are a senior automation engineer helping a customer who is very likely NOT an automation engineer. Generate 4-6 precise technical questions. All text in ${lang}.\n\nRULES:\n${contextRules}${codeNote ? "\n\n" + codeNote : ""}\n\nJSON:\n{ "summary": "one precise sentence in ${lang}", "questions": [ { "id": "snake_case", "label": "question in ${lang}", "hint": "plain-language explanation of the term and how to decide — see PLAIN-LANGUAGE HINTS rule", "type": "choice", "options": ["opt1","opt2"] } ] }\ntype = 'choice' (with options) or 'number' (with unit).${pdfCtx ? "\n\nDocs:\n" + pdfCtx : ""}`;
 
   try {
     const raw = await callGroq([
@@ -1255,6 +1306,8 @@ async function handleOptions(
   // this string — only 6 of 14 computed flags reached this call. The BOM
   // action's specialConstraints array already surfaces all of them; this
   // brings the options action's requirement summary up to the same coverage.
+  const codeReading = readOrderCodes(combinedText, await fetchFamilyBriefs());
+
   const reqSummary = [
     maxRequiredStroke > 0 ? `Stroke: ${maxRequiredStroke} mm` : "",
     // Found 2026-09-08 (user-reported bad answer): the LLM was never given the
@@ -1323,13 +1376,14 @@ async function handleOptions(
   // not mentioning them. Confirmed across 4 independent test calls (SIL,
   // oxygen-clean, pharma/GMP, and one plain query) before concluding this
   // was systemic rather than a one-off sampling fluke.
+  const codeNote = orderCodeInstruction(codeReading, locale);
   const optSystem = `You are a senior automation engineer. Write product descriptions for 3 pre-selected products. All text in ${lang}.
 
 MANDATORY RULES:
 1. Use EXACTLY these SKUs: ${topProducts.map(p => p.sku).join(", ")} — do NOT change them
 2. "why" = engineering justification grounded ONLY in the specs actually given for that product below (its specs:{...} JSON — bore, stroke, force, pressure, temperature, etc). Cite real numbers from there. Do NOT invent material, weight, coatings, heat treatment, integrated safety features (e.g. "built-in pressure relief"), or certifications that aren't listed — if a product's data doesn't cover something, leave it out rather than guessing. A short, fully-grounded "why" is correct; a longer one padded with invented details is not.
 3. pros/cons: same rule — only claims backed by the listed specs. 2-3 pros, 1-2 cons.
-4. NEVER recalculate force, pressure or load. force_n_at_6bar is ALREADY the force at 6 bar — do not scale it by any pressure ratio. Use "Erforderlig kraft" from Requirements verbatim as the requirement; do not derive your own from the mass. Quote both numbers exactly as given, or omit them. An invented calculation is the worst possible error here: an engineer who checks it stops trusting everything else on the page.${atexWarning}
+4. NEVER recalculate force, pressure or load. force_n_at_6bar is ALREADY the force at 6 bar — do not scale it by any pressure ratio. Use "Erforderlig kraft" from Requirements verbatim as the requirement; do not derive your own from the mass. Quote both numbers exactly as given, or omit them. An invented calculation is the worst possible error here: an engineer who checks it stops trusting everything else on the page.${atexWarning}${codeNote ? "\n\n" + codeNote : ""}
 Do NOT output a badge field — badges are assigned server-side and must not be set by you.
 
 JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "EXACT_SKU", "why": "...", "pros": [...], "cons": [...] } ] }`;
@@ -1866,7 +1920,15 @@ async function handleChat(
   messages: Array<{ role: string; content: string }>, contextQuery?: string
 ): Promise<Response> {
   const pdfCtx = contextQuery ? await searchKnowledge(contextQuery, 5) : "";
-  const system = `Du är Maskinvals AI-assistent, expert på industriell automation. Hjälper ingenjörer välja komponenter och lösa tekniska problem. Svar på svenska.${pdfCtx ? `\n\nReferensdokumentation:\n${pdfCtx}` : ""}`;
+  // Chatten är vägen sökrutan på startsidan tar, och alltså den där en kund
+  // klistrar in en orderkod rakt av. Det var här DSBC-50-100-PPSA-N3 gav två
+  // Bosch Rexroth Ø32/Ø40 och tre påhittade tekniska påståenden.
+  const chatText = [contextQuery ?? "", ...messages.map((m) => m.content)].join(" ");
+  const codeNote = orderCodeInstruction(
+    readOrderCodes(chatText, await fetchFamilyBriefs()),
+    "sv",
+  );
+  const system = `Du är Maskinvals AI-assistent, expert på industriell automation. Hjälper ingenjörer välja komponenter och lösa tekniska problem. Svar på svenska.${codeNote ? `\n\n${codeNote}` : ""}${pdfCtx ? `\n\nReferensdokumentation:\n${pdfCtx}` : ""}`;
   const raw = await callGroq([{ role: "system", content: system }, ...messages], 4000, false);
   if (!raw) return Response.json({ reply: "Kunde inte svara just nu. Försök igen." }, { headers: CORS });
   return Response.json({ reply: raw }, { headers: CORS });
