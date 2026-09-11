@@ -86,7 +86,18 @@
     "recommended": "Familias recomendadas",
     "addons": "Accesorios",
     "spares": "Repuestos",
-    "noResults": "Aún no hay recomendaciones para esta combinación."
+    "noResults": "Aún no hay recomendaciones para esta combinación.",
+    "categories": {
+      "air-preparation": "Tratamiento de aire",
+      "cylinder": "Cilindros",
+      "electric-actuator": "Actuadores eléctricos",
+      "gripper": "Pinzas",
+      "linear-module": "Módulos lineales",
+      "rotary-actuator": "Actuadores rotativos",
+      "vacuum": "Vacío",
+      "valve": "Válvulas",
+      "valve-terminal": "Terminales de válvulas"
+    }
   },
   "talk": {
     "title": "Hablar con ingeniero",

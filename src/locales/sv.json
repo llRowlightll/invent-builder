@@ -86,7 +86,18 @@
     "recommended": "Rekommenderade familjer",
     "addons": "Tillbehör",
     "spares": "Reservdelar",
-    "noResults": "Inga rekommendationer för denna kombination ännu."
+    "noResults": "Inga rekommendationer för denna kombination ännu.",
+    "categories": {
+      "air-preparation": "Tryckluftsberedning",
+      "cylinder": "Cylindrar",
+      "electric-actuator": "Elektriska ställdon",
+      "gripper": "Gripdon",
+      "linear-module": "Linjärmoduler",
+      "rotary-actuator": "Vridenheter",
+      "vacuum": "Vakuum",
+      "valve": "Ventiler",
+      "valve-terminal": "Ventilterminaler"
+    }
   },
   "talk": {
     "title": "Prata med ingenjör",

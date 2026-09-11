@@ -86,7 +86,18 @@
     "recommended": "Recommended families",
     "addons": "Add-ons",
     "spares": "Spares",
-    "noResults": "No recommendations yet for this combination."
+    "noResults": "No recommendations yet for this combination.",
+    "categories": {
+      "air-preparation": "Air preparation",
+      "cylinder": "Cylinders",
+      "electric-actuator": "Electric actuators",
+      "gripper": "Grippers",
+      "linear-module": "Linear modules",
+      "rotary-actuator": "Rotary actuators",
+      "vacuum": "Vacuum",
+      "valve": "Valves",
+      "valve-terminal": "Valve terminals"
+    }
   },
   "talk": {
     "title": "Talk to engineer",
