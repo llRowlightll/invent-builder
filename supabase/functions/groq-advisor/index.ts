@@ -855,6 +855,11 @@ async function handleOptions(
   const combinedText = description + " " + Object.values(answers).join(" ");
   const categories = detectCategories(combinedText);
   const hazards = detectHazards(combinedText, answers, locale);
+  // Orderkoder slås upp TIDIGT: de måste hinna påverka produktvalet, inte bara
+  // texten. En uppslagen kod är den starkaste borrningsuppgift som finns --
+  // kunden har namngett en exakt produkt, inte beskrivit ett behov.
+  const codeReading = readOrderCodes(combinedText, await fetchFamilyBriefs());
+
   // Destructured (not individually re-derived) so every consumer below reads
   // off the one computation detectHazards already did -- the bug class this
   // whole refactor exists to close was exactly two call sites independently
@@ -1237,7 +1242,17 @@ async function handleOptions(
   // the load-based "smallest adequate" — answering Ø50 and getting Ø40 back is a
   // trust-breaker (conveyor-stopper test). Falls back to all candidates when no
   // exact-bore product exists (then the honest inexact framing kicks in below).
-  const explicitBoreMm = hazards.explicitBoreMm;
+  // En UPPSLAGEN orderkod är den starkaste möjliga borrningsuppgiften: kunden
+  // har inte beskrivit ett behov, den har namngett en exakt produkt. Den går
+  // därför in i samma explicitBoreMm som ett skrivet "Ø50", och ärver
+  // exaktmatchningen nedan.
+  //
+  // Utan det här nådde orderkoden bara LLM:ens TEXT, inte produktvalet: en
+  // förfrågan om DSBC-50-100 besvarades med Bosch Rexroth Ø40, alltså exakt
+  // det fel som gav upphov till hela arbetet -- 64 % av kraften. Prosan var
+  // rätt och produkten fel, vilket är värre än tvärtom.
+  const kodBore = codeReading.resolved.find(r => r.boreMm !== null)?.boreMm ?? 0;
+  const explicitBoreMm = hazards.explicitBoreMm > 0 ? hazards.explicitBoreMm : kodBore;
   const exactBoreSet = explicitBoreMm > 0
     ? boreFiltered.filter(p => parseFloat(String(p.key_specs?.bore_mm ?? "0")) === explicitBoreMm)
     : [];
@@ -1341,7 +1356,6 @@ async function handleOptions(
   // this string — only 6 of 14 computed flags reached this call. The BOM
   // action's specialConstraints array already surfaces all of them; this
   // brings the options action's requirement summary up to the same coverage.
-  const codeReading = readOrderCodes(combinedText, await fetchFamilyBriefs());
 
   const reqSummary = [
     maxRequiredStroke > 0 ? `Stroke: ${maxRequiredStroke} mm` : "",
