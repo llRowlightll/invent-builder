@@ -92,6 +92,23 @@ MAP = {
     "camozzi-DRCS.pdf": ("Camozzi", []),
     "camozzi-electrics.pdf": ("Camozzi", ["5e"]),
     "parker-electromechanical.pdf": ("Parker", ["eth", "hmr", "osp-e"]),
+    # ── Andra svängen: familjer som saknades efter första omgången ────────
+    # SMC:s manualer bär "CD"-prefix och kortare serienamn än våra
+    # familjeslugar, vilket den första sökningen missade.
+    "smc-cj2-om_cj2-z_om0067p_en.pdf": ("SMC", ["cj2"]),
+    "smc-cjp-om_cjp-z_om0207qen.pdf": ("SMC", ["cjp"]),
+    "smc-cjp-om_cjp2_om0002k_en.pdf": ("SMC", ["cjp"]),
+    "smc-cp96-om_cp96n_om0197qen.pdf": ("SMC", ["cp96"]),
+    "smc-cp96-om_cp96x-c_om0002qen.pdf": ("SMC", ["cp96"]),
+    "smc-cp96-om_cp96x_mm0049qen.pdf": ("SMC", ["cp96"]),
+    # CY1F/CY1L/CY1S är systrar i CY1-serien som CY1R tillhör.
+    "smc-cy1r-om_cy1f_om0002f_en.pdf": ("SMC", ["cy1r"]),
+    "smc-cy1r-om_cy1l_om0002c_en.pdf": ("SMC", ["cy1r"]),
+    "smc-cy1r-om_cy1s-z_om0078p_en.pdf": ("SMC", ["cy1r"]),
+    "smc-mgpm-om_mgp-z_mgpx-om0047pen-b.pdf": ("SMC", ["mgpm"]),
+    "smc-mhz2-om_mhz2_omd0047en-a.pdf": ("SMC", ["mhz2"]),
+    # "Valve terminal MPA-S" -- verifierat, 681 träffar på MPA/VMPA.
+    "festo-VMPA-TYP32-203792.pdf": ("Festo", ["mpa"]),
     # ── SMC: driftmanualer ────────────────────────────────────────────────
     # SMC publicerar inga kataloger med beställnyckel på webben -- bara
     # driftmanualer. De bär tekniska data och mått, vilket räcker för
