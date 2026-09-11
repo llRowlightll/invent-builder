@@ -38,3 +38,6 @@ docs/pdfs/**/*.zip
 # Machine-local Claude Code preview config (absolute paths, per-machine).
 # Untracked so `git reset` never clobbers each developer's local launch path.
 .claude/launch.json
+
+# Tillverkarkataloger — källdokument, inte kod. Stora binärer hör inte i git.
+docs/kataloger/
