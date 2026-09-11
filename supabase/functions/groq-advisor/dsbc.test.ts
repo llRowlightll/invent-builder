@@ -206,7 +206,14 @@ Deno.test("etiketten klipps bara när koden står först", () => {
   assertEquals(stripLeadingCode("Låg friktion", "L"), "Låg friktion");
   assertEquals(stripLeadingCode("Ø32 mm", "32"), "Ø32 mm");
   assertEquals(stripLeadingCode("Q Med vridskydd", "Q"), "Med vridskydd");
-  assertEquals(stripLeadingCode("D3 – Givarspår", "D3"), "– Givarspår");
+  // Avskiljaren följer med koden ut. Tidigare stod "– Givarspår" kvar med ett
+  // tankstreck i början, vilket syntes i konfiguratorn på varje sådan etikett.
+  assertEquals(stripLeadingCode("D3 – Givarspår", "D3"), "Givarspår");
+  assertEquals(stripLeadingCode("PPV — Justerbar i båda ändar", "PPV"), "Justerbar i båda ändar");
+  // Ett bindestreck utan mellanslag binder en sammansättning och får inte
+  // klippas: "M5-gänga" blev "-gänga" i ventilkonfiguratorn.
+  assertEquals(stripLeadingCode("M5-gänga", "M5"), "M5-gänga");
+  assertEquals(stripLeadingCode("G 1/8-gänga", "G 1/8"), "G 1/8-gänga");
   // Är etiketten bara koden finns inget att visa -- behåll den då.
   assertEquals(stripLeadingCode("N3", "N3"), "N3");
 });
