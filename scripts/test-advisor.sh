@@ -803,7 +803,11 @@ sleep 4
 # startsidans sökruta tar, alltså den där felet faktiskt uppstod.
 echo "  [42] Okänd beteckning → säger 'känner inte igen', hittar inte på..."
 R=$(advisor_call '{"action":"chat","locale":"sv","messages":[{"role":"user","content":"Kunden har skickat beteckningen ZQX-8841-KK och vill ha en motsvarighet."}]}')
+if is_rate_limited "$R" || echo "$R" | grep -q '"degraded"'; then
+  echo "  ⚠️  T42 [SKIP — rate limited]"; ((SKIP++))
+else
 check "T42 okänd beteckning erkänns" "$R" "känner inte igen|inte igen|okänd|unrecognis|not recognis|förtydlig|clarif" "ZQX.{0,40}IP6"
+fi
 
 sleep 4
 # Test 43: Med rätt mått men utan fakta hittade modellen på resten och kallade
@@ -811,7 +815,11 @@ sleep 4
 # "PPSA-seal". DSBC är pneumatisk, max 10 bar, och PPSA är dämpning.
 echo "  [43] Orderkod i chatten → inga påhittade fakta..."
 R=$(advisor_call '{"action":"chat","locale":"sv","messages":[{"role":"user","content":"DSBC-50-100-PPSA-N3"}]}')
-check "T43 ingen påhittad hydraulik/tryckklass" "$R" "50|pneumat" "hydraul|2[0-9]{2} bar|poly-phenyl|polyphenyl"
+if is_rate_limited "$R" || echo "$R" | grep -q '"degraded"'; then
+  echo "  ⚠️  T43 [SKIP — rate limited]"; ((SKIP++))
+else
+  check "T43 ingen påhittad hydraulik/tryckklass" "$R" "50|pneumat" "hydraul|2[0-9]{2} bar|poly-phenyl|polyphenyl"
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
