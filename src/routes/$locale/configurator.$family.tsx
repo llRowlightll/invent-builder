@@ -43,6 +43,18 @@ interface Param {
   /** Eget spann för numeriska positioner; faller tillbaka på familjens slag. */
   min_value: number | null;
   max_value: number | null;
+  /**
+   * Ska kodens tecken visas ovanför etiketten?
+   *
+   * För DSBC och P1D är koden det kunden ska ANGE vid beställning -- "PPV",
+   * "D3", "S" -- och etiketten ensam räcker inte ("mm" betyder ingenting utan
+   * sin siffra). För KPZ är koden ett INDEX i AVENTICS beställtabell: kunden
+   * skulle se "009" ovanför "80 mm", vilket inte säger någonting.
+   *
+   * En flagga, inte en gissningsregel. Varje innehållsbaserad heuristik jag
+   * prövade föll på någon av de tre familjerna.
+   */
+  show_code: boolean | null;
   values: ParamValue[];
 }
 interface FamilyDoc {
@@ -472,7 +484,9 @@ function ConfiguratorPage() {
                             : "bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50"
                         }`}
                       >
-                        <span className="block font-semibold">{val.code}</span>
+                        {param.show_code !== false && (
+                          <span className="block font-semibold">{val.code}</span>
+                        )}
                         <span
                           className={`block text-xs mt-0.5 ${selected ? "text-blue-100" : "text-gray-500"}`}
                         >
