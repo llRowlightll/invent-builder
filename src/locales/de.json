@@ -86,7 +86,18 @@
     "recommended": "Empfohlene Familien",
     "addons": "Zubehör",
     "spares": "Ersatzteile",
-    "noResults": "Noch keine Empfehlungen für diese Kombination."
+    "noResults": "Noch keine Empfehlungen für diese Kombination.",
+    "categories": {
+      "air-preparation": "Druckluftaufbereitung",
+      "cylinder": "Zylinder",
+      "electric-actuator": "Elektrische Antriebe",
+      "gripper": "Greifer",
+      "linear-module": "Linearmodule",
+      "rotary-actuator": "Schwenkantriebe",
+      "vacuum": "Vakuum",
+      "valve": "Ventile",
+      "valve-terminal": "Ventilinseln"
+    }
   },
   "talk": {
     "title": "Mit Ingenieur sprechen",
