@@ -18,7 +18,6 @@ import os
 import subprocess
 import sys
 import time
-import urllib.request
 
 HAR = os.path.dirname(os.path.abspath(__file__))
 ROT = os.path.dirname(HAR)
@@ -105,18 +104,36 @@ MAP = {
 
 
 def post(path, body):
-    req = urllib.request.Request(
-        URL + path, data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json", "apikey": KEY,
-                 "Authorization": "Bearer " + KEY})
-    for forsok in range(3):
-        try:
-            with urllib.request.urlopen(req, timeout=180) as r:
-                return r.read().decode()
-        except Exception as e:
+    """
+    Skickar via curl, inte urllib.
+
+    Pythons SSL-verifiering använder ett eget certifikatpaket som inte
+    installeras automatiskt av python.org-bygget på macOS -- utan att någon
+    kört "Install Certificates.command" faller varje anrop på
+    CERTIFICATE_VERIFY_FAILED. curl använder systemets betrodda certifikat och
+    fungerar direkt, och finns på varje Mac.
+    """
+    import tempfile
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        json.dump(body, f)
+        tmp = f.name
+    try:
+        for forsok in range(3):
+            r = subprocess.run(
+                ["curl", "-sS", "--fail-with-body", "--max-time", "180",
+                 "-X", "POST", URL + path,
+                 "-H", "Content-Type: application/json",
+                 "-H", "apikey: " + KEY,
+                 "-H", "Authorization: Bearer " + KEY,
+                 "--data-binary", "@" + tmp],
+                capture_output=True, text=True)
+            if r.returncode == 0:
+                return r.stdout
             if forsok == 2:
-                raise
+                raise RuntimeError(f"curl {r.returncode}: {(r.stderr or r.stdout)[:300]}")
             time.sleep(2 * (forsok + 1))
+    finally:
+        os.unlink(tmp)
 
 
 def stycken(text):
