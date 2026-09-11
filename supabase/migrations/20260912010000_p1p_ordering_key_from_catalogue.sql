@@ -1,0 +1,18 @@
+-- P1P: beställnyckeln enligt Parker katalog 0900P-7, avsnitt D.
+-- Se src/lib/catalog/p1p.ts för modellen och chunk 19-20 för källan.
+--
+-- PRODUKTRADERNA RÖRS INTE. De åtta artiklarna följer katalogens nyckel --
+-- revisionens "noll av åtta hittade" var ett falskt larm, eftersom Parker
+-- trycker en beställnyckel och inte en artikelnummerlista. Fel var
+-- konfiguratorn omkring dem:
+--   1. Mallen 'P1P-{bore_mm}0{stroke_mm}N{thread}' gav "P1P-20025N7".
+--   2. Borrningslistan saknade Ø80 och Ø100 -- båda säljer vi.
+--   3. Fyra av kodens sju positioner fanns inte som parametrar.
+--
+-- Magnetpositionen hårdkodas till G: katalogen skriver ut "Magnet G" men har
+-- tappat koden för "Non Magnetic Function" i textutvinningen. Ett val med ett
+-- alternativ är inget val, och att gissa bokstaven vore samma fel som P1D:s
+-- position 10.
+--
+-- Tillämpad 2026-09-12 via mcp apply_migration; se migrationsloggen i Supabase
+-- för det körda utfallet.
