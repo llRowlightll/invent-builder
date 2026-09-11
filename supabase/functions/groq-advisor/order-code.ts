@@ -133,6 +133,14 @@ export function resolveOrderCode(
   return null;
 }
 
+/** Katalogens verkliga uppgifter om en familj. */
+export interface FamilyFacts {
+  sku: string;
+  name: string;
+  brand: string;
+  specs: Record<string, string>;
+}
+
 export interface OrderCodeReading {
   /** Koder som gick att slå upp. */
   resolved: ResolvedCode[];
@@ -151,14 +159,40 @@ export function readOrderCodes(text: string, families: FamilyBrief[]): OrderCode
   return { resolved, unknown };
 }
 
+/** Speckeys som säger något en kund bryr sig om, i läsbar ordning. */
+const FACT_ORDER = [
+  "mode_of_operation", "medium", "standard", "max_pressure", "operating_pressure",
+  "bore_mm", "stroke_mm", "piston_force_6bar_N", "cushioning_types",
+  "position_sensing", "temp_range", "material", "ip_rating",
+];
+
+function factLines(f: FamilyFacts): string[] {
+  const out: string[] = [`${f.brand} ${f.name} (${f.sku})`];
+  for (const k of FACT_ORDER) {
+    const v = f.specs[k];
+    if (v) out.push(`  ${k}: ${v}`);
+  }
+  return out;
+}
+
 /**
  * Instruktionen som läggs in i LLM-promptet.
  *
- * Två jobb: låsa de uppslagna måtten så att en exakt storlek inte läses som
- * ett tak, och förbjuda modellen att hitta på betydelser för koder vi inte
- * kunde slå upp. Båda felen har hänt i produktion.
+ * Tre jobb, och alla tre kommer ur verkliga felsvar:
+ *
+ *   1. Låsa de uppslagna måtten. DSBC-50-100 lästes som ett TAK och besvarades
+ *      med en Ø32 -- 41 % av kraften.
+ *   2. Ge modellen katalogens VERKLIGA uppgifter. Med rätt mått men utan fakta
+ *      fyllde den i resten själv och kallade DSBC "hydraulisk borrcylinder"
+ *      med 250 bar och en påhittad "PPSA-seal (poly-phenyl-sulfon-akryl)".
+ *      DSBC är pneumatisk, max 10 bar, och PPSA är dämpning.
+ *   3. Förbjuda betydelser åt koder vi inte kunnat slå upp.
  */
-export function orderCodeInstruction(reading: OrderCodeReading, locale: string): string {
+export function orderCodeInstruction(
+  reading: OrderCodeReading,
+  locale: string,
+  facts: Map<string, FamilyFacts> = new Map(),
+): string {
   if (reading.resolved.length === 0 && reading.unknown.length === 0) return "";
   const sv = locale === "sv";
   const lines: string[] = [];
@@ -170,14 +204,20 @@ export function orderCodeInstruction(reading: OrderCodeReading, locale: string):
       r.strokeMm !== null ? (sv ? `slaglängd EXAKT ${r.strokeMm} mm` : `stroke EXACTLY ${r.strokeMm} mm`) : "",
     ].filter(Boolean);
     lines.push(`- ${delar.join(", ")}`);
+    const f = facts.get(r.familySlug);
+    if (f) lines.push(...factLines(f).map((l) => `  ${l}`));
   }
 
   const out: string[] = [];
   if (lines.length > 0) {
     out.push(
-      sv
-        ? `ORDERKODER I FÖRFRÅGAN — dessa är UPPSLAGNA i katalogen och är exakta mått, inte maxvärden. Föreslå ALDRIG en mindre borrning som "räcker":\n${lines.join("\n")}`
-        : `ORDER CODES IN THE REQUEST — these are RESOLVED from the catalogue and are exact dimensions, not maximums. NEVER suggest a smaller bore as "sufficient":\n${lines.join("\n")}`,
+      (sv
+        ? `ORDERKODER I FÖRFRÅGAN — uppslagna i katalogen. Måtten är EXAKTA, inte maxvärden; föreslå ALDRIG en mindre borrning som "räcker".`
+        : `ORDER CODES IN THE REQUEST — resolved from the catalogue. Dimensions are EXACT, not maximums; NEVER suggest a smaller bore as "sufficient".`) +
+        `\n${lines.join("\n")}\n\n` +
+        (sv
+          ? `Uppgifterna ovan är de ENDA du får ange om produkten. Allt annat — arbetstryck, material, tätningstyp, anslutningar, verkningssätt, certifieringar — saknar vi underlag för: skriv då att uppgiften inte finns i katalogen. Skriv ALDRIG en teknisk tabell med värden som inte står ovan. Ett påhittat värde i en snygg tabell är värre än ett ärligt "vet ej", för kunden kan inte se skillnaden.`
+          : `The data above is the ONLY product information you may state. Anything else — working pressure, materials, seal type, ports, mode of operation, certifications — we have no source for: say the figure is not in the catalogue. NEVER produce a technical table with values not listed above. An invented value in a neat table is worse than an honest "unknown", because the customer cannot tell the difference.`),
     );
   }
   if (reading.unknown.length > 0) {

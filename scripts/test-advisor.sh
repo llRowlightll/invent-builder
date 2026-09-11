@@ -798,9 +798,20 @@ sleep 4
 # Test 42: En beteckning vi INTE kan slå upp får inte ges påhittad betydelse.
 # Påhitten som hände: "N3-klassningen motsvarar IP-67-skydd" (N3 är en
 # standardkonformitetskod) och "PPSA-trycknivåer" (PPSA är dämpning).
+# Mot CHATTEN, inte options: options returnerar strukturerade produktkort och
+# har ingen plats för "känner inte igen". Chatten är dessutom vägen
+# startsidans sökruta tar, alltså den där felet faktiskt uppstod.
 echo "  [42] Okänd beteckning → säger 'känner inte igen', hittar inte på..."
-R=$(call_options "Kunden har skickat beteckningen ZQX-8841-KK och vill ha en motsvarighet." '{}')
+R=$(advisor_call '{"action":"chat","locale":"sv","messages":[{"role":"user","content":"Kunden har skickat beteckningen ZQX-8841-KK och vill ha en motsvarighet."}]}')
 check "T42 okänd beteckning erkänns" "$R" "känner inte igen|inte igen|okänd|unrecognis|not recognis|förtydlig|clarif" "ZQX.{0,40}IP6"
+
+sleep 4
+# Test 43: Med rätt mått men utan fakta hittade modellen på resten och kallade
+# DSBC "hydraulisk borrcylinder" med 250 bar arbetstryck och en påhittad
+# "PPSA-seal". DSBC är pneumatisk, max 10 bar, och PPSA är dämpning.
+echo "  [43] Orderkod i chatten → inga påhittade fakta..."
+R=$(advisor_call '{"action":"chat","locale":"sv","messages":[{"role":"user","content":"DSBC-50-100-PPSA-N3"}]}')
+check "T43 ingen påhittad hydraulik/tryckklass" "$R" "50|pneumat" "hydraul|2[0-9]{2} bar|poly-phenyl|polyphenyl"
 
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
