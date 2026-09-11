@@ -179,3 +179,17 @@ console.log("\n── UTAN FACIT: artikelnumren är inte orderkoder ────
 for (const r of utanFacit.sort((a, b) => b.artiklar - a.artiklar)) {
   console.log(`  ${String(r.artiklar).padStart(3)} st  ${r.slug.padEnd(14)} ${r.exempel}`);
 }
+
+console.log(`
+── NÄSTA FRÅGA, som det här skriptet INTE svarar på ─────────
+Finns artikelnumren över huvud taget i tillverkarens katalog?
+
+Kör SQL-frågan i scripts/verify-skus-against-catalogue.sql. Den slår upp varje
+artikelnummer i den katalog familjen har inläst. Positiva kontroller: DSBC 3/3
+och P1D 25/25 hittas, så metoden hittar riktiga artikelnummer när de är riktiga.
+
+Utfallet 2026-09-11: 168 av 362 artikelnummer (46 %) gick att hitta. 21 familjer
+med en RIKTIG beställkatalog hade noll träffar -- bland dem KPZ, vars artiklar
+heter "KPZ-016-0025-A-0-PPV" medan AVENTICS katalog uteslutande använder
+"0822394004"-formen och inte innehåller strängen "KPZ-" följt av en siffra en
+enda gång.`);
