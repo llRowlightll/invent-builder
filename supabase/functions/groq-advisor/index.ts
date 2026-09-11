@@ -1968,9 +1968,36 @@ async function handleChat(
     await fetchFamilyFacts(chatReading.resolved.map((r) => r.familySlug)),
   );
   const system = `Du är Maskinvals AI-assistent, expert på industriell automation. Hjälper ingenjörer välja komponenter och lösa tekniska problem. Svar på svenska.${codeNote ? `\n\n${codeNote}` : ""}${pdfCtx ? `\n\nReferensdokumentation:\n${pdfCtx}` : ""}`;
-  const raw = await callGroq([{ role: "system", content: system }, ...messages], 4000, false);
-  if (!raw) return Response.json({ reply: "Kunde inte svara just nu. Försök igen." }, { headers: CORS });
-  return Response.json({ reply: raw }, { headers: CORS });
+  // callGroq KASTAR vid kvottak i stället för att returnera null. Utan den här
+  // fångsten blev ett slut dygnstak en HTTP 500 med "EDGE_FUNCTION_ERROR" --
+  // alltså ett kraschat gränssnitt i stället för ett begripligt besked. Alla
+  // andra steg degraderar redan; chatten gjorde det inte.
+  try {
+    const raw = await callGroq([{ role: "system", content: system }, ...messages], 4000, false);
+    if (!raw) return Response.json({ reply: "Kunde inte svara just nu. Försök igen." }, { headers: CORS });
+    return Response.json({ reply: raw }, { headers: CORS });
+  } catch (e) {
+    if ((e as Error).message === "RATE_LIMITED") {
+      // Den uppslagna orderkoden är VÅR data, inte LLM:ens -- den kan vi ge
+      // kunden även när modellen är otillgänglig, och den är ofta det de
+      // faktiskt frågade efter.
+      const facts = chatReading.resolved
+        .map((r) => `**${r.raw}** — ${r.familyName}${r.boreMm ? `, Ø${r.boreMm} mm` : ""}${r.strokeMm ? `, slaglängd ${r.strokeMm} mm` : ""}`)
+        .join("\n");
+      const okand = chatReading.unknown.length > 0
+        ? `\n\nBeteckningen ${chatReading.unknown.join(", ")} känns inte igen i katalogen.`
+        : "";
+      return Response.json({
+        reply:
+          "⚠️ AI-svaret är inte tillgängligt just nu (dagens modellkvot är förbrukad). " +
+          "Försök igen om en stund." +
+          (facts ? `\n\nDet här kunde vi ändå slå upp åt dig:\n${facts}` : "") + okand,
+        degraded: "llm_unavailable",
+      }, { headers: CORS });
+    }
+    console.error("chat failed:", (e as Error).message);
+    return Response.json({ reply: "Kunde inte svara just nu. Försök igen." }, { headers: CORS });
+  }
 }
 
 // ── ACTION: vision ────────────────────────────────────────────────────────────
