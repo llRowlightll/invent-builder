@@ -261,8 +261,8 @@ echo "  [3] Inga hallucinerade SKU:er i BOM..."
 R=$(call_bom \
   "Standard pneumatisk cylinder 40mm bore 100mm stroke, 6 bar" \
   '{}' \
-  "KPZ-040-0100-A-0-PPV")
-check "T03 ingen hallucination" "$R" "KPZ-040-0100-A-0-PPV" ""
+  "0822394010")
+check "T03 ingen hallucination" "$R" "0822394010" ""
 # Check that no obviously wrong SKU pattern appears (e.g. random alphanumerics without catalog pattern)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -385,7 +385,10 @@ echo "  [9] 400mm/s → stroke tolkas som 200mm..."
 R=$(call_options \
   "Cylinder stroke 200mm, hastighet 400mm/s" \
   '{}')
-check "T09 stroke not 400mm" "$R" "200" "KPZ-025-0050|KPZ-016|50mm.Compact"
+# De gamla KPZ-strängarna togs bort ur products i PR #210 -- en "får inte
+# förekomma"-kontroll mot text som inte finns någonstans bevisar ingenting.
+# Ø25 med 50 mm slag är 0822392007; alla Ø16 börjar på 0822390.
+check "T09 stroke not 400mm" "$R" "200" "0822392007|0822390[0-9]|Ø16 kompakt"
 
 # Test 10: 500mm/s → stroke 300mm
 echo "  [10] 300mm stroke, 500mm/s hastighet..."
@@ -448,7 +451,7 @@ echo "  [15] Inga okända SKU:er i BOM..."
 R=$(call_bom \
   "Pneumatisk cylinder 100mm stroke, FRL, ventil, givare" \
   '{}' \
-  "KPZ-040-0100-A-0-PPV")
+  "0822394010")
 UNKNOWN=$(echo "$R" | python3 -c "
 import sys,json,re
 d=json.load(sys.stdin)
@@ -752,7 +755,11 @@ check "T33 vakuumgrepp = sugkopp" "$R" "vakuumgrepp|håll-kraft|sugkopp" ""
 # (the hardcoded-label bug that mixed stepper/servo). Also kills the cable's
 # "servo/stepper" hedge.
 echo "  [34] El-aktuator BOM → stegmotor korrekt märkt (ej servo-mix)..."
-R=$(call_bom "Elektrisk aktuator flyttar 2 kg, slaglängd 50 mm, hög repeterbarhet, kompakt maskin" '{}' "6E-025-0100-24")
+# SKU:n var "6E-025-0100-24" -- en storlek Camozzi inte tillverkar, i ett
+# format katalogen inte använder. Utbytt mot en riktig 6E-artikel (PR #217).
+# Drivlinan är en egenskap hos SERIEN, inte hos storleken, så testets poäng
+# står kvar oförändrad.
+R=$(call_bom "Elektrisk aktuator flyttar 2 kg, slaglängd 150 mm, hög repeterbarhet, kompakt maskin" '{}' "6E040BS0150P05AP")
 check "T34 stegmotor ej felmärkt som servo" "$R" "Stegmotor|stepper" "Servomotor|servo/stepper"
 
 # Test 35: Paketsorteraren (vinklad knuff) — articulated mounting must yield a ROD
