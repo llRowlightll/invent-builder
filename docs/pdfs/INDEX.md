@@ -164,3 +164,20 @@ de hittades och varför de saknades.
 | `parker-OSP-E-PA4P017GB.pdf` | OSP-E modulära elaktuatorer | 194 |
 | `parker-HMR-PA4P024GB.pdf` | HMR linjärdrivning | 50 |
 | `smc-kat-*.pdf` (24 st) | SMC:s serie-kataloger med "How to Order" | 1 801 |
+
+## Metal Work General Catalogue, utgåva 09/2026
+
+`docs/kataloger/metalwork-General-Catalogue-092026.pdf` — **1 978 sidor, 318 MB**.
+Hämtad 2026-09-12 från `media.metalwork.it/media/catalogues/catalogue-eng/catalogue.pdf`.
+
+Den ÄR INTE inläst i `knowledge_chunks`. Databasen har redan en äldre utgåva
+under namnet `Metal_Work_General_Catalogue.pdf` (649 stycken), och att läsa in
+en andra utgåva skulle ge dubbletter vars sidhänvisningar motsäger varandra —
+CCIV:s nyckel står på A1.136 i den gamla och A1.140 i den nya.
+
+Filen finns för att kunna LÄSA sidorna som bild. Metal Works nästade tabeller
+går inte att tolka ur textutvinningen: kolumnerna hamnar i en annan ordning än
+de står på sidan. CCIV:s positioner tre och fyra lästes av sidan, inte av texten.
+
+Katalogen innehåller **80 beställnycklar** (`KEY TO CODES`) — långt fler
+familjer än de vi hittills modellerat.

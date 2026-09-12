@@ -21,9 +21,11 @@
  * stället av regeltesterna, som kör dem genom samma evalLogic som produktionen.
  */
 import { buildElektroDbRules } from "../src/lib/catalog/elektro-db-rules.ts";
+import { buildCcivDbRules } from "../src/lib/catalog/cciv-db-rules.ts";
 
 const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   elektro: buildElektroDbRules,
+  cciv: buildCcivDbRules,
 };
 
 const namn = Deno.args[0] ?? "";

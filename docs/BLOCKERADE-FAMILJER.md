@@ -123,8 +123,8 @@ nu är **möjligt men ogjort**:
 
 | Familj | Källa finns | Sorts nyckel |
 |---|---|---|
-| ELEKTRO | `metalwork-ELEKTRO.pdf` st. 101–109 | Positionell, 12 eller 16 tecken |
-| CCIV | Metal Work-katalogen st. 49 | Positionell, 14 tecken |
+| ~~ELEKTRO~~ | ~~`metalwork-ELEKTRO.pdf` st. 101–109~~ | **KLAR** — PR #226 |
+| ~~CCIV~~ | ~~Metal Work-katalogen st. 49~~ | **KLAR** — PR #227 |
 | EPCO | `festo-EPCO-203027.pdf` | Modulär typkod |
 | MFH | `festo-MFH-203756.pdf` | Tabell + typkod |
 | OSP-E | `parker-OSP-E-PA4P017GB.pdf` | Positionell |
@@ -187,3 +187,32 @@ Kontrollfrågan innan något skrivs upp som blockerat igen:
 2. Sökte jag på familjens namn, eller på det nyckeln faktiskt heter
    (`KEY TO CODES`, `Type code`, `How to Order`, `Order code`)?
 3. Har jag öppnat dokumentet, eller läst någon annans etikett på det?
+
+---
+
+## Uppdatering 2026-09-12, senare samma dag
+
+**ELEKTRO och CCIV är modellerade** (PR #226 och #227). Båda var som sagt
+aldrig blockerade — nycklarna låg i databasen hela tiden.
+
+**Metal Works hela generalkatalog är nu hämtad**: 1 978 sidor, utgåva 09/2026,
+från `media.metalwork.it/media/catalogues/catalogue-eng/catalogue.pdf`. Den
+ligger i `docs/kataloger/` men är inte inläst — se `docs/pdfs/INDEX.md` för
+varför.
+
+Att ha PDF:en lokalt visade sig avgörande och inte bara bekvämt. CCIV:s
+beställnyckel har två positioner **utan egen rubrik** i tabellen; vilken som är
+verkningssätt och vilken som är magnet går inte att avgöra ur textutvinningen,
+som lägger kolumnerna i en annan ordning än sidan. De lästes av sidan som bild.
+
+Samma sak gällde ELEKTRO: att 80 mm minsta slag omfattar Ø32, Ø50 **och**
+Ø63/63HD — inte bara de två första — syns bara på sidan, eftersom cellen är
+sammanslagen och texten centrerad.
+
+**Läxan är metodologisk, inte bara praktisk:** en tabell som går att läsa som
+text är inte samma sak som en tabell man har förstått. När kolumnerna är
+nästade eller sammanslagna ska sidan renderas som bild innan något skrivs ned.
+
+Kvar i katalogen: **80 beställnycklar** totalt, alltså långt fler familjer än
+de tre vi hittills tagit ur den (VME, CCIV och — via sitt eget dokument —
+ELEKTRO).
