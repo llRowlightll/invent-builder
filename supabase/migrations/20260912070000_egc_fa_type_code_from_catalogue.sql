@@ -1,0 +1,15 @@
+-- EGC-FA: typkoden enligt Festo, utgåva 2026/05.
+-- Modell: src/lib/catalog/egc-fa.ts. Källa: chunk 7-10 (typkod), 11 (teknik).
+-- Minimikoden: EGC - 80 - 500 - FA - 0H - GK   ("FA" är position 004.)
+--
+-- Rättar:
+--   1. Mallen 'EGC-FA-{size}-{stroke_mm}-{drive}' har FA på fel plats och en
+--      drive-position som inte finns -- axeln säljs uttryckligen UTAN drivning.
+--   2. Slaglängden stod som 1-3000 mm för ALLA storlekar. Katalogen säger
+--      50-8500, och storlek 70 slutar vid 5000.
+--   3. Slagreserv, slid, klämenhet och manövertyp fanns inte som parametrar.
+--
+-- Produktraderna rörs INTE: FESTO-EGC-FA-70 m.fl. är familjerader per storlek,
+-- inte beställbara artiklar. Rader på fel nivå -- inte påhittade nummer.
+--
+-- Tillämpad 2026-09-12 via mcp apply_migration.
