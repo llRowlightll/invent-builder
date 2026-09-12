@@ -1,0 +1,10 @@
+-- VME: ORDERING CODES enligt Metal Work General Catalogue, avsnitt B1.4-B1.7.
+-- Modell: src/lib/catalog/vme.ts. Källa: chunk 288-289.
+--
+-- Tabellfamilj som RTC-HD: åtta färdiga artikelnummer, ingen räknebar regel.
+-- Konfiguratorn slår upp -- parameterns code ÄR artikelnumret.
+--
+-- Våra tre rader var påhittade: MW-VME-14, MW-VME-M5, MW-VME-18. Metal Work
+-- numrerar inte så, och VME finns varken i storlek 14 eller 18.
+--
+-- Tillämpad 2026-09-12 via mcp apply_migration.
