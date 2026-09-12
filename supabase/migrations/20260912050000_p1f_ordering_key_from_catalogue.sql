@@ -1,0 +1,9 @@
+-- P1F: beställnyckeln enligt Parker PDE2667TCEN. Modell: src/lib/catalog/p1f.ts.
+-- Katalogens exempel (chunk 19): P 1 F - T 1 6 0 M S X 0 1 6 0 - 0 0 0 0
+--
+-- Produktraderna rörs INTE -- våra fem följer nyckeln exakt.
+-- Rättar: mallen 'P1F-S{bore_mm}M{thread}-{stroke_mm}' hade ett S där
+-- profilbokstaven ska stå, saknade tre positioner och nollutfyllde ingenting;
+-- slagets undre gräns var 1 mm när katalogen säger 10.
+--
+-- Tillämpad 2026-09-12 via mcp apply_migration.
