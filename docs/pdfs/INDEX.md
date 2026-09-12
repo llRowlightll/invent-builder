@@ -47,7 +47,7 @@ Märkesren parning: 6E-axeln paras nu med MTS-stegmotor + DRCS-drivare (en och s
 |-----|---------|
 | `203260_documentation.pdf` | MS luftberedningsenhet |
 | `203364_documentation.pdf` | LFR/LR filter-regulator |
-| `203372_documentation.pdf` | LFU/MFH ventiler |
+| `203372_documentation.pdf` | MS-LR/LRB/LRP/LRPB/LRE tryckregulatorer (etiketten sa tidigare "LFU/MFH" — fel, kontrollerat mot PDF:ens titelsida 2026-09-12) |
 | `239822_documentation.pdf` | MS4/MS6 regulatorer |
 | `241714_documentation.pdf` | HE/VBBF av/på-ventiler |
 
@@ -151,3 +151,16 @@ Märkesren parning: 6E-axeln paras nu med MTS-stegmotor + DRCS-drivare (en och s
 
 > Märkesren BOM kräver att varje elektriskt ställdons-märke har egen motor + drivare.
 > Efter detta har alla huvudmärken (Festo, Parker, Bosch Rexroth, SMC, Camozzi) komplett elektrisk drivlina.
+
+## Hämtade 2026-09-12 — kataloger som saknades
+
+Ligger i `docs/kataloger/`, inte här. Se `docs/BLOCKERADE-FAMILJER.md` för hur
+de hittades och varför de saknades.
+
+| Fil | Produkt | Sidor |
+|-----|---------|-------|
+| `festo-EPCO-203027.pdf` | EPCO elcylinder med skruvdrift | 38 |
+| `festo-MFH-203756.pdf` | Tiger Classic MFH-ventil | 48 |
+| `parker-OSP-E-PA4P017GB.pdf` | OSP-E modulära elaktuatorer | 194 |
+| `parker-HMR-PA4P024GB.pdf` | HMR linjärdrivning | 50 |
+| `smc-kat-*.pdf` (24 st) | SMC:s serie-kataloger med "How to Order" | 1 801 |
