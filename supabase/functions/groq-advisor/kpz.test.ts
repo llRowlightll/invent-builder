@@ -141,16 +141,19 @@ Deno.test("beställtabellen slutar vid 100 mm, tekniska data vid 300 respektive 
   }
 });
 
-Deno.test("kraften stämmer med π/4·d²·p", () => {
-  // Katalogens egna kraftvärden vid 6 bar. Stämmer de med formeln behöver de
-  // inte lagras -- men här är de avskrivna ur katalogen, så avvikelsen visar
-  // om jag läst tabellen rätt.
+Deno.test("kraften stämmer med π/4·d²·p vid 6,3 bar", () => {
+  // Katalogen skriver ut trycket: "Pressure for determining piston forces
+  // 6,3 bar". Första versionen av det här testet jämförde mot 6 bar med 6 %
+  // tolerans och passerade -- toleransen dolde att trycket var fel.
+  //
+  // Vid rätt tryck stämmer värdena på tiondelen, så toleransen kan vara 1 %.
+  // Ett test som passerar av slapphet bevisar ingenting.
   const fel: string[] = [];
   for (const b of KPZ_BORES) {
-    const teoretisk = Math.round((Math.PI / 4) * b.bore_mm ** 2 * 6 * 0.1);
+    const teoretisk = Math.round((Math.PI / 4) * b.bore_mm ** 2 * 6.3 * 0.1);
     const avvikelse = Math.abs(teoretisk - b.force_extend_n) / b.force_extend_n;
-    if (avvikelse > 0.06) {
-      fel.push(`Ø${b.bore_mm}: katalogen ${b.force_extend_n} N, formeln ${teoretisk} N (${Math.round(avvikelse * 100)} %)`);
+    if (avvikelse > 0.01) {
+      fel.push(`Ø${b.bore_mm}: katalogen ${b.force_extend_n} N, formeln ${teoretisk} N (${(avvikelse * 100).toFixed(1)} %)`);
     }
     if (b.force_retract_n >= b.force_extend_n) {
       fel.push(`Ø${b.bore_mm}: indragande kraft måste vara mindre än utskjutande`);
