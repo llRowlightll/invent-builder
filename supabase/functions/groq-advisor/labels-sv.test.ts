@@ -11,7 +11,7 @@
  */
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { paramLabel, valueLabel } from "../../../src/lib/catalog/labels-sv.ts";
-import { stripLeadingCode } from "../../../src/lib/catalog/order-code-template.ts";
+import { LABEL_MAX, stripLeadingCode } from "../../../src/lib/catalog/order-code-template.ts";
 
 /** Rubriker ur configurator_params, 2026-09-11. */
 const PARAM_LABELS = [
@@ -528,15 +528,20 @@ Deno.test("varje knapp i konfiguratorn renderar läsbart", () => {
 });
 
 Deno.test("ingen översatt etikett klipps mitt i ett ord", () => {
-  // stripLeadingCode() kapar vid 28 tecken. Klipps det mitt i ett ord blir
-  // det "Filter-regulator med högt fl" i knappen. Kortare formulering är
+  // stripLeadingCode() kapar vid LABEL_MAX tecken. Klipps det mitt i ett ord
+  // blir det "Filter-regulator med högt fl" i knappen. Kortare formulering är
   // bättre än en avhuggen.
+  //
+  // Taket låg på 28 och höjdes till 64 när det visade sig att P1D:s tolv
+  // funktionsvärden föll ihop till fyra omöjliga att skilja åt. Testet läser
+  // konstanten i stället för att upprepa siffran, så en framtida justering
+  // inte lämnar två sanningar efter sig.
   const kapade: string[] = [];
   for (const [code, label] of PAR) {
     const sv = valueLabel(label, "sv");
     if (sv === label) continue; // oöversatt -- inte vårt ansvar här
     const visat = stripLeadingCode(sv, code);
-    const helt = visat.length <= 28;
+    const helt = visat.length <= LABEL_MAX;
     if (!helt && !/[\s.)»"]$/.test(visat)) kapade.push(`${code}: "${sv}" -> "${visat}"`);
   }
   assertEquals(kapade, [], `avhuggna etiketter:\n${kapade.join("\n")}`);

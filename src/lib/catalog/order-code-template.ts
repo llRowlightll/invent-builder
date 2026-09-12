@@ -62,8 +62,29 @@ export function fillOrderCodeTemplate(
  * "åg friktion". Här klipps bara ett ledande förekomst, och bara när ett
  * avgränsningstecken följer.
  */
+/**
+ * Taket på etikettens längd.
+ *
+ * Det stod på 28 tecken utan förklaring, och det var för lågt. En knapp i
+ * konfiguratorn renderar etiketten i en `block`-span med `text-left`, så en
+ * längre text RADBRYTS -- den spräcker ingen layout, den gör bara knappen
+ * högre, och knapparna i ett rutnät sträcker sig ändå till den högsta.
+ *
+ * Vad kapningen däremot gjorde var att göra alternativ OMÖJLIGA ATT SKILJA ÅT.
+ * P1D:s funktionsposition har tolv värden som föll ihop till fyra grupper:
+ * koderna A, H och W visades alla som "Dubbelverkande, rostfria skr". Kunden
+ * ser tre likadana knappar och kan inte veta vilken som är rätt. Det är inte
+ * ett skönhetsfel utan en felbeställning som väntar.
+ *
+ * 64 räcker för varje etikett som finns i dag (den längsta är 62 tecken) och
+ * lämnar marginal. Taket finns kvar för att en enskild orimlig etikett inte
+ * ska kunna spränga rutnätet -- men det ska inte vara så lågt att det suddar
+ * ut skillnader.
+ */
+export const LABEL_MAX = 64;
+
 export function stripLeadingCode(label: string, code: string): string {
-  if (!code) return label.slice(0, 28);
+  if (!code) return label.slice(0, LABEL_MAX);
   const escaped = code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   // Koden tas bort TILLSAMMANS med avskiljaren. Den tidigare varianten lämnade
   // kvar tankstrecket, så "D3 – Givarspår" visades som "– Givarspår".
@@ -76,5 +97,5 @@ export function stripLeadingCode(label: string, code: string): string {
     "",
   );
   // Blev ingenting kvar var etiketten bara koden -- behåll originalet då.
-  return (stripped.trim() || label).slice(0, 28);
+  return (stripped.trim() || label).slice(0, LABEL_MAX);
 }
