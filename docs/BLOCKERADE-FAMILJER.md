@@ -26,6 +26,47 @@ beställnycklar. Det gäller **CJP, EX500, SY3000, CY1R** med flera.
 **Vad som behövs:** SMC publicerar inga beställnycklar öppet på webben. De
 måste begäras via distributörskontakt.
 
+## Källan finns, men beställtabellen går inte att läsa rent
+
+Metal Works General Catalogue är en **bra** källa i sig — 649 stycken, 153 med
+beställinformation, och VME gick att modellera ur den (PR #220). Men två
+familjer till i samma dokument stannar av olika skäl:
+
+### CCIV — kompaktcylinder med integrerad ventil
+
+Avsnittet (A1.134–A1.137, chunk 49–50) har fixeringsalternativ, dimensioner,
+pilotventiler och reservdelar — men **cylinderns egen beställtabell finns inte
+i den inlästa texten**. Det som går att belägga:
+
+- Borrningar 20, 25, 32, 40 (ur dimensionstabellen)
+- Metal Works kompaktcylinderkod är 12 tecken, t.ex. `230020P040XP` =
+  serie 23, borrning 0020, steg P, slag 040, hanrör XP (chunk 45)
+
+CCIV:s egen serieprefix är inte utläst. Att anta att den följer CMPC:s vore en
+gissning.
+
+### ISV — ventiler ISO 5599/1
+
+Här finns en **ren** tabell (chunk 332) med riktiga artikelnummer:
+
+```
+7054021200  ISV 55 COB OO  512 g
+7054022100  ISV 56 COS CC  496 g
+7055021200  ISV 65 COB OO  860 g
+```
+
+Men den täcker bara **ett** av seriens avsnitt: solenoid/pneumatisk med
+M12-kontakt, bistabil 5/2 och monostabil 5/3, storlek ISO 1 och ISO 2.
+Katalogen har fler avsnitt — plug-in, M8, ISO 3, monostabil 5/2 — som inte
+ligger lika rent i texten.
+
+Att modellera en ventilfamilj till hälften är sämre än att låta bli: kunden
+ser ett urval och tror att det är sortimentet. ISV behöver att hela avsnittet
+B1.127–B1.160 läses in med bevarad tabellstruktur.
+
+**Vad som behövs för båda:** en ny textutvinning av Metal Work-katalogen som
+bevarar tabellkolumner, eller de enskilda produktbladen.
+
 ## Tunn källa
 
 | Familj | Dokument | Beställinformation |
