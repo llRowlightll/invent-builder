@@ -72,9 +72,28 @@ for (const p of produkter) {
   skuPerFamilj.get(k)!.push(p.sku);
 }
 
-/** Tal som förekommer i artikelnumret -- kandidater för numeriska positioner. */
+/**
+ * Kandidater för numeriska positioner: varje SIFFERFÖLJD i artikelnumret, och
+ * varje delsträng av den upp till fem tecken.
+ *
+ * Att bara ta hela siffergrupperna räckte inte. OSP-P:s kod har inga
+ * avgränsare -- "OSPP160000000100000000000" ger EN grupp på 21 siffror, och
+ * slaget "100" provades därför aldrig. Familjen rapporterades 0/6 fast mallen
+ * är rätt.
+ *
+ * Det är samma fel som revisionen finns för att hitta, i revisionen själv: ett
+ * verktyg som inte kan läsa en kod utan bindestreck säger "trasig" om något som
+ * är helt.
+ */
 function talIKod(sku: string): string[] {
-  return [...new Set(sku.match(/\d+/g) ?? [])];
+  const ut = new Set<string>();
+  for (const grupp of sku.match(/\d+/g) ?? []) {
+    ut.add(grupp);
+    for (let i = 0; i < grupp.length; i++) {
+      for (let n = 1; n <= 5 && i + n <= grupp.length; n++) ut.add(grupp.slice(i, i + n));
+    }
+  }
+  return [...ut];
 }
 
 interface Rad {

@@ -1,0 +1,9 @@
+-- GPR: modellkoden enligt Parker katalog 1900-2/US.
+-- Modell: src/lib/catalog/gpr.ts. Källa: chunk 9 (modellkod), 4-8 (data).
+-- Formen: GPR + storlek + A  (1 = Ø18, 3 = Ø24, 10 = Ø30 mm)
+--
+-- Produktraderna rörs INTE -- GPR1A, GPR3A och GPR10A är precis katalogens tre
+-- modeller. Mallen 'gpr-{size}-{grip_type}{options}' gav "gpr-1" med gemener,
+-- bindestreck som koden inte har, och två positioner som inte finns.
+--
+-- Tillämpad 2026-09-12 via mcp apply_migration.
