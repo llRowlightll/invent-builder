@@ -59,7 +59,9 @@ MAP = {
     "festo-DZH-251564.pdf": ("Festo", ["dzh"]),
     "festo-EGZ-202984.pdf": ("Festo", ["egz"]),
     "festo-EHPS-202989.pdf": ("Festo", ["ehps"]),
-    "festo-EPCE-203026.pdf": ("Festo", ["epco"]),
+    # Dokumentet heter "Electric cylinder unit EPCE-TB". Slugen "epco" var
+    # fel på samma sätt som MH1:s. EPCO har numera festo-EPCO-203027.pdf.
+    "festo-EPCE-203026.pdf": ("Festo", ["epce"]),
     "festo-EPCS-203028.pdf": ("Festo", ["epcs"]),
     "festo-HE-LO-203131.pdf": ("Festo", ["he-d-mini"]),
     "festo-HGPD-203146.pdf": ("Festo", ["hgpd"]),
@@ -67,7 +69,9 @@ MAP = {
     "festo-HGPP-203152.pdf": ("Festo", ["hgpp"]),
     "festo-HGPT-203154.pdf": ("Festo", ["hgpt", "hgpt-b"]),
     "festo-HGRT-203160.pdf": ("Festo", ["hgrt"]),
-    "festo-MH1-203291.pdf": ("Festo", ["mfh"]),
+    # MH1 är miniatyrsätesventilen, INTE MFH. Slugen "mfh" stod här och
+    # ledde mig till att skriva av MFH som källlös. Se festo-MFH-203756.pdf.
+    "festo-MH1-203291.pdf": ("Festo", ["mh1"]),
     "festo-VAD-VAK-203828.pdf": ("Festo", ["vadmi"]),
     "festo-VOFC-203884.pdf": ("Festo", ["vofc"]),
     "festo-VTOP-203913.pdf": ("Festo", ["vtop-"]),
@@ -91,7 +95,9 @@ MAP = {
     "camozzi-6E.pdf": ("Camozzi", ["serie 6e"]),
     "camozzi-DRCS.pdf": ("Camozzi", []),
     "camozzi-electrics.pdf": ("Camozzi", ["5e"]),
-    "parker-electromechanical.pdf": ("Parker", ["eth", "hmr", "osp-e"]),
+    # Översiktsbroschyr utan beställnyckel. HMR och OSP-E har nu varsin
+    # riktig katalog; den här står kvar för ETH och för överblicken.
+    "parker-electromechanical.pdf": ("Parker", ["eth"]),
     # ── Andra svängen: familjer som saknades efter första omgången ────────
     # SMC:s manualer bär "CD"-prefix och kortare serienamn än våra
     # familjeslugar, vilket den första sökningen missade.
@@ -163,8 +169,48 @@ MAP = {
         "serie 50", "serie 63", "serie 63 end lock", "serie 90", "serie d",
         "serie e", "serie en", "serie k", "serie k8", "serie kl",
         "serie mx safemax", "serie qc", "serie qn"]),
-}
+    # ── Tredje svängen: kataloger som saknades, hämtade 2026-09-12 ────────
+    # Fyra familjer stod som blockerade av "ingen källa". Tre av dem hade en
+    # källa som aldrig hämtats, och den fjärde -- EPCO -- ligger kvar på
+    # Festos server trots att sortimentet inte längre länkar till den.
+    # Festos dokumentnummer löper i bokstavsordning inom en grupp: EPCE är
+    # 203026 och EPCS 203028, så EPCO måste vara 203027. Det stämde.
+    "festo-EPCO-203027.pdf": ("Festo", ["epco"]),      # 38 s, 13-positionstypkod
+    "festo-MFH-203756.pdf": ("Festo", ["mfh"]),        # 48 s, typkod + orderdata
+    "parker-OSP-E-PA4P017GB.pdf": ("Parker", ["osp-e"]),   # 194 s, Order Instructions
+    "parker-HMR-PA4P024GB.pdf": ("Parker", ["hmr"]),       # 50 s, Order code
 
+    # ── SMC: de riktiga katalogerna, inte driftmanualerna ─────────────────
+    # Påståendet att SMC inte publicerar beställnycklar öppet var fel. Varje
+    # serie har en katalogsida under /webcatalog/en-jp/seriesList/?id=<id>
+    # som pekar på kapitlets egen PDF, och de bär "How to Order" i klartext.
+    # Driftmanualerna ovan står kvar -- de har mått och underhåll som
+    # katalogen inte upprepar.
+    "smc-kat-c85.pdf": ("SMC", ["c85"]),
+    "smc-kat-cj2.pdf": ("SMC", ["cj2"]),
+    "smc-kat-cjp.pdf": ("SMC", ["cjp"]),
+    "smc-kat-cm2.pdf": ("SMC", ["cm2"]),
+    "smc-kat-cp96.pdf": ("SMC", ["cp96"]),
+    "smc-kat-cq2.pdf": ("SMC", ["cq2"]),
+    "smc-kat-cs1.pdf": ("SMC", ["cs1"]),
+    "smc-kat-cy1.pdf": ("SMC", ["cy1r"]),
+    "smc-kat-cy1f.pdf": ("SMC", ["cy1r"]),
+    "smc-kat-cy1s.pdf": ("SMC", ["cy1r"]),
+    "smc-kat-ex500.pdf": ("SMC", ["ex500"]),
+    "smc-kat-kq2.pdf": ("SMC", ["kq2"]),
+    "smc-kat-lesh.pdf": ("SMC", ["lesh"]),
+    "smc-kat-ley.pdf": ("SMC", ["ley"]),
+    "smc-kat-mb.pdf": ("SMC", ["mb"]),
+    "smc-kat-mhc2.pdf": ("SMC", ["mhc2"]),
+    "smc-kat-mhz2.pdf": ("SMC", ["mhz2"]),
+    "smc-kat-mxs.pdf": ("SMC", ["mxs"]),
+    "smc-kat-rb.pdf": ("SMC", ["rbq", "rdqb"]),
+    "smc-kat-sv1000.pdf": ("SMC", ["sv1000"]),
+    "smc-kat-sy3000.pdf": ("SMC", ["sy3000", "sy"]),
+    "smc-kat-vf3000.pdf": ("SMC", ["vf3000"]),
+    "smc-kat-vq1000.pdf": ("SMC", ["vq1000", "vq"]),
+    "smc-kat-zh.pdf": ("SMC", ["zh"]),
+}
 
 def post(path, body):
     """
