@@ -1,0 +1,16 @@
+-- LINTRA Plus: beställnyckeln enligt Norgren 8.200.350.03 (02/21).
+-- Modell: src/lib/catalog/lintra-plus.ts. Källa: chunk 1-2 och 4.
+--
+-- Formen: M/146<styrning><borrning>/M/<slag>
+--   styrning 0 = intern, 1 = extern, 2 = precisionsrulle
+--
+-- Rättar:
+--   1. Mallen '146{series_code}/{bore_mm}/{stroke_mm}/M' gav "146146000/16/200/M".
+--   2. Slagtaket var ETT värde (8500 mm) för alla borrningar. Katalogen:
+--      Ø16-40 8500, Ø50/63 8000, Ø80 5500 -- en Ø80 med 8000 mm gick att
+--      konfigurera fram.
+--   3. Inga villkor. Precisionsrullstyrning finns inte för Ø16, Ø20 och Ø80;
+--      katalogens tabell skriver "–" i de rutorna.
+--
+-- Produktraderna rörs INTE. De sju följer mönstret exakt.
+-- Tillämpad 2026-09-12 via mcp apply_migration.
