@@ -1,0 +1,17 @@
+-- Serie 6E: beställnyckeln enligt Camozzi, utgåva 2026/05.
+-- Modell: src/lib/catalog/serie-6e.ts. Källa: chunk 3-5.
+-- Katalogens kodexempel: 6E 032 BS 0200 P05 A P
+--
+-- Våra fyra rader var påhittade på TRE sätt: bindestreck som katalogen saknar,
+-- storlek 025 som inte tillverkas, och ett suffix "-24" som inte motsvarar
+-- någon position i nyckeln.
+--
+-- Ø25 finns inte i serien. Den raden sattes till 'discontinued' UTAN ersättare
+-- -- vilken storlek som ska säljas i stället är ett affärsbeslut. De tre övriga
+-- fick giltiga koder med samma storlek och slag, stigning P05 (den enda som
+-- finns för alla storlekar).
+--
+-- Stigningen är storleksberoende och det är nyckelns kärna: P16 bara för 40,
+-- P25 bara för 63, P32 bara för 80, P40 bara för 100. Fem regler vaktar det.
+--
+-- Tillämpad 2026-09-12 via mcp apply_migration.
