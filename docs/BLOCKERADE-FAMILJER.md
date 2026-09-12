@@ -72,7 +72,8 @@ bevarar tabellkolumner, eller de enskilda produktbladen.
 | Familj | Dokument | Beställinformation |
 |---|---|---|
 | **ELEKTRO** | `metalwork-ELEKTRO.pdf` | 2 av 398 stycken |
-| **EPCO** | `festo-EPCE-203026.pdf` | 4 av 47 — och dokumentet gäller **EPCE**, inte EPCO. Troligen fel dokument kopplat till familjen. |
+| **EPCO** | `festo-EPCE-203026.pdf` | 4 av 47 — och dokumentet gäller **EPCE**, inte EPCO. Fel dokument kopplat till familjen. |
+| **MFH** | `festo-MH1-203291.pdf` | Dokumentet är *"Solenoid valves MH1, miniature"*. Strängen **"MFH" förekommer 0 gånger** i dess 145 stycken. MH1 är en miniatyrsätesventil; MFH är Festos större magnetventilserie (MFH-5-1/8 m.fl.). Helt fel katalog. |
 
 ---
 
@@ -84,3 +85,23 @@ en modell byggd på en översiktstabell ser lika färdig ut som en byggd på en
 beställnyckel, och det är precis därför den är farlig.
 
 Familjerna ovan står därför orörda tills rätt dokument finns.
+
+---
+
+## Sammanfattning
+
+Av de 21 familjer revisionen pekade ut har **12 modellerats** ur sina
+kataloger. De nio som återstår är alla blockerade av källan, inte av arbetet:
+
+| orsak | familjer |
+|---|---|
+| Broschyr utan beställnyckel | OSP-E, HMR |
+| Fel dokument kopplat till familjen | EPCO (EPCE), MFH (MH1) |
+| Driftmanual utan beställnummer | SMC-familjerna |
+| Tunn källa | ELEKTRO |
+| Tabellen går inte att läsa rent | CCIV, ISV |
+
+Det finns alltså inget kvar att göra på den här listan förrän dokument
+tillkommer. Nästa steg är antingen att skaffa dem, eller att gå vidare till de
+~135 familjer som inte hade uppenbart trasiga artikelnummer men heller aldrig
+har kontrollerats mot sin katalog.
