@@ -56,7 +56,15 @@ export interface KpzBore {
   rod_thread: string;
   /** Anslutning enligt samma tabellhuvud. */
   port: string;
-  /** Teoretisk kraft vid 6 bar ur chunk 7-8, newton. */
+  /**
+   * Kraft ur chunk 7-8, newton.
+   *
+   * VID 6,3 BAR, inte 6. Katalogen skriver ut det: "Pressure for determining
+   * piston forces 6,3 bar". Jag skrev först "vid 6 bar" i den här kommentaren
+   * och lät testet jämföra mot 6 bar med 6 % tolerans -- då passerade det, och
+   * toleransen dolde att trycket var fel. Vid rätt tryck stämmer katalogens
+   * värden på tiondelen: Ø100 ger 4948 N både i tabellen och ur formeln.
+   */
   force_extend_n: number;
   force_retract_n: number;
   /** Största slaglängd enligt tekniska data — inte enligt beställtabellen. */

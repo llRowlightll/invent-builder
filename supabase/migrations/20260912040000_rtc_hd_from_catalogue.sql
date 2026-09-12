@@ -1,0 +1,13 @@
+-- RTC-HD: artikelnummertabellen enligt Bosch Rexroth, katalog per 2013-04-11.
+-- Modell: src/lib/catalog/rtc-hd.ts. Källa: chunk 3-4 (tabellen), 0-1 (teknik).
+--
+-- Ingen beställnyckel -- en tabell, som KPZ. Men numren är INTE räknebara
+-- (R480156949, R480149659, R480154726 ligger inte i någon ordning), så
+-- konfiguratorn kan inte bygga dem ur en mall. Den slår upp i stället:
+-- parameterns code ÄR artikelnumret och mallen är bara "{part_no}".
+--
+-- 45 riktiga artiklar in. Våra sex var påhittade: R400769016..R400769063,
+-- samma nummer med borrningen påklistrad och slaglängden inte kodad någonstans
+-- trots att raderna påstod sex olika slag. Satta till 'discontinued'.
+--
+-- Tillämpad 2026-09-12 via mcp apply_migration.
