@@ -22,10 +22,12 @@
  */
 import { buildElektroDbRules } from "../src/lib/catalog/elektro-db-rules.ts";
 import { buildCcivDbRules } from "../src/lib/catalog/cciv-db-rules.ts";
+import { buildEpcoDbRules } from "../src/lib/catalog/epco-db-rules.ts";
 
 const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   elektro: buildElektroDbRules,
   cciv: buildCcivDbRules,
+  epco: buildEpcoDbRules,
 };
 
 const namn = Deno.args[0] ?? "";
