@@ -211,6 +211,10 @@ MAP = {
     "smc-kat-vf3000.pdf": ("SMC", ["vf3000"]),
     "smc-kat-vq1000.pdf": ("SMC", ["vq1000", "vq"]),
     "smc-kat-zh.pdf": ("SMC", ["zh"]),
+    # smc-kat-zh.pdf visade sig vara fyrsidingen för helrostfria ZH-X267.
+    # Familjens riktiga katalog (kroppsmonterad/boxtyp ZH□□A, 24 s) hämtades
+    # 2026-09-15 från seriesList/?id=ZH_DSA-E.
+    "smc-kat-zh-a.pdf": ("SMC", ["zh"]),
 }
 
 def post(path, body):
