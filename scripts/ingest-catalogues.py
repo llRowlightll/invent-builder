@@ -177,7 +177,8 @@ MAP = {
     # 203026 och EPCS 203028, så EPCO måste vara 203027. Det stämde.
     "festo-EPCO-203027.pdf": ("Festo", ["epco"]),      # 38 s, 13-positionstypkod
     "festo-MFH-203756.pdf": ("Festo", ["mfh"]),        # 48 s, typkod + orderdata
-    "parker-OSP-E-PA4P017GB.pdf": ("Parker", ["osp-e"]),   # 194 s, Order Instructions
+    # 194 s, sju beställnycklar -- en konfiguratorfamilj per variant sedan 2026-09-15.
+    "parker-OSP-E-PA4P017GB.pdf": ("Parker", ["osp-e-b", "osp-e-sb", "osp-e-st", "osp-e-sbr", "osp-e-str", "osp-e-bhd", "osp-e-bv"]),
     "parker-HMR-PA4P024GB.pdf": ("Parker", ["hmr"]),       # 50 s, Order code
 
     # ── SMC: de riktiga katalogerna, inte driftmanualerna ─────────────────
