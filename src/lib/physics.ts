@@ -211,7 +211,7 @@ export function computePhysics(dims: PhysicsDimensions): PhysicsResult {
   if (dims.speed === "very_fast" || dims.speed === "fast") {
     if (result.technology !== "electric") {
       result.reasoning.push(
-        "Hög hastighet: överväg kolvstångslös cylinder (DGC, CY1R) eller externa stötdämpare för inbromsning."
+        "Hög hastighet: överväg kolvstångslös cylinder (DGC, CY1S) eller externa stötdämpare för inbromsning."
       );
     }
   }
