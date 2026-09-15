@@ -29,6 +29,7 @@ import { buildOspeDbRules } from "../src/lib/catalog/osp-e-db-rules.ts";
 import { OSPE_VARIANTS } from "../src/lib/catalog/osp-e.ts";
 import { buildCq2DbRules } from "../src/lib/catalog/cq2-db-rules.ts";
 import { buildMxsDbRules } from "../src/lib/catalog/mxs-db-rules.ts";
+import { buildC85DbRules } from "../src/lib/catalog/c85-db-rules.ts";
 
 const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   elektro: buildElektroDbRules,
@@ -40,6 +41,7 @@ const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   ...Object.fromEntries(OSPE_VARIANTS.map((v) => [v.slug, () => buildOspeDbRules(v.slug)])),
   cq2: buildCq2DbRules,
   mxs: buildMxsDbRules,
+  c85: buildC85DbRules,
 };
 
 const namn = Deno.args[0] ?? "";
