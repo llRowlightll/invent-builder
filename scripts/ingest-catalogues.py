@@ -107,10 +107,10 @@ MAP = {
     "smc-cp96-om_cp96n_om0197qen.pdf": ("SMC", ["cp96"]),
     "smc-cp96-om_cp96x-c_om0002qen.pdf": ("SMC", ["cp96"]),
     "smc-cp96-om_cp96x_mm0049qen.pdf": ("SMC", ["cp96"]),
-    # CY1F/CY1L/CY1S är systrar i CY1-serien som CY1R tillhör.
-    "smc-cy1r-om_cy1f_om0002f_en.pdf": ("SMC", ["cy1r"]),
-    "smc-cy1r-om_cy1l_om0002c_en.pdf": ("SMC", ["cy1r"]),
-    "smc-cy1r-om_cy1s-z_om0078p_en.pdf": ("SMC", ["cy1r"]),
+    # CY1-serien: slidtyperna CY1S, CY1L, CY1H och CY1F (CY1R finns inte, se docs/BLOCKERADE-FAMILJER.md).
+    "smc-cy1r-om_cy1f_om0002f_en.pdf": ("SMC", ["cy1f"]),
+    "smc-cy1r-om_cy1l_om0002c_en.pdf": ("SMC", ["cy1l"]),
+    "smc-cy1r-om_cy1s-z_om0078p_en.pdf": ("SMC", ["cy1s"]),
     "smc-mgpm-om_mgp-z_mgpx-om0047pen-b.pdf": ("SMC", ["mgpm"]),
     "smc-mhz2-om_mhz2_omd0047en-a.pdf": ("SMC", ["mhz2"]),
     # "Valve terminal MPA-S" -- verifierat, 681 träffar på MPA/VMPA.
@@ -198,9 +198,9 @@ MAP = {
     "smc-kat-cp96.pdf": ("SMC", ["cp96"]),
     "smc-kat-cq2.pdf": ("SMC", ["cq2"]),
     "smc-kat-cs1.pdf": ("SMC", ["cs1"]),
-    "smc-kat-cy1.pdf": ("SMC", ["cy1r"]),
-    "smc-kat-cy1f.pdf": ("SMC", ["cy1r"]),
-    "smc-kat-cy1s.pdf": ("SMC", ["cy1r"]),
+    "smc-kat-cy1.pdf": ("SMC", ["cy1l", "cy1h"]),
+    "smc-kat-cy1f.pdf": ("SMC", ["cy1f"]),
+    "smc-kat-cy1s.pdf": ("SMC", ["cy1s"]),
     "smc-kat-ex500.pdf": ("SMC", ["ex500"]),
     "smc-kat-kq2.pdf": ("SMC", ["kq2"]),
     "smc-kat-lesh.pdf": ("SMC", ["lesh"]),

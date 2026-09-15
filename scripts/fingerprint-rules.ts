@@ -36,6 +36,8 @@ import { buildZhDbRules } from "../src/lib/catalog/zh-db-rules.ts";
 import { buildCm2DbRules } from "../src/lib/catalog/cm2-db-rules.ts";
 import { buildCp96DbRules } from "../src/lib/catalog/cp96-db-rules.ts";
 import { buildCs1DbRules } from "../src/lib/catalog/cs1-db-rules.ts";
+import { buildCy1DbRules } from "../src/lib/catalog/cy1-db-rules.ts";
+import { CY1_SERIES_LIST } from "../src/lib/catalog/cy1.ts";
 
 const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   elektro: buildElektroDbRules,
@@ -54,6 +56,8 @@ const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   cm2: buildCm2DbRules,
   cp96: buildCp96DbRules,
   cs1: buildCs1DbRules,
+  // CY1 är fyra familjer ur en modell: cy1s, cy1l, cy1h, cy1f.
+  ...Object.fromEntries(CY1_SERIES_LIST.map((k) => [k, () => buildCy1DbRules(k)])),
 };
 
 const namn = Deno.args[0] ?? "";
