@@ -76,6 +76,9 @@ Deno.test("modellen vägrar det katalogen inte har", () => {
   assert(b({ bore: "16", cover: "N", stroke_mm: 40, magnet: true, switch_mount: "A", switch: "M9BW" }));
   assertEquals(b({ bore: "20", cover: "N", stroke_mm: 40, magnet: true, switch_mount: "A", switch: "H7C" }), null, "H7C bara band");
   assertEquals(b({ bore: "20", cover: "N", stroke_mm: 40, magnet: true, switch_mount: "B", switch: "J79C" }), null, "J79C bara skena");
+  assertEquals(b({ bore: "20", cover: "N", stroke_mm: 40, magnet: true, switch_mount: "B", switch: "A72" }), null, "A72 är skentyp (kolumnen Rail mounting, vinklad)");
+  assertEquals(b({ bore: "20", cover: "N", stroke_mm: 40, magnet: true, switch_mount: "A", switch: "A72" }), "CD85N20-40-A-A72");
+  assertEquals(b({ bore: "20", cover: "N", stroke_mm: 40, magnet: true, switch_mount: "A", switch: "A72H" }), "CD85N20-40-A-A72H");
   assertEquals(b({ bore: "10", cover: "N", stroke_mm: 250 }), null);
   assertEquals(b({ bore: "10", cover: "N", stroke_mm: 100, mto: "X2018" }), null);
   assertEquals(b({ bore: "20", cover: "N", stroke_mm: 40, cushion: true, mto: "XB9" }), null);
