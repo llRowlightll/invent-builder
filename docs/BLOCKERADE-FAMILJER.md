@@ -129,7 +129,7 @@ nu är **möjligt men ogjort**:
 | ~~MFH~~ | ~~`festo-MFH-203756.pdf`~~ | **KLAR** — PR #229 |
 | ~~HMR~~ | ~~`parker-HMR-PA4P024GB.pdf`~~ | **KLAR** — PR #230 |
 | ~~OSP-E~~ | ~~`parker-OSP-E-PA4P017GB.pdf`~~ | **KLAR** — sju familjer (B, SB, ST, SBR, STR, BHD, BV), en per beställnyckel |
-| SMC ×24 | `smc-kat-*.pdf` | "How to Order" per serie — **CQ2 KLAR** (standard DA/SA enkel kolvstång; CQ2W/CQ2K/CBQ2/CQP2/stor borrning/långt slag är egna nycklar), **MXS KLAR** (standard och MXS□L), 22 kvar |
+| SMC ×24 | `smc-kat-*.pdf` | "How to Order" per serie — **CQ2 KLAR** (standard DA/SA enkel kolvstång; CQ2W/CQ2K/CBQ2/CQP2/stor borrning/långt slag är egna nycklar), **MXS KLAR** (standard och MXS□L), **C85 KLAR** (C85/CD85 dubbelverkande enkel kolvstång ø8–25; C85W/C85K/C85R/C75 är egna nycklar), 21 kvar |
 
 Metal Work-katalogen har dessutom **80 beställnycklar** totalt, alltså långt
 fler familjer än de två vi känner till.
