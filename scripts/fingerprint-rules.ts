@@ -39,6 +39,7 @@ import { buildCs1DbRules } from "../src/lib/catalog/cs1-db-rules.ts";
 import { buildCy1DbRules } from "../src/lib/catalog/cy1-db-rules.ts";
 import { CY1_SERIES_LIST } from "../src/lib/catalog/cy1.ts";
 import { buildEx500DbRules } from "../src/lib/catalog/ex500-db-rules.ts";
+import { buildLeshDbRules } from "../src/lib/catalog/lesh-db-rules.ts";
 
 const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   elektro: buildElektroDbRules,
@@ -60,6 +61,7 @@ const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   // CY1 är fyra familjer ur en modell: cy1s, cy1l, cy1h, cy1f.
   ...Object.fromEntries(CY1_SERIES_LIST.map((k) => [k, () => buildCy1DbRules(k)])),
   ex500: buildEx500DbRules,
+  lesh: buildLeshDbRules,
 };
 
 const namn = Deno.args[0] ?? "";
