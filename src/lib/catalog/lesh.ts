@@ -29,6 +29,8 @@
  * (1/3/5) + montering (D DIN). Aktuator och styrenhet säljs som ett paket.
  */
 
+import { LE_CABLES, LE_CONTROLLERS, LE_CTRL_ACCS, LE_CTRL_MOUNTS, LE_IO_CABLES, LE_TAIL_REGEX, leTailOk } from "./le-controller";
+
 export const LESH_SOURCE = {
   file: "smc-kat-lesh.pdf",
   edition: "SMC LES/LESH catalogue (catalogue pages 635–735)",
@@ -107,67 +109,13 @@ export const LESH_LOCK: LESHValue = { code: "B", label_sv: "Med lås (omagnetise
 export const LESH_BODY: LESHValue = { code: "S", label_sv: "Dammskyddad: avstrykare på stångkåpan, packningar i ändkåporna (R/L ≈ IP5X)" };
 export const LESH_HOLDER: LESHValue = { code: "H", label_sv: "Med sidohållare, 4 st (bara D-typ)" };
 
-export interface LESHCable extends LESHValue {
-  kind: "standard" | "robotic";
-  /** Tillverkas på beställning (sida 715 *5, 705 *3). */
-  on_order?: boolean;
-}
-export const LESH_CABLES: LESHCable[] = [
-  { code: "S1", kind: "standard", label_sv: "Standardkabel 1,5 m (bara stegmotor, fast förlagd)" },
-  { code: "S3", kind: "standard", label_sv: "Standardkabel 3 m (bara stegmotor, fast förlagd)" },
-  { code: "S5", kind: "standard", label_sv: "Standardkabel 5 m (bara stegmotor, fast förlagd)" },
-  { code: "R1", kind: "robotic", label_sv: "Robotkabel 1,5 m" },
-  { code: "R3", kind: "robotic", label_sv: "Robotkabel 3 m" },
-  { code: "R5", kind: "robotic", label_sv: "Robotkabel 5 m" },
-  { code: "R8", kind: "robotic", on_order: true, label_sv: "Robotkabel 8 m (på beställning)" },
-  { code: "RA", kind: "robotic", on_order: true, label_sv: "Robotkabel 10 m (på beställning)" },
-  { code: "RB", kind: "robotic", on_order: true, label_sv: "Robotkabel 15 m (på beställning)" },
-  { code: "RC", kind: "robotic", on_order: true, label_sv: "Robotkabel 20 m (på beställning)" },
-];
-
-export interface LESHController extends LESHValue {
-  family: "JXC" | "LEC";
-  /** Motortyper styrenheten passar: "" steg, "A" servo, "E" absolut (sida 706, 716). */
-  motors: string[];
-  /** Tillbehör som får följa (JXC, sida 716 *13). */
-  acc?: string[];
-}
-const jxc = (code: string, label: string, acc?: string[]): LESHController => ({ code, family: "JXC", motors: ["", "E"], acc, label_sv: label });
-export const LESH_CONTROLLERS: LESHController[] = [
-  jxc("C51", "JXC51: parallell I/O NPN, stegdata", ["1", "3", "5"]),
-  jxc("C61", "JXC61: parallell I/O PNP, stegdata", ["1", "3", "5"]),
-  jxc("CE1", "JXCE1: EtherCAT"),
-  jxc("CEF", "JXCEF: EtherCAT med STO"),
-  jxc("C91", "JXC91: EtherNet/IP"),
-  jxc("C9F", "JXC9F: EtherNet/IP med STO"),
-  jxc("CP1", "JXCP1: PROFINET"),
-  jxc("CPF", "JXCPF: PROFINET med STO"),
-  jxc("CD1", "JXCD1: DeviceNet", ["S", "T"]),
-  jxc("CL1", "JXCL1: IO-Link"),
-  jxc("CLF", "JXCLF: IO-Link med STO"),
-  jxc("CM1", "JXCM1: CC-Link", ["S", "T"]),
-  { code: "6N", family: "LEC", motors: ["A"], label_sv: "LECA6 NPN: stegdata, för servomotorn" },
-  { code: "6P", family: "LEC", motors: ["A"], label_sv: "LECA6 PNP: stegdata, för servomotorn" },
-  { code: "AN", family: "LEC", motors: [""], label_sv: "LECPA NPN: pulsingång, för stegmotorn (inkrementell)" },
-  { code: "AP", family: "LEC", motors: [""], label_sv: "LECPA PNP: pulsingång, för stegmotorn (inkrementell)" },
-];
-export const LESH_IO_CABLES: LESHValue[] = [
-  { code: "1", label_sv: "I/O-kabel 1,5 m (LEC)" },
-  { code: "3", label_sv: "I/O-kabel 3 m (LEC)" },
-  { code: "5", label_sv: "I/O-kabel 5 m (LEC)" },
-];
-export const LESH_CTRL_MOUNTS: LESHValue[] = [
-  { code: "7", label_sv: "Skruvmontering (JXC)" },
-  { code: "8", label_sv: "DIN-skena (JXC; skenan beställs separat)" },
-  { code: "D", label_sv: "DIN-skena (LEC; skenan beställs separat)" },
-];
-export const LESH_CTRL_ACCS: LESHValue[] = [
-  { code: "S", label_sv: "Rak kommunikationsplugg (DeviceNet, CC-Link)" },
-  { code: "T", label_sv: "T-grenad kommunikationsplugg (DeviceNet, CC-Link)" },
-  { code: "1", label_sv: "I/O-kabel 1,5 m (JXC51/61)" },
-  { code: "3", label_sv: "I/O-kabel 3 m (JXC51/61)" },
-  { code: "5", label_sv: "I/O-kabel 5 m (JXC51/61)" },
-];
+export type { LECable as LESHCable, LEController as LESHController } from "./le-controller";
+/** Kabel och styrenhet delas med LEY (le-controller.ts); sida 715–716. */
+export const LESH_CABLES = LE_CABLES;
+export const LESH_CONTROLLERS = LE_CONTROLLERS;
+export const LESH_IO_CABLES = LE_IO_CABLES;
+export const LESH_CTRL_MOUNTS = LE_CTRL_MOUNTS;
+export const LESH_CTRL_ACCS = LE_CTRL_ACCS;
 
 export const LESH_LIMITS = {
   repeatability_mm: 0.05,
@@ -219,35 +167,18 @@ export function leshBuildCode(c: LESHConfig): string | null {
   const holder = c.holder ?? "";
   if (holder && (holder !== LESH_HOLDER.code || c.mount !== "D")) return null;
   const cable = c.cable ?? "";
-  const kabel = cable ? LESH_CABLES.find((k) => k.code === cable) : undefined;
-  if (cable && !kabel) return null;
-  if (kabel?.kind === "standard" && motor) return null;
   const ctrl = c.ctrl ?? "";
   const io = c.io_cable ?? "";
   const cm = c.ctrl_mount ?? "";
   const acc = c.ctrl_acc ?? "";
-  if (!ctrl) {
-    if (io || cm || acc) return null;
-  } else {
-    const st = LESH_CONTROLLERS.find((k) => k.code === ctrl);
-    if (!st || !st.motors.includes(motor)) return null;
-    if (st.family === "JXC") {
-      if (io) return null;
-      if (cm !== "7" && cm !== "8") return null;
-      if (acc && !(st.acc ?? []).includes(acc)) return null;
-    } else {
-      if (acc) return null;
-      if (io && !har(LESH_IO_CABLES, io)) return null;
-      if (cm && cm !== "D") return null;
-    }
-  }
+  if (!leTailOk(motor, cable, ctrl, io, cm, acc)) return null;
   const svans = `${cable}${ctrl}${io}${cm}${acc}`;
   return `LESH${size.code}${c.mount}${motor}${c.lead}-${stroke}${lock}${body}${holder}${svans ? `-${svans}` : ""}`;
 }
 
 export function leshParseCode(raw: string): { config: LESHConfig } | null {
   const k = raw.trim().toUpperCase();
-  const m = /^LESH(8|16|25)([RLD])([AE]?)([JK])-(50|75|100|150)(B?)(S?)(H?)(?:-(S[135]|R[1358ABC])?(?:(C[569EPDLM][1F]|6[NP]|A[NP])([135]?)([78D]?)([ST135]?))?)?$/.exec(k);
+  const m = new RegExp(`^LESH(8|16|25)([RLD])([AE]?)([JK])-(50|75|100|150)(B?)(S?)(H?)(?:-${LE_TAIL_REGEX})?$`).exec(k);
   if (!m) return null;
   const [, size, mount, motor, lead, stroke, lock, body, holder, cable, ctrl, io, cm, acc] = m;
   const c: LESHConfig = {
