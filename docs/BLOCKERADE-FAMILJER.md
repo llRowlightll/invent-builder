@@ -125,10 +125,10 @@ nu är **möjligt men ogjort**:
 |---|---|---|
 | ~~ELEKTRO~~ | ~~`metalwork-ELEKTRO.pdf` st. 101–109~~ | **KLAR** — PR #226 |
 | ~~CCIV~~ | ~~Metal Work-katalogen st. 49~~ | **KLAR** — PR #227 |
-| EPCO | `festo-EPCO-203027.pdf` | Modulär typkod |
-| MFH | `festo-MFH-203756.pdf` | Tabell + typkod |
-| OSP-E | `parker-OSP-E-PA4P017GB.pdf` | Positionell |
-| HMR | `parker-HMR-PA4P024GB.pdf` | Positionell |
+| ~~EPCO~~ | ~~`festo-EPCO-203027.pdf`~~ | **KLAR** — PR #228 |
+| ~~MFH~~ | ~~`festo-MFH-203756.pdf`~~ | **KLAR** — PR #229 |
+| ~~HMR~~ | ~~`parker-HMR-PA4P024GB.pdf`~~ | **KLAR** — PR #230 |
+| ~~OSP-E~~ | ~~`parker-OSP-E-PA4P017GB.pdf`~~ | **KLAR** — sju familjer (B, SB, ST, SBR, STR, BHD, BV), en per beställnyckel |
 | SMC ×24 | `smc-kat-*.pdf` | "How to Order" per serie |
 
 Metal Work-katalogen har dessutom **80 beställnycklar** totalt, alltså långt

@@ -25,6 +25,8 @@ import { buildCcivDbRules } from "../src/lib/catalog/cciv-db-rules.ts";
 import { buildEpcoDbRules } from "../src/lib/catalog/epco-db-rules.ts";
 import { buildMfhDbRules } from "../src/lib/catalog/mfh-db-rules.ts";
 import { buildHmrDbRules } from "../src/lib/catalog/hmr-db-rules.ts";
+import { buildOspeDbRules } from "../src/lib/catalog/osp-e-db-rules.ts";
+import { OSPE_VARIANTS } from "../src/lib/catalog/osp-e.ts";
 
 const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   elektro: buildElektroDbRules,
@@ -32,6 +34,8 @@ const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   epco: buildEpcoDbRules,
   mfh: buildMfhDbRules,
   hmr: buildHmrDbRules,
+  // OSP-E är sju familjer ur en modell: osp-e-b, -sb, -st, -sbr, -str, -bhd, -bv.
+  ...Object.fromEntries(OSPE_VARIANTS.map((v) => [v.slug, () => buildOspeDbRules(v.slug)])),
 };
 
 const namn = Deno.args[0] ?? "";
