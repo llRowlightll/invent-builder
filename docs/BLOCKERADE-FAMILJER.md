@@ -129,7 +129,7 @@ nu är **möjligt men ogjort**:
 | ~~MFH~~ | ~~`festo-MFH-203756.pdf`~~ | **KLAR** — PR #229 |
 | ~~HMR~~ | ~~`parker-HMR-PA4P024GB.pdf`~~ | **KLAR** — PR #230 |
 | ~~OSP-E~~ | ~~`parker-OSP-E-PA4P017GB.pdf`~~ | **KLAR** — sju familjer (B, SB, ST, SBR, STR, BHD, BV), en per beställnyckel |
-| SMC ×24 | `smc-kat-*.pdf` | "How to Order" per serie — **CQ2 KLAR** (standard DA/SA enkel kolvstång; CQ2W/CQ2K/CBQ2/CQP2/stor borrning/långt slag är egna nycklar), **MXS KLAR** (standard och MXS□L), **C85 KLAR** (C85/CD85 dubbelverkande enkel kolvstång ø8–25; C85W/C85K/C85R/C75 är egna nycklar), **CJ2 KLAR** (CJ2/CDJ2-Z dubbelverkande enkel kolvstång ø6/10/16; CJ2W/CJ2K/CJ2Z/CJ2R/CBJ2 och enkelverkande är egna nycklar), **CJP KLAR** (stiftcylindern, hela nyckeln), **ZH KLAR** (kropps-/boxtyp ZH□□A ur den riktiga katalogen, hämtad 2026-09-15 -- `smc-kat-zh.pdf` var ZH-X267), 18 kvar |
+| SMC ×24 | `smc-kat-*.pdf` | "How to Order" per serie — **CQ2 KLAR** (standard DA/SA enkel kolvstång; CQ2W/CQ2K/CBQ2/CQP2/stor borrning/långt slag är egna nycklar), **MXS KLAR** (standard och MXS□L), **C85 KLAR** (C85/CD85 dubbelverkande enkel kolvstång ø8–25; C85W/C85K/C85R/C75 är egna nycklar), **CJ2 KLAR** (CJ2/CDJ2-Z dubbelverkande enkel kolvstång ø6/10/16; CJ2W/CJ2K/CJ2Z/CJ2R/CBJ2 och enkelverkande är egna nycklar), **CJP KLAR** (stiftcylindern, hela nyckeln), **ZH KLAR** (kropps-/boxtyp ZH□□A ur den riktiga katalogen, hämtad 2026-09-15 -- `smc-kat-zh.pdf` var ZH-X267), **CM2 KLAR** (ur CM2-Z1, hämtad 2026-09-15 -- `smc-kat-cm2.pdf` är CM2-Z vars standardcylinder utgick nov 2025), 17 kvar |
 
 Metal Work-katalogen har dessutom **80 beställnycklar** totalt, alltså långt
 fler familjer än de två vi känner till.

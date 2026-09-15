@@ -191,6 +191,10 @@ MAP = {
     "smc-kat-cj2.pdf": ("SMC", ["cj2"]),
     "smc-kat-cjp.pdf": ("SMC", ["cjp"]),
     "smc-kat-cm2.pdf": ("SMC", ["cm2"]),
+    # smc-kat-cm2.pdf är CM2-Z, vars standardcylinder (DA enkel kolvstång,
+    # med och utan magnet) utgick i november 2025 (sida 234: "highlighted in
+    # red"). Efterföljaren CM2-Z1 hämtades 2026-09-15 från seriesList/?id=CM2-Z1-E.
+    "smc-kat-cm2-z1.pdf": ("SMC", ["cm2"]),
     "smc-kat-cp96.pdf": ("SMC", ["cp96"]),
     "smc-kat-cq2.pdf": ("SMC", ["cq2"]),
     "smc-kat-cs1.pdf": ("SMC", ["cs1"]),

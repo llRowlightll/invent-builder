@@ -33,6 +33,7 @@ import { buildC85DbRules } from "../src/lib/catalog/c85-db-rules.ts";
 import { buildCj2DbRules } from "../src/lib/catalog/cj2-db-rules.ts";
 import { buildCjpDbRules } from "../src/lib/catalog/cjp-db-rules.ts";
 import { buildZhDbRules } from "../src/lib/catalog/zh-db-rules.ts";
+import { buildCm2DbRules } from "../src/lib/catalog/cm2-db-rules.ts";
 
 const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   elektro: buildElektroDbRules,
@@ -48,6 +49,7 @@ const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   cj2: buildCj2DbRules,
   cjp: buildCjpDbRules,
   zh: buildZhDbRules,
+  cm2: buildCm2DbRules,
 };
 
 const namn = Deno.args[0] ?? "";
