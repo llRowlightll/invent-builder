@@ -112,7 +112,9 @@ const r = (code: string, label: string, o: Partial<C85Switch> = {}): C85Switch =
   ({ code, kind: "reed", band: true, rail: true, band_not: [], rail_not: [], label_sv: label, ...o });
 /**
  * Tillämpliga givare (sida 3). M9-familjen går inte på skena i ø20/25;
- * A9-familjen går inte i ø8–12; A79W inte på skena i ø8–12.
+ * A9-familjen går inte i ø8–12; A79W inte på skena i ø8–12. A72 och A72H
+ * är båda skentyper (kolumnerna "Rail mounting", vinklad respektive rak);
+ * bandkolumnerna är tomma för 200 V-reeden.
  */
 export const C85_SWITCHES: C85Switch[] = [
   s("M9N", "D-M9N, 3-tråd NPN, rak", { rail_not: STORA }), s("M9P", "D-M9P, 3-tråd PNP, rak", { rail_not: STORA }), s("M9B", "D-M9B, 2-tråd, rak", { rail_not: STORA }),
@@ -124,7 +126,7 @@ export const C85_SWITCHES: C85Switch[] = [
   s("M9NAV", "D-M9NAV, NPN, vattentät, vinklad", { rail_not: STORA }), s("M9PAV", "D-M9PAV, PNP, vattentät, vinklad", { rail_not: STORA }), s("M9BAV", "D-M9BAV, 2-tråd, vattentät, vinklad", { rail_not: STORA }),
   s("H7NF", "D-H7NF, 4-tråd NPN, diagnostikutgång (band)", { rail: false }), s("F79F", "D-F79F, 4-tråd NPN, diagnostikutgång (skena)", { band: false }),
   r("A96", "D-A96, reed 3-tråd, rak (ø16–25)", { band_not: SMA, rail_not: SMA }), r("A96V", "D-A96V, reed 3-tråd, vinklad (ø16–25)", { band_not: SMA, rail_not: SMA }),
-  r("A72", "D-A72, reed 200 V (band)", { rail: false }), r("A72H", "D-A72H, reed 200 V (skena)", { band: false }),
+  r("A72", "D-A72, reed 200 V, vinklad (skena)", { band: false }), r("A72H", "D-A72H, reed 200 V, rak (skena)", { band: false }),
   r("A93", "D-A93, reed 2-tråd, rak (ø16–25)", { band_not: SMA, rail_not: SMA }), r("A93V", "D-A93V, reed 2-tråd, vinklad (ø16–25)", { band_not: SMA, rail_not: SMA }),
   r("A90", "D-A90, reed utan indikering, rak (ø16–25)", { band_not: SMA, rail_not: SMA }), r("A90V", "D-A90V, reed utan indikering, vinklad (ø16–25)", { band_not: SMA, rail_not: SMA }),
   r("C73C", "D-C73C, reed kontakt (band)", { rail: false }), r("A73C", "D-A73C, reed kontakt (skena)", { band: false }),
