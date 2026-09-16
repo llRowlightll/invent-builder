@@ -79,13 +79,14 @@ type FamSeo = {
   stroke_max_mm: number | null;
 };
 
-const CAT_NOUN: Record<string, { sv: string; en: string }> = {
+// "ett" för neutrum (gripdon, vriddon), annars "en".
+const CAT_NOUN: Record<string, { sv: string; en: string; ett?: boolean }> = {
   cylinder: { sv: "pneumatikcylinder", en: "pneumatic cylinder" },
   "electric-actuator": { sv: "elektrisk aktuator", en: "electric actuator" },
   "linear-module": { sv: "linjärmodul", en: "linear module" },
-  gripper: { sv: "gripdon", en: "gripper" },
+  gripper: { sv: "gripdon", en: "gripper", ett: true },
   valve: { sv: "ventil", en: "valve" },
-  "rotary-actuator": { sv: "vriddon", en: "rotary actuator" },
+  "rotary-actuator": { sv: "vriddon", en: "rotary actuator", ett: true },
   "valve-terminal": { sv: "ventilterminal", en: "valve terminal" },
   vacuum: { sv: "vakuumkomponent", en: "vacuum component" },
 };
@@ -97,6 +98,13 @@ function catNoun(slug: string | null | undefined, locale: string): string {
   return sv ? n.sv : n.en;
 }
 
+/** Substantivet med obestämd artikel: "en pneumatikcylinder", "ett gripdon", "a gripper". */
+function catNounWithArticle(slug: string | null | undefined, locale: string): string {
+  const noun = catNoun(slug, locale);
+  if (locale === "sv") return `${slug && CAT_NOUN[slug]?.ett ? "ett" : "en"} ${noun}`;
+  return `${/^[aeiou]/i.test(noun) ? "an" : "a"} ${noun}`;
+}
+
 // Unique, data-driven intro per configurator family — used for the SSR meta
 // description (head) and the visible on-page text. Long-tail SEO across 159 pages.
 function configuratorIntro(fam: FamSeo | null, locale: string): string {
@@ -106,7 +114,7 @@ function configuratorIntro(fam: FamSeo | null, locale: string): string {
       ? "Konfigurera din komponent efter dina mått och få artikelnummer och offert direkt."
       : "Configure your component to your dimensions and get a part number and quote instantly.";
   }
-  const noun = catNoun(fam.category_slug, locale);
+  const noun = catNounWithArticle(fam.category_slug, locale);
   const std = fam.standard ? (sv ? ` enligt ${fam.standard}` : ` to ${fam.standard}`) : "";
   const hasStroke = (fam.stroke_max_mm ?? 0) > (fam.stroke_min_mm ?? 0);
   const stroke = hasStroke
@@ -115,8 +123,8 @@ function configuratorIntro(fam: FamSeo | null, locale: string): string {
       : ` with stroke ${fam.stroke_min_mm}–${fam.stroke_max_mm} mm`
     : "";
   return sv
-    ? `Konfigurera din ${fam.name} — en ${noun}${std}${stroke}. Välj mått och tillval och få ett artikelnummer och en offert direkt, utan att vänta på en säljare.`
-    : `Configure your ${fam.name} — a ${noun}${std}${stroke}. Choose dimensions and options and get a part number and quote instantly, without waiting for a salesperson.`;
+    ? `Konfigurera din ${fam.name} — ${noun}${std}${stroke}. Välj mått och tillval och få ett artikelnummer och en offert direkt, utan att vänta på en säljare.`
+    : `Configure your ${fam.name} — ${noun}${std}${stroke}. Choose dimensions and options and get a part number and quote instantly, without waiting for a salesperson.`;
 }
 
 export const Route = createFileRoute("/$locale/configurator/$family")({
@@ -133,11 +141,12 @@ export const Route = createFileRoute("/$locale/configurator/$family")({
     const fam = (loaderData as { fam: FamSeo | null } | undefined)?.fam ?? null;
     const name = fam?.name ?? params.family.toUpperCase();
     const noun = catNoun(fam?.category_slug, params.locale);
+    const kundanpassad = fam?.category_slug && CAT_NOUN[fam.category_slug]?.ett ? "kundanpassat" : "kundanpassad";
     return {
       meta: [
         {
           title: sv
-            ? `Konfigurera ${name} – kundanpassad ${noun} | Maskinval`
+            ? `Konfigurera ${name} – ${kundanpassad} ${noun} | Maskinval`
             : `Configure ${name} – custom ${noun} | Maskinval`,
         },
         { name: "description", content: configuratorIntro(fam, params.locale) },
@@ -354,8 +363,13 @@ function ConfiguratorPage() {
 
   const categoryLabels: Record<string, string> = {
     cylinder: "Cylindrar",
+    "electric-actuator": "Elektriska ställdon",
     "linear-module": "Linjärmoduler",
+    gripper: "Gripdon",
+    "rotary-actuator": "Vridenheter",
     valve: "Ventiler",
+    "valve-terminal": "Ventilterminaler",
+    vacuum: "Vakuum",
   };
 
   return (
