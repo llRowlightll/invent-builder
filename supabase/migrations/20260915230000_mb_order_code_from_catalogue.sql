@@ -1,4 +1,4 @@
--- Speglar det som lades på databasen 2026-09-15/16 via apply_migration i tretton delar:
+-- Speglar det som lades på databasen 2026-09-15/16 via apply_migration i fjorton delar:
 --   mb_order_code_from_catalogue_part_01  (backup, schema, familj, parametrar)
 --   mb_order_code_from_catalogue_part_02  (värdelista, rensning av regler)
 --   mb_order_code_from_catalogue_part_03  (regler 1–20)
@@ -12,6 +12,7 @@
 --   mb_order_code_from_catalogue_part_11  (regler 161–180)
 --   mb_order_code_from_catalogue_part_12  (regler 181–197, dokumentkarta, produktspecar)
 --   mb_order_code_from_catalogue_part_13  (material sida 484; källösa specen standard = ISO 15552 bort)
+--   mb_order_code_from_catalogue_part_14  (SMC-MB namn och beskrivning utan ISO 15552, slag upp till 2700)
 -- Fingeravtryck efter körning, identiska med modellen (scripts/fingerprint-rules.ts mb):
 --   regler  197  md5 87d040bdb65fa376d469591ebf31e411   villkor b26b305e34ce7b846510f69e3920f21a
 --   värden  71   md5 4bcccd68101bc861a8e6af5af8814d6c
@@ -162,6 +163,11 @@ from products p where s.product_id = p.id and p.sku = 'SMC-MB' and s.key = 'mate
 
 delete from product_specs s using products p
 where s.product_id = p.id and p.sku = 'SMC-MB' and s.key = 'standard';
+
+update products set
+  name = 'MB – Tie-rod Cylinder ø32–125',
+  description = 'Tie-rod air cylinder, double acting single rod, ø32–125 mm. Standard strokes 25–1000 mm, up to 2700 mm on request. Air cushion or rubber bumper, seven mountings, auto switches. SMC''s own tie-rod design (not ISO 15552).'
+where sku = 'SMC-MB';
 
 insert into product_specs (product_id, key, value)
 select p.id, x.key, x.value

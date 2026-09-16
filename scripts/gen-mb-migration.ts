@@ -52,7 +52,8 @@ const steps: Step[] = [
 // MPa, slag upp till 2700 (standard till 1000), −10…70 °C. Specen
 // "standard = ISO 15552" saknar källa (katalogen nämner inte ISO alls; MB är
 // SMC:s egen dragstångskonstruktion) och tas bort; "material = Aluminium"
-// får konstruktionstabellens material (sida 484).
+// får konstruktionstabellens material (sida 484). Namn och beskrivning sade
+// också "ISO 15552" och "slag upp till 2000 mm" (katalogen: 2700, sida 483).
 const exempel = mbBuildCode({ bore: "32", mounting: "D", stroke_mm: 50, magnet: true, pivot: "N", knuckle: "W", switch: "M9BW" })!;
 const extra = `
 update product_specs s set value = '32, 40, 50, 63, 80, 100, 125'
@@ -72,6 +73,11 @@ from products p where s.product_id = p.id and p.sku = 'SMC-MB' and s.key = 'mate
 
 delete from product_specs s using products p
 where s.product_id = p.id and p.sku = 'SMC-MB' and s.key = 'standard';
+
+update products set
+  name = 'MB – Tie-rod Cylinder ø32–125',
+  description = 'Tie-rod air cylinder, double acting single rod, ø32–125 mm. Standard strokes 25–1000 mm, up to 2700 mm on request. Air cushion or rubber bumper, seven mountings, auto switches. SMC''s own tie-rod design (not ISO 15552).'
+where sku = 'SMC-MB';
 
 insert into product_specs (product_id, key, value)
 select p.id, x.key, x.value
