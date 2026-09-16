@@ -213,7 +213,11 @@ MAP = {
     "smc-kat-mhz2.pdf": ("SMC", ["mhz2"]),
     "smc-kat-mhz2-std.pdf": ("SMC", ["mhz2"]),
     "smc-kat-mxs.pdf": ("SMC", ["mxs"]),
-    "smc-kat-rb.pdf": ("SMC", ["rbq", "rdqb"]),
+    # smc-kat-rb.pdf är stötdämparna RB/RBL/RBQ (sida 1299–1310), inte
+    # kompaktcylindern. Kompaktcylindern RQ/RDQ (sida 1035–1057) hämtades
+    # 2026-09-16 från seriesList/?id=RQ-RDQ-E.
+    "smc-kat-rb.pdf": ("SMC", ["rb"]),
+    "smc-kat-rq.pdf": ("SMC", ["rq"]),
     "smc-kat-sv1000.pdf": ("SMC", ["sv1000"]),
     "smc-kat-sy3000.pdf": ("SMC", ["sy3000", "sy"]),
     "smc-kat-vf3000.pdf": ("SMC", ["vf3000"]),

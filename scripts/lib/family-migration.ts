@@ -49,6 +49,11 @@ export interface FamilyMigration {
   header: string;
   /** SQL som läggs sist, inne i transaktionen (t.ex. produktrader). */
   extra?: string;
+  /**
+   * SQL som körs först i transaktionen, före säkerhetskopian — för en familj
+   * som inte finns än (insert av raden) eller som ersätter en felnamngiven.
+   */
+  preamble?: string;
 }
 
 export function familyMigrationSql(m: FamilyMigration): string {
@@ -56,7 +61,9 @@ export function familyMigrationSql(m: FamilyMigration): string {
   out.push(m.header.split("\n").map((l) => (l ? `-- ${l}` : "--")).join("\n"));
   out.push(`
 begin;
-
+`);
+  if (m.preamble) out.push(m.preamble);
+  out.push(`
 create schema if not exists backup;
 create table if not exists backup.${m.slug.replace(/-/g, "_")}_before_${m.backupDate} as
   select 'param' as sort, p.id::text as id, p.param_key as k, p.label as v
