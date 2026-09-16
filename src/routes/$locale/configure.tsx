@@ -64,6 +64,11 @@ const CATEGORY_META: Record<string, { label: string; icon: string; color: string
     icon: "🛡️",
     color: "bg-orange-50 border-orange-200 text-orange-800",
   },
+  fitting: {
+    label: "Kopplingar",
+    icon: "⊕",
+    color: "bg-slate-50 border-slate-200 text-slate-800",
+  },
 };
 
 function ConfigureIndexPage() {

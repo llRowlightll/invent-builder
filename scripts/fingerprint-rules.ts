@@ -50,6 +50,7 @@ import { buildSyDbRules } from "../src/lib/catalog/sy-db-rules.ts";
 import { buildSvDbRules } from "../src/lib/catalog/sv-db-rules.ts";
 import { buildRqDbRules } from "../src/lib/catalog/rq-db-rules.ts";
 import { buildRbDbRules } from "../src/lib/catalog/rb-db-rules.ts";
+import { buildKq2DbRules } from "../src/lib/catalog/kq2-db-rules.ts";
 
 const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   elektro: buildElektroDbRules,
@@ -82,6 +83,7 @@ const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   sv1000: buildSvDbRules,
   rq: buildRqDbRules,
   rb: buildRbDbRules,
+  kq2: buildKq2DbRules,
 };
 
 const namn = Deno.args[0] ?? "";
