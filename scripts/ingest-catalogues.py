@@ -207,7 +207,11 @@ MAP = {
     "smc-kat-ley.pdf": ("SMC", ["ley"]),
     "smc-kat-mb.pdf": ("SMC", ["mb"]),
     "smc-kat-mhc2.pdf": ("SMC", ["mhc2"]),
+    # smc-kat-mhz2.pdf är kompaktserien JMHZ2 (ø8–20, egen nyckel). Standard-
+    # seriens kapitel (MHZ2/MHZL2/MHZJ2/MHZA2, sida 469–549) hämtades 2026-09-16
+    # från seriesList/?id=MHZ_2-E.
     "smc-kat-mhz2.pdf": ("SMC", ["mhz2"]),
+    "smc-kat-mhz2-std.pdf": ("SMC", ["mhz2"]),
     "smc-kat-mxs.pdf": ("SMC", ["mxs"]),
     "smc-kat-rb.pdf": ("SMC", ["rbq", "rdqb"]),
     "smc-kat-sv1000.pdf": ("SMC", ["sv1000"]),
