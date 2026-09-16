@@ -46,6 +46,7 @@ import { buildMhc2DbRules } from "../src/lib/catalog/mhc2-db-rules.ts";
 import { buildMhz2DbRules } from "../src/lib/catalog/mhz2-db-rules.ts";
 import { buildVfDbRules } from "../src/lib/catalog/vf-db-rules.ts";
 import { buildVqDbRules } from "../src/lib/catalog/vq-db-rules.ts";
+import { buildSyDbRules } from "../src/lib/catalog/sy-db-rules.ts";
 
 const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   elektro: buildElektroDbRules,
@@ -74,6 +75,7 @@ const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   mhz2: buildMhz2DbRules,
   vf3000: buildVfDbRules,
   vq1000: buildVqDbRules,
+  sy3000: buildSyDbRules,
 };
 
 const namn = Deno.args[0] ?? "";
