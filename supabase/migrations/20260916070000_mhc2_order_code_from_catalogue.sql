@@ -1,0 +1,125 @@
+-- Speglar det som lades på databasen 2026-09-16 via apply_migration i två delar:
+--   mhc2_order_code_from_catalogue_part_01  (backup, schema, familj, parametrar, värdelista, rensning av regler)
+--   mhc2_order_code_from_catalogue_part_02  (regler 1–23, dokumentkarta, produktraden SMC-MHC2)
+-- Fingeravtryck efter körning, identiska med modellen (scripts/fingerprint-rules.ts mhc2):
+--   regler  23   md5 59e11265299a8362d0ba2d7423c8e3f5   villkor dad59db0f11ebfffdadee356b2d543b6
+--   värden  39   md5 72c19ddeb4b48f0343ada5a0fa458b9a
+--   schema       md5 b1638fbd84e80b0b74a786a00e5576ed
+-- Verifierat live: /sv/configurator/mhc2 bygger MHC2-20D-M9BW (nyckelns exempel sida 807),
+-- stoppar givare med -X50 (utan magnet) och varnar för kabellängd på beställning (○) och
+-- vattentät givare (∗∗) för D-M9BAV.
+--
+-- MHC2: beställnyckeln enligt SMC Angular Type Air Gripper MHC2 Series (sida 807–808).
+-- GENERERAD ur src/lib/catalog/mhc2.ts -- redigera inte för hand.
+--
+-- Rättar familjen mhc2, som hade mallen 'MHC2-{size}-{grip_type}{options}'
+-- med flerval och ett slag per käft som MHC2 inte har. SMC:s kod är
+-- MHC2-{ø}{verkan}-{givare}{kabel}{antal}-{special}, t.ex. MHC2-20D-M9BW
+-- (nyckelns exempel sida 807). Verkan, givare med kabellängd och antal och
+-- specialutförandena fanns inte alls.
+--
+-- SMC-MHC2 var beskriven som treffingrigt radialgripdon (det är MHS3);
+-- raden får katalogens namn, typ, tryck och data.
+
+begin;
+
+create schema if not exists backup;
+create table if not exists backup.mhc2_before_20260916 as
+  select 'param' as sort, p.id::text as id, p.param_key as k, p.label as v
+  from configurator_params p join configurator_families f on f.id = p.family_id
+  where f.slug = 'mhc2'
+  union all
+  select 'value', v.id::text, v.code, v.label
+  from configurator_param_values v
+  join configurator_params p on p.id = v.param_id
+  join configurator_families f on f.id = p.family_id
+  where f.slug = 'mhc2'
+  union all
+  select 'family', f.id::text, f.slug, coalesce(f.order_code_template, '')
+  from configurator_families f where f.slug = 'mhc2';
+
+insert into config_schemas (schema_id, schema_json, title_sv, title_en, category_slug)
+values ('SCHEMA-MHC2-V1', '{"version":"1.0","steps":[{"id":"bore","step":1,"title_sv":"Kolvdiameter","title_en":"Bore size","required":true,"type":"single_select","options":[{"v":"10","label":"ø10 mm"},{"v":"16","label":"ø16 mm"},{"v":"20","label":"ø20 mm"},{"v":"25","label":"ø25 mm"}]},{"id":"action","step":2,"title_sv":"Verkan","title_en":"Action","required":true,"type":"single_select","options":[{"v":"D","label":"Dubbelverkande"},{"v":"S","label":"Enkelverkande, normalt öppen (yttre grepp)"}]},{"id":"switch","step":3,"title_sv":"Magnetgivare (kroppen har inbyggd magnet)","title_en":"Auto switch (the body has a built-in magnet)","required":false,"type":"single_select","options":[{"v":"M9N","label":"D-M9N, 3-tråd NPN"},{"v":"M9NV","label":"D-M9NV, 3-tråd NPN, vinkelrät anslutning"},{"v":"M9P","label":"D-M9P, 3-tråd PNP"},{"v":"M9PV","label":"D-M9PV, 3-tråd PNP, vinkelrät anslutning"},{"v":"M9B","label":"D-M9B, 2-tråd"},{"v":"M9BV","label":"D-M9BV, 2-tråd, vinkelrät anslutning"},{"v":"M9NW","label":"D-M9NW, 3-tråd NPN, tvåfärgsindikering"},{"v":"M9NWV","label":"D-M9NWV, 3-tråd NPN, tvåfärgsindikering, vinkelrät anslutning"},{"v":"M9PW","label":"D-M9PW, 3-tråd PNP, tvåfärgsindikering"},{"v":"M9PWV","label":"D-M9PWV, 3-tråd PNP, tvåfärgsindikering, vinkelrät anslutning"},{"v":"M9BW","label":"D-M9BW, 2-tråd, tvåfärgsindikering"},{"v":"M9BWV","label":"D-M9BWV, 2-tråd, tvåfärgsindikering, vinkelrät anslutning"},{"v":"M9NA","label":"D-M9NA, 3-tråd NPN, vattentät, tvåfärgsindikering"},{"v":"M9NAV","label":"D-M9NAV, 3-tråd NPN, vattentät, tvåfärgsindikering, vinkelrät anslutning"},{"v":"M9PA","label":"D-M9PA, 3-tråd PNP, vattentät, tvåfärgsindikering"},{"v":"M9PAV","label":"D-M9PAV, 3-tråd PNP, vattentät, tvåfärgsindikering, vinkelrät anslutning"},{"v":"M9BA","label":"D-M9BA, 2-tråd, vattentät, tvåfärgsindikering"},{"v":"M9BAV","label":"D-M9BAV, 2-tråd, vattentät, tvåfärgsindikering, vinkelrät anslutning"}]},{"id":"lead","step":4,"title_sv":"Givarens kabellängd (standard 0,5 m)","title_en":"Lead wire length (0.5 m is standard)","required":false,"type":"single_select","options":[{"v":"M","label":"1 m kabel"},{"v":"L","label":"3 m kabel"},{"v":"Z","label":"5 m kabel"}]},{"id":"count","step":5,"title_sv":"Antal givare","title_en":"Number of auto switches","required":false,"type":"single_select","options":[{"v":"S","label":"En givare (standard är två)"}]},{"id":"mto","step":6,"title_sv":"Specialutförande","title_en":"Made to order","required":false,"type":"single_select","options":[{"v":"X4","label":"-X4 Värmebeständig (100 °C)"},{"v":"X5","label":"-X5 Fluorgummitätning"},{"v":"X50","label":"-X50 Utan magnet"},{"v":"X53","label":"-X53 EPDM-tätning och fluorfett"},{"v":"X56","label":"-X56 Axiella portar"},{"v":"X63","label":"-X63 Fluorfett"},{"v":"X64","label":"-X64 Finger med sidogängat fäste"},{"v":"X65","label":"-X65 Finger med genomgående fästhål"},{"v":"X79","label":"-X79 Fett för livsmedelsmaskiner och fluorfett"},{"v":"X79A","label":"-X79A Fett för livsmedelsmaskiner"},{"v":"X81A","label":"-X81A Korrosionsskyddade fingrar"}]}]}'::jsonb,
+        'SMC MHC2 vinkelgripdon ø10–25', 'SMC MHC2 angular gripper ø10–25', 'gripper')
+on conflict (schema_id) do update set
+  schema_json = excluded.schema_json,
+  title_sv = excluded.title_sv,
+  title_en = excluded.title_en;
+
+update configurator_families set
+  title = 'Vinkelgripdon ø10–25, två fingrar, dubbel- eller enkelverkande',
+  description = 'SMC MHC2 angular type air gripper, two fingers, opening/closing angle 30° to -10°, ø10/16/20/25, double or single acting, with solid state auto switches.',
+  stroke_min_mm = null,
+  stroke_max_mm = null,
+  order_code_template = 'MHC2-{bore}{action}-{switch}{lead}{count}-{mto}',
+  rules_schema_id = 'SCHEMA-MHC2-V1'
+where slug = 'mhc2';
+
+
+delete from configurator_param_values v using configurator_params p, configurator_families f
+  where v.param_id = p.id and p.family_id = f.id and f.slug = 'mhc2';
+delete from configurator_params p using configurator_families f
+  where p.family_id = f.id and f.slug = 'mhc2';
+
+insert into configurator_params (family_id, param_key, label, param_type, sort_order, required, min_value, max_value, show_code)
+select f.id, r.param_key, r.label, r.param_type, r.sort_order, r.required, r.min_value, r.max_value, true
+from configurator_families f,
+     jsonb_to_recordset('[{"param_key":"bore","label":"Kolvdiameter","param_type":"select","sort_order":1,"required":true,"min_value":null,"max_value":null},{"param_key":"action","label":"Verkan","param_type":"select","sort_order":2,"required":true,"min_value":null,"max_value":null},{"param_key":"switch","label":"Magnetgivare (kroppen har inbyggd magnet)","param_type":"select","sort_order":3,"required":false,"min_value":null,"max_value":null},{"param_key":"lead","label":"Givarens kabellängd (standard 0,5 m)","param_type":"select","sort_order":4,"required":false,"min_value":null,"max_value":null},{"param_key":"count","label":"Antal givare","param_type":"select","sort_order":5,"required":false,"min_value":null,"max_value":null},{"param_key":"mto","label":"Specialutförande","param_type":"select","sort_order":6,"required":false,"min_value":null,"max_value":null}]'::jsonb)
+       as r(param_key text, label text, param_type text, sort_order int, required boolean,
+            min_value numeric, max_value numeric)
+where f.slug = 'mhc2';
+
+insert into configurator_param_values (param_id, code, label, sort_order)
+select p.id, r.code, r.label, r.sort_order
+from jsonb_to_recordset('[{"param_key":"bore","code":"10","label":"ø10 mm","sort_order":0},{"param_key":"bore","code":"16","label":"ø16 mm","sort_order":1},{"param_key":"bore","code":"20","label":"ø20 mm","sort_order":2},{"param_key":"bore","code":"25","label":"ø25 mm","sort_order":3},{"param_key":"action","code":"D","label":"Dubbelverkande","sort_order":0},{"param_key":"action","code":"S","label":"Enkelverkande, normalt öppen (yttre grepp)","sort_order":1},{"param_key":"switch","code":"M9N","label":"D-M9N, 3-tråd NPN","sort_order":0},{"param_key":"switch","code":"M9NV","label":"D-M9NV, 3-tråd NPN, vinkelrät anslutning","sort_order":1},{"param_key":"switch","code":"M9P","label":"D-M9P, 3-tråd PNP","sort_order":2},{"param_key":"switch","code":"M9PV","label":"D-M9PV, 3-tråd PNP, vinkelrät anslutning","sort_order":3},{"param_key":"switch","code":"M9B","label":"D-M9B, 2-tråd","sort_order":4},{"param_key":"switch","code":"M9BV","label":"D-M9BV, 2-tråd, vinkelrät anslutning","sort_order":5},{"param_key":"switch","code":"M9NW","label":"D-M9NW, 3-tråd NPN, tvåfärgsindikering","sort_order":6},{"param_key":"switch","code":"M9NWV","label":"D-M9NWV, 3-tråd NPN, tvåfärgsindikering, vinkelrät anslutning","sort_order":7},{"param_key":"switch","code":"M9PW","label":"D-M9PW, 3-tråd PNP, tvåfärgsindikering","sort_order":8},{"param_key":"switch","code":"M9PWV","label":"D-M9PWV, 3-tråd PNP, tvåfärgsindikering, vinkelrät anslutning","sort_order":9},{"param_key":"switch","code":"M9BW","label":"D-M9BW, 2-tråd, tvåfärgsindikering","sort_order":10},{"param_key":"switch","code":"M9BWV","label":"D-M9BWV, 2-tråd, tvåfärgsindikering, vinkelrät anslutning","sort_order":11},{"param_key":"switch","code":"M9NA","label":"D-M9NA, 3-tråd NPN, vattentät, tvåfärgsindikering","sort_order":12},{"param_key":"switch","code":"M9NAV","label":"D-M9NAV, 3-tråd NPN, vattentät, tvåfärgsindikering, vinkelrät anslutning","sort_order":13},{"param_key":"switch","code":"M9PA","label":"D-M9PA, 3-tråd PNP, vattentät, tvåfärgsindikering","sort_order":14},{"param_key":"switch","code":"M9PAV","label":"D-M9PAV, 3-tråd PNP, vattentät, tvåfärgsindikering, vinkelrät anslutning","sort_order":15},{"param_key":"switch","code":"M9BA","label":"D-M9BA, 2-tråd, vattentät, tvåfärgsindikering","sort_order":16},{"param_key":"switch","code":"M9BAV","label":"D-M9BAV, 2-tråd, vattentät, tvåfärgsindikering, vinkelrät anslutning","sort_order":17},{"param_key":"lead","code":"M","label":"1 m kabel","sort_order":0},{"param_key":"lead","code":"L","label":"3 m kabel","sort_order":1},{"param_key":"lead","code":"Z","label":"5 m kabel","sort_order":2},{"param_key":"count","code":"S","label":"En givare (standard är två)","sort_order":0},{"param_key":"mto","code":"X4","label":"-X4 Värmebeständig (100 °C)","sort_order":0},{"param_key":"mto","code":"X5","label":"-X5 Fluorgummitätning","sort_order":1},{"param_key":"mto","code":"X50","label":"-X50 Utan magnet","sort_order":2},{"param_key":"mto","code":"X53","label":"-X53 EPDM-tätning och fluorfett","sort_order":3},{"param_key":"mto","code":"X56","label":"-X56 Axiella portar","sort_order":4},{"param_key":"mto","code":"X63","label":"-X63 Fluorfett","sort_order":5},{"param_key":"mto","code":"X64","label":"-X64 Finger med sidogängat fäste","sort_order":6},{"param_key":"mto","code":"X65","label":"-X65 Finger med genomgående fästhål","sort_order":7},{"param_key":"mto","code":"X79","label":"-X79 Fett för livsmedelsmaskiner och fluorfett","sort_order":8},{"param_key":"mto","code":"X79A","label":"-X79A Fett för livsmedelsmaskiner","sort_order":9},{"param_key":"mto","code":"X81A","label":"-X81A Korrosionsskyddade fingrar","sort_order":10}]'::jsonb)
+       as r(param_key text, code text, label text, sort_order int)
+join configurator_params p on p.param_key = r.param_key
+join configurator_families f on f.id = p.family_id and f.slug = 'mhc2';
+
+delete from config_rules where schema_id = 'SCHEMA-MHC2-V1';
+
+
+insert into config_rules (schema_id, severity, if_json, message_sv, message_en, goto_step)
+select 'SCHEMA-MHC2-V1', r->>'severity', r->'if_json',
+       r->>'message_sv', r->>'message_en', r->>'goto_step'
+from jsonb_array_elements('[{"severity":"error","if_json":{"and":[{"!=":[{"var":"switch"},""]},{"in":[{"var":"mto"},["X50"]]}]},"message_sv":"Utan magnet (-X50) kan ingen givare monteras — standardutförandet har inbyggd magnet (sida 807–808).","message_en":"Without the magnet (-X50) no auto switch can be mounted — the standard version has a built-in magnet (pages 807–808).","goto_step":"mhc2-mto"},{"severity":"error","if_json":{"and":[{"==":[{"var":"switch"},""]},{"or":[{"!=":[{"var":"lead"},""]},{"!=":[{"var":"count"},""]}]}]},"message_sv":"Kabellängd och antal hör till givaren — välj en givare först.","message_en":"Lead wire length and quantity belong to the auto switch — choose a switch first.","goto_step":"mhc2-switch"},{"severity":"warn","if_json":{"and":[{"==":[{"var":"lead"},""]},{"in":[{"var":"switch"},["M9NA","M9NAV","M9PA","M9PAV","M9BA","M9BAV"]]}]},"message_sv":"Kabellängd 0,5 m (ingen bokstav) tillverkas på beställning för D-M9NA/M9PA/M9BA (även V-typerna) (sida 807, ○).","message_en":"Lead wire length 0.5 m (no letter) is produced upon receipt of order for D-M9NA/M9PA/M9BA (V types too) (page 807, ○).","goto_step":"mhc2-lead"},{"severity":"warn","if_json":{"and":[{"==":[{"var":"lead"},"M"]},{"in":[{"var":"switch"},["M9NA","M9NAV","M9PA","M9PAV","M9BA","M9BAV"]]}]},"message_sv":"Kabellängd 1 m (M) tillverkas på beställning för D-M9NA/M9PA/M9BA (även V-typerna) (sida 807, ○).","message_en":"Lead wire length 1 m (M) is produced upon receipt of order for D-M9NA/M9PA/M9BA (V types too) (page 807, ○).","goto_step":"mhc2-lead"},{"severity":"warn","if_json":{"and":[{"==":[{"var":"lead"},"Z"]},{"in":[{"var":"switch"},["M9N","M9NV","M9P","M9PV","M9B","M9BV","M9NW","M9NWV","M9PW","M9PWV","M9BW","M9BWV","M9NA","M9NAV","M9PA","M9PAV","M9BA","M9BAV"]]}]},"message_sv":"Kabellängd 5 m (Z) tillverkas på beställning för alla givarna (sida 807, ○).","message_en":"Lead wire length 5 m (Z) is produced upon receipt of order for all the switches (page 807, ○).","goto_step":"mhc2-lead"},{"severity":"warn","if_json":{"in":[{"var":"switch"},["M9NA","M9NAV","M9PA","M9PAV","M9BA","M9BAV"]]},"message_sv":"De vattentäta givarna D-M9NA/M9PA/M9BA går att montera, men SMC garanterar inte vattentätheten på MHC2 (sida 807, ∗∗).","message_en":"The water-resistant switches D-M9NA/M9PA/M9BA can be mounted, but SMC cannot guarantee water resistance on the MHC2 (page 807, ∗∗).","goto_step":"mhc2-switch"},{"severity":"info","if_json":{"in":[{"var":"switch"},["M9NW","M9NWV","M9PW","M9PWV","M9BW","M9BWV","M9NA","M9NAV","M9PA","M9PAV","M9BA","M9BAV"]]},"message_sv":"Tvåfärgsindikering: ställ in givaren så att den lyser rött i det läge som ska detekteras (sida 807, not 1).","message_en":"Two-colour indicator: set the switch so that the indicator is lit red at the position to be detected (page 807, note 1).","goto_step":"mhc2-switch"},{"severity":"info","if_json":{"!=":[{"var":"switch"},""]},"message_sv":"Givarfästet BMG2-012 medföljer när gripdonet beställs med givare; beställs givaren separat behövs fästet också (sida 807, not 2). Med givare går kroppen inte att montera genom hålen, bara i gängorna (sida 811–812, 815). Två givare kan kombineras för två av lägena öppet/grepp/stängt (sida 813).","message_en":"The mounting bracket BMG2-012 is supplied when the gripper is ordered with auto switches; a separately ordered switch needs it too (page 807, note 2). With auto switches the body cannot be mounted through the holes, only in the tapped holes (pages 811–812, 815). Two switches can be combined for two of the positions open/gripping/closed (page 813).","goto_step":"mhc2-switch"},{"severity":"info","if_json":{"and":[{"!=":[{"var":"switch"},""]},{"==":[{"var":"bore"},"10"]}]},"message_sv":"ø10 med givare: hysteres högst 4° mellan till- och frånslag; justera läget efter provkörning (sida 814).","message_en":"ø10 with auto switch: hysteresis at most 4° between switch-on and switch-off; adjust the position after a trial run (page 814).","goto_step":"mhc2-switch"},{"severity":"info","if_json":{"and":[{"!=":[{"var":"switch"},""]},{"==":[{"var":"bore"},"16"]}]},"message_sv":"ø16 med givare: hysteres högst 3° mellan till- och frånslag; justera läget efter provkörning (sida 814).","message_en":"ø16 with auto switch: hysteresis at most 3° between switch-on and switch-off; adjust the position after a trial run (page 814).","goto_step":"mhc2-switch"},{"severity":"info","if_json":{"and":[{"!=":[{"var":"switch"},""]},{"==":[{"var":"bore"},"20"]}]},"message_sv":"ø20 med givare: hysteres högst 2° mellan till- och frånslag; justera läget efter provkörning (sida 814).","message_en":"ø20 with auto switch: hysteresis at most 2° between switch-on and switch-off; adjust the position after a trial run (page 814).","goto_step":"mhc2-switch"},{"severity":"info","if_json":{"and":[{"!=":[{"var":"switch"},""]},{"==":[{"var":"bore"},"25"]}]},"message_sv":"ø25 med givare: hysteres högst 2° mellan till- och frånslag; justera läget efter provkörning (sida 814).","message_en":"ø25 with auto switch: hysteresis at most 2° between switch-on and switch-off; adjust the position after a trial run (page 814).","goto_step":"mhc2-switch"},{"severity":"info","if_json":{"and":[{"==":[{"var":"bore"},"10"]},{"==":[{"var":"action"},"D"]}]},"message_sv":"MHC2-10D: gripmoment 0,1 N·m (effektivt, 0,5 MPa), öppningsvinkel 30° till -10°, vikt 39 g utan givare; port M3 x 0.5, fingerfäste 4 × M2.5 x 0.45, kroppens fästgänga M3 x 0.5 (sida 808, 811–812).","message_en":"MHC2-10D: gripping moment 0.1 N·m (effective, 0.5 MPa), opening/closing angle 30° to -10°, weight 39 g without switch; port M3 x 0.5, attachment thread 4 × M2.5 x 0.45, body mounting thread M3 x 0.5 (pages 808, 811–812).","goto_step":"mhc2-bore"},{"severity":"info","if_json":{"and":[{"==":[{"var":"bore"},"10"]},{"==":[{"var":"action"},"S"]}]},"message_sv":"MHC2-10S: gripmoment 0,07 N·m (effektivt, 0,5 MPa), öppningsvinkel 30° till -10°, vikt 39 g utan givare; port M3 x 0.5, fingerfäste 4 × M2.5 x 0.45, kroppens fästgänga M3 x 0.5 (sida 808, 811–812).","message_en":"MHC2-10S: gripping moment 0.07 N·m (effective, 0.5 MPa), opening/closing angle 30° to -10°, weight 39 g without switch; port M3 x 0.5, attachment thread 4 × M2.5 x 0.45, body mounting thread M3 x 0.5 (pages 808, 811–812).","goto_step":"mhc2-bore"},{"severity":"info","if_json":{"and":[{"==":[{"var":"bore"},"16"]},{"==":[{"var":"action"},"D"]}]},"message_sv":"MHC2-16D: gripmoment 0,39 N·m (effektivt, 0,5 MPa), öppningsvinkel 30° till -10°, vikt 91 g utan givare; port M5 x 0.8, fingerfäste 4 × M3 x 0.5, kroppens fästgänga M4 x 0.7 (sida 808, 811–812).","message_en":"MHC2-16D: gripping moment 0.39 N·m (effective, 0.5 MPa), opening/closing angle 30° to -10°, weight 91 g without switch; port M5 x 0.8, attachment thread 4 × M3 x 0.5, body mounting thread M4 x 0.7 (pages 808, 811–812).","goto_step":"mhc2-bore"},{"severity":"info","if_json":{"and":[{"==":[{"var":"bore"},"16"]},{"==":[{"var":"action"},"S"]}]},"message_sv":"MHC2-16S: gripmoment 0,31 N·m (effektivt, 0,5 MPa), öppningsvinkel 30° till -10°, vikt 92 g utan givare; port M5 x 0.8, fingerfäste 4 × M3 x 0.5, kroppens fästgänga M4 x 0.7 (sida 808, 811–812).","message_en":"MHC2-16S: gripping moment 0.31 N·m (effective, 0.5 MPa), opening/closing angle 30° to -10°, weight 92 g without switch; port M5 x 0.8, attachment thread 4 × M3 x 0.5, body mounting thread M4 x 0.7 (pages 808, 811–812).","goto_step":"mhc2-bore"},{"severity":"info","if_json":{"and":[{"==":[{"var":"bore"},"20"]},{"==":[{"var":"action"},"D"]}]},"message_sv":"MHC2-20D: gripmoment 0,7 N·m (effektivt, 0,5 MPa), öppningsvinkel 30° till -10°, vikt 180 g utan givare; port M5 x 0.8, fingerfäste 4 × M4 x 0.7, kroppens fästgänga M5 x 0.8 (sida 808, 811–812).","message_en":"MHC2-20D: gripping moment 0.7 N·m (effective, 0.5 MPa), opening/closing angle 30° to -10°, weight 180 g without switch; port M5 x 0.8, attachment thread 4 × M4 x 0.7, body mounting thread M5 x 0.8 (pages 808, 811–812).","goto_step":"mhc2-bore"},{"severity":"info","if_json":{"and":[{"==":[{"var":"bore"},"20"]},{"==":[{"var":"action"},"S"]}]},"message_sv":"MHC2-20S: gripmoment 0,54 N·m (effektivt, 0,5 MPa), öppningsvinkel 30° till -10°, vikt 183 g utan givare; port M5 x 0.8, fingerfäste 4 × M4 x 0.7, kroppens fästgänga M5 x 0.8 (sida 808, 811–812).","message_en":"MHC2-20S: gripping moment 0.54 N·m (effective, 0.5 MPa), opening/closing angle 30° to -10°, weight 183 g without switch; port M5 x 0.8, attachment thread 4 × M4 x 0.7, body mounting thread M5 x 0.8 (pages 808, 811–812).","goto_step":"mhc2-bore"},{"severity":"info","if_json":{"and":[{"==":[{"var":"bore"},"25"]},{"==":[{"var":"action"},"D"]}]},"message_sv":"MHC2-25D: gripmoment 1,36 N·m (effektivt, 0,5 MPa), öppningsvinkel 30° till -10°, vikt 311 g utan givare; port M5 x 0.8, fingerfäste 4 × M5 x 0.8, kroppens fästgänga M6 x 1 (sida 808, 811–812).","message_en":"MHC2-25D: gripping moment 1.36 N·m (effective, 0.5 MPa), opening/closing angle 30° to -10°, weight 311 g without switch; port M5 x 0.8, attachment thread 4 × M5 x 0.8, body mounting thread M6 x 1 (pages 808, 811–812).","goto_step":"mhc2-bore"},{"severity":"info","if_json":{"and":[{"==":[{"var":"bore"},"25"]},{"==":[{"var":"action"},"S"]}]},"message_sv":"MHC2-25S: gripmoment 1,08 N·m (effektivt, 0,5 MPa), öppningsvinkel 30° till -10°, vikt 316 g utan givare; port M5 x 0.8, fingerfäste 4 × M5 x 0.8, kroppens fästgänga M6 x 1 (sida 808, 811–812).","message_en":"MHC2-25S: gripping moment 1.08 N·m (effective, 0.5 MPa), opening/closing angle 30° to -10°, weight 316 g without switch; port M5 x 0.8, attachment thread 4 × M5 x 0.8, body mounting thread M6 x 1 (pages 808, 811–812).","goto_step":"mhc2-bore"}]'::jsonb) r;
+
+insert into config_rules (schema_id, severity, if_json, message_sv, message_en, goto_step)
+select 'SCHEMA-MHC2-V1', r->>'severity', r->'if_json',
+       r->>'message_sv', r->>'message_en', r->>'goto_step'
+from jsonb_array_elements('[{"severity":"info","if_json":{"==":[{"var":"action"},"D"]},"message_sv":"Dubbelverkande: 0,1–0,6 MPa, dubbel kolv för stor gripkraft, inbyggd justerbar strypning för fingerhastigheten (sida 808, 811).","message_en":"Double acting: 0.1–0.6 MPa, double piston for a large gripping force, built-in adjustable throttle for the finger speed (pages 808, 811).","goto_step":"mhc2-action"},{"severity":"info","if_json":{"==":[{"var":"action"},"S"]},"message_sv":"Enkelverkande: normalt öppen (yttre grepp), 0,25–0,6 MPa; ena porten är avluftning och ingen strypskruv för fingerhastigheten medföljer (sida 808, 811–812).","message_en":"Single acting: normally open (external grip), 0.25–0.6 MPa; one port is a breathing port and no finger-speed adjusting needle is attached (pages 808, 811–812).","goto_step":"mhc2-action"},{"severity":"info","if_json":{"!=":[{"var":"bore"},""]},"message_sv":"MHC2: repeternoggrannhet ±0,01 mm, högst 180 cykler/min, -10…60 °C, smörjfri. Håll gripunkten inom diagrammets område och välj ett gripdon med 10–20 gånger arbetsstyckets massa i gripkraft, mer vid acceleration eller stötar (sida 808–809). Fingrarna är martensitiskt rostfritt stål och kan rosta vid kondens; -X81A ger korrosionsskydd (sida 808, 815).","message_en":"MHC2: repeatability ±0.01 mm, max 180 cycles/min, -10…60 °C, no lubrication. Keep the gripping point within the graph range and choose a gripper with 10–20 times the workpiece mass in gripping force, more with acceleration or impacts (pages 808–809). The fingers are martensitic stainless steel and may rust with condensation; -X81A adds corrosion protection (pages 808, 815).","goto_step":"mhc2-bore"}]'::jsonb) r;
+
+insert into knowledge_doc_families (source_file, family_slug, doc_title)
+values ('smc-kat-mhc2.pdf', 'mhc2', 'SMC — SMC Angular Type Air Gripper MHC2 Series')
+on conflict (source_file, family_slug) do update set doc_title = excluded.doc_title;
+
+
+update products set
+  name = 'MHC2 – Angular Gripper ø10–25',
+  description = 'Angular type air gripper, two fingers, opening/closing angle 30° to -10°, ø10/16/20/25, double or single acting, gripping moment 0.10–1.36 N·m, ±0.01 mm repeatability, solid state auto switches. The 3-finger radial gripper is the MHS3, a separate key.'
+where sku = 'SMC-MHC2';
+
+update product_specs s set value = '2-finger angular gripper, 30° to -10°'
+from products p where s.product_id = p.id and p.sku = 'SMC-MHC2' and s.key = 'type';
+
+update product_specs s set value = '6'
+from products p where s.product_id = p.id and p.sku = 'SMC-MHC2' and s.key = 'max_pressure';
+
+insert into product_specs (product_id, key, value)
+select p.id, x.key, x.value
+from products p
+cross join lateral (values
+  ('bore_mm', '10, 16, 20, 25'),
+  ('min_pressure_mpa', '0.1 (enkelverkande 0.25)'),
+  ('gripping_moment_nm', '0.10/0.39/0.70/1.36 dubbelverkande, 0.070/0.31/0.54/1.08 enkelverkande (0.5 MPa)'),
+  ('repeatability_mm', '0.01'),
+  ('material', 'Kropp aluminiumlegering (hårdanodiserad), fingrar martensitiskt rostfritt stål'),
+  ('order_code_example', 'MHC2-20D-M9BW'),
+  ('catalogue', 'SMC MHC2, How to Order sida 807, data och specialutförande sida 808')
+) as x(key, value)
+where p.sku = 'SMC-MHC2'
+  and not exists (select 1 from product_specs y where y.product_id = p.id and y.key = x.key);
+
+
+commit;
+

@@ -42,6 +42,7 @@ import { buildEx500DbRules } from "../src/lib/catalog/ex500-db-rules.ts";
 import { buildLeshDbRules } from "../src/lib/catalog/lesh-db-rules.ts";
 import { buildLeyDbRules } from "../src/lib/catalog/ley-db-rules.ts";
 import { buildMbDbRules } from "../src/lib/catalog/mb-db-rules.ts";
+import { buildMhc2DbRules } from "../src/lib/catalog/mhc2-db-rules.ts";
 
 const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   elektro: buildElektroDbRules,
@@ -66,6 +67,7 @@ const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   lesh: buildLeshDbRules,
   ley: buildLeyDbRules,
   mb: buildMbDbRules,
+  mhc2: buildMhc2DbRules,
 };
 
 const namn = Deno.args[0] ?? "";
