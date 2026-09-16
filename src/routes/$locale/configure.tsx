@@ -34,6 +34,36 @@ const CATEGORY_META: Record<string, { label: string; icon: string; color: string
     icon: "🔧",
     color: "bg-green-50 border-green-200 text-green-800",
   },
+  "valve-terminal": {
+    label: "Ventilterminaler",
+    icon: "▦",
+    color: "bg-green-50 border-green-200 text-green-800",
+  },
+  "electric-actuator": {
+    label: "Elektriska ställdon",
+    icon: "⚡",
+    color: "bg-amber-50 border-amber-200 text-amber-800",
+  },
+  gripper: {
+    label: "Gripdon",
+    icon: "🤏",
+    color: "bg-teal-50 border-teal-200 text-teal-800",
+  },
+  "rotary-actuator": {
+    label: "Vridenheter",
+    icon: "🔄",
+    color: "bg-teal-50 border-teal-200 text-teal-800",
+  },
+  vacuum: {
+    label: "Vakuum",
+    icon: "🌀",
+    color: "bg-cyan-50 border-cyan-200 text-cyan-800",
+  },
+  "shock-absorber": {
+    label: "Stötdämpare",
+    icon: "🛡️",
+    color: "bg-orange-50 border-orange-200 text-orange-800",
+  },
 };
 
 function ConfigureIndexPage() {

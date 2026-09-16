@@ -89,6 +89,7 @@ const CAT_NOUN: Record<string, { sv: string; en: string; ett?: boolean }> = {
   "rotary-actuator": { sv: "vriddon", en: "rotary actuator", ett: true },
   "valve-terminal": { sv: "ventilterminal", en: "valve terminal" },
   vacuum: { sv: "vakuumkomponent", en: "vacuum component" },
+  "shock-absorber": { sv: "stötdämpare", en: "shock absorber" },
 };
 
 function catNoun(slug: string | null | undefined, locale: string): string {
@@ -370,6 +371,7 @@ function ConfiguratorPage() {
     valve: "Ventiler",
     "valve-terminal": "Ventilterminaler",
     vacuum: "Vakuum",
+    "shock-absorber": "Stötdämpare",
   };
 
   return (
