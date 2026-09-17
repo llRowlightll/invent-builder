@@ -210,7 +210,7 @@ MAP = {
     # smc-kat-mhz2.pdf är kompaktserien JMHZ2 (ø8–20, egen nyckel). Standard-
     # seriens kapitel (MHZ2/MHZL2/MHZJ2/MHZA2, sida 469–549) hämtades 2026-09-16
     # från seriesList/?id=MHZ_2-E.
-    "smc-kat-mhz2.pdf": ("SMC", ["mhz2"]),
+    "smc-kat-mhz2.pdf": ("SMC", ["jmhz2"]),
     "smc-kat-mhz2-std.pdf": ("SMC", ["mhz2"]),
     "smc-kat-mxs.pdf": ("SMC", ["mxs"]),
     # smc-kat-rb.pdf är stötdämparna RB/RBL/RBQ (sida 1299–1310), inte
