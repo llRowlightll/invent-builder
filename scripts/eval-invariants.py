@@ -33,9 +33,11 @@ KEY = os.environ.get("ADVISOR_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3
 REST = "https://buqfbcztspswezwyafxo.supabase.co/rest/v1"
 PRESSURE_BAR = 6.0
 
-ELECTRIC_SKU = re.compile(r"^(6E-|FESTO-EG|FESTO-EP|FESTO-DNCE|FESTO-ELG|SMC-LE|SMC-MXS|MW-ELK|PARKER-ETH|PARKER-OSPE)", re.I)
-# Electric actuator SKU prefixes that must NOT appear in an ATEX result:
-ELECTRIC_ATEX_BAN = re.compile(r"^(6E-|FESTO-EG|FESTO-EP|FESTO-DNCE|FESTO-ELG|SMC-LE|SMC-LEY|SMC-LESH|MW-ELK|PARKER-ETH|PARKER-OSPE|EGC|LEFS|LESH)", re.I)
+ELECTRIC_SKU = re.compile(r"^(6E[0-9-]|FESTO-EG|FESTO-EP|FESTO-DNCE|FESTO-ELG|SMC-LE|SMC-MXS|MW-ELK|PARKER-ETH|PARKER-OSPE)", re.I)
+# Electric actuator SKU prefixes that must NOT appear in an ATEX result.
+# Camozzi Serie 6E: the real codes are 6E040BS0150P05AP (PR #218) -- the old
+# fabricated "6E-025-0100-24" form is discontinued. Match both.
+ELECTRIC_ATEX_BAN = re.compile(r"^(6E[0-9-]|FESTO-EG|FESTO-EP|FESTO-DNCE|FESTO-ELG|SMC-LE|SMC-LEY|SMC-LESH|MW-ELK|PARKER-ETH|PARKER-OSPE|EGC|LEFS|LESH)", re.I)
 
 # Categories whose products may be the PRIMARY recommendation (they produce the
 # motion). Anything else as 'Bästa valet' for a linear request is a category error.
