@@ -188,6 +188,10 @@ MAP = {
     # Driftmanualerna ovan står kvar -- de har mått och underhåll som
     # katalogen inte upprepar.
     "smc-kat-c85.pdf": ("SMC", ["c85"]),
+    # smc-kat-cj1.pdf är stiftcylindern CJ1 (ø2.5/ø4, katalogsida 15–19), hämtad
+    # 2026-09-21 från content2.smcetech.com/pdf/cj1.pdf. Familjen cj1 hade en
+    # påhittad mall med ø4/ø6 -- CJ1 finns inte i ø6 (det är CJ2/CJP).
+    "smc-kat-cj1.pdf": ("SMC", ["cj1"]),
     "smc-kat-cj2.pdf": ("SMC", ["cj2"]),
     "smc-kat-cjp.pdf": ("SMC", ["cjp"]),
     "smc-kat-cm2.pdf": ("SMC", ["cm2"]),
@@ -219,7 +223,13 @@ MAP = {
     "smc-kat-rb.pdf": ("SMC", ["rb"]),
     "smc-kat-rq.pdf": ("SMC", ["rq"]),
     "smc-kat-sv1000.pdf": ("SMC", ["sv1000"]),
-    "smc-kat-sy3000.pdf": ("SMC", ["sy3000", "sy"]),
+    # smc-kat-sy3000.pdf är den ÄLDRE SY3000/5000/7000/9000-serien (enkelventil
+    # + ramper typ 20/23/41/42/SA). smc-kat-sy-new.pdf är dagens SY3000/5000/7000
+    # (katalogsida 387–720, SMC:s "SY.New", hämtad 2026-09-21 från
+    # content2.smcetech.com/pdf/SY.New.pdf) med plug-in-ramperna typ 10/11/12
+    # och fältbussenheten EX600 -- det familjen sy (ventilrampen) bygger på.
+    "smc-kat-sy3000.pdf": ("SMC", ["sy3000"]),
+    "smc-kat-sy-new.pdf": ("SMC", ["sy", "sy-plugin"]),
     "smc-kat-vf3000.pdf": ("SMC", ["vf3000"]),
     "smc-kat-vq1000.pdf": ("SMC", ["vq1000", "vq"]),
     "smc-kat-zh.pdf": ("SMC", ["zh"]),
