@@ -21,7 +21,9 @@
  *   R-plantätning, tum-Uni; sida 29–56, 73–86, 95–100, 133–164, 185–200,
  *   209–216) följer samma nyckel men är inte med. Inte heller Clean-serien
  *   (prefix 10-), specialutföranden (-X…), skottgenomföringens KJE-utbytbara
- *   variant (…J) eller pluggen KQ2P-□□ (egen kodform).
+ *   variant (…J), Q-utförandet KQ2□08-01□Q□ (ø8/R1/8 med KQ-seriens
+ *   effektiva area, ∗2 "contact SMC for availability", sida 131) eller
+ *   pluggen KQ2P-□□ (egen kodform).
  *
  * KODENS FORM (sida 6 och 102):
  *
