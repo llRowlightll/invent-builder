@@ -52,6 +52,10 @@ import { buildRqDbRules } from "../src/lib/catalog/rq-db-rules.ts";
 import { buildRbDbRules } from "../src/lib/catalog/rb-db-rules.ts";
 import { buildKq2DbRules } from "../src/lib/catalog/kq2-db-rules.ts";
 import { buildJmhz2DbRules } from "../src/lib/catalog/jmhz2-db-rules.ts";
+import { buildCj1DbRules } from "../src/lib/catalog/cj1-db-rules.ts";
+import { buildSyManifoldDbRules } from "../src/lib/catalog/sy-manifold-db-rules.ts";
+import { buildSyPluginDbRules } from "../src/lib/catalog/sy-plugin-db-rules.ts";
+import { buildVqManifoldDbRules } from "../src/lib/catalog/vq-manifold-db-rules.ts";
 
 const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   elektro: buildElektroDbRules,
@@ -86,6 +90,10 @@ const BYGGARE: Record<string, () => Array<Record<string, unknown>>> = {
   rb: buildRbDbRules,
   kq2: buildKq2DbRules,
   jmhz2: buildJmhz2DbRules,
+  cj1: buildCj1DbRules,
+  sy: buildSyManifoldDbRules,
+  "sy-plugin": buildSyPluginDbRules,
+  vq: buildVqManifoldDbRules,
 };
 
 const namn = Deno.args[0] ?? "";
