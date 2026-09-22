@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { makeT, type Locale } from "@/lib/i18n";
 import { validate, type ConfigRule } from "@/lib/configurator-engine";
-import { fillOrderCodeTemplate, stripLeadingCode } from "@/lib/catalog/order-code-template";
+import { fillOrderCodeTemplate, isNoCode, stripLeadingCode } from "@/lib/catalog/order-code-template";
 import { variantOf } from "@/lib/catalog/dsbc";
 // configurator_params.label och .value-label är EN kolumn, skriven på
 // engelska. 154 av 156 familjer visade därför "Bore diameter (mm)" och
@@ -502,7 +502,9 @@ function ConfiguratorPage() {
                             : "bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50"
                         }`}
                       >
-                        {param.show_code !== false && (
+                        {/* Bortvalet har ingen kod att visa -- "none" är en
+                            sentinel, inte något kunden skriver i beställningen. */}
+                        {param.show_code !== false && !isNoCode(val.code) && (
                           <span className="block font-semibold">{val.code}</span>
                         )}
                         <span
