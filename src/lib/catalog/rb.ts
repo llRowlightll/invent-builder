@@ -98,6 +98,19 @@ export interface RBModel {
   /** Reservdelskåpa/-buffert, stoppmutter (bastyp), fotfäste (sida 1302, 1307, 1311). */
   cap_part: string | null;
   stopper_part: string | null;
+  /**
+   * Fotfäste RB□□-X331. Finns för RB (sida 1302) och RBL (sida 1308, samma
+   * RB-nummer) men INTE för RBQ -- null på alla fem RBQ-storlekar är rätt,
+   * inte en lucka.
+   *
+   * Kontrollerat 2026-09-22 mot "Series Variations" på sida 1295, som är den
+   * enda sammanställningen: RBQ-raden har prick i tre kolumner (kåpa/buffert,
+   * sexkantsmutter, stoppmutter) och ingen i "Foot bracket". Pricken är en
+   * glyf som textlagret tappar, så tabellen måste LÄSAS SOM BILD
+   * (pdftoppm -png -r 300 -f 1 -l 1 ...) -- det var därför den här punkten
+   * länge stod som "artikelnummer saknas i textlagret". Ingen RBQ-sida i
+   * kapitlet nämner heller ordet foot eller bracket.
+   */
   foot_part: string | null;
 }
 const m = (series: string, size: string, thread: string, stroke: number, energy: number, freq: number, thrust: number, ext: number, ret: number, w: number, wc: number | null, parts: [string | null, string | null, string | null]): RBModel => ({
