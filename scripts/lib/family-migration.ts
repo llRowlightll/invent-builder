@@ -54,6 +54,8 @@ export interface FamilyMigration {
    * som inte finns än (insert av raden) eller som ersätter en felnamngiven.
    */
   preamble?: string;
+  /** Regler per insert-sats (standard 20); mindre när meddelandena är långa (KQ2:s portlistor). */
+  rulesPerBatch?: number;
 }
 
 export function familyMigrationSql(m: FamilyMigration): string {
@@ -134,12 +136,13 @@ join configurator_families f on f.id = p.family_id and f.slug = ${q(m.slug)};
 delete from config_rules where schema_id = ${q(m.schemaId)};
 `);
 
-  for (let i = 0; i < m.rules.length; i += 20) {
+  const batch = m.rulesPerBatch ?? 20;
+  for (let i = 0; i < m.rules.length; i += batch) {
     out.push(`
 insert into config_rules (schema_id, severity, if_json, message_sv, message_en, goto_step)
 select ${q(m.schemaId)}, r->>'severity', r->'if_json',
        r->>'message_sv', r->>'message_en', r->>'goto_step'
-from jsonb_array_elements(${q(JSON.stringify(m.rules.slice(i, i + 20)))}::jsonb) r;`);
+from jsonb_array_elements(${q(JSON.stringify(m.rules.slice(i, i + batch)))}::jsonb) r;`);
   }
 
   out.push(`
