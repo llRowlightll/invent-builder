@@ -15,9 +15,36 @@ jobs:
   # ── 1. BOM regression suite (29 tests) ─────────────────────────────────────
   regression:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    # 12 räckte för sviten ensam; väntan på edge-deploy nedan kan ta upp till
+    # sex minuter till (deno-testerna körs före deployen där).
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+
+      - name: Wait for this commit's edge function to be deployed
+        # Båda flödena startar på samma push. När pushen ändrar funktionen OCH
+        # sviten körde den här sviten mot den GAMLA funktionen: 2026-09-22 föll
+        # T42/T43 rött här klockan 07:20, en minut innan edge-deploy.yml hade
+        # lagt ut funktionen de var skrivna för. Vänta tills edge-deploys
+        # deploysteg för samma SHA är klart, om det finns ett sådant flöde.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 30); do
+            run_id=$(gh run list --workflow edge-deploy.yml --commit "$GITHUB_SHA" --json databaseId --jq '.[0].databaseId // empty')
+            if [[ -z "$run_id" ]]; then
+              # Flödet registreras några sekunder efter pushen; ge det tre chanser.
+              if [[ $i -ge 3 ]]; then echo "inget edge-deploy för $GITHUB_SHA -- funktionen ändrades inte"; break; fi
+              sleep 10; continue
+            fi
+            st=$(gh run view "$run_id" --json jobs --jq '[.jobs[].steps[] | select(.name == "Deploy groq-advisor to Supabase")][0] | (.conclusion // .status // "pending")')
+            case "$st" in
+              success) echo "edge-deploy $run_id: funktionen är utlagd"; break;;
+              failure|cancelled|skipped) echo "edge-deploy $run_id: deploysteget gav $st -- sviten körs mot funktionen som ligger ute"; break;;
+              *) echo "väntar på edge-deploy $run_id ($st)…"; sleep 20;;
+            esac
+          done
+
       - name: Run BOM regression suite (29 tests)
         run: |
           chmod +x scripts/test-advisor.sh
