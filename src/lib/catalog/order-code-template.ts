@@ -11,6 +11,29 @@
  */
 
 /**
+ * Sentinelkoden för "den här positionen väljs bort".
+ *
+ * 41 familjer har ett värde med koden "none" och etiketten "Without
+ * sensing"/"Without magnet" -- alla på parametern `sensing`, alla valfria.
+ * Motorn tömde bara TOMMA värden, så "none" är en icke-tom sträng som gick
+ * rakt in i koden: ett klick på "Utan lägesavkänning" gav
+ * DSNU-25-100-PPVnone. Verifierat live på maskinval.se 2026-09-22, alltså
+ * inte en teoretisk risk utan en kod ingen kan beställa.
+ *
+ * Att i stället tömma koden i databasen vore renare i teorin, men ett värde
+ * med tom kod går inte att MARKERA i konfiguratorn (selections[key] === ""
+ * är samma sak som ovalt), så knappen skulle se oklickad ut efter klicket.
+ * Sentinelen får därför finnas kvar i datan och hanteras här -- ingen
+ * beställnyckel i katalogerna har "none" som kodvärde, så den kan inte
+ * krocka med en riktig position.
+ */
+export const NO_CODE = "none";
+
+export function isNoCode(code: string | null | undefined): boolean {
+  return (code ?? "").trim().toLowerCase() === NO_CODE;
+}
+
+/**
  * Sätter in valen i mallen.
  *
  * `{key}` sätter in värdet rakt av. `{key:SUFFIX}` lägger till suffixet bara
@@ -34,7 +57,8 @@ export function fillOrderCodeTemplate(
     code = code.replace(
       new RegExp(`\\{${key}(?::([A-Z]+))?(?:#(\\d))?\\}`, "g"),
       (_m, suffix: string | undefined, pad: string | undefined) => {
-        if (!v) return "";
+        // Tom ELLER bortvald position försvinner, tillsammans med sitt suffix.
+        if (!v || isNoCode(v)) return "";
         // {key#3} nollutfyller till tre tecken. Parkers P1D-koder är
         // POSITIONELLA: "P1D-S050MS-0200" finns, "P1D-S50MS-200" gör det inte.
         // Utan utfyllnad producerade mallen koder som inte går att beställa --
