@@ -41,3 +41,12 @@ docs/pdfs/**/*.zip
 
 # Tillverkarkataloger — källdokument, inte kod. Stora binärer hör inte i git.
 docs/kataloger/
+
+# Lokala byggartefakter som aldrig ska versionshanteras.
+# .vite/ är Vites cache, __pycache__/ Pythons.
+# deno.lock skrivs av varje `deno test`/`deno check` som körs UTAN --no-lock;
+# CI kör alltid med --no-lock (se edge-deploy.yml), så filen har ingen roll
+# här och skulle bara ge konflikter mellan maskiner.
+.vite/
+__pycache__/
+deno.lock
