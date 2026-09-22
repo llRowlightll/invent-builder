@@ -6,12 +6,19 @@ VARFÖR ETT SKRIPT OCH INTE EN MIGRATION. Katalogerna ger 6 425 textstycken på
 8,7 MB. Det går inte att lägga i en SQL-fil, och tabellen har bara en
 select-policy -- det finns alltså ingen skrivväg med den publika nyckeln.
 Skriptet anropar därför en TILLFÄLLIG laddfunktion (tmp_ingest_chunks) som
-skapas före körningen och släpps direkt efteråt.
+skapas före körningen och släpps direkt efteråt. Definitionerna ligger i
+scripts/ladda-in-kataloger.sql -- de fanns länge bara i en assistents minne,
+vilket gjorde inläsningen omöjlig att köra på egen hand.
 
-Kör:  python3 scripts/ingest-catalogues.py
+Kör:
+  1. kör AVSNITT 1 i scripts/ladda-in-kataloger.sql
+  2. INGEST_SECRET='<hemligheten>' python3 scripts/ingest-catalogues.py
+  3. kör AVSNITT 2 (släpper funktionerna) och verifiera 0 kvar
 
-Idempotent: filer som redan finns i knowledge_chunks hoppas över, så en
-avbruten körning kan startas om utan dubbletter.
+Idempotent på två nivåer: filer som redan finns i knowledge_chunks hoppas
+över, och laddfunktionen skriver "on conflict (source_file, chunk_index) do
+nothing" mot den unika nyckeln (20260922080000). En avbruten körning kan
+alltså startas om, och en fil kan inte hamna i tabellen två gånger.
 """
 import json
 import os
