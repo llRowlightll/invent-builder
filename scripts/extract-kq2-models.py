@@ -12,9 +12,12 @@ Måttabellerna listar varje modellnummer med platshållare för materialet
 och med tätningssymbolen S (gängtätning) eller P (plantätning) och 1 (oval
 knapp) utskrivna.
 
-Bara de metriska kapitlen tas med (sida 5–27, 57–72, 87–94 och 101–132,
-165–184, 201–208). Tumkapitlen (UNF/NPT, tumslang med M/R, NPT- och
-R-plantätning, tum-Uni) följer samma nyckel men är USA-marknadens koder.
+Både de metriska kapitlen (sida 5–27, 57–72, 87–94 och 101–132, 165–184,
+201–208) och tumkapitlen (UNF/NPT sida 29–48 och 133–158, tumslang med M/R
+sida 49–56 och 159–164, NPT-plantätning sida 73–80 och 185–197, R-plantätning
+sida 81–86 och 198–202, tum-Uni sida 95–100 och 209–216) tas med. Tumslangen
+har udda koder (01 = ø1/8" … 13 = ø1/2"), den metriska jämna (02–16), så
+samma port- och typkoder kan delas utan kollision.
 
 Kör:  python3 scripts/extract-kq2-models.py
 """
@@ -25,10 +28,15 @@ PDF = Path("docs/kataloger/smc-kat-kq2.pdf")
 OUT = Path("src/lib/catalog/kq2-models.ts")
 
 CHAPTERS = {
-    "M, R, Rc": "MR",
-    "G": "G",
-    "R, Rc": "RP",
-    "Rc, G, NPT, NPTF": "U",
+    ("Metric", "M, R, Rc"): "MR",
+    ("Metric", "G"): "G",
+    ("Metric", "R, Rc"): "RP",
+    ("Metric", "Rc, G, NPT, NPTF"): "U",
+    ("Inch", "UNF, NPT"): "UN",
+    ("Inch", "M, R, Rc"): "IMR",
+    ("Inch", "NPT"): "INP",
+    ("Inch", "R"): "IR",
+    ("Inch", "Rc, G, NPT, NPTF"): "IU",
 }
 HEADER = re.compile(r"(Oval Type)?\s*Applicable Tubing: (Metric|Inch) Size, Connection Thread: ([A-Za-z, ]+?)\s*$", re.M)
 MODEL = re.compile(r"(?<![\w-])KQ2([A-Z]{1,2})(\d{2})-([GU]?\d{2}|M[356])([^\s\d]?)(S|P)?(1)?(?=[\s,/)]|$)")
@@ -49,10 +57,10 @@ def main():
         if not h:
             continue
         oval, size, thread = h.group(1), h.group(2), h.group(3).strip()
-        if size != "Metric" or thread not in CHAPTERS:
+        if (size, thread) not in CHAPTERS:
             continue
         button = "oval" if oval else "round"
-        chapter = CHAPTERS[thread]
+        chapter = CHAPTERS[(size, thread)]
         for m in MODEL.finditer(page):
             start = m.start()
             if page[max(0, start - 3):start].endswith("10-"):
@@ -90,8 +98,8 @@ def main():
                 merged.add((t, tube, port, next(iter(ms)), seal))
         by = collections.defaultdict(lambda: collections.defaultdict(set))
         for t, tube, port, mat, seal in merged:
-            if chapter == "MR" and re.fullmatch(r"\d{2}", port) and mat == "A" and seal == "":
-                key = port + "A"           # slang mot slang: KQ2H06-00A
+            if chapter in ("MR", "UN") and re.fullmatch(r"\d{2}", port) and mat == "A" and seal == "":
+                key = port + "A"           # slang mot slang: KQ2H06-00A, KQ2H05-03A
             elif t == "N" and re.fullmatch(r"\d{2}", port) and mat == "" and seal == "":
                 key = port + "-"           # nippel utan materialbokstav: KQ2N04-99, KQ2N04-06
             elif mat == "G":
@@ -112,6 +120,11 @@ def main():
         " *   G   metriskt slangmått, gänga G (plantätning)                       sida 57–64 (oval), 165–172 (rund)",
         " *   RP  metriskt slangmått, gänga R, Rc med plantätning (P)             sida 65–72 (oval), 173–184 (rund)",
         " *   U   metriskt slangmått, Uni-gänga (Rc, G, NPT, NPTF)                sida 87–94 (oval), 201–208 (rund)",
+        " *   UN  tumslang, gänga 10-32 UNF (gasket) och NPT (tätningsmedel S)  sida 29–48 (oval), 133–158 (rund)",
+        " *   IMR tumslang, gänga M5, R, Rc (tätningsmedel S)                   sida 49–56 (oval), 159–164 (rund)",
+        " *   INP tumslang, gänga NPT med plantätning (P)                       sida 73–80 (oval), 185–197 (rund)",
+        " *   IR  tumslang, gänga R med plantätning (P)                         sida 81–86 (oval), 198–202 (rund)",
+        " *   IU  tumslang, Uni-gänga                                           sida 95–100 (oval), 209–216 (rund)",
         " * Nyckel: typ -> slang -> portposter. En portpost är porten plus det som är",
         " * fast i tabellen: A (slang mot slang), G (bara rostfritt), S (tätningsmedel),",
         " * P (plantätning), - (ingen materialbokstav: nipplarna KQ2N□□-99 och KQ2N□□-□□).",
