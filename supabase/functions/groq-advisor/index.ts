@@ -1982,14 +1982,29 @@ async function handleChat(
     await fetchFamilyFacts(chatReading.resolved.map((r) => r.familySlug)),
   );
   const system = `Du är Maskinvals AI-assistent, expert på industriell automation. Hjälper ingenjörer välja komponenter och lösa tekniska problem. Svar på svenska.${codeNote ? `\n\n${codeNote}` : ""}${pdfCtx ? `\n\nReferensdokumentation:\n${pdfCtx}` : ""}`;
+  // Uppslaget följer med i svaret som DATA, skilt från prosan. Vilka koder vi
+  // kände igen och vilka vi inte gjorde det avgörs av readOrderCodes, inte av
+  // hur modellen råkar formulera sig -- och under kvottak svarar den lilla
+  // reservmodellen, som formulerar sig annorlunda än den stora. Regressions-
+  // testet T42 läser fältet i stället för att gissa på formuleringar.
+  const codes = {
+    resolved: chatReading.resolved.map((r) => ({
+      code: r.raw, family: r.familySlug, bore_mm: r.boreMm, stroke_mm: r.strokeMm,
+    })),
+    unknown: chatReading.unknown,
+  };
   // callGroq KASTAR vid kvottak i stället för att returnera null. Utan den här
   // fångsten blev ett slut dygnstak en HTTP 500 med "EDGE_FUNCTION_ERROR" --
   // alltså ett kraschat gränssnitt i stället för ett begripligt besked. Alla
   // andra steg degraderar redan; chatten gjorde det inte.
   try {
     const raw = await callGroq([{ role: "system", content: system }, ...messages], 4000, false);
-    if (!raw) return Response.json({ reply: "Kunde inte svara just nu. Försök igen." }, { headers: CORS });
-    return Response.json({ reply: raw }, { headers: CORS });
+    // Tom generering tre gånger, eller reservmodellen som föll på annat än
+    // kvot: också ett degraderat svar, och märks som ett. Omärkt såg det ut
+    // som ett riktigt svar som bara råkade sakna innehåll -- ett test som
+    // väntade sig prosa föll rött på en infrastrukturhicka.
+    if (!raw) return Response.json({ reply: "Kunde inte svara just nu. Försök igen.", degraded: "llm_error", codes }, { headers: CORS });
+    return Response.json({ reply: raw, codes }, { headers: CORS });
   } catch (e) {
     if ((e as Error).message === "RATE_LIMITED") {
       // Den uppslagna orderkoden är VÅR data, inte LLM:ens -- den kan vi ge
@@ -2007,10 +2022,11 @@ async function handleChat(
           "Försök igen om en stund." +
           (facts ? `\n\nDet här kunde vi ändå slå upp åt dig:\n${facts}` : "") + okand,
         degraded: "llm_unavailable",
+        codes,
       }, { headers: CORS });
     }
     console.error("chat failed:", (e as Error).message);
-    return Response.json({ reply: "Kunde inte svara just nu. Försök igen." }, { headers: CORS });
+    return Response.json({ reply: "Kunde inte svara just nu. Försök igen.", degraded: "llm_error", codes }, { headers: CORS });
   }
 }
 

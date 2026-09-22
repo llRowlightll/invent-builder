@@ -173,12 +173,13 @@ check() {
     return
   fi
 
+  local missing=false found_bad=false
   if ! echo "$json" | python3 -c "import sys,json,re; d=json.load(sys.stdin); s=json.dumps(d,ensure_ascii=False); ok=bool(re.search(r'$pattern',s)); sys.exit(0 if ok else 1)" 2>/dev/null; then
-    ok=false
+    ok=false; missing=true
   fi
   if [[ -n "$expect_absent" ]]; then
     if echo "$json" | python3 -c "import sys,json,re; d=json.load(sys.stdin); s=json.dumps(d,ensure_ascii=False); ok=bool(re.search(r'$expect_absent',s)); sys.exit(0 if ok else 1)" 2>/dev/null; then
-      ok=false  # pattern that should be absent IS present → fail
+      ok=false; found_bad=true  # pattern that should be absent IS present → fail
     fi
   fi
 
@@ -186,9 +187,15 @@ check() {
     echo "  ✅ $name"
     ((PASS++))
   else
+    # Säg VILKET villkor som föll och visa svaret. Tidigare skrevs
+    # "absent: ... (found, should not be)" så fort testet hade ett
+    # frånvaromönster, oavsett om det var det som föll -- och svaret
+    # loggades aldrig. Ett rött LLM-test gick då inte att skilja från ett
+    # annat i efterhand, och nästa körning var grön igen.
     echo "  ❌ $name"
-    echo "     pattern: $pattern"
-    [[ -n "$expect_absent" ]] && echo "     absent:  $expect_absent (found, should not be)"
+    $missing   && echo "     saknas:  $pattern"
+    $found_bad && echo "     fanns:   $expect_absent (får inte förekomma)"
+    echo "     svar:    $(echo "$json" | python3 -c "import sys,json; d=json.load(sys.stdin); t=d.get('reply') or d.get('summary') or d.get('explanation') or json.dumps(d,ensure_ascii=False); print(' '.join(str(t).split())[:400])" 2>/dev/null)"
     FAILURES+=("$name")
     ((FAIL++))
   fi
@@ -847,14 +854,23 @@ sleep 4
 # Påhitten som hände: "N3-klassningen motsvarar IP-67-skydd" (N3 är en
 # standardkonformitetskod) och "PPSA-trycknivåer" (PPSA är dämpning).
 # Mot CHATTEN, inte options: options returnerar strukturerade produktkort och
-# har ingen plats för "känner inte igen". Chatten är dessutom vägen
-# startsidans sökruta tar, alltså den där felet faktiskt uppstod.
-echo "  [42] Okänd beteckning → säger 'känner inte igen', hittar inte på..."
+# har ingen plats för "känner inte igen". (Sajtens chattsida går numera via
+# options; action:"chat" är API:et som exponerar uppslaget rakt av.)
+#
+# Två halvor med olika bevisstyrka:
+#   1. ATT beteckningen inte kändes igen avgörs av readOrderCodes och kommer
+#      med i svaret som codes.unknown -- vår data, samma oavsett vilken modell
+#      som svarar. Tidigare letades formuleringar ("känner inte igen|okänd|
+#      förtydlig") i prosan; under kvottak svarar den lilla reservmodellen,
+#      som formulerar sig annorlunda, och testet föll på ordval.
+#   2. Att prosan inte HITTAR PÅ en betydelse går bara att kontrollera i
+#      prosan: ZQX får inte kopplas till en IP-klass.
+echo "  [42] Okänd beteckning → flaggas i codes.unknown, hittas inte på..."
 R=$(advisor_call '{"action":"chat","locale":"sv","messages":[{"role":"user","content":"Kunden har skickat beteckningen ZQX-8841-KK och vill ha en motsvarighet."}]}')
 if is_rate_limited "$R" || echo "$R" | grep -q '"degraded"'; then
   echo "  ⚠️  T42 [SKIP — rate limited]"; ((SKIP++))
 else
-check "T42 okänd beteckning erkänns" "$R" "känner inte igen|inte igen|okänd|unrecognis|not recognis|förtydlig|clarif" "ZQX.{0,40}IP6"
+check "T42 okänd beteckning erkänns" "$R" '"unknown": ?\["ZQX-8841-KK"\]' "ZQX.{0,40}IP6"
 fi
 
 sleep 4
@@ -866,7 +882,9 @@ R=$(advisor_call '{"action":"chat","locale":"sv","messages":[{"role":"user","con
 if is_rate_limited "$R" || echo "$R" | grep -q '"degraded"'; then
   echo "  ⚠️  T43 [SKIP — rate limited]"; ((SKIP++))
 else
-  check "T43 ingen påhittad hydraulik/tryckklass" "$R" "50|pneumat" "hydraul|2[0-9]{2} bar|poly-phenyl|polyphenyl"
+  # Måttet kontrolleras i codes.resolved (uppslaget), inte i prosan: "50" står
+# ju redan i koden kunden skickade och ekas tillbaka, så det bevisade inget.
+check "T43 ingen påhittad hydraulik/tryckklass" "$R" '"bore_mm": ?50' "hydraul|2[0-9]{2} bar|poly-phenyl|polyphenyl"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
