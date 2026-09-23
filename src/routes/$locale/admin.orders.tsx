@@ -20,6 +20,8 @@ const PAYMENT_LABELS: Record<string,string> = {
 
 interface OrderRow {
   id: string;
+  /** MV-2026-00124. Null för ordrar skapade innan numren infördes. */
+  order_number: string | null;
   customer_name: string;
   customer_company: string | null;
   customer_email: string;
@@ -143,7 +145,7 @@ function OrderEditModal({ order, onClose, onSaved }: { order: OrderRow; onClose:
         <div className="flex items-center justify-between mb-5">
           <div>
             <h2 className="font-semibold text-foreground text-lg">Redigera order</h2>
-            <p className="text-xs text-muted-foreground">#{order.id.slice(0,8).toUpperCase()} · {order.customer_name}</p>
+            <p className="text-xs text-muted-foreground">{order.order_number ?? `#${order.id.slice(0,8).toUpperCase()}`} · {order.customer_name}</p>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl leading-none">✕</button>
         </div>
@@ -283,7 +285,10 @@ function AdminOrdersPage() {
               {filtered.map(order => (
                 <tr key={order.id} className="hover:bg-muted/30 transition">
                   <td className="px-4 py-3 font-mono text-xs text-primary">
-                    #{order.id.slice(0,8).toUpperCase()}
+                    {/* Ordernumret är kundens referens i telefon och mejl.
+                        Fallbacken finns för ordrar som skapades innan
+                        numren infördes. */}
+                    {order.order_number ?? `#${order.id.slice(0,8).toUpperCase()}`}
                     <div className="text-[10px] text-muted-foreground">{new Date(order.created_at).toLocaleDateString("sv-SE")}</div>
                   </td>
                   <td className="px-4 py-3">

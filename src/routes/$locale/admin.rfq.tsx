@@ -186,6 +186,11 @@ export default function AdminRfqPage() {
     // därför inte med här.
     const { data, error } = await supabase.rpc("create_order_with_items", {
       p_order: {
+        // En RFQ ska ge EN order, hur många gånger knappen än trycks. Nyckeln
+        // ligger på RFQ:n eftersom det är den som konverteras -- databasen har
+        // ett unikt index på kolumnen, så skyddet gäller även om ett andra
+        // klick hinner iväg innan det första svarat.
+        idempotency_key:  `rfq:${selected.id}`,
         rfq_id:           selected.id,
         user_id:          selected.user_id ?? null,
         customer_name:    selected.contact_name ?? "",
