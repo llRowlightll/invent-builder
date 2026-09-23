@@ -163,6 +163,9 @@ export default function AdminRfqPage() {
       const unitEx = (it as RfqItem & { unit_price?: number | null }).unit_price ?? 0;
       const qty    = it.qty ?? 1;
       return {
+        // product_id tas med så orderraden kan knytas till katalogen; namn och
+        // pris är ändå snapshots och rör sig inte när produkten ändras.
+        product_id:         it.product_id ?? null,
         sku:                it.product?.sku ?? "—",
         name:               it.product?.name ?? "Okänd produkt",
         qty,
@@ -176,9 +179,13 @@ export default function AdminRfqPage() {
     const vatRate  = 0.25;
     const totalInc = totalEx * (1 + vatRate);
 
-    const { data, error } = await supabase
-      .from("orders")
-      .insert({
+    // Ordern och dess rader skapas i EN transaktion via create_order_with_items.
+    // Två separata anrop kunde lämna en order utan rader om det andra föll, och
+    // en order utan rader går varken att gruppera till inköpsordrar eller att
+    // leverera. orders.items fylls av trigger ur order_items -- den skickas
+    // därför inte med här.
+    const { data, error } = await supabase.rpc("create_order_with_items", {
+      p_order: {
         rfq_id:           selected.id,
         user_id:          selected.user_id ?? null,
         customer_name:    selected.contact_name ?? "",
@@ -192,17 +199,16 @@ export default function AdminRfqPage() {
         vat_rate:         vatRate,
         total_ex_vat:     totalEx || null,
         total_inc_vat:    totalInc || null,
-        items:            orderItems,
         internal_notes:   selected.internal_notes
           ? `Skapad från RFQ ${selected.id.slice(0, 8).toUpperCase()}.\n${selected.internal_notes}`
           : `Skapad från RFQ ${selected.id.slice(0, 8).toUpperCase()}.`,
-      })
-      .select("id")
-      .single();
+      },
+      p_items: orderItems,
+    });
 
     setCreatingOrder(false);
     if (!error && data) {
-      setCreatedOrderId(data.id);
+      setCreatedOrderId(data as unknown as string);
       setCreateOrderError(null);
     } else {
       setCreateOrderError(error?.message ?? "Okänt fel vid ordersskapande");
