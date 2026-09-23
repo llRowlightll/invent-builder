@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { makeT, type Locale } from "@/lib/i18n";
 import { validate, type ConfigRule } from "@/lib/configurator-engine";
 import { fillOrderCodeTemplate, isNoCode, stripLeadingCode } from "@/lib/catalog/order-code-template";
+import { clearValue, hasValue, isSelected, toggleValue } from "@/lib/catalog/selection-state";
 import { variantOf } from "@/lib/catalog/dsbc";
 // configurator_params.label och .value-label är EN kolumn, skriven på
 // engelska. 154 av 156 familjer visade därför "Bore diameter (mm)" och
@@ -307,18 +308,11 @@ function ConfiguratorPage() {
   // En kod som bryter mot katalogen är inte beställbar, hur ifylld den än är.
   const isComplete = allRequiredChosen && blocking.length === 0;
 
+  // Klick på ett redan valt värde TAR BORT valet (se selection-state.ts).
+  // Konfiguratorn gick tidigare bara att trycka på, så ett felklick kunde bara
+  // ångras genom att välja något annat eller börja om med "Rensa alla val".
   function select(key: string, value: string, type: string) {
-    if (type === "multiselect") {
-      setSelections((prev) => {
-        const cur = (prev[key] as string[]) || [];
-        const next = cur.includes(value)
-          ? cur.filter((v) => v !== value)
-          : [...cur, value];
-        return { ...prev, [key]: next };
-      });
-    } else {
-      setSelections((prev) => ({ ...prev, [key]: value }));
-    }
+    setSelections((prev) => toggleValue(prev, key, value, type));
   }
 
   // SSR-visible content from the loader (the family loads client-side, but the
@@ -439,12 +433,24 @@ function ConfiguratorPage() {
                     Valfritt
                   </span>
                 )}
-                {selections[param.param_key] && (
-                  <span className="ml-auto text-xs text-green-600 font-medium flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                    Valt
+                {hasValue(selections, param.param_key) && (
+                  <span className="ml-auto flex items-center gap-2">
+                    <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      Valt
+                    </span>
+                    {/* Ett steg i taget, utan att slå ut resten av konfigurationen. */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelections((prev) => clearValue(prev, param.param_key))
+                      }
+                      className="text-xs text-gray-400 hover:text-gray-700 underline underline-offset-2"
+                    >
+                      Rensa
+                    </button>
                   </span>
                 )}
               </div>
@@ -483,19 +489,18 @@ function ConfiguratorPage() {
                 param.param_type === "multiselect") && (
                 <div className="flex flex-wrap gap-2">
                   {param.values.map((val) => {
-                    const selected =
-                      param.param_type === "multiselect"
-                        ? (
-                            (selections[param.param_key] as string[]) || []
-                          ).includes(val.code)
-                        : selections[param.param_key] === val.code;
+                    const selected = isSelected(selections, param.param_key, val.code);
                     return (
                       <button
                         key={val.id}
                         onClick={() =>
                           select(param.param_key, val.code, param.param_type)
                         }
-                        title={val.description || valueLabel(val.label, locale)}
+                        aria-pressed={selected}
+                        title={
+                          (val.description || valueLabel(val.label, locale)) +
+                          (selected ? " — klicka igen för att ta bort valet" : "")
+                        }
                         className={`px-3 py-2 rounded-lg border text-sm font-medium transition-all text-left ${
                           selected
                             ? "bg-blue-600 text-white border-blue-600 shadow-sm"
