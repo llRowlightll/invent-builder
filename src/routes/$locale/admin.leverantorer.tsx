@@ -74,6 +74,12 @@ function AdminLeverantorer() {
   const [oppen, setOppen] = useState<string | null>(null);
   const [sparar, setSparar] = useState(false);
   const [laddar, setLaddar] = useState(true);
+  // Ett misslyckat spar MÅSTE synas. Utan det här står det inskrivna värdet
+  // kvar i rutan som om det gått igenom, och den som fyller i formuläret tror
+  // att uppgiften är insamlad. Tabellen är admin-only i RLS, så ett utgånget
+  // pass eller en tappad roll ger exakt det tysta felet.
+  const [fel, setFel] = useState<string | null>(null);
+  const [sparatVid, setSparatVid] = useState<number | null>(null);
 
   async function ladda() {
     const [{ data: s }, { data: i }] = await Promise.all([
@@ -88,19 +94,26 @@ function AdminLeverantorer() {
   }
   useEffect(() => { void ladda(); }, []);
 
+  // updated_at sätts av en databastrigger (set_updated_at), inte härifrån --
+  // en ändring gjord i SQL-editorn eller av en edge function ska röra den lika
+  // säkert som ett klick i den här vyn.
   async function spara(id: string, patch: Partial<Supplier>) {
-    setSparar(true);
-    await supabase.from("suppliers").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
-    setRader((r) => r.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    setSparar(true); setFel(null);
+    const { error } = await supabase.from("suppliers").update(patch).eq("id", id);
     setSparar(false);
+    if (error) { setFel(`Kunde inte spara: ${error.message}`); await ladda(); return; }
+    setRader((r) => r.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    setSparatVid(Date.now());
   }
   async function sparaKanal(supplierId: string, patch: Partial<Integration>) {
     const k = kanaler[supplierId];
     if (!k) return;
-    setSparar(true);
-    await supabase.from("supplier_integrations").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", k.id);
-    setKanaler((c) => ({ ...c, [supplierId]: { ...c[supplierId], ...patch } }));
+    setSparar(true); setFel(null);
+    const { error } = await supabase.from("supplier_integrations").update(patch).eq("id", k.id);
     setSparar(false);
+    if (error) { setFel(`Kunde inte spara: ${error.message}`); await ladda(); return; }
+    setKanaler((c) => ({ ...c, [supplierId]: { ...c[supplierId], ...patch } }));
+    setSparatVid(Date.now());
   }
 
   function klara(s: Supplier) {
@@ -117,6 +130,15 @@ function AdminLeverantorer() {
         Köper vi Festo via distributör ska distributören ligga som egen leverantör.
         Order Engine får inte beställa från en leverantör som inte är aktiv.
       </p>
+
+      {fel && (
+        <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {fel}
+          <span className="block text-xs text-red-600 mt-1">
+            Fältet har laddats om från databasen, så det du ser nu är vad som faktiskt är sparat.
+          </span>
+        </div>
+      )}
 
       <div className="mt-6 space-y-3">
         {rader.map((s) => {
@@ -213,7 +235,13 @@ function AdminLeverantorer() {
                         {12 - n} frågor obesvarade
                       </span>
                     )}
-                    {sparar && <span className="text-xs text-gray-400 ml-auto">sparar…</span>}
+                    <span className="ml-auto text-xs">
+                      {sparar
+                        ? <span className="text-gray-400">sparar…</span>
+                        : sparatVid && Date.now() - sparatVid < 4000
+                          ? <span className="text-green-600">✓ sparat</span>
+                          : null}
+                    </span>
                   </div>
                 </div>
               )}
