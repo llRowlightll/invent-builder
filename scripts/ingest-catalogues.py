@@ -5,15 +5,20 @@ Läser in tillverkarkatalogerna i docs/kataloger/ i knowledge_chunks.
 VARFÖR ETT SKRIPT OCH INTE EN MIGRATION. Katalogerna ger 6 425 textstycken på
 8,7 MB. Det går inte att lägga i en SQL-fil, och tabellen har bara en
 select-policy -- det finns alltså ingen skrivväg med den publika nyckeln.
-Skriptet anropar därför en TILLFÄLLIG laddfunktion (tmp_ingest_chunks) som
-skapas före körningen och släpps direkt efteråt. Definitionerna ligger i
-scripts/ladda-in-kataloger.sql -- de fanns länge bara i en assistents minne,
-vilket gjorde inläsningen omöjlig att köra på egen hand.
+Skrivrätten öppnas därför av en TILLFÄLLIG RLS-policy som kräver rubriken
+x-ingest-secret, och som släpps direkt efteråt. Den ligger i
+scripts/ladda-in-kataloger.sql.
+
+Tidigare gick skrivningen via två tillfälliga security definer-funktioner.
+De fungerade i SQL men gav 404 över REST tre körningar i rad: en NYSKAPAD
+funktion syns inte för PostgREST förrän schemacachen laddats om, och notisen
+kom inte fram. Tabellen ligger redan i cachen -- tabellvägen har alltså inte
+problemet, och behöver inga nya objekt alls.
 
 Kör:
-  1. kör AVSNITT 1 i scripts/ladda-in-kataloger.sql
+  1. kör AVSNITT 1 i scripts/ladda-in-kataloger.sql (skapar policyn)
   2. INGEST_SECRET='<hemligheten>' python3 scripts/ingest-catalogues.py
-  3. kör AVSNITT 2 (släpper funktionerna) och verifiera 0 kvar
+  3. kör AVSNITT 2 (släpper policyn) och verifiera att den är borta
 
 Idempotent på två nivåer: filer som redan finns i knowledge_chunks hoppas
 över, och laddfunktionen skriver "on conflict (source_file, chunk_index) do
@@ -51,7 +56,7 @@ if not SECRET:
         "  2. sätt samma sträng på de två HEMLIGHET-raderna i\n"
         "     scripts/ladda-in-kataloger.sql och kör dess AVSNITT 1\n"
         "  3. kör det här skriptet igen\n"
-        "  4. kör AVSNITT 2 som släpper funktionerna"
+        "  4. kör AVSNITT 2 som släpper policyn"
     )
 
 # Snittet bland befintliga chunks är ~1000 tecken, taket 4000. Kortare än
@@ -261,7 +266,7 @@ MAP = {
     "smc-kat-zh-a.pdf": ("SMC", ["zh"]),
 }
 
-def post(path, body):
+def anrop(metod, path, body=None, extra=()):
     """
     Skickar via curl, inte urllib.
 
@@ -272,26 +277,77 @@ def post(path, body):
     fungerar direkt, och finns på varje Mac.
     """
     import tempfile
-    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-        json.dump(body, f)
-        tmp = f.name
+    tmp = None
+    if body is not None:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(body, f)
+            tmp = f.name
     try:
         for forsok in range(3):
-            r = subprocess.run(
-                ["curl", "-sS", "--fail-with-body", "--max-time", "180",
-                 "-X", "POST", URL + path,
-                 "-H", "Content-Type: application/json",
-                 "-H", "apikey: " + KEY,
-                 "-H", "Authorization: Bearer " + KEY,
-                 "--data-binary", "@" + tmp],
-                capture_output=True, text=True)
+            kommando = ["curl", "-sS", "--fail-with-body", "--max-time", "180",
+                        "-X", metod, URL + path,
+                        "-H", "Content-Type: application/json",
+                        "-H", "apikey: " + KEY,
+                        "-H", "Authorization: Bearer " + KEY]
+            for h in extra:
+                kommando += ["-H", h]
+            if tmp:
+                kommando += ["--data-binary", "@" + tmp]
+            r = subprocess.run(kommando, capture_output=True, text=True)
             if r.returncode == 0:
                 return r.stdout
             if forsok == 2:
-                raise RuntimeError(f"curl {r.returncode}: {(r.stderr or r.stdout)[:300]}")
+                # BÅDA strömmarna. --fail-with-body lägger PostgRESTs svar på
+                # stdout medan curl skriver sin egen rad på stderr, och den
+                # tidigare varianten föredrog stderr -- alltså "HTTP 404" utan
+                # ett ord om VARFÖR. PostgRESTs kropp säger det exakt
+                # ("PGRST202: Could not find the function public.x with
+                # parameter y"), och det är skillnaden mellan en gissning och
+                # en diagnos.
+                svar = (r.stdout or "").strip()
+                fel = (r.stderr or "").strip()
+                raise RuntimeError(
+                    f"curl {r.returncode} mot {path}\n"
+                    f"  svar:  {svar[:400] or '(tom kropp)'}\n"
+                    f"  curl:  {fel[:200] or '(inget)'}"
+                )
             time.sleep(2 * (forsok + 1))
     finally:
-        os.unlink(tmp)
+        if tmp:
+            os.unlink(tmp)
+
+
+def kanda_filer():
+    """
+    Filerna som redan är inlästa.
+
+    Ett stycke per fil räcker, och varje fil har chunk_index 0 -- filtret
+    håller svaret vid ~180 rader i stället för 30 000, vilket annars kapas av
+    PostgRESTs radtak och hade fått skriptet att läsa in en fil en gång till.
+    """
+    svar = anrop("GET", "/rest/v1/knowledge_chunks?select=source_file&chunk_index=eq.0")
+    return {r["source_file"] for r in json.loads(svar or "[]")}
+
+
+def skicka_stycken(rader):
+    """
+    Skriver styckena rakt på tabellen.
+
+    INGEN RPC. Tidigare gick inläsningen via två tillfälliga funktioner, och
+    PostgREST svarade 404 på dem tre körningar i rad: en nyskapad funktion
+    finns inte i REST-API:ets schemacache förrän den laddats om, och notisen
+    kom inte fram. Tabellen ligger redan i cachen, så tabellvägen har inte det
+    problemet -- och behöver varken security definer eller nya objekt.
+
+    Skrivrätten är en tillfällig RLS-policy som kräver rubriken nedan; den
+    skapas och släpps av scripts/ladda-in-kataloger.sql. resolution=ignore-
+    duplicates ger samma sak som "on conflict do nothing" mot den unika
+    nyckeln (source_file, chunk_index), så en avbruten körning kan startas om.
+    """
+    anrop("POST", "/rest/v1/knowledge_chunks", rader, extra=(
+        "x-ingest-secret: " + SECRET,
+        "Prefer: resolution=ignore-duplicates,return=minimal",
+    ))
 
 
 def stycken(text):
@@ -315,8 +371,7 @@ def main():
     if not os.path.isdir(SRC):
         sys.exit(f"hittar inte {SRC}")
 
-    redan = set(json.loads(post("/rest/v1/rpc/tmp_ingest_known_files",
-                                {"p_secret": SECRET}) or "[]"))
+    redan = kanda_filer()
     if redan:
         print(f"redan inlästa filer: {len(redan)}")
 
@@ -335,8 +390,7 @@ def main():
         rader = [{"source_file": fn, "brand": marke, "chunk_index": i, "content": c}
                  for i, c in enumerate(cs)]
         for i in range(0, len(rader), BATCH):
-            post("/rest/v1/rpc/tmp_ingest_chunks",
-                 {"p_secret": SECRET, "p_rows": rader[i:i + BATCH]})
+            skicka_stycken(rader[i:i + BATCH])
         tot += len(rader)
         print(f"  {len(cs):>5}  {fn}", flush=True)
 
