@@ -999,6 +999,7 @@ export type Database = {
           param_key: string
           param_type: string
           required: boolean | null
+          show_code: boolean
           sort_order: number | null
         }
         Insert: {
@@ -1010,6 +1011,7 @@ export type Database = {
           param_key: string
           param_type: string
           required?: boolean | null
+          show_code?: boolean
           sort_order?: number | null
         }
         Update: {
@@ -1021,6 +1023,7 @@ export type Database = {
           param_key?: string
           param_type?: string
           required?: boolean | null
+          show_code?: boolean
           sort_order?: number | null
         }
         Relationships: [
@@ -2113,6 +2116,273 @@ export type Database = {
         }
         Relationships: []
       }
+      supplier_integrations: {
+        Row: {
+          ack_method: string | null
+          auth_secret_name: string | null
+          config: Json
+          created_at: string
+          delay_tolerance_days: number
+          endpoint_url: string | null
+          id: string
+          is_primary: boolean
+          last_verified_at: string | null
+          method: string
+          notes: string | null
+          order_format: string | null
+          price_tolerance_pct: number
+          status: string
+          supplier_id: string
+          tracking_method: string | null
+          updated_at: string
+        }
+        Insert: {
+          ack_method?: string | null
+          auth_secret_name?: string | null
+          config?: Json
+          created_at?: string
+          delay_tolerance_days?: number
+          endpoint_url?: string | null
+          id?: string
+          is_primary?: boolean
+          last_verified_at?: string | null
+          method: string
+          notes?: string | null
+          order_format?: string | null
+          price_tolerance_pct?: number
+          status?: string
+          supplier_id: string
+          tracking_method?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ack_method?: string | null
+          auth_secret_name?: string | null
+          config?: Json
+          created_at?: string
+          delay_tolerance_days?: number
+          endpoint_url?: string | null
+          id?: string
+          is_primary?: boolean
+          last_verified_at?: string | null
+          method?: string
+          notes?: string | null
+          order_format?: string | null
+          price_tolerance_pct?: number
+          status?: string
+          supplier_id?: string
+          tracking_method?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_integrations_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_products: {
+        Row: {
+          created_at: string
+          currency: string
+          id: string
+          is_preferred: boolean
+          last_verified_at: string | null
+          lead_time_days: number | null
+          moq: number | null
+          notes: string | null
+          pack_size: number | null
+          price_source: string | null
+          price_valid_from: string | null
+          price_valid_to: string | null
+          product_id: string | null
+          purchase_price: number | null
+          supplier_id: string
+          supplier_name: string | null
+          supplier_sku: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          id?: string
+          is_preferred?: boolean
+          last_verified_at?: string | null
+          lead_time_days?: number | null
+          moq?: number | null
+          notes?: string | null
+          pack_size?: number | null
+          price_source?: string | null
+          price_valid_from?: string | null
+          price_valid_to?: string | null
+          product_id?: string | null
+          purchase_price?: number | null
+          supplier_id: string
+          supplier_name?: string | null
+          supplier_sku: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          id?: string
+          is_preferred?: boolean
+          last_verified_at?: string | null
+          lead_time_days?: number | null
+          moq?: number | null
+          notes?: string | null
+          pack_size?: number | null
+          price_source?: string | null
+          price_valid_from?: string | null
+          price_valid_to?: string | null
+          product_id?: string | null
+          purchase_price?: number | null
+          supplier_id?: string
+          supplier_name?: string | null
+          supplier_sku?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_priced"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_products_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suppliers: {
+        Row: {
+          agreement_notes: string | null
+          agreement_signed_at: string | null
+          agreement_status: string
+          allows_dropship: boolean | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          country: string
+          created_at: string
+          currency: string
+          customer_number: string | null
+          default_lead_time_days: number | null
+          discount_notes: string | null
+          dropship_notes: string | null
+          free_freight_over: number | null
+          freight_notes: string | null
+          id: string
+          incoterms: string | null
+          internal_notes: string | null
+          is_active: boolean
+          legal_name: string | null
+          min_order_value: number | null
+          name: string
+          order_email: string | null
+          order_portal_url: string | null
+          org_number: string | null
+          payment_terms: string | null
+          price_list_ref: string | null
+          product_data_rights: string | null
+          returns_process: string | null
+          slug: string
+          stock_data_method: string | null
+          system_notes: string | null
+          updated_at: string
+          warranty_terms: string | null
+        }
+        Insert: {
+          agreement_notes?: string | null
+          agreement_signed_at?: string | null
+          agreement_status?: string
+          allows_dropship?: boolean | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          country?: string
+          created_at?: string
+          currency?: string
+          customer_number?: string | null
+          default_lead_time_days?: number | null
+          discount_notes?: string | null
+          dropship_notes?: string | null
+          free_freight_over?: number | null
+          freight_notes?: string | null
+          id?: string
+          incoterms?: string | null
+          internal_notes?: string | null
+          is_active?: boolean
+          legal_name?: string | null
+          min_order_value?: number | null
+          name: string
+          order_email?: string | null
+          order_portal_url?: string | null
+          org_number?: string | null
+          payment_terms?: string | null
+          price_list_ref?: string | null
+          product_data_rights?: string | null
+          returns_process?: string | null
+          slug: string
+          stock_data_method?: string | null
+          system_notes?: string | null
+          updated_at?: string
+          warranty_terms?: string | null
+        }
+        Update: {
+          agreement_notes?: string | null
+          agreement_signed_at?: string | null
+          agreement_status?: string
+          allows_dropship?: boolean | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          country?: string
+          created_at?: string
+          currency?: string
+          customer_number?: string | null
+          default_lead_time_days?: number | null
+          discount_notes?: string | null
+          dropship_notes?: string | null
+          free_freight_over?: number | null
+          freight_notes?: string | null
+          id?: string
+          incoterms?: string | null
+          internal_notes?: string | null
+          is_active?: boolean
+          legal_name?: string | null
+          min_order_value?: number | null
+          name?: string
+          order_email?: string | null
+          order_portal_url?: string | null
+          org_number?: string | null
+          payment_terms?: string | null
+          price_list_ref?: string | null
+          product_data_rights?: string | null
+          returns_process?: string | null
+          slug?: string
+          stock_data_method?: string | null
+          system_notes?: string | null
+          updated_at?: string
+          warranty_terms?: string | null
+        }
+        Relationships: []
+      }
       use_case_map: {
         Row: {
           category_slug: string
@@ -2365,12 +2635,31 @@ export type Database = {
         Args: { p_category_slug?: string; p_limit?: number }
         Returns: Json
       }
+      get_family_briefs: {
+        Args: never
+        Returns: {
+          bores: number[]
+          name: string
+          slug: string
+          stroke_max: number
+          stroke_min: number
+        }[]
+      }
       get_family_documents: {
         Args: { p_family_slug: string }
         Returns: {
           chunks: number
           doc_title: string
           source_file: string
+        }[]
+      }
+      get_family_facts: {
+        Args: { p_slug: string }
+        Returns: {
+          brand: string
+          name: string
+          sku: string
+          specs: Json
         }[]
       }
       get_order_by_id: {
@@ -2544,6 +2833,7 @@ export type Database = {
         }
         Returns: string
       }
+      sv_en_term: { Args: { w: string }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "editor" | "user"
