@@ -37,7 +37,22 @@ KEY = os.environ.get("SUPABASE_ANON_KEY") or (
     "ImFub24iLCJpYXQiOjE3Nzg1NDY2NjksImV4cCI6MjA5NDEyMjY2OX0."
     "U3MdNO-2XXDNjtiIBbfiC9TRiLoPY94afwp9-MF2HME"
 )
-SECRET = os.environ.get("INGEST_SECRET", "b7f3c1ae-9d42-4e08-a15c-6f2d83b40e77")
+# Ingen inbyggd standardhemlighet. Den som stod här låg i ett PUBLIKT repo,
+# och medan laddfunktionerna finns i databasen är hemligheten det enda som
+# skiljer dem från en öppen skrivväg till knowledge_chunks -- tabellen som
+# rådgivaren matar in i modellens prompt. Generera en ny per körning:
+#   INGEST_SECRET=$(uuidgen) python3 scripts/ingest-catalogues.py
+# och sätt samma sträng i scripts/ladda-in-kataloger.sql innan avsnitt 1 körs.
+SECRET = os.environ.get("INGEST_SECRET")
+if not SECRET:
+    sys.exit(
+        "INGEST_SECRET saknas.\n"
+        "  1. generera:  export INGEST_SECRET=$(uuidgen)\n"
+        "  2. sätt samma sträng på de två HEMLIGHET-raderna i\n"
+        "     scripts/ladda-in-kataloger.sql och kör dess AVSNITT 1\n"
+        "  3. kör det här skriptet igen\n"
+        "  4. kör AVSNITT 2 som släpper funktionerna"
+    )
 
 # Snittet bland befintliga chunks är ~1000 tecken, taket 4000. Kortare än
 # MINLEN är sidhuvuden och sidnummer, som bara stör sökningen.
