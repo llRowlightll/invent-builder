@@ -1227,6 +1227,98 @@ export type Database = {
           },
         ]
       }
+      order_items: {
+        Row: {
+          brand: string | null
+          created_at: string
+          currency: string
+          id: string
+          intended_supplier_id: string | null
+          lead_time_days: number | null
+          line_no: number
+          line_total_ex_vat: number | null
+          name: string
+          note: string | null
+          order_id: string
+          product_id: string | null
+          qty: number
+          sku: string
+          status: string
+          unit_price_ex_vat: number | null
+          updated_at: string
+          vat_rate: number
+        }
+        Insert: {
+          brand?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          intended_supplier_id?: string | null
+          lead_time_days?: number | null
+          line_no: number
+          line_total_ex_vat?: number | null
+          name: string
+          note?: string | null
+          order_id: string
+          product_id?: string | null
+          qty: number
+          sku: string
+          status?: string
+          unit_price_ex_vat?: number | null
+          updated_at?: string
+          vat_rate?: number
+        }
+        Update: {
+          brand?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          intended_supplier_id?: string | null
+          lead_time_days?: number | null
+          line_no?: number
+          line_total_ex_vat?: number | null
+          name?: string
+          note?: string | null
+          order_id?: string
+          product_id?: string | null
+          qty?: number
+          sku?: string
+          status?: string
+          unit_price_ex_vat?: number | null
+          updated_at?: string
+          vat_rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_intended_supplier_id_fkey"
+            columns: ["intended_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_priced"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           carrier: string | null
@@ -2631,6 +2723,10 @@ export type Database = {
         Args: { p_key: string; p_limit: number; p_window_seconds: number }
         Returns: boolean
       }
+      create_order_with_items: {
+        Args: { p_items: Json; p_order: Json }
+        Returns: string
+      }
       fetch_products_for_advisor: {
         Args: { p_category_slug?: string; p_limit?: number }
         Returns: Json
@@ -2743,6 +2839,10 @@ export type Database = {
         }[]
       }
       has_role: { Args: { check_role: string; uid: string }; Returns: boolean }
+      refresh_order_items_json: {
+        Args: { p_order_ids: string[] }
+        Returns: undefined
+      }
       respond_to_quote: {
         Args: { p_decision: string; p_id: string; p_po?: string }
         Returns: {
