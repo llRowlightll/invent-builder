@@ -234,10 +234,68 @@ begin
   perform pg_temp.kolla(22, 'audit-rader finns för orderraderna', 'ja',
                         case when v_int > 0 then 'ja' else 'nej' end);
 
-  -- ── 22. Kaskad: raderas ordern försvinner raderna ────────────────────────
+  -- ── 26–33. Ordernummer, idempotens, statushändelser ─────────────────────
+  select order_number into v_txt from orders where id = v_order;
+  perform pg_temp.kolla(26, 'ordernumret har formen MV-<år>-<5 siffror>', 'ja',
+                        case when v_txt ~ ('^MV-' || extract(year from now())::int || '-[0-9]{5}$')
+                             then 'ja' else 'nej: ' || coalesce(v_txt,'∅') end);
+
+  declare v_o2 uuid; v_a uuid; v_b uuid; v_n1 int; v_n2 int;
+  begin
+    set local role authenticated;
+    perform set_config('request.jwt.claims', format('{"sub":"%s","role":"authenticated"}', v_agare), true);
+    v_o2 := create_order_with_items(
+      format('{"user_id":"%s","customer_name":"Nr2","customer_email":"k@example.com"}', v_agare)::jsonb,
+      '[{"sku":"A","name":"B","qty":1,"unit_price_ex_vat":1}]'::jsonb);
+
+    -- Samma idempotensnyckel två gånger ska ge EN order.
+    v_a := create_order_with_items(
+      format('{"user_id":"%s","customer_name":"Dubbelklick","customer_email":"k@example.com",
+               "idempotency_key":"prov-nyckel-1"}', v_agare)::jsonb,
+      '[{"sku":"A","name":"B","qty":1,"unit_price_ex_vat":1}]'::jsonb);
+    v_b := create_order_with_items(
+      format('{"user_id":"%s","customer_name":"Dubbelklick","customer_email":"k@example.com",
+               "idempotency_key":"prov-nyckel-1"}', v_agare)::jsonb,
+      '[{"sku":"A","name":"B","qty":1,"unit_price_ex_vat":1}]'::jsonb);
+    reset role;
+
+    perform pg_temp.kolla(27, 'samma idempotensnyckel ger samma order', 'ja',
+                          case when v_a = v_b then 'ja' else 'nej' end);
+    select count(*)::int into v_int from orders where idempotency_key = 'prov-nyckel-1';
+    perform pg_temp.kolla(28, 'bara EN order skapades av dubbelklicket', '1', v_int::text);
+    select count(*)::int into v_int from order_items where order_id = v_a;
+    perform pg_temp.kolla(29, 'dubbelklicket gav inte dubbla rader', '1', v_int::text);
+
+    select (regexp_match(order_number, '([0-9]{5})$'))[1]::int into v_n1 from orders where id = v_order;
+    select (regexp_match(order_number, '([0-9]{5})$'))[1]::int into v_n2 from orders where id = v_o2;
+    perform pg_temp.kolla(30, 'nästa order får ett högre nummer', 'ja',
+                          case when v_n2 > v_n1 then 'ja' else 'nej' end);
+
+    delete from orders where id in (v_a, v_o2);
+  end;
+
+  -- Statushändelser skrivs av triggrar: ingen kodväg kan ändra en status utan
+  -- att det syns, och notifieringarna får en tabell att hänga på.
+  select count(*)::int into v_int from order_status_events
+   where order_id = v_order and order_item_id is null;
+  perform pg_temp.kolla(31, 'händelse loggad när ordern skapades', '1', v_int::text);
+
+  select count(*)::int into v_int from order_status_events
+   where order_id = v_order and order_item_id is not null;
+  perform pg_temp.kolla(32, 'händelser loggade för radernas övergångar', 'ja',
+                        case when v_int >= 4 then 'ja' else 'nej (' || v_int || ')' end);
+
+  select from_status || '->' || to_status into v_txt from order_status_events
+   where order_id = v_order and order_item_id is not null and from_status is not null
+   order by created_at limit 1;
+  perform pg_temp.kolla(33, 'första radövergången är pending->shipped', 'pending->shipped', v_txt);
+
+  -- ── 23, 34. Kaskad ───────────────────────────────────────────────────────
   delete from orders where id = v_order;
   select count(*)::int into v_int from order_items where order_id = v_order;
   perform pg_temp.kolla(23, 'raderna följer med när ordern raderas', '0', v_int::text);
+  select count(*)::int into v_int from order_status_events where order_id = v_order;
+  perform pg_temp.kolla(34, 'händelserna följer med när ordern raderas', '0', v_int::text);
 end $$;
 
 select nr, kontroll, case when ok then 'OK' else 'FEL' end as utfall,

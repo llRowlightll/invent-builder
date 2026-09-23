@@ -1319,6 +1319,75 @@ export type Database = {
           },
         ]
       }
+      order_number_counters: {
+        Row: {
+          last_used: number
+          year: number
+        }
+        Insert: {
+          last_used?: number
+          year: number
+        }
+        Update: {
+          last_used?: number
+          year?: number
+        }
+        Relationships: []
+      }
+      order_status_events: {
+        Row: {
+          actor_user_id: string | null
+          created_at: string
+          from_status: string | null
+          id: string
+          note: string | null
+          order_id: string
+          order_item_id: string | null
+          payload: Json
+          source: string
+          to_status: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          note?: string | null
+          order_id: string
+          order_item_id?: string | null
+          payload?: Json
+          source?: string
+          to_status: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          note?: string | null
+          order_id?: string
+          order_item_id?: string | null
+          payload?: Json
+          source?: string
+          to_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_status_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_status_events_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           carrier: string | null
@@ -1332,12 +1401,14 @@ export type Database = {
           estimated_delivery: string | null
           fortnox_invoice_id: string | null
           id: string
+          idempotency_key: string | null
           internal_notes: string | null
           invoice_date: string | null
           invoice_due_date: string | null
           invoice_number: string | null
           invoice_url: string | null
           items: Json
+          order_number: string | null
           paid_at: string | null
           payment_status: string
           peppol_id: string | null
@@ -1365,12 +1436,14 @@ export type Database = {
           estimated_delivery?: string | null
           fortnox_invoice_id?: string | null
           id?: string
+          idempotency_key?: string | null
           internal_notes?: string | null
           invoice_date?: string | null
           invoice_due_date?: string | null
           invoice_number?: string | null
           invoice_url?: string | null
           items?: Json
+          order_number?: string | null
           paid_at?: string | null
           payment_status?: string
           peppol_id?: string | null
@@ -1398,12 +1471,14 @@ export type Database = {
           estimated_delivery?: string | null
           fortnox_invoice_id?: string | null
           id?: string
+          idempotency_key?: string | null
           internal_notes?: string | null
           invoice_date?: string | null
           invoice_due_date?: string | null
           invoice_number?: string | null
           invoice_url?: string | null
           items?: Json
+          order_number?: string | null
           paid_at?: string | null
           payment_status?: string
           peppol_id?: string | null
@@ -2839,6 +2914,7 @@ export type Database = {
         }[]
       }
       has_role: { Args: { check_role: string; uid: string }; Returns: boolean }
+      next_order_number: { Args: never; Returns: string }
       refresh_order_items_json: {
         Args: { p_order_ids: string[] }
         Returns: undefined
