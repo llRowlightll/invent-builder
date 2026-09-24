@@ -1060,6 +1060,24 @@ export type Database = {
         }
         Relationships: []
       }
+      document_number_counters: {
+        Row: {
+          last_used: number
+          prefix: string
+          year: number
+        }
+        Insert: {
+          last_used?: number
+          prefix?: string
+          year: number
+        }
+        Update: {
+          last_used?: number
+          prefix?: string
+          year?: number
+        }
+        Relationships: []
+      }
       expenses: {
         Row: {
           amount_ex_vat: number
@@ -1318,21 +1336,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      order_number_counters: {
-        Row: {
-          last_used: number
-          year: number
-        }
-        Insert: {
-          last_used?: number
-          year: number
-        }
-        Update: {
-          last_used?: number
-          year?: number
-        }
-        Relationships: []
       }
       order_status_events: {
         Row: {
@@ -2445,6 +2448,165 @@ export type Database = {
           },
         ]
       }
+      supplier_purchase_order_items: {
+        Row: {
+          ack_delivery_date: string | null
+          ack_note: string | null
+          ack_qty: number | null
+          ack_status: string | null
+          ack_unit_price: number | null
+          created_at: string
+          id: string
+          line_no: number
+          line_total_ex_vat: number | null
+          name: string
+          order_item_id: string | null
+          qty: number
+          sku: string
+          spo_id: string
+          status: string
+          supplier_sku: string | null
+          unit_purchase_price: number | null
+          updated_at: string
+        }
+        Insert: {
+          ack_delivery_date?: string | null
+          ack_note?: string | null
+          ack_qty?: number | null
+          ack_status?: string | null
+          ack_unit_price?: number | null
+          created_at?: string
+          id?: string
+          line_no: number
+          line_total_ex_vat?: number | null
+          name: string
+          order_item_id?: string | null
+          qty: number
+          sku: string
+          spo_id: string
+          status?: string
+          supplier_sku?: string | null
+          unit_purchase_price?: number | null
+          updated_at?: string
+        }
+        Update: {
+          ack_delivery_date?: string | null
+          ack_note?: string | null
+          ack_qty?: number | null
+          ack_status?: string | null
+          ack_unit_price?: number | null
+          created_at?: string
+          id?: string
+          line_no?: number
+          line_total_ex_vat?: number | null
+          name?: string
+          order_item_id?: string | null
+          qty?: number
+          sku?: string
+          spo_id?: string
+          status?: string
+          supplier_sku?: string | null
+          unit_purchase_price?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_purchase_order_items_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_purchase_order_items_spo_id_fkey"
+            columns: ["spo_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_purchase_orders: {
+        Row: {
+          ack_received_at: string | null
+          created_at: string
+          currency: string
+          expected_delivery: string | null
+          id: string
+          idempotency_key: string | null
+          integration_method: string | null
+          internal_notes: string | null
+          needs_review: boolean
+          order_id: string
+          po_number: string | null
+          review_reason: string | null
+          sent_at: string | null
+          sent_method: string | null
+          sent_to: string | null
+          status: string
+          supplier_id: string | null
+          total_purchase_ex_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          ack_received_at?: string | null
+          created_at?: string
+          currency?: string
+          expected_delivery?: string | null
+          id?: string
+          idempotency_key?: string | null
+          integration_method?: string | null
+          internal_notes?: string | null
+          needs_review?: boolean
+          order_id: string
+          po_number?: string | null
+          review_reason?: string | null
+          sent_at?: string | null
+          sent_method?: string | null
+          sent_to?: string | null
+          status?: string
+          supplier_id?: string | null
+          total_purchase_ex_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          ack_received_at?: string | null
+          created_at?: string
+          currency?: string
+          expected_delivery?: string | null
+          id?: string
+          idempotency_key?: string | null
+          integration_method?: string | null
+          internal_notes?: string | null
+          needs_review?: boolean
+          order_id?: string
+          po_number?: string | null
+          review_reason?: string | null
+          sent_at?: string | null
+          sent_method?: string | null
+          sent_to?: string | null
+          status?: string
+          supplier_id?: string | null
+          total_purchase_ex_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_purchase_orders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_purchase_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suppliers: {
         Row: {
           agreement_notes: string | null
@@ -2815,6 +2977,16 @@ export type Database = {
         Args: { p_items: Json; p_order: Json }
         Returns: string
       }
+      create_supplier_pos: {
+        Args: { p_order_id: string }
+        Returns: {
+          antal_rader: number
+          needs_review: boolean
+          po_number: string
+          spo_id: string
+          supplier: string
+        }[]
+      }
       fetch_products_for_advisor: {
         Args: { p_category_slug?: string; p_limit?: number }
         Returns: Json
@@ -2927,6 +3099,7 @@ export type Database = {
         }[]
       }
       has_role: { Args: { check_role: string; uid: string }; Returns: boolean }
+      next_document_number: { Args: { p_prefix: string }; Returns: string }
       next_order_number: { Args: never; Returns: string }
       refresh_order_items_json: {
         Args: { p_order_ids: string[] }
