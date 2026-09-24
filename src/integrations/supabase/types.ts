@@ -2295,6 +2295,56 @@ export type Database = {
         }
         Relationships: []
       }
+      supplier_acknowledgements: {
+        Row: {
+          created_at: string
+          id: string
+          line_count: number
+          note: string | null
+          raw_payload: Json | null
+          received_at: string
+          registered_by: string | null
+          source: string
+          spo_id: string
+          supplier_reference: string | null
+          worst_level: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          line_count?: number
+          note?: string | null
+          raw_payload?: Json | null
+          received_at?: string
+          registered_by?: string | null
+          source?: string
+          spo_id: string
+          supplier_reference?: string | null
+          worst_level?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          line_count?: number
+          note?: string | null
+          raw_payload?: Json | null
+          received_at?: string
+          registered_by?: string | null
+          source?: string
+          spo_id?: string
+          supplier_reference?: string | null
+          worst_level?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_acknowledgements_spo_id_fkey"
+            columns: ["spo_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       supplier_integrations: {
         Row: {
           ack_method: string | null
@@ -2451,10 +2501,15 @@ export type Database = {
       supplier_purchase_order_items: {
         Row: {
           ack_delivery_date: string | null
+          ack_id: string | null
           ack_note: string | null
           ack_qty: number | null
+          ack_reason: string | null
           ack_status: string | null
+          ack_substitute_sku: string | null
           ack_unit_price: number | null
+          approved_at: string | null
+          approved_by: string | null
           created_at: string
           id: string
           line_no: number
@@ -2471,10 +2526,15 @@ export type Database = {
         }
         Insert: {
           ack_delivery_date?: string | null
+          ack_id?: string | null
           ack_note?: string | null
           ack_qty?: number | null
+          ack_reason?: string | null
           ack_status?: string | null
+          ack_substitute_sku?: string | null
           ack_unit_price?: number | null
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           id?: string
           line_no: number
@@ -2491,10 +2551,15 @@ export type Database = {
         }
         Update: {
           ack_delivery_date?: string | null
+          ack_id?: string | null
           ack_note?: string | null
           ack_qty?: number | null
+          ack_reason?: string | null
           ack_status?: string | null
+          ack_substitute_sku?: string | null
           ack_unit_price?: number | null
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           id?: string
           line_no?: number
@@ -2510,6 +2575,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "supplier_purchase_order_items_ack_id_fkey"
+            columns: ["ack_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_acknowledgements"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "supplier_purchase_order_items_order_item_id_fkey"
             columns: ["order_item_id"]
@@ -3098,12 +3170,50 @@ export type Database = {
           stroke_mm: number
         }[]
       }
+      godkann_avvikelse: {
+        Args: { p_beslut: string; p_spoi_id: string }
+        Returns: string
+      }
       has_role: { Args: { check_role: string; uid: string }; Returns: boolean }
+      klassificera_avvikelse: {
+        Args: {
+          p_bekraftad_leverans: string
+          p_bekraftat_antal: number
+          p_bekraftat_pris: number
+          p_bestallt_antal: number
+          p_bestallt_pris: number
+          p_ersattning: string
+          p_forsinkningstolerans?: number
+          p_onskad_leverans: string
+          p_pristolerans_pct?: number
+          p_svar: string
+        }
+        Returns: {
+          niva: string
+          skal: string
+        }[]
+      }
       next_document_number: { Args: { p_prefix: string }; Returns: string }
       next_order_number: { Args: never; Returns: string }
       refresh_order_items_json: {
         Args: { p_order_ids: string[] }
         Returns: undefined
+      }
+      register_supplier_ack: {
+        Args: {
+          p_lines: Json
+          p_note?: string
+          p_source?: string
+          p_spo_id: string
+          p_supplier_reference?: string
+        }
+        Returns: {
+          ack_id: string
+          antal_gron: number
+          antal_gul: number
+          antal_rod: number
+          worst_level: string
+        }[]
       }
       respond_to_quote: {
         Args: { p_decision: string; p_id: string; p_po?: string }

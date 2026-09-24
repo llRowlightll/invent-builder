@@ -31,12 +31,24 @@ katalogen gör det.
 | Kundportal | ⚠️ | `/sv/orders` visar offerter och ordrar, inte §9:s innehåll |
 | Interna leverantörsordrar | ✅ | `create_supplier_pos()`, en per leverantör, idempotent |
 | Leverantörs-PO som PDF och e-post | ⚠️ | `supplier-po`-funktionen finns; ingen leverantör har en beställningsadress än, så inget kan skickas |
-| Manuell leverantörsbekräftelse | ❌ | kolumnerna finns på `supplier_purchase_order_items` |
+| Manuell leverantörsbekräftelse | ✅ | `register_supplier_ack()` klassar grön/gul/röd; röd stoppar raden tills en människa beslutar |
 | Status per orderrad | ✅ | `order_items.status`, `order_status_events` |
 | Manuell tracking | ⚠️ | `orders.tracking_number` finns; ingen modell per försändelse |
 | Faktura och dokument | ❌ | `orders.invoice_*` + `fortnox-order` finns, ingen dokumentmodell |
 | Automatiska kundmejl | ⚠️ | `order-status-email` finns men triggas från webbläsaren |
 | Audit log | ✅ | `audit_log` + `fn_audit_log`-triggers på alla nya tabeller |
+
+## Toleranserna avgör vad som är "mindre"
+
+`supplier_integrations.price_tolerance_pct` och `delay_tolerance_days` bestämmer
+gränsen mellan gult och rött. **Utan värde är toleransen noll** — varje
+avvikelse blir röd tills någon medvetet säger att en viss leverantörs
+småjusteringar är okej. Tyst acceptans ska kosta ett beslut, inte vara förvalt.
+
+Två avgöranden värda att känna till: *tidigare* leverans än önskat är grönt,
+inte gult. Och ett pris vi inte kände sedan tidigare blir **gult**, inte rött —
+i dag saknar alla 846 produkter inköpspris, så leverantörens pris är ny
+information, inte en prisändring. Rött hade stoppat varenda rad.
 
 ## Två kända svagheter, medvetet inte lösta än
 
@@ -74,7 +86,7 @@ frakt, betalningsvillkor, produktdatarättigheter).
 
 ## Provet
 
-`scripts/test-order-engine.sql` — 78 kontroller, självstädande, körs mot
+`scripts/test-order-engine.sql` — 115 kontroller, självstädande, körs mot
 databasen:
 
 | Del | Kontroller | Vad den vaktar |
@@ -84,6 +96,9 @@ databasen:
 | 3 | 48–59 | konfiguratorns orderkod hela vägen till orderraden |
 | 4 | 60–72 | grupperingen till inköpsordrar, okänd leverantör, inköpsprisets sekretess |
 | 5 | 73–78 | en orderrad som tillkommer efter att inköpsordrarna skapats |
+| 6 | 79–94 | klassningen grön/gul/röd: specens tretton situationer plus toleransgränserna |
+| 7 | 95–111 | leverantörens bekräftelse hela vägen till kundens orderrad |
+| 8 | 112–115 | en inköpsorder där leverantören inte svarat på alla rader |
 
 ## §18: acceptanskriterierna
 
@@ -95,7 +110,7 @@ databasen:
 | 4 | Korrekt orderbekräftelse | ⚠️ manuell |
 | 5 | Två separata leverantörsordrar | ✅ |
 | 6 | Leverantörsorder som PDF och e-post | ⚠️ byggd, blockerad på adresser |
-| 7–8 | Leverantören bekräftar helt / delvis | ❌ |
+| 7–8 | Leverantören bekräftar helt / delvis | ✅ |
 | 9 | Kundportalen visar det begripligt | ❌ |
 | 10–11 | Delleverans och tracking per rad | ❌ |
 | 12–13 | Leveransmejl, andra försändelsen | ❌ |
@@ -104,4 +119,4 @@ databasen:
 | 16 | Allt i audit log | ✅ |
 | 17 | Samma knapptryckning skapar aldrig en dubblett | ✅ |
 
-**4 av 17 klara, 3 halva.**
+**6 av 17 klara, 3 halva.**
