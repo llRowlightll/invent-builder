@@ -69,7 +69,7 @@ frakt, betalningsvillkor, produktdatarättigheter).
 
 ## Provet
 
-`scripts/test-order-engine.sql` — 72 kontroller, självstädande, körs mot
+`scripts/test-order-engine.sql` — 78 kontroller, självstädande, körs mot
 databasen:
 
 | Del | Kontroller | Vad den vaktar |
@@ -78,6 +78,7 @@ databasen:
 | 2 | 35–47 | kundens egen väg via `respond_to_quote`, idempotens, radordning |
 | 3 | 48–59 | konfiguratorns orderkod hela vägen till orderraden |
 | 4 | 60–72 | grupperingen till inköpsordrar, okänd leverantör, inköpsprisets sekretess |
+| 5 | 73–78 | en orderrad som tillkommer efter att inköpsordrarna skapats |
 
 ## §18: acceptanskriterierna
 

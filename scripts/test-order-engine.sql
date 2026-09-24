@@ -1,9 +1,10 @@
 -- Order Engine: prov av grunden (orders, order_items, suppliers) och av
 -- kedjan inköpslista -> offert -> order.
 --
--- Fyra delar: 1-34 orders/order_items/leverantörer med RLS, 35-47 kundens egen
+-- Fem delar: 1-34 orders/order_items/leverantörer med RLS, 35-47 kundens egen
 -- väg via respond_to_quote, 48-59 konfiguratorns orderkod hela vägen fram,
--- 60-72 grupperingen till inköpsordrar per leverantör.
+-- 60-72 grupperingen till inköpsordrar per leverantör, 73-78 en orderrad som
+-- tillkommer efter att inköpsordrarna skapats.
 --
 -- Kör i SQL-editorn eller via execute_sql. Skapar sin egen provdata och
 -- STÄDAR UPP SIG SJÄLV, utan att förlita sig på en yttre rollback -- provet
@@ -548,6 +549,67 @@ begin
   delete from orders where id=v_ord;
   select count(*)::int into v_int from supplier_purchase_orders where order_id=v_ord;
   perform pg_temp.kolla(72, 'inköpsordrarna följer med när ordern raderas', '0', v_int::text);
+end $$;
+
+-- ── DEL 5: en orderrad som tillkommer efteråt ─────────────────────────────
+--
+-- Kunden ringer och lägger till en cylinder efter att inköpsordrarna skapats.
+-- Trycker administratören "Skapa" igen hoppade funktionen förut över hela
+-- leverantören ("finns redan") och raden hamnade i INGEN inköpsorder. Ingen
+-- hade beställt den, och ingenting hade sagt ifrån.
+
+do $$
+declare
+  v_admin uuid := (select id from auth.users order by created_at limit 1);
+  v_festo uuid; v_smc uuid;
+  v_ord uuid; v_spo uuid; v_int int; v_txt text;
+begin
+  select p.id into v_festo from products p join brands b on b.id=p.brand_id
+   where p.status='active' and b.slug='festo' order by p.sku limit 1;
+  select p.id into v_smc from products p join brands b on b.id=p.brand_id
+   where p.status='active' and b.slug='smc' order by p.sku limit 1;
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims', format('{"sub":"%s","role":"authenticated"}', v_admin), true);
+
+  v_ord := create_order_with_items(
+    format('{"user_id":"%s","customer_name":"Provkund","customer_email":"k@example.com"}', v_admin)::jsonb,
+    format('[{"product_id":"%s","sku":"A","name":"Festo ett","qty":1,"unit_price_ex_vat":100}]', v_festo)::jsonb);
+  perform create_supplier_pos(v_ord);
+
+  insert into order_items (order_id, line_no, product_id, sku, name, qty, unit_price_ex_vat)
+  values (v_ord, 99, v_smc, 'C', 'SMC efterhandling', 3, 50);
+  perform create_supplier_pos(v_ord);
+  select count(*)::int into v_int from supplier_purchase_orders where order_id=v_ord;
+  perform pg_temp.kolla(73, 'ny leverantör efteråt får en egen inköpsorder', '2', v_int::text);
+
+  insert into order_items (order_id, line_no, product_id, sku, name, qty, unit_price_ex_vat)
+  values (v_ord, 98, v_festo, 'A2', 'Festo efterhandling', 2, 120);
+  perform create_supplier_pos(v_ord);
+  select spo.id into v_spo from supplier_purchase_orders spo
+    join suppliers s on s.id=spo.supplier_id where spo.order_id=v_ord and s.slug='festo';
+  select count(*)::int into v_int from supplier_purchase_order_items where spo_id=v_spo;
+  perform pg_temp.kolla(74, 'utkastet fylls på med den nya raden', '2', v_int::text);
+  select string_agg(line_no::text, ',' order by line_no) into v_txt
+    from supplier_purchase_order_items where spo_id=v_spo;
+  perform pg_temp.kolla(75, 'radnumreringen fortsätter, den börjar inte om', '1,2', v_txt);
+
+  -- Skickad inköpsorder: leverantören har ett papper som inte längre stämmer.
+  update supplier_purchase_orders set status='sent', needs_review=false, review_reason=null where id=v_spo;
+  insert into order_items (order_id, line_no, product_id, sku, name, qty, unit_price_ex_vat)
+  values (v_ord, 97, v_festo, 'A3', 'Festo efter utskick', 1, 90);
+  perform create_supplier_pos(v_ord);
+  select count(*)::int into v_int from supplier_purchase_order_items where spo_id=v_spo;
+  perform pg_temp.kolla(76, 'skickad inköpsorder får INTE nya rader i smyg', '2', v_int::text);
+  select review_reason into v_txt from supplier_purchase_orders where id=v_spo;
+  perform pg_temp.kolla(77, 'den säger ifrån i stället',
+                        '1 nya orderrader efter att inköpsordern skickades', v_txt);
+  select needs_review::text into v_txt from supplier_purchase_orders where id=v_spo;
+  perform pg_temp.kolla(78, 'och flaggas för granskning', 'true', v_txt);
+
+  reset role;
+  perform set_config('request.jwt.claims', '', true);
+  delete from orders where id=v_ord;
 end $$;
 
 select nr, kontroll, case when ok then 'OK' else 'FEL' end as utfall,
