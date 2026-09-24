@@ -49,6 +49,9 @@ jobs:
         # resolution instead, which needs no local node_modules at all.
         run: |
           deno check --no-lock --node-modules-dir=none supabase/functions/groq-advisor/index.ts
+          # supplier-po skickar inköpsordrar till leverantörer. Den får inte
+          # deployas trasig -- ett fel här betyder att ingen beställning går ut.
+          deno check --no-lock --node-modules-dir=none supabase/functions/supplier-po/index.ts
           # --allow-read krävs av synktestet, som läser src/lib/physics.ts och
           # gör bygget rött om husets kraftmodell glidit isär mellan
           # Deno-runtimen och Vite-runtimen. Utan behörigheten hoppar testet
@@ -76,6 +79,21 @@ jobs:
         run: |
           echo "::error::Edge function deploy did not succeed (outcome=${{ steps.deploy.outcome }})."
           echo "::error::The live function was NOT updated — failing the run so it can't slip through."
+          exit 1
+
+      - name: Deploy supplier-po to Supabase
+        continue-on-error: true
+        id: deploy_po
+        run: npx --yes supabase@latest functions deploy supplier-po --project-ref buqfbcztspswezwyafxo
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Fail if supplier-po deploy did not succeed
+        # Samma skäl som ovan: en tyst hoppad deploy lämnar den gamla koden
+        # live medan CI ser grön ut.
+        if: steps.deploy_po.outcome != 'success'
+        run: |
+          echo "::error::supplier-po deploy did not succeed (outcome=${{ steps.deploy_po.outcome }})."
           exit 1
 
       - name: Wait for cold start
