@@ -1,4 +1,8 @@
--- Order Engine: prov av grunden (orders, order_items, suppliers).
+-- Order Engine: prov av grunden (orders, order_items, suppliers) och av
+-- kedjan inköpslista -> offert -> order.
+--
+-- Tre delar: 1-34 orders/order_items/leverantörer med RLS, 35-47 kundens egen
+-- väg via respond_to_quote, 48-59 konfiguratorns orderkod hela vägen fram.
 --
 -- Kör i SQL-editorn eller via execute_sql. Skapar sin egen provdata och
 -- STÄDAR UPP SIG SJÄLV, utan att förlita sig på en yttre rollback -- provet
@@ -324,8 +328,12 @@ begin
           '556000-0000', 'SEK', 10, 'Provoffert')
   returning id into v_rfq;
 
-  insert into rfq_items (rfq_id, product_id, qty, unit_price, role)
-  values (v_rfq, v_p1, 4, 250.00, 'ordered'), (v_rfq, v_p2, 2, 1000.00, 'ordered');
+  -- sort_order, inte bara id: rfq_items.id är ett gen_random_uuid(), så
+  -- `order by id` gav SLUMPMÄSSIG radordning. Kontroll 38 föll varannan
+  -- körning på det, och kunden kunde få offert, orderbekräftelse och
+  -- orderrader i tre olika ordningar.
+  insert into rfq_items (rfq_id, product_id, qty, unit_price, role, sort_order)
+  values (v_rfq, v_p1, 4, 250.00, 'ordered', 1), (v_rfq, v_p2, 2, 1000.00, 'ordered', 2);
 
   select * into v_res from respond_to_quote(v_rfq, 'accepted', 'PO-KUND-1');
   v_ord := v_res.order_id;
@@ -340,6 +348,11 @@ begin
   -- Offertens rabatt måste slå igenom: 250 x 0,9 = 225 per styck, 4 st = 900.
   select line_total_ex_vat::text into v_txt from order_items where order_id=v_ord and line_no=1;
   perform pg_temp.kolla(38, 'radsumman följer offertens rabatt (4 x 225)', '900.00', v_txt);
+
+  -- Radordningen är offertens, inte slumpens.
+  select string_agg(oi.line_no::text || ':' || oi.qty::text, ',' order by oi.line_no)
+    into v_txt from order_items oi where oi.order_id = v_ord;
+  perform pg_temp.kolla(47, 'orderraderna kommer i offertens ordning', '1:4,2:2', v_txt);
 
   select count(*)::int into v_int from order_items where order_id=v_ord and product_id is not null;
   perform pg_temp.kolla(39, 'raderna är knutna till katalogen', '2', v_int::text);
@@ -371,6 +384,83 @@ begin
   select count(*)::int into v_int from order_status_events where order_id = v_ord;
   perform pg_temp.kolla(46, 'statushändelser loggade för kundens order', 'ja',
                         case when v_int >= 3 then 'ja' else 'nej ('||v_int||')' end);
+
+  delete from orders where id = v_ord;
+  delete from rfqs where id = v_rfq;
+end $$;
+
+-- ── DEL 3: konfiguratorns orderkod hela vägen ──────────────────────────────
+--
+-- Konfiguratorn bygger en KOD, katalogen har en SERIE. Kedjan
+-- inköpslista -> offert -> order bar bara product_id, så koden hade tappats i
+-- första steget och offerten visat "FESTO-DSNU" i stället för
+-- "DSNU-32-100-PPS-A". Kontrollerna nedan följer koden hela vägen fram, och
+-- vaktar dessutom att en rad med fel sorts id inte fäller hela förfrågan.
+
+do $$
+declare
+  v_prod uuid := (select id from products where status='active' and family is not null order by sku limit 1);
+  v_rfq  uuid;
+  v_rad  record;
+  v_ord  uuid;
+  v_res  record;
+  v_txt  text;
+begin
+  select submit_rfq('PROV','Prov Provsson','prov-orderkod@example.invalid','','Provbolaget','','','',
+    jsonb_build_array(
+      jsonb_build_object('product_id', v_prod::text, 'qty', 2, 'role','ordered'),
+      jsonb_build_object('product_id', v_prod::text, 'qty', 1, 'order_code','DSNU-32-100-PPS-A'),
+      jsonb_build_object('product_id', null, 'qty', 3, 'order_code','CY1L-25-500', 'item_name','CY1L bandlös cylinder'),
+      -- projects.tsx skickade SKU:n som id. Casten dödade hela anropet.
+      jsonb_build_object('product_id', 'FESTO-DSNU', 'qty', 1),
+      -- Varken produkt eller kod: skräp, ska hoppas över.
+      jsonb_build_object('qty', 9)
+    ), '') into v_rfq;
+
+  perform pg_temp.kolla(48, 'fyra giltiga rader in, skräpraden bort', '4',
+                        (select count(*)::text from rfq_items where rfq_id=v_rfq));
+
+  select * into v_rad from rfq_items where rfq_id=v_rfq and order_code='DSNU-32-100-PPS-A';
+  perform pg_temp.kolla(49, 'konfigurerad rad behåller seriens produkt-id',
+                        v_prod::text, coalesce(v_rad.product_id::text,'∅'));
+
+  select * into v_rad from rfq_items where rfq_id=v_rfq and order_code='CY1L-25-500';
+  perform pg_temp.kolla(50, 'familj utan katalogpost: kod utan produkt', 'ja',
+                        case when v_rad.product_id is null then 'ja' else 'nej' end);
+  perform pg_temp.kolla(51, 'radens eget namn sparas', 'CY1L bandlös cylinder',
+                        coalesce(v_rad.item_name,'∅'));
+
+  select * into v_rad from rfq_items where rfq_id=v_rfq and order_code='FESTO-DSNU';
+  perform pg_temp.kolla(52, 'trasigt id bevaras som kod i stället för att fälla anropet', 'ja',
+                        case when v_rad.id is not null and v_rad.product_id is null then 'ja' else 'nej' end);
+
+  perform pg_temp.kolla(53, 'kunden ser koden i sku-kolumnen', 'DSNU-32-100-PPS-A',
+                        coalesce((select sku from get_quote_items(v_rfq) where sku='DSNU-32-100-PPS-A'),'∅'));
+  perform pg_temp.kolla(54, 'katalograden visar fortfarande sitt eget sku', 'ja',
+                        case when exists(select 1 from get_quote_items(v_rfq) g
+                                         join products p on p.id=v_prod where g.sku=p.sku)
+                             then 'ja' else 'nej' end);
+
+  update rfq_items set unit_price = 100 where rfq_id = v_rfq;
+  update rfqs set status='quoted', quote_amount=1000, discount_pct=0 where id=v_rfq;
+  select * into v_res from respond_to_quote(v_rfq, 'accepted', 'PO-PROV');
+  v_ord := v_res.order_id;
+
+  perform pg_temp.kolla(55, 'ordern fick fyra rader', '4',
+                        (select count(*)::text from order_items where order_id=v_ord));
+  perform pg_temp.kolla(56, 'orderraden bär orderkoden, inte serien', 'ja',
+                        case when exists(select 1 from order_items where order_id=v_ord and sku='DSNU-32-100-PPS-A')
+                             then 'ja' else 'nej' end);
+  perform pg_temp.kolla(57, 'raden utan katalogpost fick sitt namn', 'CY1L bandlös cylinder',
+                        coalesce((select name from order_items where order_id=v_ord and sku='CY1L-25-500'),'∅'));
+  perform pg_temp.kolla(58, 'konfigurerad orderrad är fortfarande knuten till katalogen',
+                        v_prod::text,
+                        coalesce((select product_id::text from order_items where order_id=v_ord and sku='DSNU-32-100-PPS-A'),'∅'));
+
+  -- Offerten och ordern ska lista raderna i den ordning kunden lade dem.
+  -- rfq_items.id är ett slumpat uuid; utan sort_order var ordningen slumpens.
+  select string_agg(g.qty::text, ',') into v_txt from get_quote_items(v_rfq) g;
+  perform pg_temp.kolla(59, 'offerten listar raderna i inköpslistans ordning', '2,1,3,1', v_txt);
 
   delete from orders where id = v_ord;
   delete from rfqs where id = v_rfq;

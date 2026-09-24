@@ -10,6 +10,7 @@ import { variantOf } from "@/lib/catalog/dsbc";
 // engelska. 154 av 156 familjer visade därför "Bore diameter (mm)" och
 // "Without sensing" mitt på den svenska sidan.
 import { paramLabel, valueLabel } from "@/lib/catalog/labels-sv";
+import { addToShoppingList } from "@/lib/cart";
 import { SITE, hreflangLinks } from "@/lib/site";
 
 // Types
@@ -174,7 +175,18 @@ function ConfiguratorPage() {
     Record<string, string | string[]>
   >({});
   const [loading, setLoading] = useState(true);
-  const [addedToBom, setAddedToBom] = useState(false);
+  const [tillagdILista, setTillagdILista] = useState(false);
+  const [qty, setQty] = useState(1);
+  /**
+   * Seriens katalogpost, när den finns.
+   *
+   * Den konfigurerade artikeln ÄR inte en katalogpost -- katalogen har serien
+   * ("FESTO-DSNU"), konfiguratorn bygger varianten ("DSNU-32-100-PPS-A"). Id:t
+   * följer ändå med på raden så offerten kan visa märke och leveranstid, och
+   * så administratören ser vilken serie det gäller. 15 av 169 familjer saknar
+   * katalogpost helt; då blir det null och raden bär bara koden.
+   */
+  const [seriesProduct, setSeriesProduct] = useState<{ id: string; name: string } | null>(null);
   // Katalogens villkor för familjen. Utan dem kunde konfiguratorn bygga
   // orderkoder tillverkaren inte kan leverera -- den byggde koden med ren
   // strängersättning och kontrollerade ingenting.
@@ -188,7 +200,9 @@ function ConfiguratorPage() {
     async function load() {
       setLoading(true);
       setSelections({});
-      setAddedToBom(false);
+      setTillagdILista(false);
+      setQty(1);
+      setSeriesProduct(null);
 
       const { data: fam } = await supabase
         .from("configurator_families")
@@ -201,6 +215,17 @@ function ConfiguratorPage() {
         return;
       }
       setFamily(fam as unknown as Family);
+
+      // Seriens katalogpost. products.family bär familjens slug för 154 av 169
+      // familjer; resten har ingen och raden bär då bara orderkoden.
+      supabase
+        .from("products")
+        .select("id, name")
+        .eq("status", "active")
+        .ilike("family", fam.slug)
+        .limit(1)
+        .maybeSingle()
+        .then(({ data }) => setSeriesProduct(data ? { id: data.id, name: data.name } : null));
 
       const { data: paramRows } = await supabase
         .from("configurator_params")
@@ -575,19 +600,55 @@ function ConfiguratorPage() {
                       : "Fyll i alla obligatoriska val"}
                 </span>
               </div>
-              <button
-                disabled={!isComplete}
-                onClick={() => setAddedToBom(true)}
-                className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                  isComplete
-                    ? addedToBom
-                      ? "bg-green-500 text-white cursor-default"
-                      : "bg-blue-500 hover:bg-blue-400 text-white"
-                    : "bg-gray-700 text-gray-400 cursor-not-allowed"
-                }`}
-              >
-                {addedToBom ? "✓ Tillagd i BOM" : "Lägg till i BOM"}
-              </button>
+              <div className="flex items-center gap-2">
+                <label className="sr-only" htmlFor="konf-antal">Antal</label>
+                <input
+                  id="konf-antal"
+                  type="number"
+                  min={1}
+                  value={qty}
+                  onChange={(e) => {
+                    setQty(Math.max(1, Math.floor(Number(e.target.value) || 1)));
+                    setTillagdILista(false);
+                  }}
+                  className="w-16 py-2.5 rounded-lg bg-gray-800 border border-gray-700 text-center text-sm text-white"
+                />
+                <button
+                  disabled={!isComplete}
+                  onClick={() => {
+                    // Knappen satte förut bara en boolean: den bytte text till
+                    // "✓ Tillagd" och skrev ingenting någonstans.
+                    addToShoppingList(
+                      {
+                        id: seriesProduct?.id ?? null,
+                        sku: orderCode,
+                        name: seriesProduct?.name ?? family.title ?? family.name,
+                        order_code: orderCode,
+                      },
+                      qty,
+                    );
+                    setTillagdILista(true);
+                  }}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                    isComplete
+                      ? tillagdILista
+                        ? "bg-green-500 text-white"
+                        : "bg-blue-500 hover:bg-blue-400 text-white"
+                      : "bg-gray-700 text-gray-400 cursor-not-allowed"
+                  }`}
+                >
+                  {tillagdILista ? "✓ Tillagd i listan" : "Lägg till i inköpslistan"}
+                </button>
+              </div>
+              {tillagdILista && (
+                <Link
+                  to="/$locale/shopping-list"
+                  params={{ locale }}
+                  className="block text-center text-xs text-blue-300 hover:text-blue-200 underline"
+                >
+                  Gå till inköpslistan och begär offert →
+                </Link>
+              )}
             </div>
           </div>
 

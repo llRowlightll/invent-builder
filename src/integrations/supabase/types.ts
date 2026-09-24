@@ -1985,31 +1985,40 @@ export type Database = {
       rfq_items: {
         Row: {
           id: string
+          item_name: string | null
           note: string | null
+          order_code: string | null
           product_id: string | null
           qty: number | null
           rfq_id: string
           role: string | null
+          sort_order: number | null
           unit_price: number | null
           unit_price_currency: string | null
         }
         Insert: {
           id?: string
+          item_name?: string | null
           note?: string | null
+          order_code?: string | null
           product_id?: string | null
           qty?: number | null
           rfq_id: string
           role?: string | null
+          sort_order?: number | null
           unit_price?: number | null
           unit_price_currency?: string | null
         }
         Update: {
           id?: string
+          item_name?: string | null
           note?: string | null
+          order_code?: string | null
           product_id?: string | null
           qty?: number | null
           rfq_id?: string
           role?: string | null
+          sort_order?: number | null
           unit_price?: number | null
           unit_price_currency?: string | null
         }
@@ -2797,6 +2806,10 @@ export type Database = {
       check_rate_limit: {
         Args: { p_key: string; p_limit: number; p_window_seconds: number }
         Returns: boolean
+      }
+      create_order_internal: {
+        Args: { p_items: Json; p_order: Json }
+        Returns: string
       }
       create_order_with_items: {
         Args: { p_items: Json; p_order: Json }

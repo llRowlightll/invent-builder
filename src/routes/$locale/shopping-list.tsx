@@ -10,7 +10,9 @@ import {
   SHOPPING_LIST_KEY,
   SHOPPING_LIST_COUNT_KEY,
   type CartItem as ListItem,
+  cartKey,
   getCartItems,
+  mergeCartItem,
   saveCartItems,
 } from "@/lib/cart";
 
@@ -109,28 +111,36 @@ function ShoppingListPage() {
     setShowResults(found.length > 0);
   }, [query, catalog]);
 
+  // Rader som går att jämföra: jämförelsen slår upp PRODUKTER i katalogen, och
+  // en konfigurerad artikel vars familj saknar katalogpost har ingen.
+  const jamforbara = items.filter(
+    (i): i is ListItem & { product_id: string } => typeof i.product_id === "string" && i.product_id.length > 0,
+  );
+
   function addProduct(p: ProductRow) {
-    setItems((prev) => {
-      const existing = prev.find((i) => i.product_id === p.id);
-      if (existing) return prev.map((i) => (i.product_id === p.id ? { ...i, qty: i.qty + 1 } : i));
-      return [...prev, { product_id: p.id, sku: p.sku, name: p.name, qty: 1 }];
-    });
+    setItems((prev) => mergeCartItem(prev, { product_id: p.id, sku: p.sku, name: p.name, qty: 1 }));
     setQuery("");
     setShowResults(false);
   }
 
-  function removeItem(id: string) {
-    setItems((prev) => prev.filter((i) => i.product_id !== id));
-    setCompareSelected((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
+  // RADENS IDENTITET är cartKey(), inte product_id: två konfigurationer av
+  // samma familj delar produkt men är olika varor, och en konfigurerad artikel
+  // vars familj saknar katalogpost har inget product_id alls. Med product_id
+  // som nyckel bytte "ta bort" och "antal" på fel rad -- eller på båda.
+  function removeItem(key: string) {
+    setItems((prev) => {
+      const kvar = prev.filter((i) => cartKey(i) !== key);
+      // Jämförelsen väljer PRODUKTER, inte rader. Behåll bara de id:n som
+      // fortfarande har en rad -- annars jämförs en produkt kunden tagit bort.
+      const kvarvarandeIds = new Set(kvar.map((i) => i.product_id).filter((id): id is string => !!id));
+      setCompareSelected((valda) => new Set([...valda].filter((id) => kvarvarandeIds.has(id))));
+      return kvar;
     });
   }
 
-  function setQty(id: string, qty: number) {
+  function setQty(key: string, qty: number) {
     if (qty < 1) return;
-    setItems((prev) => prev.map((i) => (i.product_id === id ? { ...i, qty } : i)));
+    setItems((prev) => prev.map((i) => (cartKey(i) === key ? { ...i, qty } : i)));
   }
 
   function toggleCompare(id: string, checked: boolean) {
@@ -143,7 +153,7 @@ function ShoppingListPage() {
   }
 
   function openCompare() {
-    const ids = compareSelected.size >= 2 ? [...compareSelected] : items.slice(0, 4).map((i) => i.product_id);
+    const ids = compareSelected.size >= 2 ? [...compareSelected] : jamforbara.slice(0, 4).map((i) => i.product_id);
     localStorage.setItem("mv_compare", JSON.stringify(ids));
     window.open(`/${locale}/compare`, "_blank");
   }
@@ -175,7 +185,16 @@ function ShoppingListPage() {
         p_org_number: rfqOrgNumber.trim(),
         p_po_number: rfqPoNumber.trim(),
         p_message: rfqMessage.trim(),
-        p_items: items.map((item) => ({ product_id: item.product_id, qty: item.qty, role: "ordered" })),
+        // order_code är det kunden faktiskt ska beställa när raden kommer från
+        // konfiguratorn. Utan den hade offerten visat SERIEN ("FESTO-DSNU")
+        // i stället för varianten, och koden hade tappats redan här.
+        p_items: items.map((item) => ({
+          product_id: item.product_id,
+          qty: item.qty,
+          role: "ordered",
+          order_code: item.order_code ?? null,
+          item_name: item.order_code ? item.name : null,
+        })),
         p_hp: rfqHp,
       });
 
@@ -317,10 +336,10 @@ function ShoppingListPage() {
                       <input
                         type="checkbox"
                         title={t("shoppingList.selectAll")}
-                        checked={compareSelected.size === items.length && items.length > 0}
+                        checked={compareSelected.size === jamforbara.length && jamforbara.length > 0}
                         onChange={(e) =>
                           setCompareSelected(
-                            e.target.checked ? new Set(items.slice(0, 4).map((i) => i.product_id)) : new Set(),
+                            e.target.checked ? new Set(jamforbara.slice(0, 4).map((i) => i.product_id)) : new Set(),
                           )
                         }
                         className="rounded accent-info"
@@ -333,22 +352,26 @@ function ShoppingListPage() {
                 </thead>
                 <tbody>
                   {items.map((item) => {
+                    const nyckel = cartKey(item);
                     const product = catalog.find((p) => p.id === item.product_id);
-                    const isChecked = compareSelected.has(item.product_id);
+                    const isChecked = !!item.product_id && compareSelected.has(item.product_id);
                     return (
                       <tr
-                        key={item.product_id}
+                        key={nyckel}
                         className={`border-b border-border last:border-0 transition ${isChecked ? "bg-info/5" : "odd:bg-surface-alt/20"}`}
                       >
                         <td className="p-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => toggleCompare(item.product_id, e.target.checked)}
-                            disabled={!isChecked && compareSelected.size >= 4}
-                            className="rounded accent-info"
-                            title={t("shoppingList.selectForCompare")}
-                          />
+                          {/* Utan katalogpost finns ingen produkt att jämföra med. */}
+                          {item.product_id && (
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => toggleCompare(item.product_id!, e.target.checked)}
+                              disabled={!isChecked && compareSelected.size >= 4}
+                              className="rounded accent-info"
+                              title={t("shoppingList.selectForCompare")}
+                            />
+                          )}
                         </td>
                         <td className="p-3">
                           {product ? (
@@ -367,7 +390,7 @@ function ShoppingListPage() {
                         <td className="p-3">
                           <div className="flex items-center justify-center gap-1.5">
                             <button
-                              onClick={() => setQty(item.product_id, item.qty - 1)}
+                              onClick={() => setQty(nyckel, item.qty - 1)}
                               className="size-6 rounded border border-border hover:bg-surface-alt flex items-center justify-center text-sm font-bold transition"
                             >
                               −
@@ -376,11 +399,11 @@ function ShoppingListPage() {
                               type="number"
                               min={1}
                               value={item.qty}
-                              onChange={(e) => setQty(item.product_id, Number(e.target.value))}
+                              onChange={(e) => setQty(nyckel, Number(e.target.value))}
                               className="w-10 text-center font-mono text-sm bg-transparent border-0 outline-none"
                             />
                             <button
-                              onClick={() => setQty(item.product_id, item.qty + 1)}
+                              onClick={() => setQty(nyckel, item.qty + 1)}
                               className="size-6 rounded border border-border hover:bg-surface-alt flex items-center justify-center text-sm font-bold transition"
                             >
                               +
@@ -389,7 +412,7 @@ function ShoppingListPage() {
                         </td>
                         <td className="p-3">
                           <button
-                            onClick={() => removeItem(item.product_id)}
+                            onClick={() => removeItem(nyckel)}
                             className="text-muted-foreground hover:text-destructive transition text-base leading-none"
                           >
                             ✕
@@ -482,9 +505,9 @@ function ShoppingListPage() {
                 <p className="text-sm text-muted-foreground mt-1 mb-4">{t("shoppingList.compareBeforeQuoteHint")}</p>
 
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                  {items.map((item) => (
+                  {jamforbara.map((item) => (
                     <label
-                      key={item.product_id}
+                      key={cartKey(item)}
                       className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition ${
                         compareSelected.has(item.product_id)
                           ? "border-info bg-info/5"
