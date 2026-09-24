@@ -59,6 +59,20 @@ const NIVA_ETIKETT: Record<string, { text: string; klass: string }> = {
   rod:  { text: "Kräver beslut",    klass: "bg-[oklch(0.95_0.05_25)]  text-[oklch(0.45_0.18_25)]" },
 };
 
+/**
+ * Vad chippen ska säga om raden.
+ *
+ * ack_status är AVVIKELSENS nivå och ändrar sig aldrig -- avvikelsen var röd,
+ * och det förblir sant. Men radens TILLSTÅND ändrar sig: när någon godkänt den
+ * ska det inte längre stå "Kräver beslut" bredvid ordet "godkänd". Det såg jag
+ * först när jag tittade på vyn.
+ */
+function radetikett(niva: string | null, status: string): { text: string; klass: string } | null {
+  if (status === "approved") return { text: "Avvikelse godkänd", klass: "bg-muted text-muted-foreground" };
+  if (status === "cancelled") return { text: "Avbeställd", klass: "bg-muted text-muted-foreground" };
+  return niva ? (NIVA_ETIKETT[niva] ?? { text: niva, klass: "bg-muted text-muted-foreground" }) : null;
+}
+
 /** Leverantörens möjliga svar per rad — §5:s lista, i den ordning de är vanliga. */
 const SVARSVAL: Array<[string, string]> = [
   ["accepted", "Accepterad"],
@@ -771,11 +785,10 @@ function AdminOrdersPage() {
                                         {new Date(l.ack_delivery_date).toLocaleDateString("sv-SE", { month: "short", day: "numeric" })}
                                       </span>
                                     )}
-                                    {l.ack_status && (
-                                      <span className={`px-2 py-0.5 rounded-full ${NIVA_ETIKETT[l.ack_status]?.klass ?? ""}`}>
-                                        {NIVA_ETIKETT[l.ack_status]?.text ?? l.ack_status}
-                                      </span>
-                                    )}
+                                    {(() => {
+                                      const e = radetikett(l.ack_status, l.status);
+                                      return e ? <span className={`px-2 py-0.5 rounded-full ${e.klass}`}>{e.text}</span> : null;
+                                    })()}
                                     {l.ack_reason && <span className="text-muted-foreground flex-1 min-w-[12rem]">{l.ack_reason}</span>}
                                     {l.status === "blocked" && (
                                       <span className="flex gap-1.5">
@@ -795,8 +808,7 @@ function AdminOrdersPage() {
                                         </button>
                                       </span>
                                     )}
-                                    {l.status === "approved" && <span className="text-muted-foreground">godkänd</span>}
-                                    {l.status === "cancelled" && <span className="text-muted-foreground">avbeställd</span>}
+
                                   </div>
                                 ))}
                               </div>
