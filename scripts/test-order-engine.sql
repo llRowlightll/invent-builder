@@ -1,10 +1,12 @@
 -- Order Engine: prov av grunden (orders, order_items, suppliers) och av
 -- kedjan inköpslista -> offert -> order.
 --
--- Fem delar: 1-34 orders/order_items/leverantörer med RLS, 35-47 kundens egen
+-- Sju delar: 1-34 orders/order_items/leverantörer med RLS, 35-47 kundens egen
 -- väg via respond_to_quote, 48-59 konfiguratorns orderkod hela vägen fram,
 -- 60-72 grupperingen till inköpsordrar per leverantör, 73-78 en orderrad som
--- tillkommer efter att inköpsordrarna skapats.
+-- tillkommer efter att inköpsordrarna skapats, 79-94 klassningen grön/gul/röd,
+-- 95-111 leverantörens bekräftelse hela vägen till kundens orderrad, 112-115
+-- en inköpsorder där leverantören inte svarat på alla rader.
 --
 -- Kör i SQL-editorn eller via execute_sql. Skapar sin egen provdata och
 -- STÄDAR UPP SIG SJÄLV, utan att förlita sig på en yttre rollback -- provet
@@ -606,6 +608,210 @@ begin
                         '1 nya orderrader efter att inköpsordern skickades', v_txt);
   select needs_review::text into v_txt from supplier_purchase_orders where id=v_spo;
   perform pg_temp.kolla(78, 'och flaggas för granskning', 'true', v_txt);
+
+  reset role;
+  perform set_config('request.jwt.claims', '', true);
+  delete from orders where id=v_ord;
+end $$;
+
+-- ── DEL 6: klassningen grön/gul/röd ───────────────────────────────────────
+--
+-- §5: leverantören svarar sällan bara "ja". Varje avvikelse ska klassas, och
+-- den värsta nivån på en rad vinner. Fallen nedan är specens tretton
+-- situationer plus gränsfallen kring toleranserna.
+
+do $$
+declare
+  f record; k record;
+  v_nr int := 78;
+begin
+  for f in
+    select * from (values
+      ('allt som bestallt',              10::numeric, 100::numeric, '2026-10-12'::date, 10::numeric, 100::numeric, '2026-10-12'::date, 'accepted', null::text, 0::numeric, 0, 'gron'),
+      ('tidigare leverans ar ingen avvikelse', 10::numeric, 100::numeric, '2026-10-12'::date, 10::numeric, 100::numeric, '2026-10-05'::date, 'accepted', null, 0::numeric, 0, 'gron'),
+      ('avvisad rad',                    10::numeric, 100::numeric, '2026-10-12'::date, null::numeric, null::numeric, null::date, 'rejected', null, 0::numeric, 0, 'rod'),
+      ('restnoterad',                    10::numeric, 100::numeric, '2026-10-12'::date, 10::numeric, 100::numeric, '2026-10-12'::date, 'backordered', null, 0::numeric, 0, 'rod'),
+      ('utgangen produkt',               10::numeric, 100::numeric, '2026-10-12'::date, null::numeric, null::numeric, null::date, 'discontinued', null, 0::numeric, 0, 'rod'),
+      ('teknisk fraga',                  10::numeric, 100::numeric, '2026-10-12'::date, 10::numeric, 100::numeric, '2026-10-12'::date, 'question', null, 0::numeric, 0, 'rod'),
+      ('ersattningsprodukt',             10::numeric, 100::numeric, '2026-10-12'::date, 10::numeric, 100::numeric, '2026-10-12'::date, 'accepted', 'DSNU-32-100-PPV', 5::numeric, 5, 'rod'),
+      ('delvis: tre av fem',             5::numeric,  100::numeric, '2026-10-12'::date, 3::numeric,  100::numeric, '2026-10-12'::date, 'accepted', null, 0::numeric, 0, 'rod'),
+      ('pris inom tolerans',             10::numeric, 100::numeric, '2026-10-12'::date, 10::numeric, 103::numeric, '2026-10-12'::date, 'accepted', null, 5::numeric, 0, 'gul'),
+      ('pris over tolerans',             10::numeric, 100::numeric, '2026-10-12'::date, 10::numeric, 110::numeric, '2026-10-12'::date, 'accepted', null, 5::numeric, 0, 'rod'),
+      ('utan tolerans ar varje prisandring rod', 10::numeric, 100::numeric, '2026-10-12'::date, 10::numeric, 100.5::numeric, '2026-10-12'::date, 'accepted', null, 0::numeric, 0, 'rod'),
+      ('okant pris hos oss blir gult',   10::numeric, null::numeric, '2026-10-12'::date, 10::numeric, 512.5::numeric, '2026-10-12'::date, 'accepted', null, 0::numeric, 0, 'gul'),
+      ('forsening inom tolerans',        10::numeric, 100::numeric, '2026-10-12'::date, 10::numeric, 100::numeric, '2026-10-15'::date, 'accepted', null, 0::numeric, 5, 'gul'),
+      ('stor forsening',                 10::numeric, 100::numeric, '2026-10-12'::date, 10::numeric, 100::numeric, '2026-10-30'::date, 'accepted', null, 0::numeric, 5, 'rod'),
+      ('gul plus rod blir rod',          10::numeric, 100::numeric, '2026-10-12'::date, 8::numeric,  103::numeric, '2026-10-14'::date, 'accepted', null, 5::numeric, 5, 'rod'),
+      ('tva gula blir gul',              10::numeric, 100::numeric, '2026-10-12'::date, 10::numeric, 103::numeric, '2026-10-14'::date, 'accepted', null, 5::numeric, 5, 'gul')
+    ) as t(beskrivning, ba, bp, ol, ka, kp, kl, svar, ers, ptol, dtol, vantad)
+  loop
+    v_nr := v_nr + 1;
+    select * into k from klassificera_avvikelse(f.ba, f.bp, f.ol, f.ka, f.kp, f.kl, f.svar, f.ers, f.ptol, f.dtol);
+    perform pg_temp.kolla(v_nr, 'klassning: ' || f.beskrivning, f.vantad, k.niva);
+  end loop;
+end $$;
+
+-- ── DEL 7: bekräftelsen hela vägen ────────────────────────────────────────
+--
+-- §18 punkt 7 och 8: en leverantör bekräftar hela sin del, en bekräftar bara
+-- en rad och flyttar den andra. Den stoppade raden får inte smyga vidare till
+-- kunden, och den får inte gå vidare förrän en människa tagit beslutet.
+
+do $$
+declare
+  v_admin uuid := (select id from auth.users order by created_at limit 1);
+  v_f1 uuid; v_f2 uuid; v_s1 uuid;
+  v_ord uuid; v_spo_festo uuid; v_spo_smc uuid;
+  v_r1 uuid; v_r2 uuid; v_rs uuid;
+  v_res record; v_txt text; v_int int;
+begin
+  select p.id into v_f1 from products p join brands b on b.id=p.brand_id
+   where p.status='active' and b.slug='festo' order by p.sku limit 1;
+  select p.id into v_f2 from products p join brands b on b.id=p.brand_id
+   where p.status='active' and b.slug='festo' and p.id<>v_f1 order by p.sku limit 1;
+  select p.id into v_s1 from products p join brands b on b.id=p.brand_id
+   where p.status='active' and b.slug='smc' order by p.sku limit 1;
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims', format('{"sub":"%s","role":"authenticated"}', v_admin), true);
+
+  v_ord := create_order_with_items(
+    format('{"user_id":"%s","customer_name":"Provkund","customer_email":"k@example.com"}', v_admin)::jsonb,
+    format('[{"product_id":"%s","sku":"A","name":"Festo ett","qty":5,"unit_price_ex_vat":100},
+             {"product_id":"%s","sku":"B","name":"Festo tva","qty":2,"unit_price_ex_vat":200},
+             {"product_id":"%s","sku":"C","name":"SMC ett","qty":4,"unit_price_ex_vat":50}]',
+           v_f1, v_f2, v_s1)::jsonb);
+  perform create_supplier_pos(v_ord);
+
+  select spo.id into v_spo_festo from supplier_purchase_orders spo join suppliers s on s.id=spo.supplier_id
+   where spo.order_id=v_ord and s.slug='festo';
+  select spo.id into v_spo_smc from supplier_purchase_orders spo join suppliers s on s.id=spo.supplier_id
+   where spo.order_id=v_ord and s.slug='smc';
+
+  -- Inköpspris och önskat datum, så klassningen har något att jämföra mot.
+  update supplier_purchase_order_items set unit_purchase_price=60 where spo_id=v_spo_festo;
+  update supplier_purchase_order_items set unit_purchase_price=30 where spo_id=v_spo_smc;
+  update supplier_purchase_orders set expected_delivery = current_date + 14, sent_at = now(), status='sent'
+   where id in (v_spo_festo, v_spo_smc);
+
+  select id into v_r1 from supplier_purchase_order_items where spo_id=v_spo_festo and line_no=1;
+  select id into v_r2 from supplier_purchase_order_items where spo_id=v_spo_festo and line_no=2;
+  select id into v_rs from supplier_purchase_order_items where spo_id=v_spo_smc  and line_no=1;
+
+  select * into v_res from register_supplier_ack(v_spo_smc,
+    jsonb_build_array(jsonb_build_object('spoi_id', v_rs, 'qty', 4, 'unit_price', 30,
+                                         'delivery_date', (current_date + 14)::text, 'response','accepted')),
+    'manual', 'SMC-ORD-9912', 'Bekraftad per mejl');
+  perform pg_temp.kolla(95, 'SMC: helt bekräftad utan avvikelse', 'gron', v_res.worst_level);
+  select status into v_txt from supplier_purchase_orders where id=v_spo_smc;
+  perform pg_temp.kolla(96, 'inköpsordern blir acknowledged', 'acknowledged', v_txt);
+  select oi.status into v_txt from order_items oi join supplier_purchase_order_items i on i.order_item_id=oi.id
+   where i.id=v_rs;
+  perform pg_temp.kolla(97, 'kundens orderrad blir bekräftad', 'acknowledged', v_txt);
+
+  -- Leverantörens egna ord sparas, men de är INTERNA: kundens text byggs ur
+  -- de strukturerade fälten, inte ur den här noteringen.
+  select * into v_res from register_supplier_ack(v_spo_festo,
+    jsonb_build_array(
+      jsonb_build_object('spoi_id', v_r1, 'qty', 5, 'unit_price', 60,
+                         'delivery_date', (current_date + 14)::text, 'response','accepted'),
+      jsonb_build_object('spoi_id', v_r2, 'qty', 2, 'unit_price', 66,
+                         'delivery_date', (current_date + 45)::text, 'response','accepted',
+                         'note','PO ACK line 20 rescheduled due ATP constraint')),
+    'manual', 'FESTO-4711', null);
+  perform pg_temp.kolla(98, 'Festo: en grön och en röd', 'gron=1 gul=0 rod=1',
+                        format('gron=%s gul=%s rod=%s', v_res.antal_gron, v_res.antal_gul, v_res.antal_rod));
+  perform pg_temp.kolla(99, 'värsta nivån styr bekräftelsen', 'rod', v_res.worst_level);
+  select status into v_txt from supplier_purchase_orders where id=v_spo_festo;
+  perform pg_temp.kolla(100, 'delvis bekräftad inköpsorder', 'partially_acknowledged', v_txt);
+  select status into v_txt from supplier_purchase_order_items where id=v_r2;
+  perform pg_temp.kolla(101, 'den röda raden är STOPPAD', 'blocked', v_txt);
+  select ack_reason into v_txt from supplier_purchase_order_items where id=v_r2;
+  perform pg_temp.kolla(102, 'skälet nämner både pris och försening', 'ja',
+    case when v_txt like '%pris%' and v_txt like '%dagar senare%' then 'ja' else 'nej: '||coalesce(v_txt,'-') end);
+  select oi.status into v_txt from order_items oi join supplier_purchase_order_items i on i.order_item_id=oi.id
+   where i.id=v_r2;
+  perform pg_temp.kolla(103, 'kundens rad blir INTE bekräftad av en stoppad rad', 'pending', v_txt);
+  select needs_review::text into v_txt from supplier_purchase_orders where id=v_spo_festo;
+  perform pg_temp.kolla(104, 'inköpsordern flaggas för granskning', 'true', v_txt);
+
+  perform godkann_avvikelse(v_r2, 'approve');
+  select status into v_txt from supplier_purchase_order_items where id=v_r2;
+  perform pg_temp.kolla(105, 'godkänd rad', 'approved', v_txt);
+  select trim_scale(unit_purchase_price)::text into v_txt from supplier_purchase_order_items where id=v_r2;
+  perform pg_temp.kolla(106, 'leverantörens pris gäller efter godkännandet', '66', v_txt);
+  select status into v_txt from supplier_purchase_orders where id=v_spo_festo;
+  perform pg_temp.kolla(107, 'inköpsordern är klar när ingen rad väntar', 'acknowledged', v_txt);
+  select oi.status into v_txt from order_items oi join supplier_purchase_order_items i on i.order_item_id=oi.id
+   where i.id=v_r2;
+  perform pg_temp.kolla(108, 'kundens rad bekräftas först efter godkännandet', 'acknowledged', v_txt);
+
+  begin
+    perform godkann_avvikelse(v_r1, 'approve');
+    perform pg_temp.kolla(109, 'godkännande av icke-stoppad rad avvisas', 'avvisad', 'gick igenom');
+  exception when others then
+    perform pg_temp.kolla(109, 'godkännande av icke-stoppad rad avvisas', 'avvisad', 'avvisad');
+  end;
+
+  select count(*)::int into v_int from supplier_acknowledgements where spo_id in (v_spo_festo, v_spo_smc);
+  perform pg_temp.kolla(110, 'två bekräftelser sparade med sitt råmaterial', '2', v_int::text);
+  select count(*)::int into v_int from order_status_events where order_id = v_ord;
+  perform pg_temp.kolla(111, 'statushändelser loggade för kundens rader', 'ja',
+                        case when v_int >= 3 then 'ja' else 'nej ('||v_int||')' end);
+
+  reset role;
+  perform set_config('request.jwt.claims', '', true);
+  delete from orders where id=v_ord;
+end $$;
+
+-- ── DEL 8: leverantören svarar inte på allt ───────────────────────────────
+--
+-- Specens "saknad artikel", och det tysta fallet: svarar leverantören på två
+-- av fem rader stod inköpsordern som "bekräftad" medan tre rader aldrig fått
+-- ett ord. Ingen hade märkt det förrän leveransen kom ofullständig.
+
+do $$
+declare
+  v_admin uuid := (select id from auth.users order by created_at limit 1);
+  v_f1 uuid; v_f2 uuid;
+  v_ord uuid; v_spo uuid; v_r1 uuid; v_r2 uuid;
+  v_txt text;
+begin
+  select p.id into v_f1 from products p join brands b on b.id=p.brand_id
+   where p.status='active' and b.slug='festo' order by p.sku limit 1;
+  select p.id into v_f2 from products p join brands b on b.id=p.brand_id
+   where p.status='active' and b.slug='festo' and p.id<>v_f1 order by p.sku limit 1;
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims', format('{"sub":"%s","role":"authenticated"}', v_admin), true);
+
+  v_ord := create_order_with_items(
+    format('{"user_id":"%s","customer_name":"Provkund","customer_email":"k@example.com"}', v_admin)::jsonb,
+    format('[{"product_id":"%s","sku":"A","name":"ett","qty":1,"unit_price_ex_vat":100},
+             {"product_id":"%s","sku":"B","name":"tva","qty":1,"unit_price_ex_vat":100}]', v_f1, v_f2)::jsonb);
+  perform create_supplier_pos(v_ord);
+  select spo.id into v_spo from supplier_purchase_orders spo where spo.order_id=v_ord;
+  update supplier_purchase_order_items set unit_purchase_price=50 where spo_id=v_spo;
+  update supplier_purchase_orders set expected_delivery=current_date+14, sent_at=now(), status='sent' where id=v_spo;
+  select id into v_r1 from supplier_purchase_order_items where spo_id=v_spo and line_no=1;
+  select id into v_r2 from supplier_purchase_order_items where spo_id=v_spo and line_no=2;
+
+  perform register_supplier_ack(v_spo,
+    jsonb_build_array(jsonb_build_object('spoi_id', v_r1, 'qty', 1, 'unit_price', 50,
+                                         'delivery_date', (current_date+14)::text, 'response','accepted')));
+  select status into v_txt from supplier_purchase_orders where id=v_spo;
+  perform pg_temp.kolla(112, 'halvt besvarad inköpsorder är INTE bekräftad', 'partially_acknowledged', v_txt);
+  select review_reason into v_txt from supplier_purchase_orders where id=v_spo;
+  perform pg_temp.kolla(113, 'och den säger hur många som saknar svar', 'ja',
+    case when v_txt like '%1 rader saknar svar%' then 'ja' else 'nej: '||coalesce(v_txt,'-') end);
+
+  perform register_supplier_ack(v_spo,
+    jsonb_build_array(jsonb_build_object('spoi_id', v_r2, 'qty', 1, 'unit_price', 50,
+                                         'delivery_date', (current_date+14)::text, 'response','accepted')));
+  select status into v_txt from supplier_purchase_orders where id=v_spo;
+  perform pg_temp.kolla(114, 'bekräftad först när varje rad svarat', 'acknowledged', v_txt);
+  select needs_review::text into v_txt from supplier_purchase_orders where id=v_spo;
+  perform pg_temp.kolla(115, 'och granskningsflaggan släcks', 'false', v_txt);
 
   reset role;
   perform set_config('request.jwt.claims', '', true);

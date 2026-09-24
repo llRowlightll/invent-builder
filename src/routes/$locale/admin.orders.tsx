@@ -18,6 +18,25 @@ const PAYMENT_LABELS: Record<string,string> = {
   unpaid:"Obetald", paid:"Betald", overdue:"Förfallen", refunded:"Återbetalad",
 };
 
+/** En rad i en inköpsorder, med leverantörens svar när det kommit. */
+interface SupplierPoLine {
+  id: string;
+  line_no: number;
+  sku: string;
+  supplier_sku: string | null;
+  name: string;
+  qty: number;
+  unit_purchase_price: number | null;
+  status: string;
+  ack_qty: number | null;
+  ack_unit_price: number | null;
+  ack_delivery_date: string | null;
+  /** gron | gul | rod. Null tills leverantören svarat. */
+  ack_status: string | null;
+  ack_reason: string | null;
+  ack_substitute_sku: string | null;
+}
+
 /** En inköpsorder till EN leverantör för EN kundorder. Kunden ser den aldrig. */
 interface SupplierPoRow {
   id: string;
@@ -31,7 +50,23 @@ interface SupplierPoRow {
   review_reason: string | null;
   antal_rader: number;
   leverantor: string;
+  rader: SupplierPoLine[];
 }
+
+const NIVA_ETIKETT: Record<string, { text: string; klass: string }> = {
+  gron: { text: "Bekräftad",        klass: "bg-[oklch(0.95_0.05_155)] text-[oklch(0.40_0.15_155)]" },
+  gul:  { text: "Mindre avvikelse", klass: "bg-[oklch(0.96_0.06_85)]  text-[oklch(0.45_0.15_75)]" },
+  rod:  { text: "Kräver beslut",    klass: "bg-[oklch(0.95_0.05_25)]  text-[oklch(0.45_0.18_25)]" },
+};
+
+/** Leverantörens möjliga svar per rad — §5:s lista, i den ordning de är vanliga. */
+const SVARSVAL: Array<[string, string]> = [
+  ["accepted", "Accepterad"],
+  ["backordered", "Restnoterad"],
+  ["discontinued", "Utgången"],
+  ["rejected", "Avvisad"],
+  ["question", "Leverantören har en fråga"],
+];
 
 interface OrderRow {
   id: string;
@@ -240,6 +275,164 @@ function OrderEditModal({ order, onClose, onSaved }: { order: OrderRow; onClose:
   );
 }
 
+/**
+ * Registrera leverantörens svar, rad för rad.
+ *
+ * Formuläret FÖRIFYLLS med det vi beställde, inte med tomma fält: det vanliga
+ * svaret är "ja, precis som ni skrev", och då ska administratören inte behöva
+ * skriva av sin egen order. Avvikelsen är det som ska kosta arbete.
+ *
+ * Klassningen görs i databasen, aldrig här. Skulle den ligga i formuläret
+ * kunde två vägar in i systemet (manuell registrering i dag, tolkad e-post i
+ * FAS 2) bedöma samma svar olika.
+ */
+function AckModal({ spo, onClose, onSaved }: {
+  spo: SupplierPoRow;
+  onClose: () => void;
+  onSaved: (sammanfattning: string) => void;
+}) {
+  const [referens, setReferens] = useState("");
+  const [notering, setNotering] = useState("");
+  const [sparar, setSparar] = useState(false);
+  const [fel, setFel] = useState<string | null>(null);
+  const [rader, setRader] = useState(() =>
+    spo.rader.map(l => ({
+      spoi_id: l.id,
+      etikett: `${l.line_no}. ${l.sku}`,
+      namn: l.name,
+      bestallt: l.qty,
+      response: "accepted",
+      qty: String(l.qty),
+      unit_price: l.unit_purchase_price != null ? String(l.unit_purchase_price) : "",
+      delivery_date: spo.expected_delivery ?? "",
+      substitute_sku: "",
+      note: "",
+    })),
+  );
+
+  function satt(i: number, falt: string, varde: string) {
+    setRader(prev => prev.map((r, n) => (n === i ? { ...r, [falt]: varde } : r)));
+  }
+
+  async function spara() {
+    setSparar(true); setFel(null);
+    const { data, error } = await supabase.rpc("register_supplier_ack", {
+      p_spo_id: spo.id,
+      p_lines: rader.map(r => ({
+        spoi_id: r.spoi_id,
+        response: r.response,
+        qty: r.qty === "" ? null : Number(r.qty),
+        unit_price: r.unit_price === "" ? null : Number(r.unit_price),
+        delivery_date: r.delivery_date || null,
+        substitute_sku: r.substitute_sku || null,
+        note: r.note || null,
+      })),
+      p_source: "manual",
+      // Argumenten har default null i databasen, och de genererade typerna
+      // beskriver dem som VALFRIA -- inte som nullbara. Utelämna hellre.
+      ...(referens.trim() ? { p_supplier_reference: referens.trim() } : {}),
+      ...(notering.trim() ? { p_note: notering.trim() } : {}),
+    });
+    setSparar(false);
+    if (error) { setFel(error.message); return; }
+    const rad = Array.isArray(data) ? data[0] : data;
+    onSaved(rad
+      ? `${spo.po_number}: ${rad.antal_gron} bekräftade, ${rad.antal_gul} med mindre avvikelse, ${rad.antal_rod} kräver beslut.`
+      : `${spo.po_number}: svaret registrerat.`);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto p-4">
+      <div className="bg-background rounded-xl border border-border w-full max-w-4xl my-8">
+        <div className="p-5 border-b border-border">
+          <h2 className="text-base font-semibold">Leverantörens svar — {spo.po_number}</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {spo.leverantor}. Fyll i det leverantören faktiskt bekräftat; avvikelser klassas automatiskt.
+          </p>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-sm">
+              <span className="text-xs text-muted-foreground">Leverantörens ordernummer</span>
+              <input value={referens} onChange={e => setReferens(e.target.value)}
+                placeholder="t.ex. 4711-2026"
+                className="mt-1 w-full px-3 py-2 rounded-md border border-border bg-background text-sm" />
+            </label>
+            <label className="text-sm">
+              <span className="text-xs text-muted-foreground">Intern notering</span>
+              <input value={notering} onChange={e => setNotering(e.target.value)}
+                placeholder="hur svaret kom in"
+                className="mt-1 w-full px-3 py-2 rounded-md border border-border bg-background text-sm" />
+            </label>
+          </div>
+
+          <div className="space-y-3">
+            {rader.map((r, i) => (
+              <div key={r.spoi_id} className="rounded-lg border border-border p-3">
+                <div className="flex items-baseline gap-2 mb-2">
+                  <span className="font-mono text-xs">{r.etikett}</span>
+                  <span className="text-xs text-muted-foreground truncate">{r.namn}</span>
+                  <span className="text-xs text-muted-foreground ml-auto">beställt {r.bestallt}</span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                  <label className="text-xs">
+                    <span className="text-muted-foreground">Svar</span>
+                    <select value={r.response} onChange={e => satt(i, "response", e.target.value)}
+                      className="mt-1 w-full px-2 py-1.5 rounded-md border border-border bg-background text-sm">
+                      {SVARSVAL.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                    </select>
+                  </label>
+                  <label className="text-xs">
+                    <span className="text-muted-foreground">Antal</span>
+                    <input type="number" min={0} value={r.qty} onChange={e => satt(i, "qty", e.target.value)}
+                      className="mt-1 w-full px-2 py-1.5 rounded-md border border-border bg-background text-sm" />
+                  </label>
+                  <label className="text-xs">
+                    <span className="text-muted-foreground">À-pris</span>
+                    <input type="number" step="0.01" value={r.unit_price} onChange={e => satt(i, "unit_price", e.target.value)}
+                      className="mt-1 w-full px-2 py-1.5 rounded-md border border-border bg-background text-sm" />
+                  </label>
+                  <label className="text-xs">
+                    <span className="text-muted-foreground">Leverans</span>
+                    <input type="date" value={r.delivery_date} onChange={e => satt(i, "delivery_date", e.target.value)}
+                      className="mt-1 w-full px-2 py-1.5 rounded-md border border-border bg-background text-sm" />
+                  </label>
+                  <label className="text-xs">
+                    <span className="text-muted-foreground">Ersättning</span>
+                    <input value={r.substitute_sku} onChange={e => satt(i, "substitute_sku", e.target.value)}
+                      placeholder="artikelnr"
+                      className="mt-1 w-full px-2 py-1.5 rounded-md border border-border bg-background text-sm" />
+                  </label>
+                </div>
+                <input value={r.note} onChange={e => satt(i, "note", e.target.value)}
+                  placeholder="leverantörens egen text (intern)"
+                  className="mt-2 w-full px-2 py-1.5 rounded-md border border-border bg-background text-xs" />
+              </div>
+            ))}
+          </div>
+
+          {fel && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {fel}
+            </div>
+          )}
+        </div>
+
+        <div className="p-5 border-t border-border flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted transition">
+            Avbryt
+          </button>
+          <button onClick={spara} disabled={sparar}
+            className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:opacity-90 transition disabled:opacity-50">
+            {sparar ? "Registrerar…" : "Registrera svaret"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminOrdersPage() {
   const { locale } = Route.useParams();
   const { isAdmin, authLoading } = useAdminGuard();
@@ -255,6 +448,7 @@ function AdminOrdersPage() {
   const [spoFel, setSpoFel] = useState<string | null>(null);
   const [arbetar, setArbetar] = useState<string | null>(null);
   const [spoOk, setSpoOk] = useState<string | null>(null);
+  const [ackFor, setAckFor] = useState<SupplierPoRow | null>(null);
 
   useEffect(() => {
     if (authLoading) return; // vänta tills auth är klar innan redirect-beslut
@@ -267,7 +461,7 @@ function AdminOrdersPage() {
   async function laddaInkopsordrar() {
     const { data, error } = await supabase
       .from("supplier_purchase_orders")
-      .select("id, po_number, order_id, supplier_id, status, total_purchase_ex_vat, expected_delivery, needs_review, review_reason, suppliers(name), supplier_purchase_order_items(id)")
+      .select("id, po_number, order_id, supplier_id, status, total_purchase_ex_vat, expected_delivery, needs_review, review_reason, suppliers(name), supplier_purchase_order_items(id, line_no, sku, supplier_sku, name, qty, unit_purchase_price, status, ack_qty, ack_unit_price, ack_delivery_date, ack_status, ack_reason, ack_substitute_sku)")
       .order("po_number", { ascending: true });
     if (error) { setSpoFel(error.message); return; }
     const per: Record<string, SupplierPoRow[]> = {};
@@ -284,6 +478,9 @@ function AdminOrdersPage() {
         review_reason: rad.review_reason as string | null,
         antal_rader: ((rad.supplier_purchase_order_items as unknown[]) ?? []).length,
         leverantor: (rad.suppliers as { name?: string } | null)?.name ?? "Okänd leverantör",
+        rader: (((rad.supplier_purchase_order_items as SupplierPoLine[]) ?? [])
+          .slice()
+          .sort((a, b) => a.line_no - b.line_no)),
       };
       (per[r.order_id] ??= []).push(r);
     }
@@ -359,6 +556,20 @@ function AdminOrdersPage() {
       setSpoOk(`${data.po_number} skickad till ${data.skickad_till}.`);
       await laddaInkopsordrar();
     } finally { setArbetar(null); }
+  }
+
+  /**
+   * Människans beslut om en stoppad rad. Funktionen i databasen vägrar om
+   * raden inte är stoppad, så knappen kan inte råka godkänna något som redan
+   * gått vidare.
+   */
+  async function beslutaOmRad(spoiId: string, beslut: "approve" | "cancel") {
+    if (beslut === "cancel" && !window.confirm("Avbeställ raden? Kundens orderrad markeras som avbruten.")) return;
+    setArbetar(spoiId); setSpoFel(null); setSpoOk(null);
+    const { error } = await supabase.rpc("godkann_avvikelse", { p_spoi_id: spoiId, p_beslut: beslut });
+    if (error) setSpoFel(error.message);
+    else { setSpoOk(beslut === "approve" ? "Raden godkänd." : "Raden avbeställd."); await laddaInkopsordrar(); }
+    setArbetar(null);
   }
 
   const filtered = filterStatus === "all" ? orders : orders.filter(o => o.status === filterStatus);
@@ -521,6 +732,14 @@ function AdminOrdersPage() {
                             )}
                             <div className="ml-auto flex gap-1.5">
                               <button
+                                onClick={() => setAckFor(spo)}
+                                disabled={spo.rader.length === 0}
+                                className="px-2.5 py-1 text-xs rounded-md border border-border hover:border-primary transition disabled:opacity-50"
+                                title="Registrera leverantörens svar per rad"
+                              >
+                                Registrera svar
+                              </button>
+                              <button
                                 onClick={() => forhandsgranska(spo.id)}
                                 disabled={arbetar === spo.id}
                                 className="px-2.5 py-1 text-xs rounded-md border border-border hover:border-primary transition disabled:opacity-50"
@@ -536,12 +755,60 @@ function AdminOrdersPage() {
                                 {arbetar === spo.id ? "…" : spo.status === "sent" ? "Skicka om" : "Skicka"}
                               </button>
                             </div>
+
+                            {spo.rader.some(l => l.ack_status) && (
+                              <div className="w-full mt-2 space-y-1">
+                                {spo.rader.map(l => (
+                                  <div key={l.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs border-t border-border pt-1.5">
+                                    <span className="font-mono text-[10px] text-muted-foreground w-6">{l.line_no}</span>
+                                    <span className="font-mono text-[11px]">{l.sku}</span>
+                                    <span className="text-muted-foreground">
+                                      {l.ack_qty ?? l.qty} st
+                                      {l.ack_qty != null && l.ack_qty !== l.qty && <span className="text-destructive"> (beställt {l.qty})</span>}
+                                    </span>
+                                    {l.ack_delivery_date && (
+                                      <span className="text-muted-foreground">
+                                        {new Date(l.ack_delivery_date).toLocaleDateString("sv-SE", { month: "short", day: "numeric" })}
+                                      </span>
+                                    )}
+                                    {l.ack_status && (
+                                      <span className={`px-2 py-0.5 rounded-full ${NIVA_ETIKETT[l.ack_status]?.klass ?? ""}`}>
+                                        {NIVA_ETIKETT[l.ack_status]?.text ?? l.ack_status}
+                                      </span>
+                                    )}
+                                    {l.ack_reason && <span className="text-muted-foreground flex-1 min-w-[12rem]">{l.ack_reason}</span>}
+                                    {l.status === "blocked" && (
+                                      <span className="flex gap-1.5">
+                                        <button
+                                          onClick={() => beslutaOmRad(l.id, "approve")}
+                                          disabled={arbetar === l.id}
+                                          className="px-2 py-0.5 rounded border border-[oklch(0.72_0.12_155)] text-[oklch(0.40_0.15_155)] hover:bg-[oklch(0.97_0.03_155)] transition disabled:opacity-50"
+                                        >
+                                          Godkänn
+                                        </button>
+                                        <button
+                                          onClick={() => beslutaOmRad(l.id, "cancel")}
+                                          disabled={arbetar === l.id}
+                                          className="px-2 py-0.5 rounded border border-destructive/50 text-destructive hover:bg-destructive/10 transition disabled:opacity-50"
+                                        >
+                                          Avbeställ
+                                        </button>
+                                      </span>
+                                    )}
+                                    {l.status === "approved" && <span className="text-muted-foreground">godkänd</span>}
+                                    {l.status === "cancelled" && <span className="text-muted-foreground">avbeställd</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
-                      <p className="mt-2 text-[11px] text-muted-foreground">
-                        Inköpsordern är ännu inte skickad till leverantören — PDF och e-post är nästa steg.
-                      </p>
+                      {(spos[order.id] ?? []).some(r => r.rader.some(l => l.ack_status)) && (
+                        <p className="mt-2 text-[11px] text-muted-foreground">
+                          Leverantörens egna formuleringar är interna. Kunden ser status och datum, inte texten.
+                        </p>
+                      )}
                     </td>
                   </tr>
                 )}
@@ -550,6 +817,18 @@ function AdminOrdersPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {ackFor && (
+        <AckModal
+          spo={ackFor}
+          onClose={() => setAckFor(null)}
+          onSaved={async (sammanfattning) => {
+            setAckFor(null);
+            setSpoOk(sammanfattning);
+            await laddaInkopsordrar();
+          }}
+        />
       )}
 
       {editing && (
