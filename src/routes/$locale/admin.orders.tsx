@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminGuard } from "@/lib/auth-context";
 
@@ -17,6 +17,21 @@ const STATUS_LABELS: Record<string,string> = {
 const PAYMENT_LABELS: Record<string,string> = {
   unpaid:"Obetald", paid:"Betald", overdue:"Förfallen", refunded:"Återbetalad",
 };
+
+/** En inköpsorder till EN leverantör för EN kundorder. Kunden ser den aldrig. */
+interface SupplierPoRow {
+  id: string;
+  po_number: string | null;
+  order_id: string;
+  supplier_id: string | null;
+  status: string;
+  total_purchase_ex_vat: number | null;
+  expected_delivery: string | null;
+  needs_review: boolean;
+  review_reason: string | null;
+  antal_rader: number;
+  leverantor: string;
+}
 
 interface OrderRow {
   id: string;
@@ -233,13 +248,59 @@ function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<OrderRow | null>(null);
   const [filterStatus, setFilterStatus] = useState("all");
+  // Inköpsordrarna per kundorder. Laddas i en fråga, inte en per rad.
+  const [spos, setSpos] = useState<Record<string, SupplierPoRow[]>>({});
+  const [oppen, setOppen] = useState<string | null>(null);
+  const [skapar, setSkapar] = useState<string | null>(null);
+  const [spoFel, setSpoFel] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return; // vänta tills auth är klar innan redirect-beslut
     if (!isAdmin) { navigate({ to: "/$locale/login", params: { locale } }); return; }
     supabase.from("orders").select("*").order("created_at", { ascending: false })
       .then(({ data }) => { setOrders((data as OrderRow[]) ?? []); setLoading(false); });
+    laddaInkopsordrar();
   }, [isAdmin, authLoading]);
+
+  async function laddaInkopsordrar() {
+    const { data, error } = await supabase
+      .from("supplier_purchase_orders")
+      .select("id, po_number, order_id, supplier_id, status, total_purchase_ex_vat, expected_delivery, needs_review, review_reason, suppliers(name), supplier_purchase_order_items(id)")
+      .order("po_number", { ascending: true });
+    if (error) { setSpoFel(error.message); return; }
+    const per: Record<string, SupplierPoRow[]> = {};
+    for (const rad of (data ?? []) as Record<string, unknown>[]) {
+      const r: SupplierPoRow = {
+        id: rad.id as string,
+        po_number: rad.po_number as string | null,
+        order_id: rad.order_id as string,
+        supplier_id: rad.supplier_id as string | null,
+        status: rad.status as string,
+        total_purchase_ex_vat: rad.total_purchase_ex_vat as number | null,
+        expected_delivery: rad.expected_delivery as string | null,
+        needs_review: Boolean(rad.needs_review),
+        review_reason: rad.review_reason as string | null,
+        antal_rader: ((rad.supplier_purchase_order_items as unknown[]) ?? []).length,
+        leverantor: (rad.suppliers as { name?: string } | null)?.name ?? "Okänd leverantör",
+      };
+      (per[r.order_id] ??= []).push(r);
+    }
+    setSpos(per);
+  }
+
+  /**
+   * Grupperar kundorderns rader per leverantör och skapar en inköpsorder per
+   * leverantör. Funktionen är idempotent, så ett andra klick är ofarligt --
+   * men felet måste synas: en tyst miss här betyder att ingen beställer något.
+   */
+  async function skapaInkopsordrar(orderId: string) {
+    setSkapar(orderId);
+    setSpoFel(null);
+    const { error } = await supabase.rpc("create_supplier_pos", { p_order_id: orderId });
+    if (error) setSpoFel(error.message);
+    else { await laddaInkopsordrar(); setOppen(orderId); }
+    setSkapar(null);
+  }
 
   const filtered = filterStatus === "all" ? orders : orders.filter(o => o.status === filterStatus);
   const fmt = (n: number | null) => n ? n.toLocaleString("sv-SE", { style:"currency", currency:"SEK", maximumFractionDigits:0 }) : "—";
@@ -265,6 +326,12 @@ function AdminOrdersPage() {
         </div>
       </div>
 
+      {spoFel && (
+        <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          Inköpsordrarna kunde inte hämtas eller skapas: {spoFel}
+        </div>
+      )}
+
       {loading ? (
         <div className="space-y-2">{[1,2,3].map(i=><div key={i} className="h-16 bg-muted rounded-lg animate-pulse"/>)}</div>
       ) : filtered.length === 0 ? (
@@ -276,14 +343,15 @@ function AdminOrdersPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
-                {["Order ID","Kund","PO-nr","Artiklar","Totalt","Status","Betalning","Leverans",""].map(h=>(
+                {["Order ID","Kund","PO-nr","Artiklar","Totalt","Status","Betalning","Leverans","Leverantörsorder",""].map(h=>(
                   <th key={h} className="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {filtered.map(order => (
-                <tr key={order.id} className="hover:bg-muted/30 transition">
+              <Fragment key={order.id}>
+                <tr className="hover:bg-muted/30 transition">
                   <td className="px-4 py-3 font-mono text-xs text-primary">
                     {/* Ordernumret är kundens referens i telefon och mejl.
                         Fallbacken finns för ordrar som skapades innan
@@ -318,6 +386,28 @@ function AdminOrdersPage() {
                     {order.estimated_delivery ? new Date(order.estimated_delivery).toLocaleDateString("sv-SE", { month:"short", day:"numeric" }) : "—"}
                     {order.tracking_number && <div className="font-mono text-[10px]">{order.tracking_number}</div>}
                   </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {(spos[order.id] ?? []).length === 0 ? (
+                      <button
+                        onClick={() => skapaInkopsordrar(order.id)}
+                        disabled={skapar === order.id}
+                        className="px-2.5 py-1 text-xs rounded-md border border-border hover:border-primary text-muted-foreground hover:text-foreground transition disabled:opacity-50"
+                        title="Gruppera orderraderna per leverantör och skapa en inköpsorder per leverantör"
+                      >
+                        {skapar === order.id ? "Skapar…" : "Skapa"}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setOppen(oppen === order.id ? null : order.id)}
+                        className="px-2.5 py-1 text-xs rounded-md border border-border hover:border-primary transition"
+                      >
+                        {(spos[order.id] ?? []).length} st
+                        {(spos[order.id] ?? []).some(r => r.needs_review) && (
+                          <span className="ml-1 text-[oklch(0.55_0.18_50)]" title="Behöver granskas">●</span>
+                        )}
+                      </button>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1.5">
                       <button onClick={() => setEditing(order)}
@@ -336,6 +426,44 @@ function AdminOrdersPage() {
                     </div>
                   </td>
                 </tr>
+                {oppen === order.id && (spos[order.id] ?? []).length > 0 && (
+                  <tr className="bg-muted/20">
+                    <td colSpan={10} className="px-4 py-3">
+                      <div className="text-xs font-medium text-muted-foreground mb-2">
+                        Inköpsordrar för {order.order_number ?? order.id.slice(0,8)}
+                      </div>
+                      <div className="space-y-1.5">
+                        {(spos[order.id] ?? []).map(spo => (
+                          <div key={spo.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-background px-3 py-2">
+                            <span className="font-mono text-xs text-primary">{spo.po_number ?? "—"}</span>
+                            <span className="text-sm font-medium">{spo.leverantor}</span>
+                            <span className="text-xs text-muted-foreground">{spo.antal_rader} rader</span>
+                            <span className="text-xs text-muted-foreground">
+                              {/* Inköpspris: bara admin ser den här vyn, och tabellen är
+                                  admin-only i databasen också. */}
+                              {spo.total_purchase_ex_vat != null ? fmt(spo.total_purchase_ex_vat) + " ink.pris" : "inget inköpspris"}
+                            </span>
+                            {spo.expected_delivery && (
+                              <span className="text-xs text-muted-foreground">
+                                ber. {new Date(spo.expected_delivery).toLocaleDateString("sv-SE", { month:"short", day:"numeric" })}
+                              </span>
+                            )}
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{spo.status}</span>
+                            {spo.needs_review && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-[oklch(0.95_0.05_50)] text-[oklch(0.45_0.18_50)]">
+                                granska: {spo.review_reason ?? "okänt"}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        Inköpsordern är ännu inte skickad till leverantören — PDF och e-post är nästa steg.
+                      </p>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
               ))}
             </tbody>
           </table>
