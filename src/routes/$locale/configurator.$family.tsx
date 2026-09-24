@@ -11,6 +11,7 @@ import { variantOf } from "@/lib/catalog/dsbc";
 // "Without sensing" mitt på den svenska sidan.
 import { paramLabel, valueLabel } from "@/lib/catalog/labels-sv";
 import { addToShoppingList } from "@/lib/cart";
+import { valjSerieprodukt } from "@/lib/catalog/series-product";
 import { SITE, hreflangLinks } from "@/lib/site";
 
 // Types
@@ -186,7 +187,7 @@ function ConfiguratorPage() {
    * så administratören ser vilken serie det gäller. 15 av 169 familjer saknar
    * katalogpost helt; då blir det null och raden bär bara koden.
    */
-  const [seriesProduct, setSeriesProduct] = useState<{ id: string; name: string } | null>(null);
+  const [seriesProduct, setSeriesProduct] = useState<{ id: string; sku: string; name: string } | null>(null);
   // Katalogens villkor för familjen. Utan dem kunde konfiguratorn bygga
   // orderkoder tillverkaren inte kan leverera -- den byggde koden med ren
   // strängersättning och kontrollerade ingenting.
@@ -218,14 +219,17 @@ function ConfiguratorPage() {
 
       // Seriens katalogpost. products.family bär familjens slug för 154 av 169
       // familjer; resten har ingen och raden bär då bara orderkoden.
+      //
+      // ALLA rader i familjen hämtas, inte `limit 1`: DSNU har tolv, och en
+      // godtycklig av dem satte namnet "Festo DSNU-40 Round Cylinder" på en
+      // 32-konfiguration. valjSerieprodukt() väljer bestämt, och namnet tas
+      // inte härifrån alls.
       supabase
         .from("products")
-        .select("id, name")
+        .select("id, sku, name")
         .eq("status", "active")
         .ilike("family", fam.slug)
-        .limit(1)
-        .maybeSingle()
-        .then(({ data }) => setSeriesProduct(data ? { id: data.id, name: data.name } : null));
+        .then(({ data }) => setSeriesProduct(valjSerieprodukt(fam.slug, data ?? [])));
 
       const { data: paramRows } = await supabase
         .from("configurator_params")
@@ -622,7 +626,10 @@ function ConfiguratorPage() {
                       {
                         id: seriesProduct?.id ?? null,
                         sku: orderCode,
-                        name: seriesProduct?.name ?? family.title ?? family.name,
+                        // Familjens eget namn, ALDRIG en katalogvariants:
+                        // "Festo DSNU-40 Round Cylinder" på en rad vars kod
+                        // säger 32 är värre än inget namn alls.
+                        name: family.title ? `${family.name} — ${family.title}` : family.name,
                         order_code: orderCode,
                       },
                       qty,
