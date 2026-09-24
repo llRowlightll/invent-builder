@@ -30,7 +30,7 @@ katalogen gör det.
 | Orderbekräftelse | ⚠️ | `/admin/orderbekraftelse/:id` finns, skickas manuellt |
 | Kundportal | ⚠️ | `/sv/orders` visar offerter och ordrar, inte §9:s innehåll |
 | Interna leverantörsordrar | ✅ | `create_supplier_pos()`, en per leverantör, idempotent |
-| Leverantörs-PO som PDF och e-post | ❌ | nästa steg |
+| Leverantörs-PO som PDF och e-post | ⚠️ | `supplier-po`-funktionen finns; ingen leverantör har en beställningsadress än, så inget kan skickas |
 | Manuell leverantörsbekräftelse | ❌ | kolumnerna finns på `supplier_purchase_order_items` |
 | Status per orderrad | ✅ | `order_items.status`, `order_status_events` |
 | Manuell tracking | ⚠️ | `orders.tracking_number` finns; ingen modell per försändelse |
@@ -45,6 +45,11 @@ katalogen gör det.
 skickas inget, och en statusändring gjord av en trigger eller av SQL skickar
 ingenting alls. §3 vill ha idempotensnyckel på utskick och §15 vill ha retry +
 dead-letter. Det hör ihop med `notifications`-tabellen, som inte finns.
+
+**Ingen leverantör har en beställningsadress.** `supplier-po` kan rendera och
+mejla inköpsordern, men alla åtta leverantörer saknar `order_email`,
+kundnummer och registrerat avtal. Funktionen vägrar då skicka — det är inte en
+bugg utan grinden: uppgifterna kommer från leverantörsmötena.
 
 **Inköpsordern skapas för hand.** §3 vill att den skapas när ordern läggs.
 Den skapas i dag av en knapp i adminvyn, för att §2:s grind — validerad
@@ -89,7 +94,7 @@ databasen:
 | 3 | Kundordernummer | ✅ |
 | 4 | Korrekt orderbekräftelse | ⚠️ manuell |
 | 5 | Två separata leverantörsordrar | ✅ |
-| 6 | Leverantörsorder som PDF och e-post | ❌ |
+| 6 | Leverantörsorder som PDF och e-post | ⚠️ byggd, blockerad på adresser |
 | 7–8 | Leverantören bekräftar helt / delvis | ❌ |
 | 9 | Kundportalen visar det begripligt | ❌ |
 | 10–11 | Delleverans och tracking per rad | ❌ |
@@ -99,4 +104,4 @@ databasen:
 | 16 | Allt i audit log | ✅ |
 | 17 | Samma knapptryckning skapar aldrig en dubblett | ✅ |
 
-**4 av 17 klara, 2 halva.**
+**4 av 17 klara, 3 halva.**

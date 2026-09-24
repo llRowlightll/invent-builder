@@ -253,6 +253,8 @@ function AdminOrdersPage() {
   const [oppen, setOppen] = useState<string | null>(null);
   const [skapar, setSkapar] = useState<string | null>(null);
   const [spoFel, setSpoFel] = useState<string | null>(null);
+  const [arbetar, setArbetar] = useState<string | null>(null);
+  const [spoOk, setSpoOk] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return; // vänta tills auth är klar innan redirect-beslut
@@ -302,6 +304,63 @@ function AdminOrdersPage() {
     setSkapar(null);
   }
 
+  const PO_ENDPOINT = "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/supplier-po";
+
+  /**
+   * Anropar supplier-po med den inloggades token. Funktionen kräver admin --
+   * den läser ALDRIG innehåll ur anropet, bara spo_id, så en manipulerad
+   * begäran kan inte mejla något annat än den verkliga inköpsordern till den
+   * adress som står på leverantören.
+   */
+  async function anropaPo(spoId: string, kropp: Record<string, unknown>) {
+    const { data: { session } } = await supabase.auth.getSession();
+    return fetch(PO_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session?.access_token ?? ""}`,
+      },
+      body: JSON.stringify({ spo_id: spoId, ...kropp }),
+    });
+  }
+
+  async function forhandsgranska(spoId: string) {
+    setArbetar(spoId); setSpoFel(null); setSpoOk(null);
+    try {
+      const svar = await anropaPo(spoId, { action: "preview" });
+      if (!svar.ok) { setSpoFel(`PDF:en kunde inte skapas: ${await svar.text()}`); return; }
+      // En ny flik kan inte bära Authorization-huvudet, så PDF:en hämtas här
+      // och öppnas som en blob i stället.
+      const url = URL.createObjectURL(await svar.blob());
+      window.open(url, "_blank", "noopener");
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } finally { setArbetar(null); }
+  }
+
+  /**
+   * Skickar inköpsordern. Servern avgör om den FÅR skickas; klienten frågar
+   * bara användaren när svaret säger att varningarna kan bekräftas. Ordningen
+   * är viktig: regeln ligger i funktionen, inte i den här knappen.
+   */
+  async function skickaPo(spoId: string, skickaOm = false) {
+    setArbetar(spoId); setSpoFel(null); setSpoOk(null);
+    try {
+      let svar = await anropaPo(spoId, { action: "send", skicka_om: skickaOm });
+      let data = await svar.json();
+
+      if (!svar.ok && data?.kan_bekraftas) {
+        const varningar = (data.varningar ?? []).join("\n• ");
+        if (!window.confirm(`Skicka ändå?\n\n• ${varningar}\n\nMejlet går till leverantören och går inte att ta tillbaka.`)) return;
+        svar = await anropaPo(spoId, { action: "send", skicka_om: skickaOm, bekrafta_varningar: true });
+        data = await svar.json();
+      }
+
+      if (!svar.ok || !data?.ok) { setSpoFel(data?.skal ?? data?.fel ?? `Utskicket misslyckades (${svar.status}).`); return; }
+      setSpoOk(`${data.po_number} skickad till ${data.skickad_till}.`);
+      await laddaInkopsordrar();
+    } finally { setArbetar(null); }
+  }
+
   const filtered = filterStatus === "all" ? orders : orders.filter(o => o.status === filterStatus);
   const fmt = (n: number | null) => n ? n.toLocaleString("sv-SE", { style:"currency", currency:"SEK", maximumFractionDigits:0 }) : "—";
 
@@ -325,6 +384,12 @@ function AdminOrdersPage() {
           ))}
         </div>
       </div>
+
+      {spoOk && (
+        <div className="mb-4 rounded-lg border border-[oklch(0.72_0.12_155)] bg-[oklch(0.97_0.03_155)] px-4 py-3 text-sm text-[oklch(0.40_0.15_155)]">
+          {spoOk}
+        </div>
+      )}
 
       {spoFel && (
         <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -454,6 +519,23 @@ function AdminOrdersPage() {
                                 granska: {spo.review_reason ?? "okänt"}
                               </span>
                             )}
+                            <div className="ml-auto flex gap-1.5">
+                              <button
+                                onClick={() => forhandsgranska(spo.id)}
+                                disabled={arbetar === spo.id}
+                                className="px-2.5 py-1 text-xs rounded-md border border-border hover:border-primary transition disabled:opacity-50"
+                              >
+                                PDF
+                              </button>
+                              <button
+                                onClick={() => skickaPo(spo.id, spo.status === "sent")}
+                                disabled={arbetar === spo.id}
+                                className="px-2.5 py-1 text-xs rounded-md border border-info text-info hover:bg-info/10 transition disabled:opacity-50"
+                                title="Mejlar inköpsordern som PDF till leverantörens beställningsadress"
+                              >
+                                {arbetar === spo.id ? "…" : spo.status === "sent" ? "Skicka om" : "Skicka"}
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
