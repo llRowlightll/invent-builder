@@ -298,6 +298,84 @@ begin
   perform pg_temp.kolla(34, 'händelserna följer med när ordern raderas', '0', v_int::text);
 end $$;
 
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- DEL 2: KUNDENS EGEN VÄG (offert -> acceptera -> order)
+--
+-- Den vanliga vägen till en order är inte adminsidan utan att kunden trycker
+-- "Ja, acceptera offert" på /offert/:id. respond_to_quote() skrev länge
+-- orders.items som en jsonb-array UTAN att skapa order_items -- en order lagd
+-- av kunden själv var därför osynlig för Order Engine. Kontrollerna nedan
+-- finns för att den vägen ska gå hand i hand med resten, inte bredvid.
+-- ════════════════════════════════════════════════════════════════════════════
+
+do $$
+declare
+  v_agare uuid := (select id from auth.users order by created_at limit 1);
+  v_rfq uuid; v_p1 uuid; v_p2 uuid; v_ord uuid; v_ord2 uuid;
+  v_txt text; v_int int; v_res record;
+begin
+  select id into v_p1 from products where status='active' order by sku limit 1;
+  select id into v_p2 from products where status='active' and id <> v_p1 order by sku limit 1;
+
+  insert into rfqs (id, user_id, status, contact_name, contact_email, company, org_number,
+                    quote_currency, discount_pct, title)
+  values (gen_random_uuid(), v_agare, 'quoted', 'Provkund', 'k@example.com', 'Provkund AB',
+          '556000-0000', 'SEK', 10, 'Provoffert')
+  returning id into v_rfq;
+
+  insert into rfq_items (rfq_id, product_id, qty, unit_price, role)
+  values (v_rfq, v_p1, 4, 250.00, 'ordered'), (v_rfq, v_p2, 2, 1000.00, 'ordered');
+
+  select * into v_res from respond_to_quote(v_rfq, 'accepted', 'PO-KUND-1');
+  v_ord := v_res.order_id;
+
+  perform pg_temp.kolla(35, 'accepterad offert ger en order', 'ja',
+                        case when v_ord is not null then 'ja' else 'nej' end);
+  select count(*)::int into v_int from order_items where order_id = v_ord;
+  perform pg_temp.kolla(36, 'kundens order fick RADER, inte bara items-json', '2', v_int::text);
+  select jsonb_array_length(items)::text into v_txt from orders where id = v_ord;
+  perform pg_temp.kolla(37, 'items härledd ur raderna', '2', v_txt);
+
+  -- Offertens rabatt måste slå igenom: 250 x 0,9 = 225 per styck, 4 st = 900.
+  select line_total_ex_vat::text into v_txt from order_items where order_id=v_ord and line_no=1;
+  perform pg_temp.kolla(38, 'radsumman följer offertens rabatt (4 x 225)', '900.00', v_txt);
+
+  select count(*)::int into v_int from order_items where order_id=v_ord and product_id is not null;
+  perform pg_temp.kolla(39, 'raderna är knutna till katalogen', '2', v_int::text);
+  select order_number into v_txt from orders where id=v_ord;
+  perform pg_temp.kolla(40, 'kundens order fick ett ordernummer', 'ja',
+                        case when v_txt ~ '^MV-[0-9]{4}-[0-9]{5}$' then 'ja' else 'nej: '||coalesce(v_txt,'∅') end);
+  select po_number into v_txt from orders where id=v_ord;
+  perform pg_temp.kolla(41, 'kundens PO-nummer följde med', 'PO-KUND-1', v_txt);
+
+  -- Admin konverterar SAMMA offert. Utan gemensam idempotensnyckel hade
+  -- offerten fått två ordrar med olika nummer och olika rader.
+  set local role authenticated;
+  perform set_config('request.jwt.claims', format('{"sub":"%s","role":"authenticated"}', v_agare), true);
+  v_ord2 := create_order_with_items(
+    format('{"user_id":"%s","rfq_id":"%s","customer_name":"Provkund","customer_email":"k@example.com",
+             "idempotency_key":"rfq:%s"}', v_agare, v_rfq, v_rfq)::jsonb,
+    '[{"sku":"DUBBLETT","name":"Skulle inte skapas","qty":1,"unit_price_ex_vat":1}]'::jsonb);
+  reset role;
+  perform pg_temp.kolla(42, 'admin-vägen ger SAMMA order, ingen dubblett', 'ja',
+                        case when v_ord2 = v_ord then 'ja' else 'nej' end);
+  select count(*)::int into v_int from orders where rfq_id = v_rfq;
+  perform pg_temp.kolla(43, 'offerten har exakt en order', '1', v_int::text);
+  select count(*)::int into v_int from order_items where order_id=v_ord;
+  perform pg_temp.kolla(44, 'inga extrarader från andra försöket', '2', v_int::text);
+
+  select * into v_res from respond_to_quote(v_rfq, 'accepted', null);
+  perform pg_temp.kolla(45, 'andra accepten gör ingenting', 'false', v_res.success::text);
+
+  select count(*)::int into v_int from order_status_events where order_id = v_ord;
+  perform pg_temp.kolla(46, 'statushändelser loggade för kundens order', 'ja',
+                        case when v_int >= 3 then 'ja' else 'nej ('||v_int||')' end);
+
+  delete from orders where id = v_ord;
+  delete from rfqs where id = v_rfq;
+end $$;
+
 select nr, kontroll, case when ok then 'OK' else 'FEL' end as utfall,
        case when ok then '' else 'väntade "' || coalesce(forvantat,'∅') || '", fick "' || coalesce(faktiskt,'∅') || '"' end as avvikelse
 from prov_resultat order by nr;
