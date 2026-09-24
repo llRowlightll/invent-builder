@@ -83,8 +83,24 @@ function ProjectsPage() {
     navigate({ to: "/$locale/machine-builder" as never, params: { locale } as never });
   }
 
-  function addLineToOffert(line: BomLineSaved) {
-    addToShoppingList({ id: line.sku, sku: line.sku, name: line.role || line.sku });
+  /**
+   * En sparad stycklista bär bara SKU -- inget produkt-id. Raden skickade
+   * därför SKU:n som id, och submit_rfq dog på uuid-casten: hela
+   * offertförfrågan föll på en enda rad. Slå upp produkten i stället, och
+   * lägg raden som en kodrad när SKU:n inte finns i katalogen (SPECIFY,
+   * CUSTOM-SOLUTION och varningsrader har ingen produkt).
+   */
+  async function addLineToOffert(line: BomLineSaved) {
+    const { data: produkt } = await supabase
+      .from("products")
+      .select("id, name")
+      .eq("sku", line.sku)
+      .maybeSingle();
+    addToShoppingList(
+      produkt
+        ? { id: produkt.id, sku: line.sku, name: produkt.name || line.role || line.sku }
+        : { id: null, sku: line.sku, name: line.role || line.sku, order_code: line.sku },
+    );
     setAddedSkus((prev) => new Set(prev).add(line.sku));
     if (addedTimers.current[line.sku]) clearTimeout(addedTimers.current[line.sku]);
     addedTimers.current[line.sku] = setTimeout(() => {
@@ -92,8 +108,10 @@ function ProjectsPage() {
     }, 2000);
   }
 
-  function addAllToOffert(lines: BomLineSaved[]) {
-    lines.forEach((l) => addLineToOffert(l));
+  async function addAllToOffert(lines: BomLineSaved[]) {
+    // I tur och ordning: varje rad slår upp sin produkt, och listan läses och
+    // skrivs i localStorage -- parallella anrop skulle skriva över varandra.
+    for (const l of lines) await addLineToOffert(l);
   }
 
   if (!user) {

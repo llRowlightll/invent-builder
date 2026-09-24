@@ -13,6 +13,10 @@ type RfqItem = {
   role: string | null;
   unit_price: number | null;
   note: string | null;
+  /** Konfiguratorns orderkod -- när den finns ÄR den artikeln, inte products.sku. */
+  order_code?: string | null;
+  /** Radens namn när familjen saknar katalogpost. */
+  item_name?: string | null;
   product?: { sku: string; name: string } | null;
 };
 
@@ -92,7 +96,8 @@ export default function AdminRfqPage() {
     // Load items with product info
     const { data } = await supabase
       .from("rfq_items")
-      .select("id, rfq_id, product_id, qty, role, unit_price, note, products(sku, name)")
+      .select("id, rfq_id, product_id, qty, role, unit_price, note, order_code, item_name, products(sku, name)")
+      .order("sort_order", { ascending: true, nullsFirst: false })
       .eq("rfq_id", rfq.id);
     setItems((data ?? []).map((d: Record<string, unknown>) => ({
       id: d.id as string,
@@ -166,8 +171,8 @@ export default function AdminRfqPage() {
         // product_id tas med så orderraden kan knytas till katalogen; namn och
         // pris är ändå snapshots och rör sig inte när produkten ändras.
         product_id:         it.product_id ?? null,
-        sku:                it.product?.sku ?? "—",
-        name:               it.product?.name ?? "Okänd produkt",
+        sku:                it.order_code ?? it.product?.sku ?? "—",
+        name:               it.item_name ?? it.product?.name ?? "Okänd produkt",
         qty,
         unit_price_ex_vat:  unitEx,
         total_price_ex_vat: unitEx * qty,
@@ -349,8 +354,8 @@ export default function AdminRfqPage() {
                         <tbody className="divide-y divide-border">
                           {items.map((item) => (
                             <tr key={item.id} className="hover:bg-surface-alt/50">
-                              <td className="px-3 py-2 font-mono text-[10px]">{item.product?.sku ?? "—"}</td>
-                              <td className="px-3 py-2 truncate max-w-[160px]">{item.product?.name ?? "Okänd produkt"}</td>
+                              <td className="px-3 py-2 font-mono text-[10px]">{item.order_code ?? item.product?.sku ?? "—"}</td>
+                              <td className="px-3 py-2 truncate max-w-[160px]">{item.item_name ?? item.product?.name ?? "Okänd produkt"}</td>
                               <td className="px-3 py-2 text-right font-medium">{item.qty ?? 1}</td>
                               <td className="px-3 py-2 text-muted-foreground">{item.role ?? "—"}</td>
                             </tr>
@@ -488,7 +493,7 @@ function buildQuoteMailto(rfq: Rfq, items: RfqItem[], quoteAmount: string): stri
   const name = rfq.contact_name ?? rfq.company ?? "Kund";
   const amount = quoteAmount ? `${Number(quoteAmount).toLocaleString("sv-SE")} SEK` : "se bifogad offert";
   const productLines = items.length > 0
-    ? items.map(i => `  • ${i.product?.sku ?? "—"} × ${i.qty ?? 1}  ${i.product?.name ?? ""}`).join("\n")
+    ? items.map(i => `  • ${i.order_code ?? i.product?.sku ?? "—"} × ${i.qty ?? 1}  ${i.item_name ?? i.product?.name ?? ""}`).join("\n")
     : "  (inga produktrader)";
 
   const body = [

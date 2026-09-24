@@ -71,11 +71,13 @@ function BomPage() {
         .single();
       if (error || !rfq) throw error;
       const { error: itemsError } = await supabase.from("rfq_items").insert(
-        result.items.map((i) => ({
+        result.items.map((i, index) => ({
           rfq_id: rfq.id,
           product_id: i.product.id,
           role: i.role,
           qty: i.qty,
+          // Utan sort_order sorteras raderna på ett slumpat uuid.
+          sort_order: index + 1,
         })),
       );
       if (itemsError) throw itemsError;

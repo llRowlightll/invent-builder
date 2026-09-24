@@ -20,6 +20,10 @@ type RfqItem = {
   qty: number | null;
   unit_price: number | null;
   note: string | null;
+  /** Konfiguratorns orderkod -- när den finns ÄR den artikeln, inte products.sku. */
+  order_code?: string | null;
+  /** Radens namn när familjen saknar katalogpost. */
+  item_name?: string | null;
   product?: { sku: string; name: string; brand?: { slug: string; name: string } | null } | null;
 };
 
@@ -93,8 +97,9 @@ export default function AdminOffertPage() {
       supabase.from("rfqs").select("*").eq("id", rfqId).single(),
       supabase
         .from("rfq_items")
-        .select("id, product_id, qty, unit_price, note, products(sku, name, brand:brands(slug, name))")
-        .eq("rfq_id", rfqId),
+        .select("id, product_id, qty, unit_price, note, order_code, item_name, products(sku, name, brand:brands(slug, name))")
+        .eq("rfq_id", rfqId)
+        .order("sort_order", { ascending: true, nullsFirst: false }),
       fetchCompanySettings(),
     ]);
     setCompany(co);
@@ -119,6 +124,9 @@ export default function AdminOffertPage() {
       qty: d.qty as number | null,
       unit_price: d.unit_price as number | null,
       note: d.note as string | null,
+      // Konfigurerad rad: koden ÄR artikeln. products bär bara serien.
+      order_code: (d.order_code as string | null) || null,
+      item_name: (d.item_name as string | null) || null,
       product: d.products as { sku: string; name: string; brand?: { slug: string; name: string } | null } | null,
     }));
     setItems(mapped);
@@ -258,7 +266,7 @@ export default function AdminOffertPage() {
     const lines = list
       .map((it) => {
         const qty = lineEdits[it.id]?.qty ?? it.qty ?? 1;
-        return `- ${it.product?.sku ?? "?"}  ${it.product?.name ?? ""}  ×${qty}`;
+        return `- ${it.order_code ?? it.product?.sku ?? "?"}  ${it.item_name ?? it.product?.name ?? ""}  ×${qty}`;
       })
       .join("\n");
     return `Offertförfrågan – ${brand}
@@ -491,9 +499,9 @@ ${co.name}`;
             <tbody>
               {lineItems.map((it, i) => (
                 <tr key={it.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                  <td className="py-2.5 pr-3 text-xs text-gray-500 font-mono">{it.product?.sku ?? "—"}</td>
+                  <td className="py-2.5 pr-3 text-xs text-gray-500 font-mono">{it.order_code ?? it.product?.sku ?? "—"}</td>
                   <td className="py-2.5 pr-3">
-                    <div className="text-gray-800">{it.product?.name ?? "Okänd produkt"}</div>
+                    <div className="text-gray-800">{it.item_name ?? it.product?.name ?? "Okänd produkt"}</div>
                     {/* Note — editable in admin, shown on print */}
                     <div className="print:hidden mt-1">
                       <input
