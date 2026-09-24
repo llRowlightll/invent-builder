@@ -86,7 +86,7 @@ frakt, betalningsvillkor, produktdatarättigheter).
 
 ## Provet
 
-`scripts/test-order-engine.sql` — 115 kontroller, självstädande, körs mot
+`scripts/test-order-engine.sql` — 121 kontroller, självstädande, körs mot
 databasen:
 
 | Del | Kontroller | Vad den vaktar |
@@ -99,6 +99,7 @@ databasen:
 | 6 | 79–94 | klassningen grön/gul/röd: specens tretton situationer plus toleransgränserna |
 | 7 | 95–111 | leverantörens bekräftelse hela vägen till kundens orderrad |
 | 8 | 112–115 | en inköpsorder där leverantören inte svarat på alla rader |
+| 9 | 116–121 | att inköpsorderns avledda värden räknas om när raderna ändras |
 
 ## §18: acceptanskriterierna
 

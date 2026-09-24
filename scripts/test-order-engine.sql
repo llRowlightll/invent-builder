@@ -6,7 +6,8 @@
 -- 60-72 grupperingen till inköpsordrar per leverantör, 73-78 en orderrad som
 -- tillkommer efter att inköpsordrarna skapats, 79-94 klassningen grön/gul/röd,
 -- 95-111 leverantörens bekräftelse hela vägen till kundens orderrad, 112-115
--- en inköpsorder där leverantören inte svarat på alla rader.
+-- en inköpsorder där leverantören inte svarat på alla rader, 116-121 att
+-- inköpsorderns avledda värden räknas om när raderna ändras.
 --
 -- Kör i SQL-editorn eller via execute_sql. Skapar sin egen provdata och
 -- STÄDAR UPP SIG SJÄLV, utan att förlita sig på en yttre rollback -- provet
@@ -812,6 +813,67 @@ begin
   perform pg_temp.kolla(114, 'bekräftad först när varje rad svarat', 'acknowledged', v_txt);
   select needs_review::text into v_txt from supplier_purchase_orders where id=v_spo;
   perform pg_temp.kolla(115, 'och granskningsflaggan släcks', 'false', v_txt);
+
+  reset role;
+  perform set_config('request.jwt.claims', '', true);
+  delete from orders where id=v_ord;
+end $$;
+
+-- ── DEL 9: de avledda värdena räknas om ───────────────────────────────────
+--
+-- Hittat genom att TITTA på adminvyn: en inköpsorder vars rader hade priser
+-- stod ändå som "inget inköpspris". total_purchase_ex_vat, needs_review och
+-- review_reason sattes en gång vid skapandet och rördes aldrig igen. PDF:en
+-- räknade sin egen summa ur raderna och hade rätt, medan listan bredvid hade
+-- fel -- två sanningar om samma order.
+
+do $$
+declare
+  v_admin uuid := (select id from auth.users order by created_at limit 1);
+  v_f1 uuid; v_ord uuid; v_spo uuid; v_r1 uuid; v_txt text;
+begin
+  select p.id into v_f1 from products p join brands b on b.id=p.brand_id
+   where p.status='active' and b.slug='festo' order by p.sku limit 1;
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims', format('{"sub":"%s","role":"authenticated"}', v_admin), true);
+
+  v_ord := create_order_with_items(
+    format('{"user_id":"%s","customer_name":"Rollupprov","customer_email":"r@example.invalid"}', v_admin)::jsonb,
+    format('[{"product_id":"%s","sku":"A","name":"ett","qty":2,"unit_price_ex_vat":100}]', v_f1)::jsonb);
+  perform create_supplier_pos(v_ord);
+  select spo.id into v_spo from supplier_purchase_orders spo where spo.order_id=v_ord;
+
+  perform pg_temp.kolla(116, 'utan inköpspris: ingen summa', 'ja',
+    case when (select total_purchase_ex_vat from supplier_purchase_orders where id=v_spo) is null
+         then 'ja' else 'nej' end);
+  select review_reason into v_txt from supplier_purchase_orders where id=v_spo;
+  perform pg_temp.kolla(117, 'och skälet säger inköpspris saknas', 'ja',
+    case when v_txt like '%inköpspris saknas%' then 'ja' else 'nej: '||coalesce(v_txt,'-') end);
+
+  -- Priset kommer in efteråt. Summan och skälet ska följa med.
+  update supplier_purchase_order_items set unit_purchase_price=60, line_total_ex_vat=120 where spo_id=v_spo;
+  perform create_supplier_pos(v_ord);
+  perform pg_temp.kolla(118, 'summan räknas om när priset kommer', '120',
+    (select trim_scale(total_purchase_ex_vat)::text from supplier_purchase_orders where id=v_spo));
+  select coalesce(review_reason,'-') into v_txt from supplier_purchase_orders where id=v_spo;
+  perform pg_temp.kolla(119, 'och skälet slutar säga att priset saknas', 'ja',
+    case when v_txt not like '%inköpspris saknas%' then 'ja' else 'nej: '||v_txt end);
+
+  -- Ett godkänt leverantörssvar ändrar priset: summan ska följa.
+  update supplier_purchase_orders set expected_delivery=current_date+14, sent_at=now(), status='sent' where id=v_spo;
+  select id into v_r1 from supplier_purchase_order_items where spo_id=v_spo and line_no=1;
+  perform register_supplier_ack(v_spo,
+    jsonb_build_array(jsonb_build_object('spoi_id', v_r1, 'qty', 2, 'unit_price', 75,
+                                         'delivery_date', (current_date+14)::text, 'response','accepted')));
+  perform godkann_avvikelse(v_r1, 'approve');
+  perform pg_temp.kolla(120, 'summan följer ett godkänt prisbyte (2 x 75)', '150',
+    (select trim_scale(total_purchase_ex_vat)::text from supplier_purchase_orders where id=v_spo));
+  -- Ett skäl utan flagga är en varning ingen ser, och tvärtom.
+  perform pg_temp.kolla(121, 'granskningsflaggan och skälet är överens', 'ja',
+    case when (select needs_review from supplier_purchase_orders where id=v_spo)
+              = ((select review_reason from supplier_purchase_orders where id=v_spo) is not null)
+         then 'ja' else 'nej' end);
 
   reset role;
   perform set_config('request.jwt.claims', '', true);
