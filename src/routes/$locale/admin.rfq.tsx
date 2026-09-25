@@ -22,6 +22,8 @@ type RfqItem = {
 
 type Rfq = {
   id: string;
+  /** Vad kunden bad om: quote = bara priser, order = en beställning. */
+  intent?: string | null;
   user_id: string;
   status: string | null;
   contact_name: string | null;
@@ -292,7 +294,17 @@ export default function AdminRfqPage() {
                 >
                   <span className={`mt-1.5 size-2 rounded-full shrink-0 ${meta.dot}`} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{r.company ?? r.contact_name ?? "Okänd"}</div>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {/* En beställning och en offertförfrågan kräver olika
+                          arbete: den ena ska prissättas och skickas tillbaka,
+                          den andra ska verkställas. Det måste synas i listan. */}
+                      {r.intent === "order" && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[oklch(0.95_0.05_155)] text-[oklch(0.35_0.15_155)] font-semibold shrink-0">
+                          BESTÄLLNING
+                        </span>
+                      )}
+                      <span className="text-sm font-medium truncate">{r.company ?? r.contact_name ?? "Okänd"}</span>
+                    </div>
                     <div className="text-xs text-muted-foreground truncate">{r.contact_email}</div>
                     <div className="text-[10px] text-muted-foreground/60 mt-0.5">
                       {new Date(r.created_at).toLocaleDateString("sv-SE")}

@@ -2111,6 +2111,7 @@ export type Database = {
           id: string
           integration_error: string | null
           integration_synced_at: string | null
+          intent: string
           internal_notes: string | null
           label_url: string | null
           message: string | null
@@ -2148,6 +2149,7 @@ export type Database = {
           id?: string
           integration_error?: string | null
           integration_synced_at?: string | null
+          intent?: string
           internal_notes?: string | null
           label_url?: string | null
           message?: string | null
@@ -2185,6 +2187,7 @@ export type Database = {
           id?: string
           integration_error?: string | null
           integration_synced_at?: string | null
+          intent?: string
           internal_notes?: string | null
           label_url?: string | null
           message?: string | null
@@ -3297,6 +3300,7 @@ export type Database = {
           p_contact_name: string
           p_contact_phone: string
           p_hp?: string
+          p_intent?: string
           p_items: Json
           p_message: string
           p_org_number: string
@@ -3306,6 +3310,10 @@ export type Database = {
         Returns: string
       }
       sv_en_term: { Args: { w: string }; Returns: string }
+      uppdatera_inkopsorderstatus: {
+        Args: { p_spo_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "editor" | "user"

@@ -54,6 +54,15 @@ function ShoppingListPage() {
   const [poReadError, setPoReadError] = useState<string | null>(null);
   const poInputRef = useRef<HTMLInputElement>(null);
   const [rfqId, setRfqId] = useState<string | null>(null);
+  /**
+   * Vad kunden faktiskt bad om.
+   *
+   * Förut fanns bara en knapp, "Begär offert", och accepten av offerten blev
+   * ordern. Det gick alltså varken att BARA fråga efter priser eller att
+   * BESTÄLLA. Avsikten sätts här, när kunden trycker, och följer med hela
+   * vägen -- den går inte att härleda i efterhand.
+   */
+  const [avsikt, setAvsikt] = useState<"quote" | "order">("quote");
 
   useEffect(() => {
     loadCatalog().then(setCatalog);
@@ -168,7 +177,7 @@ function ShoppingListPage() {
     setRfqSending(true);
     setRfqError("");
     try {
-      const title = `${t("shoppingList.rfqTitle")} — ${rfqCompany || rfqName}`;
+      const title = `${avsikt === "order" ? "Beställning" : t("shoppingList.rfqTitle")} — ${rfqCompany || rfqName}`;
       // submit_rfq() creates the rfq row + its items atomically, server-side.
       // user_id is derived from auth.uid() inside the function (null if
       // anonymous) — never client-supplied. See migration
@@ -195,6 +204,7 @@ function ShoppingListPage() {
           order_code: item.order_code ?? null,
           item_name: item.order_code ? item.name : null,
         })),
+        p_intent: avsikt,
         p_hp: rfqHp,
       });
 
@@ -452,12 +462,20 @@ function ShoppingListPage() {
                 )}
               </div>
 
-              <button
-                onClick={handleRequestQuote}
-                className="px-5 py-2.5 rounded-lg bg-info text-primary-foreground text-sm font-semibold hover:opacity-90 transition shadow-sm"
-              >
-                {t("shoppingList.requestQuote")} →
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => { setAvsikt("quote"); handleRequestQuote(); }}
+                  className="px-5 py-2.5 rounded-lg border border-info text-info text-sm font-semibold hover:bg-info/10 transition"
+                >
+                  Begär offert
+                </button>
+                <button
+                  onClick={() => { setAvsikt("order"); handleRequestQuote(); }}
+                  className="px-5 py-2.5 rounded-lg bg-info text-primary-foreground text-sm font-semibold hover:opacity-90 transition shadow-sm"
+                >
+                  Beställ →
+                </button>
+              </div>
             </div>
 
             {/* Login nudge (shown when not logged in) */}
