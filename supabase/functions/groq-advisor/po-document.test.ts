@@ -28,7 +28,7 @@ const huvud: PoHuvud = {
 };
 
 const festo: PoLeverantor = {
-  name: "Festo", order_email: "order@example.invalid", customer_number: "12345",
+  name: "Festo", is_active: true, order_email: "order@example.invalid", customer_number: "12345",
   currency: "SEK", payment_terms: "30 dagar netto", incoterms: "DAP",
   agreement_status: "signed", contact_name: null, contact_email: null, min_order_value: null,
 };
@@ -62,6 +62,22 @@ Deno.test("utan beställningsadress går den inte att skicka, och kan inte bekr�
   assertEquals(beslut.ok, false);
   assertEquals(beslut.kanBekraftas, false);
   assertEquals(beslut.skal?.includes("beställningsadress"), true);
+});
+
+Deno.test("en leverantör som inte är aktiverad går inte att beställa av", () => {
+  // Leverantörssidan har hela tiden påstått att Order Engine inte får beställa
+  // från en inaktiv leverantör. Ingen kod läste flaggan förrän nu.
+  const d = dok({ leverantor: { ...festo, is_active: false } });
+  assertEquals(d.hinder.length, 1);
+  assertEquals(d.hinder[0].includes("inte aktiverad"), true);
+  const beslut = faarSkickas(d, { sent_at: null }, { bekraftaVarningar: true, skickaOm: true });
+  assertEquals(beslut.ok, false, "ett hinder går inte att bekräfta förbi");
+  assertEquals(beslut.kanBekraftas, false);
+});
+
+Deno.test("inaktiv OCH utan adress ger båda hindren, inte bara det första", () => {
+  const d = dok({ leverantor: { ...festo, is_active: false, order_email: null } });
+  assertEquals(d.hinder.length, 2);
 });
 
 Deno.test("utan leverantör är det ett hinder, inte en varning", () => {
