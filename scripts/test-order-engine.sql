@@ -7,12 +7,14 @@
 -- tillkommer efter att inköpsordrarna skapats, 79-94 klassningen grön/gul/röd,
 -- 95-111 leverantörens bekräftelse hela vägen till kundens orderrad, 112-115
 -- en inköpsorder där leverantören inte svarat på alla rader, 116-121 att
--- inköpsorderns avledda värden räknas om när raderna ändras.
+-- inköpsorderns avledda värden räknas om när raderna ändras, 122-125 en
+-- leverantör vi inte aktiverat.
 --
 -- Kör i SQL-editorn eller via execute_sql. Skapar sin egen provdata och
 -- STÄDAR UPP SIG SJÄLV, utan att förlita sig på en yttre rollback -- provet
--- ska ge samma svar oavsett klient. Det enda det rör utanför sin egen order är
--- ett produktnamn, som skrivs tillbaka i samma block (kontroll 15).
+-- ska ge samma svar oavsett klient. Två saker rör det utanför sin egen order,
+-- och båda skrivs tillbaka i samma block: ett produktnamn (kontroll 15) och
+-- Festos is_active-flagga (kontroll 125).
 --
 -- Provet finns för att kedjan består av delar som måste hålla IHOP:
 -- en RPC som skriver atomiskt, en trigger som härleder orders.items ur
@@ -874,6 +876,64 @@ begin
     case when (select needs_review from supplier_purchase_orders where id=v_spo)
               = ((select review_reason from supplier_purchase_orders where id=v_spo) is not null)
          then 'ja' else 'nej' end);
+
+  reset role;
+  perform set_config('request.jwt.claims', '', true);
+  delete from orders where id=v_ord;
+end $$;
+
+-- ── DEL 10: en leverantör vi inte aktiverat ───────────────────────────────
+--
+-- Hittat genom att titta på /admin/leverantorer i webbläsaren. Sidan har hela
+-- tiden sagt "Order Engine får inte beställa från en leverantör som inte är
+-- aktiv", och ingen kod läste suppliers.is_active. Alla åtta står som
+-- inaktiva, och systemet skapade ändå inköpsordrar åt dem utan ett ord.
+--
+-- Att SKAPA inköpsordern är fortfarande tillåtet -- utkastet är just det som
+-- behövs för att se vad som saknas. Det är att SKICKA den som stoppas, och det
+-- hindret ligger i supplier-po (po-document.ts).
+
+do $$
+declare
+  v_admin uuid := (select id from auth.users order by created_at limit 1);
+  v_f1 uuid; v_ord uuid; v_spo uuid; v_festo uuid; v_txt text; v_fel text;
+begin
+  select p.id into v_f1 from products p join brands b on b.id=p.brand_id
+   where p.status='active' and b.slug='festo' order by p.sku limit 1;
+  select id into v_festo from suppliers where slug='festo';
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims', format('{"sub":"%s","role":"authenticated"}', v_admin), true);
+
+  -- Omräknaren äger de avledda värdena och ska inte gå att nå utifrån.
+  begin
+    perform uppdatera_inkopsorderstatus(gen_random_uuid());
+    v_fel := 'gick igenom';
+  exception when insufficient_privilege then v_fel := 'avvisad';
+  end;
+  perform pg_temp.kolla(122, 'omräknaren är intern och nås inte av en inloggad', 'avvisad', v_fel);
+
+  v_ord := create_order_with_items(
+    format('{"user_id":"%s","customer_name":"Aktivprov","customer_email":"a@example.invalid"}', v_admin)::jsonb,
+    format('[{"product_id":"%s","sku":"A","name":"ett","qty":1,"unit_price_ex_vat":100}]', v_f1)::jsonb);
+  perform create_supplier_pos(v_ord);
+  select spo.id into v_spo from supplier_purchase_orders spo where spo.order_id=v_ord;
+
+  select review_reason into v_txt from supplier_purchase_orders where id=v_spo;
+  perform pg_temp.kolla(123, 'inaktiv leverantör syns som granskningsskäl', 'ja',
+    case when v_txt like '%inte aktiverad%' then 'ja' else 'nej: '||coalesce(v_txt,'-') end);
+
+  update suppliers set is_active = true where id = v_festo;
+  perform create_supplier_pos(v_ord);
+  select coalesce(review_reason,'-') into v_txt from supplier_purchase_orders where id=v_spo;
+  perform pg_temp.kolla(124, 'och försvinner när leverantören aktiveras', 'ja',
+    case when v_txt not like '%inte aktiverad%' then 'ja' else 'nej: '||v_txt end);
+
+  -- Provet rör en rad UTANFÖR sin egen order och måste därför städa efter sig.
+  update suppliers set is_active = false where id = v_festo;
+  perform create_supplier_pos(v_ord);
+  perform pg_temp.kolla(125, 'provet lämnade leverantören inaktiv', 'false',
+    (select is_active::text from suppliers where id=v_festo));
 
   reset role;
   perform set_config('request.jwt.claims', '', true);

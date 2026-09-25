@@ -127,6 +127,7 @@ Deno.serve(async (req) => {
     leverantor: lev
       ? {
           name: lev.name as string,
+          is_active: Boolean(lev.is_active),
           order_email: lev.order_email as string | null,
           customer_number: lev.customer_number as string | null,
           currency: lev.currency as string | null,

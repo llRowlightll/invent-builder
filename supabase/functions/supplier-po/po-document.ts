@@ -17,6 +17,14 @@
 
 export interface PoLeverantor {
   name: string;
+  /**
+   * Har vi avtalet och rutinerna på plats för att lägga order här?
+   *
+   * Leverantörssidan har hela tiden sagt "Order Engine får inte beställa från
+   * en leverantör som inte är aktiv" -- men ingen kod läste flaggan. Påståendet
+   * i gränssnittet var alltså inte sant. Nu är det det.
+   */
+  is_active: boolean;
   order_email: string | null;
   customer_number: string | null;
   currency: string | null;
@@ -98,8 +106,13 @@ export function byggPoDokument(input: {
 
   if (!leverantor) {
     hinder.push("Inköpsordern har ingen leverantör. Sätt leverantör på orderraderna först.");
-  } else if (!(leverantor.order_email ?? "").trim()) {
-    hinder.push(`${leverantor.name} har ingen beställningsadress. Fyll i den på /admin/leverantorer.`);
+  } else {
+    if (!leverantor.is_active) {
+      hinder.push(`${leverantor.name} är inte aktiverad som leverantör. Aktivera den på /admin/leverantorer när avtalet och rutinerna är på plats.`);
+    }
+    if (!(leverantor.order_email ?? "").trim()) {
+      hinder.push(`${leverantor.name} har ingen beställningsadress. Fyll i den på /admin/leverantorer.`);
+    }
   }
   if (rader.length === 0) {
     hinder.push("Inköpsordern har inga rader.");

@@ -30,7 +30,7 @@ katalogen gör det.
 | Orderbekräftelse | ⚠️ | `/admin/orderbekraftelse/:id` finns, skickas manuellt |
 | Kundportal | ⚠️ | `/sv/orders` visar offerter och ordrar, inte §9:s innehåll |
 | Interna leverantörsordrar | ✅ | `create_supplier_pos()`, en per leverantör, idempotent |
-| Leverantörs-PO som PDF och e-post | ⚠️ | `supplier-po`-funktionen finns; ingen leverantör har en beställningsadress än, så inget kan skickas |
+| Leverantörs-PO som PDF och e-post | ⚠️ | `supplier-po`-funktionen finns och är provad mot en riktig adminsession; ingen leverantör är aktiverad eller har beställningsadress, så inget kan skickas |
 | Manuell leverantörsbekräftelse | ✅ | `register_supplier_ack()` klassar grön/gul/röd; röd stoppar raden tills en människa beslutar |
 | Status per orderrad | ✅ | `order_items.status`, `order_status_events` |
 | Manuell tracking | ⚠️ | `orders.tracking_number` finns; ingen modell per försändelse |
@@ -86,7 +86,7 @@ frakt, betalningsvillkor, produktdatarättigheter).
 
 ## Provet
 
-`scripts/test-order-engine.sql` — 121 kontroller, självstädande, körs mot
+`scripts/test-order-engine.sql` — 125 kontroller, självstädande, körs mot
 databasen:
 
 | Del | Kontroller | Vad den vaktar |
@@ -100,6 +100,7 @@ databasen:
 | 7 | 95–111 | leverantörens bekräftelse hela vägen till kundens orderrad |
 | 8 | 112–115 | en inköpsorder där leverantören inte svarat på alla rader |
 | 9 | 116–121 | att inköpsorderns avledda värden räknas om när raderna ändras |
+| 10 | 122–125 | en leverantör vi inte aktiverat |
 
 ## §18: acceptanskriterierna
 
