@@ -137,10 +137,24 @@ def run_customer_checks(email: str, password: str) -> None:
         body={"user_id": user_id, "title": "[TEST] automated flow check", "description": "Created by test-customer-flows.py", "urgency": "low"},
         extra_headers=["Prefer: return=representation"],
     )
-    check("claims: can create own row", isinstance(claim, list) and len(claim) > 0, str(claim)[:200])
+    skapad = isinstance(claim, list) and len(claim) > 0
+    check("claims: can create own row", skapad, str(claim)[:200])
 
     my_claims = rest("GET", "claims?select=id,title&order=created_at.desc&limit=5", token)
     check("claims: readable (own rows)", isinstance(my_claims, list), str(my_claims)[:200])
+
+    # STÄDA EFTER SIG. Provet skapade ett ärende per natt och raderade det
+    # aldrig: 39 påhittade rader låg i /admin/claims, noll riktiga, och listan
+    # var oläslig. Ett prov som lämnar spår i produktionen provar inte bara
+    # koden -- det ändrar den miljö nästa körning mäter i.
+    #
+    # Raderingen är också en kontroll: kunden SKA kunna ta bort sitt eget
+    # ärende, och att den går igenom bevisar RLS-policyn på DELETE.
+    if skapad:
+        claim_id = claim[0].get("id")
+        rest("DELETE", f"claims?id=eq.{claim_id}", token)
+        kvar = rest("GET", f"claims?select=id&id=eq.{claim_id}", token)
+        check("claims: provraden städas bort", isinstance(kvar, list) and len(kvar) == 0, str(kvar)[:200])
 
 
 def run_admin_checks(email: str, password: str) -> None:

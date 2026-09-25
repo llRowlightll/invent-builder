@@ -71,7 +71,19 @@ function ClaimEditModal({ claim, onClose, onSaved }: { claim: ClaimRow; onClose:
       .select()
       .single();
     setSaving(false);
-    if (data) onSaved(data as ClaimRow);
+    if (data) {
+      // Statusen är redan sparad, så order-status-email läser om ärendet ur
+      // raden. resolution_note följer med som svarstext till kunden;
+      // admin_note gör det ALDRIG -- den är intern.
+      if (status !== claim.status) {
+        fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: claim.id, kind: "claim", locale: "sv" }),
+        }).catch(console.error);
+      }
+      onSaved(data as ClaimRow);
+    }
     onClose();
   }
 

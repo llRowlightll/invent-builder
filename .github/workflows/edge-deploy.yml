@@ -52,6 +52,7 @@ jobs:
           # supplier-po skickar inköpsordrar till leverantörer. Den får inte
           # deployas trasig -- ett fel här betyder att ingen beställning går ut.
           deno check --no-lock --node-modules-dir=none supabase/functions/supplier-po/index.ts
+          deno check --no-lock --node-modules-dir=none supabase/functions/order-status-email/index.ts
           # --allow-read krävs av synktestet, som läser src/lib/physics.ts och
           # gör bygget rött om husets kraftmodell glidit isär mellan
           # Deno-runtimen och Vite-runtimen. Utan behörigheten hoppar testet
@@ -79,6 +80,23 @@ jobs:
         run: |
           echo "::error::Edge function deploy did not succeed (outcome=${{ steps.deploy.outcome }})."
           echo "::error::The live function was NOT updated — failing the run so it can't slip through."
+          exit 1
+
+      - name: Deploy order-status-email to Supabase
+        # Funktionen skickar kundens statusmejl OCH reklamationssvar. Den låg
+        # utanför CI och hade deployats för hand -- en ändring i repot hade
+        # alltså inte gått live, och ingen hade märkt det förrän en kund
+        # undrade varför den inte hört något.
+        continue-on-error: true
+        id: deploy_mail
+        run: npx --yes supabase@latest functions deploy order-status-email --project-ref buqfbcztspswezwyafxo
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Fail if order-status-email deploy did not succeed
+        if: steps.deploy_mail.outcome != 'success'
+        run: |
+          echo "::error::order-status-email deploy did not succeed (outcome=${{ steps.deploy_mail.outcome }})."
           exit 1
 
       - name: Deploy supplier-po to Supabase

@@ -164,7 +164,7 @@ function ClaimsPage() {
     setSubmitting(true);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).from("claims").insert({
+    const { data: nyRad, error } = await (supabase as any).from("claims").insert({
       user_id:     user.id,
       title:       fTitle,
       claim_type:  fType || null,
@@ -173,10 +173,22 @@ function ClaimsPage() {
       description: fDescription,
       urgency:     fUrgency,
       contact_email: fContact || user.email || null,
-    });
+    }).select("id").single();
 
     setSubmitting(false);
     if (error) { setSubmitError(error.message); return; }
+
+    // Kvittens. Raden är redan skriven, så funktionen läser om statusen och
+    // adressen ur den med servernyckeln -- den litar inte på något härifrån.
+    // Utan det här fick den som skrev om en trasig cylinder ingen bekräftelse
+    // alls, och kunde bara se sitt ärende genom att logga in och leta.
+    if (nyRad?.id) {
+      fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: nyRad.id, kind: "claim", locale }),
+      }).catch(console.error);
+    }
 
     setSubmitSuccess(true);
     setShowForm(false);

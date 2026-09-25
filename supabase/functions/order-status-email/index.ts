@@ -41,6 +41,9 @@ const ADMIN_EMAIL = "info@maskinval.se";
 const LOCALES = ["sv", "en", "de", "es"];
 const RFQ_STATUSES = new Set(["quoted", "accepted", "rejected"]);
 const ORDER_STATUSES = new Set(["confirmed", "picking", "shipped", "delivered", "invoiced", "paid", "cancelled"]);
+// Reklamationens statusar. Prefixet claim_ används i STATUS_SV så att en
+// framtida orderstatus med samma namn inte kan kapa reklamationens text.
+const CLAIM_STATUSES = new Set(["open", "in_review", "resolved", "closed"]);
 
 function docRef(id: string) {
   return id.slice(0, 8).toUpperCase();
@@ -63,9 +66,37 @@ interface Payload {
   currency?:        string;
   locale?:          string;
   oc_url?:          string | null;   // link to the order confirmation page
+  /**
+   * Reklamationens svar TILL KUNDEN.
+   *
+   * claims har två anteckningsfält och bara det här får lämna huset:
+   * resolution_note är skrivet för kunden, admin_note är internt. Att skicka
+   * fel av dem vore samma sorts läcka som leverantörens interna formulering i
+   * §5 -- därför bär payloaden bara det ena, och det andra hämtas aldrig.
+   */
+  resolution_note?: string | null;
+  claim_title?:     string | null;
 }
 
 const STATUS_SV: Record<string, { emoji: string; label: string; body: string }> = {
+  // ── Reklamation ────────────────────────────────────────────────
+  claim_open: {
+    emoji: "📩", label: "Vi har tagit emot din reklamation",
+    body: "Tack, vi har registrerat ditt ärende. Vi återkommer så snart vi gått igenom det.",
+  },
+  claim_in_review: {
+    emoji: "🔍", label: "Ditt ärende granskas",
+    body: "Vi har börjat titta på ditt ärende. Du hör från oss när vi vet mer.",
+  },
+  claim_resolved: {
+    emoji: "✅", label: "Ditt ärende är löst",
+    body: "Vi har hanterat din reklamation.",
+  },
+  claim_closed: {
+    emoji: "📁", label: "Ärendet är avslutat",
+    body: "Ditt ärende är avslutat. Svara på det här mejlet om du vill ta upp det igen.",
+  },
+
   // ── RFQ statuses ───────────────────────────────────────────────
   quoted: {
     emoji: "📋", label: "Offert skickad",
@@ -151,6 +182,14 @@ function buildEmail(p: Payload): { subject: string; html: string } {
   // Extra info blocks per status
   let extra = "";
 
+  if (p.status.startsWith("claim_") && p.resolution_note) {
+    extra = `
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px 20px;margin:20px 0;">
+      <p style="margin:0 0 6px;font-size:12px;color:#64748b;font-weight:600;">VÅRT SVAR</p>
+      <p style="margin:0;font-size:14px;color:#1e293b;white-space:pre-wrap;">${escapeHtml(p.resolution_note)}</p>
+    </div>`;
+  }
+
   if (p.status === "quoted" && p.quote_amount) {
     const fmtMoney2 = (n: number) => n.toLocaleString("sv-SE", { style: "currency", currency: p.currency || "SEK", maximumFractionDigits: 0 });
     extra = `
@@ -231,8 +270,14 @@ function buildEmail(p: Payload): { subject: string; html: string } {
     </p>
   `);
 
+  // En reklamation är inte en order. "Order #A1B2 — Ditt ärende är löst" är
+  // förvirrande för den som skrivit om en trasig cylinder.
+  const arende = p.status.startsWith("claim_")
+    ? `Ärende #${orderRef}${p.claim_title ? ` — ${p.claim_title}` : ""}`
+    : `Order #${orderRef}`;
+
   return {
-    subject: `${info.emoji} Order #${orderRef} — ${info.label}`,
+    subject: `${info.emoji} ${arende} — ${info.label}`,
     html,
   };
 }
@@ -242,10 +287,10 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const id = typeof body.id === "string" ? body.id : "";
-    const kind = body.kind === "rfq" || body.kind === "order" ? body.kind : "";
+    const kind = body.kind === "rfq" || body.kind === "order" || body.kind === "claim" ? body.kind : "";
     const locale = LOCALES.includes(body.locale) ? body.locale : "sv";
     if (!id || !kind) {
-      return new Response(JSON.stringify({ error: "id and kind ('rfq'|'order') required" }), {
+      return new Response(JSON.stringify({ error: "id and kind ('rfq'|'order'|'claim') required" }), {
         status: 400, headers: { ...cors, "Content-Type": "application/json" },
       });
     }
@@ -253,7 +298,27 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     let payload: Payload;
 
-    if (kind === "rfq") {
+    if (kind === "claim") {
+      // Bara id betros. Statusen, adressen och svarstexten läses ur raden med
+      // servernyckeln, precis som för rfq och order -- en anropare kan alltså
+      // inte mejla påhittat innehåll till en påhittad adress.
+      const { data: claim, error } = await supabase.from("claims").select("*").eq("id", id).single();
+      if (error || !claim) {
+        return new Response(JSON.stringify({ error: "claim not found" }), { status: 404, headers: { ...cors, "Content-Type": "application/json" } });
+      }
+      if (!CLAIM_STATUSES.has(claim.status) || !claim.contact_email) {
+        return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...cors, "Content-Type": "application/json" } });
+      }
+      payload = {
+        order_ref: docRef(id),
+        contact_email: claim.contact_email,
+        contact_name: "",
+        status: `claim_${claim.status}`,
+        claim_title: claim.title,
+        // admin_note hämtas ALDRIG. Den är intern.
+        resolution_note: claim.resolution_note,
+      };
+    } else if (kind === "rfq") {
       const { data: rfq, error } = await supabase.from("rfqs").select("*").eq("id", id).single();
       if (error || !rfq) {
         return new Response(JSON.stringify({ error: "rfq not found" }), { status: 404, headers: { ...cors, "Content-Type": "application/json" } });
