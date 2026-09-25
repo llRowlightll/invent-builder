@@ -8,7 +8,9 @@
 -- 95-111 leverantörens bekräftelse hela vägen till kundens orderrad, 112-115
 -- en inköpsorder där leverantören inte svarat på alla rader, 116-121 att
 -- inköpsorderns avledda värden räknas om när raderna ändras, 122-125 en
--- leverantör vi inte aktiverat, 126-131 att offert och beställning hålls isär.
+-- leverantör vi inte aktiverat, 126-131 att offert och beställning hålls isär,
+-- 132-145 checkoutens fält och att ordern fryser dem, 146-156 försändelser,
+-- delleverans och att ordern är levererad först när varje rad är det.
 --
 -- Kör i SQL-editorn eller via execute_sql. Skapar sin egen provdata och
 -- STÄDAR UPP SIG SJÄLV, utan att förlita sig på en yttre rollback -- provet
@@ -995,6 +997,159 @@ begin
 
   delete from orders where rfq_id = v_offert;
   delete from rfqs where id in (v_offert, v_order, v_tredje);
+end $$;
+
+-- ── DEL 12: checkoutens fält, och att de FRYSER ──────────────────────────
+--
+-- Kunden kunde beställa utan att någonsin ange vart varan skulle: formuläret
+-- frågade efter namn, telefon och ett PO-nummer, inte efter leveransadress
+-- eller om delleverans är okej. orders hade inga adressfält alls.
+--
+-- Kontroll 145 är den viktigaste: ordern bär en EGEN kopia. Flyttar kunden
+-- efter att ordern lagts ska den gamla ordern fortfarande visa vart den
+-- skickades -- §3 kräver en fryst kopia av det som gällde vid köpet.
+
+do $$
+declare
+  v_p uuid; v_rfq uuid; v_ord uuid; v_o orders; v_fel text; v_res record;
+  v_checkout jsonb := jsonb_build_object(
+    'delivery_name','Godsmottagningen','delivery_street','Verkstadsgatan 4',
+    'delivery_postal','582 54','delivery_city','Linköping','delivery_country','SE',
+    'invoice_street','Box 12','invoice_postal','581 01','invoice_city','Linköping',
+    'invoice_country','SE','invoice_email','faktura@example.invalid',
+    'desired_delivery_date', (current_date + 21)::text,
+    'delivery_instructions','Lastkaj B, ring 30 min innan',
+    'delivery_mode','consolidated','customer_reference','Projekt Nord 2026');
+begin
+  select id into v_p from products where status='active' order by sku limit 1;
+
+  begin
+    perform submit_rfq('P','Kund','x@example.invalid','','','','','',
+      jsonb_build_array(jsonb_build_object('product_id', v_p::text,'qty',1)), '', 'order', '{}'::jsonb);
+    v_fel := 'gick igenom';
+  exception when others then v_fel := 'avvisad';
+  end;
+  perform pg_temp.kolla(132, 'beställning utan leveransadress avvisas', 'avvisad', v_fel);
+
+  -- En offertförfrågan frågar bara om pris och ska inte kräva adress.
+  begin
+    perform submit_rfq('P','Kund','q@example.invalid','','','','','',
+      jsonb_build_array(jsonb_build_object('product_id', v_p::text,'qty',1)), '', 'quote', '{}'::jsonb);
+    v_fel := 'gick igenom';
+  exception when others then v_fel := 'avvisad';
+  end;
+  perform pg_temp.kolla(133, 'offertförfrågan kräver ingen adress', 'gick igenom', v_fel);
+
+  begin
+    perform submit_rfq('P','Kund','y@example.invalid','','','','','',
+      jsonb_build_array(jsonb_build_object('product_id', v_p::text,'qty',1)), '', 'order',
+      v_checkout || jsonb_build_object('delivery_mode','kanske'));
+    v_fel := 'gick igenom';
+  exception when others then v_fel := 'avvisad';
+  end;
+  perform pg_temp.kolla(134, 'okänt leveranssätt avvisas', 'avvisad', v_fel);
+
+  select submit_rfq('Beställning','Kund','k@example.invalid','070-1234567','Provbolaget','556000-0000','PO-9','',
+    jsonb_build_array(jsonb_build_object('product_id', v_p::text,'qty',3)), '', 'order', v_checkout) into v_rfq;
+  perform pg_temp.kolla(135, 'leveransadressen sparas', 'Verkstadsgatan 4',
+    (select address_street from rfqs where id=v_rfq));
+  perform pg_temp.kolla(136, 'fakturaadressen sparas separat', 'Box 12',
+    (select invoice_street from rfqs where id=v_rfq));
+  perform pg_temp.kolla(137, 'samlad leverans är kundens val', 'consolidated',
+    (select delivery_mode from rfqs where id=v_rfq));
+
+  update rfq_items set unit_price=100 where rfq_id=v_rfq;
+  update rfqs set intent='quote', status='quoted', discount_pct=0 where id=v_rfq;
+  select * into v_res from respond_to_quote(v_rfq,'accepted',null);
+  v_ord := v_res.order_id;
+  select * into v_o from orders where id=v_ord;
+
+  perform pg_temp.kolla(138, 'ordern bär leveransadressen', 'Verkstadsgatan 4', v_o.delivery_street);
+  perform pg_temp.kolla(139, 'ordern bär fakturaadressen', 'Box 12', v_o.invoice_street);
+  perform pg_temp.kolla(140, 'ordern bär önskat leveransdatum', (current_date+21)::text, v_o.desired_delivery_date::text);
+  perform pg_temp.kolla(141, 'ordern bär leveransinstruktionen', 'Lastkaj B, ring 30 min innan', v_o.delivery_instructions);
+  perform pg_temp.kolla(142, 'ordern bär kundens interna referens', 'Projekt Nord 2026', v_o.customer_reference);
+  perform pg_temp.kolla(143, 'ordern bär leveranssättet', 'consolidated', v_o.delivery_mode);
+  perform pg_temp.kolla(144, 'ordern bär kontakttelefonen', '070-1234567', v_o.contact_phone);
+
+  -- Adressen är FRYST.
+  update rfqs set address_street='Nya gatan 99' where id=v_rfq;
+  perform pg_temp.kolla(145, 'orderns adress ändras inte när förfrågan gör det', 'Verkstadsgatan 4',
+    (select delivery_street from orders where id=v_ord));
+
+  delete from orders where id=v_ord;
+  delete from rfqs where contact_email like '%@example.invalid';
+end $$;
+
+-- ── DEL 13: försändelser, delleverans och §18 punkt 14 ────────────────────
+--
+-- "Ordern blir inte levererad förrän samtliga orderrader är levererade."
+--
+-- Kontroll 146 är den som skyddar kunden: två av fyra cylindrar på väg gör
+-- INTE raden skickad. Den som läser "skickad" väntar sig fyra.
+
+do $$
+declare
+  v_admin uuid := (select id from auth.users order by created_at limit 1);
+  v_p1 uuid; v_p2 uuid; v_ord uuid; v_r1 uuid; v_r2 uuid;
+  v_f1 uuid; v_f2 uuid; v_txt text;
+begin
+  select id into v_p1 from products where status='active' order by sku limit 1;
+  select id into v_p2 from products where status='active' and id<>v_p1 order by sku limit 1;
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims', format('{"sub":"%s","role":"authenticated"}', v_admin), true);
+  v_ord := create_order_with_items(
+    format('{"user_id":"%s","customer_name":"Leveransprov","customer_email":"l@example.invalid"}', v_admin)::jsonb,
+    format('[{"product_id":"%s","sku":"A","name":"fyra st","qty":4,"unit_price_ex_vat":100},
+             {"product_id":"%s","sku":"B","name":"en st","qty":1,"unit_price_ex_vat":50}]', v_p1, v_p2)::jsonb);
+  reset role; perform set_config('request.jwt.claims','',true);
+
+  select id into v_r1 from order_items where order_id=v_ord and line_no=1;
+  select id into v_r2 from order_items where order_id=v_ord and line_no=2;
+
+  -- Försändelse 1: HALVA rad 1.
+  insert into shipments (order_id, shipment_no, carrier, tracking_number, status, shipped_at)
+  values (v_ord, 1, 'DHL', 'ABC123', 'in_transit', now()) returning id into v_f1;
+  insert into shipment_items (shipment_id, order_item_id, qty) values (v_f1, v_r1, 2);
+
+  select status into v_txt from order_items where id=v_r1;
+  perform pg_temp.kolla(146, 'halvt skickad rad är INTE skickad', 'pending', v_txt);
+  select status into v_txt from orders where id=v_ord;
+  perform pg_temp.kolla(147, 'ordern är inte skickad av en halv rad', 'new', v_txt);
+
+  insert into shipment_items (shipment_id, order_item_id, qty) values (v_f1, v_r1, 2);
+  select status into v_txt from order_items where id=v_r1;
+  perform pg_temp.kolla(148, 'hela raden skickad ger skickad', 'shipped', v_txt);
+  select status into v_txt from orders where id=v_ord;
+  perform pg_temp.kolla(149, 'ordern blir skickad när något rört sig', 'shipped', v_txt);
+
+  update shipments set status='delivered', delivered_at=now() where id=v_f1;
+  select status into v_txt from order_items where id=v_r1;
+  perform pg_temp.kolla(150, 'levererad försändelse levererar sina rader', 'delivered', v_txt);
+  select status into v_txt from orders where id=v_ord;
+  perform pg_temp.kolla(151, 'ordern är INTE levererad medan en rad saknas', 'shipped', v_txt);
+
+  -- Försändelse 2, en annan transportör.
+  insert into shipments (order_id, shipment_no, carrier, tracking_number, status, shipped_at, delivered_at)
+  values (v_ord, 2, 'PostNord', 'XYZ789', 'delivered', now(), now()) returning id into v_f2;
+  insert into shipment_items (shipment_id, order_item_id, qty) values (v_f2, v_r2, 1);
+
+  select status into v_txt from orders where id=v_ord;
+  perform pg_temp.kolla(152, 'ordern levererad först när SAMTLIGA rader är det', 'delivered', v_txt);
+  perform pg_temp.kolla(153, 'leveransdatum sattes', 'ja',
+    case when (select delivered_at from orders where id=v_ord) is not null then 'ja' else 'nej' end);
+  perform pg_temp.kolla(154, 'två försändelser på ordern', '2',
+    (select count(*)::text from shipments where order_id=v_ord));
+
+  insert into tracking_events (shipment_id, status, description, location, source)
+  values (v_f1, 'delivered', 'Utlämnad till godsmottagning', 'Linköping', 'carrier');
+  perform pg_temp.kolla(155, 'spårningshändelse kopplad till försändelsen', '1',
+    (select count(*)::text from tracking_events where shipment_id=v_f1));
+
+  delete from orders where id=v_ord;
+  perform pg_temp.kolla(156, 'försändelserna följer med när ordern raderas', '0',
+    (select count(*)::text from shipments where order_id=v_ord));
 end $$;
 
 select nr, kontroll, case when ok then 'OK' else 'FEL' end as utfall,
