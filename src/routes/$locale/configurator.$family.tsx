@@ -653,7 +653,7 @@ function ConfiguratorPage() {
                   params={{ locale }}
                   className="block text-center text-xs text-blue-300 hover:text-blue-200 underline"
                 >
-                  Gå till inköpslistan och begär offert →
+                  Gå till inköpslistan — begär offert eller beställ →
                 </Link>
               )}
             </div>

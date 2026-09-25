@@ -1393,6 +1393,10 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
         p_message: message,
         p_items: itemsPayload,
         p_hp: rfqHp,
+        // Maskinbyggaren frågar efter PRISER på det man ritat; en beställning
+        // läggs från inköpslistan. Avsikten anges uttryckligen sedan
+        // offert och order skildes åt.
+        p_intent: "quote",
       });
 
       if (rfqErr || !newRfqId) throw rfqErr ?? new Error("No id returned");

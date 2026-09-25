@@ -86,7 +86,7 @@ frakt, betalningsvillkor, produktdatarättigheter).
 
 ## Provet
 
-`scripts/test-order-engine.sql` — 125 kontroller, självstädande, körs mot
+`scripts/test-order-engine.sql` — 131 kontroller, självstädande, körs mot
 databasen:
 
 | Del | Kontroller | Vad den vaktar |
@@ -101,6 +101,7 @@ databasen:
 | 8 | 112–115 | en inköpsorder där leverantören inte svarat på alla rader |
 | 9 | 116–121 | att inköpsorderns avledda värden räknas om när raderna ändras |
 | 10 | 122–125 | en leverantör vi inte aktiverat |
+| 11 | 126–131 | att offert och beställning hålls isär |
 
 ## §18: acceptanskriterierna
 

@@ -8,7 +8,7 @@
 -- 95-111 leverantörens bekräftelse hela vägen till kundens orderrad, 112-115
 -- en inköpsorder där leverantören inte svarat på alla rader, 116-121 att
 -- inköpsorderns avledda värden räknas om när raderna ändras, 122-125 en
--- leverantör vi inte aktiverat.
+-- leverantör vi inte aktiverat, 126-131 att offert och beställning hålls isär.
 --
 -- Kör i SQL-editorn eller via execute_sql. Skapar sin egen provdata och
 -- STÄDAR UPP SIG SJÄLV, utan att förlita sig på en yttre rollback -- provet
@@ -938,6 +938,63 @@ begin
   reset role;
   perform set_config('request.jwt.claims', '', true);
   delete from orders where id=v_ord;
+end $$;
+
+-- ── DEL 11: offert och beställning är olika saker ─────────────────────────
+--
+-- Kunden hade bara EN knapp, "Begär offert", och accepten av offerten blev
+-- ordern. Det gick alltså varken att bara fråga efter priser eller att
+-- beställa. Avsikten sätts nu när kunden trycker och följer med hela vägen.
+--
+-- Kontroll 130 är den som betyder något: en beställning får inte skickas
+-- tillbaka till kunden som en offert att godkänna. Den frågan är besvarad.
+
+do $$
+declare
+  v_p uuid; v_offert uuid; v_order uuid; v_txt text; v_fel text; v_res record; v_tredje uuid;
+begin
+  select id into v_p from products where status='active' order by sku limit 1;
+
+  select submit_rfq('Prov','Provkund','q@example.invalid','','','','','',
+    jsonb_build_array(jsonb_build_object('product_id', v_p::text,'qty',2)), '', 'quote') into v_offert;
+  select intent into v_txt from rfqs where id=v_offert;
+  perform pg_temp.kolla(126, 'offertförfrågan får intent quote', 'quote', v_txt);
+
+  select submit_rfq('Prov','Provkund','o@example.invalid','','','','','',
+    jsonb_build_array(jsonb_build_object('product_id', v_p::text,'qty',2)), '', 'order') into v_order;
+  select intent into v_txt from rfqs where id=v_order;
+  perform pg_temp.kolla(127, 'beställning får intent order', 'order', v_txt);
+
+  -- Utan angiven avsikt blir det det försiktiga svaret.
+  select submit_rfq('Prov','Provkund','d@example.invalid','','','','','',
+    jsonb_build_array(jsonb_build_object('product_id', v_p::text,'qty',1))) into v_tredje;
+  perform pg_temp.kolla(128, 'utan avsikt blir det offert, inte order', 'quote',
+    (select intent from rfqs where id=v_tredje));
+
+  begin
+    perform submit_rfq('Prov','P','x@example.invalid','','','','','',
+      jsonb_build_array(jsonb_build_object('product_id', v_p::text,'qty',1)), '', 'kanske');
+    v_fel := 'gick igenom';
+  exception when others then v_fel := 'avvisad';
+  end;
+  perform pg_temp.kolla(129, 'okänd avsikt avvisas', 'avvisad', v_fel);
+
+  update rfqs set status='quoted' where id=v_order;
+  begin
+    perform respond_to_quote(v_order, 'accepted', null);
+    v_fel := 'gick igenom';
+  exception when others then v_fel := 'avvisad';
+  end;
+  perform pg_temp.kolla(130, 'beställning kan inte accepteras som offert', 'avvisad', v_fel);
+
+  update rfq_items set unit_price=100 where rfq_id=v_offert;
+  update rfqs set status='quoted', discount_pct=0 where id=v_offert;
+  select * into v_res from respond_to_quote(v_offert,'accepted','PO-1');
+  perform pg_temp.kolla(131, 'offert kan fortfarande accepteras och ger en order', 'ja',
+    case when v_res.order_id is not null then 'ja' else 'nej' end);
+
+  delete from orders where rfq_id = v_offert;
+  delete from rfqs where id in (v_offert, v_order, v_tredje);
 end $$;
 
 select nr, kontroll, case when ok then 'OK' else 'FEL' end as utfall,
