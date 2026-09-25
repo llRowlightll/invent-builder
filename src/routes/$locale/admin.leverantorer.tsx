@@ -36,6 +36,8 @@ type Supplier = {
   product_data_rights: string | null; system_notes: string | null;
   contact_name: string | null; contact_email: string | null; contact_phone: string | null;
   internal_notes: string | null;
+  /** Sätts av set_updated_at-triggern. Säger hur färsk uppgiften är. */
+  updated_at: string | null;
 };
 
 type Integration = {
@@ -45,19 +47,38 @@ type Integration = {
 };
 
 /** De tolv frågorna, och vad som räknas som besvarat. */
-const FRAGOR: { nr: number; rubrik: string; klar: (s: Supplier, i?: Integration) => boolean }[] = [
-  { nr: 1,  rubrik: "Återförsäljaravtal",      klar: (s) => s.agreement_status === "signed" || s.agreement_status === "declined" },
-  { nr: 2,  rubrik: "Kundnummer och prislista", klar: (s) => !!s.customer_number && !!s.price_list_ref },
-  { nr: 3,  rubrik: "Direktleverans tillåten",  klar: (s) => s.allows_dropship !== null },
-  { nr: 4,  rubrik: "Integrationsväg",          klar: (_s, i) => !!i && i.status !== "simulerad" },
-  { nr: 5,  rubrik: "Orderformat och adress",   klar: (s, i) => !!i?.order_format && (!!s.order_email || !!s.order_portal_url) },
-  { nr: 6,  rubrik: "Lager och leveranstid",    klar: (s) => !!s.stock_data_method && s.stock_data_method !== "unknown" },
-  { nr: 7,  rubrik: "Bekräftelse och tracking", klar: (_s, i) => !!i?.ack_method && !!i?.tracking_method },
-  { nr: 8,  rubrik: "Retur och garanti",        klar: (s) => !!s.returns_process && !!s.warranty_terms },
-  { nr: 9,  rubrik: "Fraktvillkor",             klar: (s) => !!s.incoterms },
-  { nr: 10, rubrik: "Betalningsvillkor",        klar: (s) => !!s.payment_terms },
-  { nr: 11, rubrik: "Produktdata och varumärke", klar: (s) => !!s.product_data_rights },
-  { nr: 12, rubrik: "Systembyte på gång",       klar: (s) => !!s.system_notes },
+/**
+ * De tolv uppgifterna vi behöver per leverantör.
+ *
+ * `fraga` är formulerad som den ska STÄLLAS, inte som databasen heter. Sidan
+ * används i ett möte eller ett telefonsamtal, och den som sitter där ska inte
+ * behöva översätta "Produktdata och varumärke" till något att säga högt.
+ */
+const FRAGOR: { nr: number; rubrik: string; fraga: string; klar: (s: Supplier, i?: Integration) => boolean }[] = [
+  { nr: 1,  rubrik: "Återförsäljaravtal",      fraga: "Har vi ett återförsäljaravtal, och får vi sälja hela sortimentet?",
+    klar: (s) => s.agreement_status === "signed" || s.agreement_status === "declined" },
+  { nr: 2,  rubrik: "Kundnummer och prislista", fraga: "Vilket kundnummer har vi hos er, och vilken prislista gäller för oss?",
+    klar: (s) => !!s.customer_number && !!s.price_list_ref },
+  { nr: 3,  rubrik: "Direktleverans tillåten",  fraga: "Får ni leverera direkt till vår slutkund, eller måste allt gå via oss?",
+    klar: (s) => s.allows_dropship !== null },
+  { nr: 4,  rubrik: "Integrationsväg",          fraga: "Hur lägger vi order hos er: API, EDI, PunchOut/OCI, SFTP, portal eller mejl?",
+    klar: (_s, i) => !!i && i.status !== "simulerad" },
+  { nr: 5,  rubrik: "Orderformat och adress",   fraga: "Vilket format vill ni ha ordern i, och till vilken adress eller portal?",
+    klar: (s, i) => !!i?.order_format && (!!s.order_email || !!s.order_portal_url) },
+  { nr: 6,  rubrik: "Lager och leveranstid",    fraga: "Kan vi få lagersaldo och leveranstider, och i så fall hur ofta?",
+    klar: (s) => !!s.stock_data_method && s.stock_data_method !== "unknown" },
+  { nr: 7,  rubrik: "Bekräftelse och tracking", fraga: "Hur får vi orderbekräftelsen, och hur får vi trackingnumret?",
+    klar: (_s, i) => !!i?.ack_method && !!i?.tracking_method },
+  { nr: 8,  rubrik: "Retur och garanti",        fraga: "Hur går en retur till, och vad gäller för garanti?",
+    klar: (s) => !!s.returns_process && !!s.warranty_terms },
+  { nr: 9,  rubrik: "Fraktvillkor",             fraga: "Vilka leveransvillkor gäller, och över vilket belopp är frakten fri?",
+    klar: (s) => !!s.incoterms },
+  { nr: 10, rubrik: "Betalningsvillkor",        fraga: "Vilka betalningsvillkor har vi, och finns det ett minsta ordervärde?",
+    klar: (s) => !!s.payment_terms },
+  { nr: 11, rubrik: "Produktdata och varumärke", fraga: "Får vi använda er produktdata, era bilder och ert varumärke på vår sajt?",
+    klar: (s) => !!s.product_data_rights },
+  { nr: 12, rubrik: "Systembyte på gång",       fraga: "Byter ni affärssystem, och påverkar det hur vi ska integrera?",
+    klar: (s) => !!s.system_notes },
 ];
 
 const AGREEMENT = ["unknown", "requested", "negotiating", "signed", "declined"];
@@ -97,7 +118,7 @@ function AdminLeverantorer() {
   // updated_at sätts av en databastrigger (set_updated_at), inte härifrån --
   // en ändring gjord i SQL-editorn eller av en edge function ska röra den lika
   // säkert som ett klick i den här vyn.
-  async function spara(id: string, patch: Partial<Supplier>) {
+  async function spara(id: string, patch: Omit<Partial<Supplier>, "updated_at">) {
     setSparar(true); setFel(null);
     const { error } = await supabase.from("suppliers").update(patch).eq("id", id);
     setSparar(false);
@@ -149,6 +170,11 @@ function AdminLeverantorer() {
             <div key={s.id} className="bg-white border border-gray-200 rounded-xl shadow-sm">
               <button
                 onClick={() => setOppen(utvald ? null : s.id)}
+                // Utan aria-label heter knappen ingenting: en skärmläsare säger
+                // bara "knapp", åtta gånger. aria-expanded säger dessutom om
+                // formuläret är öppet.
+                aria-label={`${s.name}, ${n} av 12 uppgifter insamlade`}
+                aria-expanded={utvald}
                 className="w-full flex items-center gap-4 p-4 text-left hover:bg-gray-50 rounded-xl"
               >
                 <span className="font-semibold text-gray-900 w-40">{s.name}</span>
@@ -161,17 +187,30 @@ function AdminLeverantorer() {
                     <span className="block h-full bg-blue-500" style={{ width: `${(n / 12) * 100}%` }} />
                   </span>
                   <span className="text-xs text-gray-500 tabular-nums">{n}/12</span>
+                  {/* När uppgifterna senast rördes. En uppgift från i våras är
+                      inte värd lika mycket som en från gårdagens samtal, och
+                      utan datum går de inte att skilja åt. */}
+                  <span className="text-[10px] text-gray-400 tabular-nums w-16 text-right">
+                    {n > 0 && s.updated_at
+                      ? new Date(s.updated_at).toLocaleDateString("sv-SE", { month: "short", day: "numeric" })
+                      : ""}
+                  </span>
                 </span>
               </button>
 
               {utvald && (
                 <div className="border-t border-gray-100 p-5 space-y-6">
                   <ol className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
-                    {FRAGOR.map((f) => (
-                      <li key={f.nr} className={f.klar(s, k) ? "text-green-700" : "text-gray-400"}>
-                        {f.klar(s, k) ? "✓" : "○"} {f.nr}. {f.rubrik}
-                      </li>
-                    ))}
+                    {FRAGOR.map((f) => {
+                      const klar = f.klar(s, k);
+                      return (
+                        <li key={f.nr} className={klar ? "text-green-700" : "text-gray-500"}>
+                          <span className="font-medium">{klar ? "✓" : "○"} {f.nr}. {f.rubrik}</span>
+                          {/* Frågan i klartext, för den som sitter i mötet. */}
+                          {!klar && <span className="block pl-4 text-gray-400">{f.fraga}</span>}
+                        </li>
+                      );
+                    })}
                   </ol>
 
                   <Grupp titel="1–3 · Avtal, kundnummer, direktleverans">

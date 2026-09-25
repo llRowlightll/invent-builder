@@ -209,9 +209,12 @@ from brands b
 on conflict (slug) do nothing;
 
 -- Tills något annat är verifierat är e-post med PDF den enda väg som fungerar
--- utan avtal. Varje leverantör får därför en sådan kanal, markerad manuell.
-insert into supplier_integrations (supplier_id, method, status, is_primary, order_format, ack_method, tracking_method)
-select s.id, 'email_pdf', 'manuell', true, 'pdf_email', 'email', 'email'
+-- utan avtal. Varje leverantör får därför en sådan kanal, markerad SIMULERAD
+-- och utan bekräftelse- eller trackingväg: raden beskriver vad vi VET, inte
+-- vad som är rimligt att gissa. Skillnaden syns i kompletthetsmätaren på
+-- /admin/leverantorer, som annars bockar av två frågor ingen svarat på.
+insert into supplier_integrations (supplier_id, method, status, is_primary, order_format)
+select s.id, 'email_pdf', 'simulerad', true, 'pdf_email'
 from suppliers s
 where not exists (select 1 from supplier_integrations i where i.supplier_id = s.id);
 
