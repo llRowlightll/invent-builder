@@ -194,7 +194,21 @@ check() {
     # annat i efterhand, och nästa körning var grön igen.
     echo "  ❌ $name"
     $missing   && echo "     saknas:  $pattern"
-    $found_bad && echo "     fanns:   $expect_absent (får inte förekomma)"
+    if $found_bad; then
+      echo "     fanns:   $expect_absent (får inte förekomma)"
+      # VAD som matchade, med omgivning. Utan det här står bara mönstret i
+      # loggen, träffen kan ligga var som helst i svaret, och ett rött LLM-test
+      # går inte att skilja från ett annat utan att reproducera anropet för
+      # hand. (Det fick jag göra 2026-09-25 för att förstå varför T43 föll.)
+      echo "$json" | ABSENT="$expect_absent" python3 -c "
+import sys, json, os, re
+d = json.load(sys.stdin)
+s = json.dumps(d, ensure_ascii=False)
+for m in list(re.finditer(os.environ['ABSENT'], s, re.I))[:3]:
+    bit = ' '.join(s[max(0, m.start() - 90):m.end() + 90].split())
+    print('     träff:   …' + bit + '…')
+" 2>/dev/null
+    fi
     echo "     svar:    $(echo "$json" | python3 -c "import sys,json; d=json.load(sys.stdin); t=d.get('reply') or d.get('summary') or d.get('explanation') or json.dumps(d,ensure_ascii=False); print(' '.join(str(t).split())[:400])" 2>/dev/null)"
     FAILURES+=("$name")
     ((FAIL++))
@@ -876,15 +890,33 @@ fi
 sleep 4
 # Test 43: Med rätt mått men utan fakta hittade modellen på resten och kallade
 # DSBC "hydraulisk borrcylinder" med 250 bar arbetstryck och en påhittad
-# "PPSA-seal". DSBC är pneumatisk, max 10 bar, och PPSA är dämpning.
+# "PPSA-seal". DSBC är pneumatisk, och PPSA är dämpning.
+#
+# TESTET PROVAR PÅSTÅENDET, INTE ORDET. Det gjorde det inte förut: förbudet var
+# ett rent ordförbud ("hydraul" var som helst i svaret), och meningen
+#
+#     "DSBC är pneumatisk, inte hydraulisk"
+#
+# -- som är KORREKT och dessutom precis vad vi vill att modellen säger -- fällde
+# det. Ju utförligare svar, desto större chans att bli röd för att ha rätt.
+# Testet föll 2026-09-25 på exakt det, och stoppade en frontend-deploy som inte
+# hade med rådgivaren att göra.
 echo "  [43] Orderkod i chatten → inga påhittade fakta..."
 R=$(advisor_call '{"action":"chat","locale":"sv","messages":[{"role":"user","content":"DSBC-50-100-PPSA-N3"}]}')
 if is_rate_limited "$R" || echo "$R" | grep -q '"degraded"'; then
   echo "  ⚠️  T43 [SKIP — rate limited]"; ((SKIP++))
 else
-  # Måttet kontrolleras i codes.resolved (uppslaget), inte i prosan: "50" står
-# ju redan i koden kunden skickade och ekas tillbaka, så det bevisade inget.
-check "T43 ingen påhittad hydraulik/tryckklass" "$R" '"bore_mm": ?50' "hydraul|2[0-9]{2} bar|poly-phenyl|polyphenyl"
+  # Kontrollen ligger i en egen fil: den går att prova för sig, och slipper
+  # tre lager av teckenflykt genom skalet.
+  T43=$(echo "$R" | python3 "$(dirname "$0")/lib/t43-dsbc-fakta.py" 2>/dev/null)
+  if [[ -z "$T43" ]]; then
+    echo "  ✅ T43 ingen påhittad hydraulik/tryckklass"; ((PASS++))
+  else
+    echo "  ❌ T43 ingen påhittad hydraulik/tryckklass"
+    echo "     fel:     $T43"
+    echo "     svar:    $(echo "$R" | python3 -c "import sys,json; print(' '.join(str(json.load(sys.stdin).get('reply','')).split())[:400])" 2>/dev/null)"
+    FAILURES+=("T43 ingen påhittad hydraulik/tryckklass"); ((FAIL++))
+  fi
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
