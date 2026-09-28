@@ -22,12 +22,12 @@ const TILES: Array<{
   bodyKey: "app.tileChatBody" | "app.tileWizardBody" | "app.tileConvertBody" | "app.tileConfiguratorBody" | "app.tileProductsBody" | "app.tileOrdersBody";
   tone: string;
 }> = [
-  { to: "/$locale/chat", titleKey: "app.tileChatTitle", bodyKey: "app.tileChatBody", tone: "var(--teal)" },
-  { to: "/$locale/wizard", titleKey: "app.tileWizardTitle", bodyKey: "app.tileWizardBody", tone: "var(--copper)" },
-  { to: "/$locale/convert", titleKey: "app.tileConvertTitle", bodyKey: "app.tileConvertBody", tone: "var(--gold)" },
-  { to: "/$locale/configure", titleKey: "app.tileConfiguratorTitle", bodyKey: "app.tileConfiguratorBody", tone: "var(--info)" },
-  { to: "/$locale/products", titleKey: "app.tileProductsTitle", bodyKey: "app.tileProductsBody", tone: "var(--steel)" },
-  { to: "/$locale/orders", titleKey: "app.tileOrdersTitle", bodyKey: "app.tileOrdersBody", tone: "var(--graphite)" },
+  { to: "/$locale/chat", titleKey: "app.tileChatTitle", bodyKey: "app.tileChatBody", tone: "var(--info)" },
+  { to: "/$locale/wizard", titleKey: "app.tileWizardTitle", bodyKey: "app.tileWizardBody", tone: "var(--primary)" },
+  { to: "/$locale/convert", titleKey: "app.tileConvertTitle", bodyKey: "app.tileConvertBody", tone: "var(--primary)" },
+  { to: "/$locale/configure", titleKey: "app.tileConfiguratorTitle", bodyKey: "app.tileConfiguratorBody", tone: "var(--primary)" },
+  { to: "/$locale/products", titleKey: "app.tileProductsTitle", bodyKey: "app.tileProductsBody", tone: "var(--primary)" },
+  { to: "/$locale/orders", titleKey: "app.tileOrdersTitle", bodyKey: "app.tileOrdersBody", tone: "var(--primary)" },
 ];
 
 function AppDashboard() {
