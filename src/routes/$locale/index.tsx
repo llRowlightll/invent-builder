@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { makeT, type Locale } from "@/lib/i18n";
 import { supabase } from "@/integrations/supabase/client";
-import { loadCatalog, clearCatalogCache } from "@/lib/catalog";
+import { loadCatalog } from "@/lib/catalog";
 import type { ProductRow } from "@/lib/types";
 import heroImg from "@/assets/hero-industrial.jpg";
 import featureImg from "@/assets/feature-component.jpg";
@@ -34,17 +34,16 @@ export const Route = createFileRoute("/$locale/")({
   // numbers — no more "91+" flashing before a client query corrects it.
   loader: async () => {
     try {
-      // Count via data.length, not { count: 'exact', head: true } — the count
-      // header isn't read in the Cloudflare SSR runtime (returns null there),
-      // which left the product stat falling back to 91. .select().data works.
-      const [pc, br, ct] = await Promise.all([
-        supabase.from("products").select("id").eq("status", "active").limit(5000),
+      // Produkträkningen är borta. Den hämtade 5000 rader vid VARJE
+      // serverrendering av startsidan, och fanns bara för siffran "846+" i
+      // statistikraden -- som nu är ersatt av tre vägar in.
+      const [br, ct] = await Promise.all([
         supabase.from("brands").select("slug,name").order("name"),
         supabase.from("categories").select("slug,name").order("name"),
       ]);
-      return { productCount: pc.data?.length ?? null, brands: (br.data ?? []) as Brand[], cats: (ct.data ?? []) as Cat[] };
+      return { brands: (br.data ?? []) as Brand[], cats: (ct.data ?? []) as Cat[] };
     } catch {
-      return { productCount: null as number | null, brands: [] as Brand[], cats: [] as Cat[] };
+      return { brands: [] as Brand[], cats: [] as Cat[] };
     }
   },
   component: Landing,
@@ -69,12 +68,26 @@ const CAT_ICONS: Record<string, string> = {
   "seal-kit": "○",
 };
 
-const STAT_KEYS = [
-  { value: "91+", labelKey: "index.statProducts" as const, key: "products" },
-  { value: "5", labelKey: "index.statBrands" as const, key: "brands" },
-  { value: "13", labelKey: "index.statCategories" as const, key: "categories" },
-  { value: "24h", labelKey: "index.statLeadTime" as const, key: "lead" },
-];
+/**
+ * Tre vägar in, i stället för fyra siffror.
+ *
+ * Statistikraden sa "846+ produkter · 8 varumärken · 23 kategorier · 24h
+ * snabbast leverans". Tre av dem säger en köpare ingenting -- 846 är dessutom
+ * LITET i den här branschen, Festo ensamt har tiotusentals, så att skylta med
+ * det pekade på svagheten. Och "24h snabbast leverans" var ett löfte som inte
+ * gick att hålla: noll leverantörer är aktiverade och sajten har aldrig
+ * skickat något.
+ *
+ * Det här är i stället det som faktiskt är vårt, och som faktiskt är sant.
+ */
+const VAGAR = [
+  { titel: "index.routeConfigTitle", brod: "index.routeConfigBody",
+    cta: "index.routeConfigCta", to: "/$locale/configure", tecken: "⚙" },
+  { titel: "index.routeAdvisorTitle", brod: "index.routeAdvisorBody",
+    cta: "index.routeAdvisorCta", to: "/$locale/chat", tecken: "✦" },
+  { titel: "index.routePromiseTitle", brod: "index.routePromiseBody",
+    cta: "index.routePromiseCta", to: "/$locale/shopping-list", tecken: "→" },
+] as const;
 
 function Landing() {
   const { locale } = Route.useParams();
@@ -85,24 +98,9 @@ function Landing() {
   const [brands, setBrands] = useState<Brand[]>(ld.brands);
   const [q, setQ] = useState("");
   const [featured, setFeatured] = useState<ProductRow[]>([]);
-  const [totalProducts, setTotalProducts] = useState<number>(ld.productCount ?? 91);
   const [totalBrands, setTotalBrands] = useState(ld.brands.length || 5);
 
   useEffect(() => {
-    // Clear any stale module-level cache so we always get a fresh count
-    clearCatalogCache();
-
-    // Primary: exact HEAD count — never returns a filtered/cached subset
-    supabase
-      .from("products")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "active")
-      .then(({ count }) => {
-        if (count !== null && count > 0) {
-          setTotalProducts(count);
-        }
-      });
-
     supabase.from("categories").select("slug,name").order("name").then(({ data }) => setCats(data ?? []));
     supabase.from("brands").select("slug,name").order("name").then(({ data }) => {
       setBrands(data ?? []);
@@ -110,9 +108,6 @@ function Landing() {
     });
 
     loadCatalog().then((catalog) => {
-      // Backup: if catalog length is higher than current state, update
-      setTotalProducts((prev) => Math.max(prev, catalog.length));
-
       const picks = ["FESTO-DSBC", "SMC-CQ2", "PARKER-P1D", "FESTO-HGPP"];
       const found = picks
         .map((sku) => catalog.find((p) => p.sku === sku))
@@ -191,15 +186,24 @@ function Landing() {
             ))}
           </div>
 
-          {/* Stats bar */}
-          <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl">
-            {STAT_KEYS.map((s, i) => (
-              <div key={i} className="border border-primary-foreground/15 rounded-md px-4 py-3 bg-primary-foreground/5 backdrop-blur-sm">
-                <div className="text-2xl font-semibold" style={{ color: "var(--gold)" }}>
-                  {s.key === "products" ? `${totalProducts}+` : s.key === "brands" ? `${totalBrands}` : s.key === "categories" ? `${cats.length || 13}` : s.value}
+          {/* Tre vägar in */}
+          <div className="mt-12 grid sm:grid-cols-3 gap-4 max-w-4xl">
+            {VAGAR.map((v) => (
+              <Link
+                key={v.to}
+                to={v.to}
+                params={{ locale }}
+                className="group border border-primary-foreground/15 rounded-lg px-5 py-4 bg-primary-foreground/5 backdrop-blur-sm hover:bg-primary-foreground/10 hover:border-primary-foreground/30 transition"
+              >
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm" style={{ color: "var(--gold)" }}>{v.tecken}</span>
+                  <span className="text-[15px] font-semibold text-primary-foreground">{t(v.titel)}</span>
                 </div>
-                <div className="text-[11px] uppercase tracking-wider text-primary-foreground/50 mt-0.5">{t(s.labelKey)}</div>
-              </div>
+                <p className="mt-1.5 text-[13px] leading-relaxed text-primary-foreground/60">{t(v.brod)}</p>
+                <span className="mt-2.5 inline-block text-[12px] font-medium text-primary-foreground/80 group-hover:text-primary-foreground transition">
+                  {t(v.cta)} →
+                </span>
+              </Link>
             ))}
           </div>
         </div>
