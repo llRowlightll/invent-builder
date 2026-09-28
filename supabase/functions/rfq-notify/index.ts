@@ -44,6 +44,15 @@ interface Payload {
   message:       string;
   items:         Item[];
   total_ex_vat?: number | null;
+  /**
+   * Vad kunden faktiskt bad om.
+   *
+   * Utan den här skickade funktionen en ORDERBEKRÄFTELSE till den som bett om
+   * en offert: ämnesraden sa "Orderbekräftelse #A1B2", rubriken sa "Din
+   * beställning" och nästa steg lovade faktura med 30 dagars betalningsvillkor.
+   * Ingen order skapades i databasen -- men kunden fick veta att den hade en.
+   */
+  intent:        "quote" | "order";
 }
 
 function docRef(rfqId: string) {
@@ -134,9 +143,11 @@ function customerHtml(p: Payload): string {
 
   return emailWrap(`
     <h1 style="margin:0 0 4px;font-size:22px;color:#1e293b;font-weight:700;">
-      Tack för din förfrågan, ${p.contact_name.split(" ")[0]}!
+      Tack ${p.intent === "order" ? "för din beställning" : "för din förfrågan"}, ${p.contact_name.split(" ")[0]}!
     </h1>
-    <p style="margin:0 0 24px;color:#64748b;font-size:14px;">Vi har tagit emot din förfrågan och återkommer inom <strong>1–2 arbetsdagar</strong> med bekräftad leveranstid och slutpris.</p>
+    <p style="margin:0 0 24px;color:#64748b;font-size:14px;">${p.intent === "order"
+      ? "Vi har tagit emot din beställning och återkommer inom <strong>1–2 arbetsdagar</strong> med orderbekräftelse, pris och leveranstid."
+      : "Vi har tagit emot din offertförfrågan och återkommer inom <strong>1–2 arbetsdagar</strong> med pris och leveranstid. <strong>Ingen order är lagd</strong> — du bestämmer själv om du vill gå vidare när du fått offerten."}</p>
 
     <!-- Reference box -->
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
@@ -153,7 +164,7 @@ function customerHtml(p: Payload): string {
     </div>
 
     <!-- What you ordered -->
-    <h2 style="font-size:14px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px;">Din beställning</h2>
+    <h2 style="font-size:14px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px;">${p.intent === "order" ? "Din beställning" : "Det du frågat om"}</h2>
     ${itemsTable(p.items)}
     ${total}
 
@@ -161,10 +172,14 @@ function customerHtml(p: Payload): string {
     <div style="background:#eff6ff;border-left:3px solid #3b82f6;border-radius:0 8px 8px 0;padding:14px 16px;margin:24px 0;">
       <p style="margin:0;font-size:13px;color:#1e40af;font-weight:600;">Nästa steg</p>
       <ol style="margin:8px 0 0;padding-left:20px;color:#1e40af;font-size:13px;line-height:1.7;">
+        ${p.intent === "order" ? `
         <li>Vi verifierar lagerstatus och bekräftar leveranstid</li>
         <li>Du får en orderbekräftelse med exakt pris och leveransdatum</li>
         <li>Leverans sker med DHL eller PostNord — spårningsnummer skickas</li>
-        <li>Faktura skickas via mejl med 30 dagars betalningsvillkor</li>
+        <li>Faktura skickas via mejl med 30 dagars betalningsvillkor</li>` : `
+        <li>Vi tar fram pris och leveranstid på det du frågat om</li>
+        <li>Du får offerten via mejl, med giltighetstid</li>
+        <li>Vill du beställa svarar du på offerten — då, och först då, läggs ordern</li>`}
       </ol>
     </div>
 
@@ -230,7 +245,11 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const [{ data: rfq, error: rfqErr }, { data: items }] = await Promise.all([
       supabase.from("rfqs").select("*").eq("id", rfq_id).single(),
-      supabase.from("rfq_items").select("qty, unit_price, role, products(sku, name)").eq("rfq_id", rfq_id),
+      // order_code/item_name med: en konfigurerad artikel ska visas som
+      // DSNU-32-100-PPS i mejlet, inte som serien FESTO-DSNU.
+      supabase.from("rfq_items")
+        .select("qty, unit_price, role, order_code, item_name, products(sku, name)")
+        .eq("rfq_id", rfq_id).order("sort_order", { ascending: true, nullsFirst: false }),
     ]);
     if (rfqErr || !rfq) {
       return new Response(JSON.stringify({ error: "rfq not found" }), {
@@ -246,8 +265,8 @@ Deno.serve(async (req) => {
     const mappedItems: Item[] = (items ?? []).map((it: Record<string, unknown>) => {
       const product = it.products as { sku?: string; name?: string } | null;
       return {
-        sku: product?.sku ?? "—",
-        name: product?.name ?? (it.role as string) ?? "",
+        sku: (it.order_code as string) || product?.sku || "—",
+        name: (it.item_name as string) || product?.name || (it.role as string) || "",
         qty: (it.qty as number) ?? 1,
         unit_price: it.unit_price as number | undefined,
         role: it.role as string | undefined,
@@ -260,6 +279,8 @@ Deno.serve(async (req) => {
       order_ref: docRef(rfq_id),
       contact_name: rfq.contact_name ?? "",
       contact_email: rfq.contact_email,
+      // Läses ur raden, inte ur anropet: bara rfq_id betros här.
+      intent: rfq.intent === "order" ? "order" : "quote",
       contact_phone: rfq.contact_phone,
       company: rfq.company,
       po_number: rfq.po_number,
@@ -271,7 +292,11 @@ Deno.serve(async (req) => {
     // Fire both emails in parallel
     await Promise.all([
       sendEmail(ADMIN_EMAIL,        `🔔 Ny RFQ #${payload.order_ref} — ${payload.contact_name}`, adminHtml(payload)),
-      sendEmail(payload.contact_email, `Orderbekräftelse #${payload.order_ref} — Maskinval`,        customerHtml(payload)),
+      sendEmail(payload.contact_email,
+        payload.intent === "order"
+          ? `Beställning mottagen #${payload.order_ref} — Maskinval`
+          : `Offertförfrågan mottagen #${payload.order_ref} — Maskinval`,
+        customerHtml(payload)),
     ]);
 
     return new Response(JSON.stringify({ ok: true }), {

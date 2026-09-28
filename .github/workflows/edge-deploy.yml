@@ -53,6 +53,7 @@ jobs:
           # deployas trasig -- ett fel här betyder att ingen beställning går ut.
           deno check --no-lock --node-modules-dir=none supabase/functions/supplier-po/index.ts
           deno check --no-lock --node-modules-dir=none supabase/functions/order-status-email/index.ts
+          deno check --no-lock --node-modules-dir=none supabase/functions/rfq-notify/index.ts
           # --allow-read krävs av synktestet, som läser src/lib/physics.ts och
           # gör bygget rött om husets kraftmodell glidit isär mellan
           # Deno-runtimen och Vite-runtimen. Utan behörigheten hoppar testet
@@ -80,6 +81,22 @@ jobs:
         run: |
           echo "::error::Edge function deploy did not succeed (outcome=${{ steps.deploy.outcome }})."
           echo "::error::The live function was NOT updated — failing the run so it can't slip through."
+          exit 1
+
+      - name: Deploy rfq-notify to Supabase
+        # Den här skickar kvittensen till kunden när en offertförfrågan eller
+        # beställning kommer in. Den låg utanför CI och hade deployats för
+        # hand -- precis som order-status-email.
+        continue-on-error: true
+        id: deploy_rfq
+        run: npx --yes supabase@latest functions deploy rfq-notify --project-ref buqfbcztspswezwyafxo
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Fail if rfq-notify deploy did not succeed
+        if: steps.deploy_rfq.outcome != 'success'
+        run: |
+          echo "::error::rfq-notify deploy did not succeed (outcome=${{ steps.deploy_rfq.outcome }})."
           exit 1
 
       - name: Deploy order-status-email to Supabase
