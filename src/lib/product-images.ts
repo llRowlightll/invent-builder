@@ -316,6 +316,247 @@ const svgs: Record<string, string> = {
     <path d="M178 120 L146 120 M153 114 L144 120 L153 126" fill="none" stroke="#6b7280" stroke-width="1.5"/>
     <text x="240" y="230" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Linjärmodul</text>
   </svg>`,
+
+  // ── Kategorier som saknade ritning helt ────────────────────────────────
+  // De föll ner på FALLBACK_SVG, alltså en grå ruta med texten
+  // "Industrikomponent". En backventil, en kabel och ett fäste såg likadana
+  // ut. 116 produkter delade på en bild som inte föreställde någon av dem.
+
+  "rotary-actuator": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- kropp -->
+    <rect x="150" y="96" width="180" height="96" rx="6" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- kugg/drev -->
+    <circle cx="240" cy="144" r="34" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <circle cx="240" cy="144" r="12" fill="#9ca3af" stroke="#4b5563" stroke-width="1.5"/>
+    <!-- utgående axel -->
+    <rect x="234" y="60" width="12" height="36" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- rotationsbåge -->
+    <path d="M 296 118 A 62 62 0 0 1 296 170" fill="none" stroke="#6b7280" stroke-width="2" stroke-dasharray="5 4"/>
+    <path d="M 296 170 l -7 -9 l 13 -2 z" fill="#6b7280"/>
+    <!-- anslag -->
+    <rect x="330" y="104" width="22" height="12" rx="2" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="330" y="172" width="22" height="12" rx="2" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- portar -->
+    <rect x="132" y="112" width="18" height="12" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="132" y="164" width="18" height="12" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <text x="240" y="218" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Vridcylinder</text>
+  </svg>`,
+
+  "sensor": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- givarkropp -->
+    <rect x="150" y="124" width="112" height="34" rx="4" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- gängad nos -->
+    <rect x="262" y="131" width="44" height="20" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <line x1="270" y1="131" x2="270" y2="151" stroke="#9ca3af" stroke-width="1.5"/>
+    <line x1="280" y1="131" x2="280" y2="151" stroke="#9ca3af" stroke-width="1.5"/>
+    <line x1="290" y1="131" x2="290" y2="151" stroke="#9ca3af" stroke-width="1.5"/>
+    <!-- aktiv yta -->
+    <rect x="306" y="133" width="8" height="16" rx="2" fill="#9ca3af" stroke="#4b5563" stroke-width="1.5"/>
+    <!-- avkänningsfält -->
+    <path d="M 326 126 q 14 15 0 30" fill="none" stroke="#9ca3af" stroke-width="2"/>
+    <path d="M 340 118 q 20 23 0 46" fill="none" stroke="#d1d5db" stroke-width="2"/>
+    <!-- indikatorlampa -->
+    <circle cx="176" cy="141" r="7" fill="#9ca3af" stroke="#4b5563" stroke-width="1.5"/>
+    <!-- kabel -->
+    <path d="M 150 141 q -40 0 -56 26 t -54 22" fill="none" stroke="#6b7280" stroke-width="5" stroke-linecap="round"/>
+    <text x="240" y="218" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Givare</text>
+  </svg>`,
+
+  "mounting": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- vinkelfäste, stående ben -->
+    <rect x="166" y="86" width="26" height="110" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <!-- liggande ben -->
+    <rect x="166" y="170" width="148" height="26" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <!-- förstyvning -->
+    <path d="M 192 156 L 192 170 L 206 170 z" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- hål i stående ben -->
+    <circle cx="179" cy="108" r="7" fill="#f8f9fb" stroke="#6b7280" stroke-width="2"/>
+    <circle cx="179" cy="136" r="7" fill="#f8f9fb" stroke="#6b7280" stroke-width="2"/>
+    <!-- hål i liggande ben -->
+    <circle cx="246" cy="183" r="7" fill="#f8f9fb" stroke="#6b7280" stroke-width="2"/>
+    <circle cx="292" cy="183" r="7" fill="#f8f9fb" stroke="#6b7280" stroke-width="2"/>
+    <!-- skruv -->
+    <rect x="240" y="120" width="12" height="46" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="232" y="110" width="28" height="12" rx="2" fill="#6b7280" stroke="#4b5563" stroke-width="1.5"/>
+    <text x="240" y="230" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Fäste</text>
+  </svg>`,
+
+  "silencer": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- gänga -->
+    <rect x="150" y="130" width="46" height="22" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <line x1="158" y1="130" x2="158" y2="152" stroke="#9ca3af" stroke-width="1.5"/>
+    <line x1="168" y1="130" x2="168" y2="152" stroke="#9ca3af" stroke-width="1.5"/>
+    <line x1="178" y1="130" x2="178" y2="152" stroke="#9ca3af" stroke-width="1.5"/>
+    <line x1="188" y1="130" x2="188" y2="152" stroke="#9ca3af" stroke-width="1.5"/>
+    <!-- nyckelgrepp -->
+    <rect x="196" y="124" width="20" height="34" fill="#9ca3af" stroke="#4b5563" stroke-width="1.5"/>
+    <!-- sintrad kropp -->
+    <rect x="216" y="114" width="114" height="54" rx="8" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- porer -->
+    <circle cx="240" cy="132" r="3" fill="#9ca3af"/><circle cx="258" cy="126" r="3" fill="#9ca3af"/>
+    <circle cx="276" cy="134" r="3" fill="#9ca3af"/><circle cx="296" cy="127" r="3" fill="#9ca3af"/>
+    <circle cx="312" cy="136" r="3" fill="#9ca3af"/><circle cx="248" cy="150" r="3" fill="#9ca3af"/>
+    <circle cx="268" cy="156" r="3" fill="#9ca3af"/><circle cx="288" cy="148" r="3" fill="#9ca3af"/>
+    <circle cx="308" cy="155" r="3" fill="#9ca3af"/>
+    <!-- utströmning -->
+    <path d="M 340 128 q 16 -6 30 -2" fill="none" stroke="#d1d5db" stroke-width="2"/>
+    <path d="M 340 142 q 20 0 36 0" fill="none" stroke="#d1d5db" stroke-width="2"/>
+    <path d="M 340 156 q 16 6 30 2" fill="none" stroke="#d1d5db" stroke-width="2"/>
+    <text x="240" y="218" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Ljuddämpare</text>
+  </svg>`,
+
+  "shock-absorber": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- gängad kropp -->
+    <rect x="150" y="124" width="170" height="34" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <g stroke="#9ca3af" stroke-width="1.5">
+      <line x1="162" y1="124" x2="162" y2="158"/><line x1="176" y1="124" x2="176" y2="158"/>
+      <line x1="190" y1="124" x2="190" y2="158"/><line x1="204" y1="124" x2="204" y2="158"/>
+      <line x1="218" y1="124" x2="218" y2="158"/><line x1="232" y1="124" x2="232" y2="158"/>
+    </g>
+    <!-- låsmutter -->
+    <rect x="246" y="116" width="26" height="50" fill="#9ca3af" stroke="#4b5563" stroke-width="1.5"/>
+    <!-- kolvstång -->
+    <rect x="320" y="134" width="70" height="14" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- anslagshuvud -->
+    <rect x="390" y="126" width="18" height="30" rx="4" fill="#6b7280" stroke="#4b5563" stroke-width="1.5"/>
+    <!-- slagriktning -->
+    <path d="M 430 141 l -22 0" stroke="#6b7280" stroke-width="2"/>
+    <path d="M 408 141 l 10 -6 l 0 12 z" fill="#6b7280"/>
+    <line x1="140" y1="141" x2="330" y2="141" stroke="#9ca3af" stroke-width="1" stroke-dasharray="6 3"/>
+    <text x="240" y="218" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Stötdämpare</text>
+  </svg>`,
+
+  "servo-motor": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- motorkropp -->
+    <rect x="164" y="100" width="130" height="88" rx="4" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- kylflänsar -->
+    <g stroke="#9ca3af" stroke-width="1.5">
+      <line x1="180" y1="100" x2="180" y2="188"/><line x1="200" y1="100" x2="200" y2="188"/>
+      <line x1="220" y1="100" x2="220" y2="188"/><line x1="240" y1="100" x2="240" y2="188"/>
+      <line x1="260" y1="100" x2="260" y2="188"/><line x1="278" y1="100" x2="278" y2="188"/>
+    </g>
+    <!-- fläns -->
+    <rect x="294" y="110" width="20" height="68" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <circle cx="304" cy="120" r="4" fill="#f8f9fb" stroke="#6b7280" stroke-width="1.5"/>
+    <circle cx="304" cy="168" r="4" fill="#f8f9fb" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- axel med kil -->
+    <rect x="314" y="136" width="54" height="16" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="330" y="132" width="16" height="5" fill="#6b7280"/>
+    <!-- givare bak -->
+    <rect x="140" y="122" width="24" height="44" rx="3" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <!-- kontakt -->
+    <rect x="200" y="82" width="34" height="18" rx="3" fill="#9ca3af" stroke="#4b5563" stroke-width="1.5"/>
+    <text x="240" y="222" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Servomotor</text>
+  </svg>`,
+
+  "servo-drive": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- kapsling -->
+    <rect x="176" y="72" width="128" height="140" rx="4" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- display -->
+    <rect x="196" y="88" width="88" height="30" rx="2" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <line x1="208" y1="103" x2="240" y2="103" stroke="#6b7280" stroke-width="3"/>
+    <!-- lysdioder -->
+    <circle cx="204" cy="132" r="4" fill="#9ca3af" stroke="#4b5563" stroke-width="1.2"/>
+    <circle cx="220" cy="132" r="4" fill="#9ca3af" stroke="#4b5563" stroke-width="1.2"/>
+    <!-- plintar -->
+    <g fill="#d1d5db" stroke="#6b7280" stroke-width="1.5">
+      <rect x="196" y="148" width="88" height="16" rx="2"/>
+      <rect x="196" y="170" width="88" height="16" rx="2"/>
+    </g>
+    <g stroke="#9ca3af" stroke-width="1.2">
+      <line x1="214" y1="148" x2="214" y2="164"/><line x1="232" y1="148" x2="232" y2="164"/>
+      <line x1="250" y1="148" x2="250" y2="164"/><line x1="268" y1="148" x2="268" y2="164"/>
+      <line x1="214" y1="170" x2="214" y2="186"/><line x1="232" y1="170" x2="232" y2="186"/>
+      <line x1="250" y1="170" x2="250" y2="186"/><line x1="268" y1="170" x2="268" y2="186"/>
+    </g>
+    <!-- DIN-skena -->
+    <rect x="150" y="212" width="180" height="10" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <text x="240" y="248" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Servodrivare</text>
+  </svg>`,
+
+  "check-valve": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- hus -->
+    <rect x="166" y="116" width="148" height="50" rx="8" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- säte -->
+    <path d="M 214 122 L 236 141 L 214 160" fill="none" stroke="#6b7280" stroke-width="2"/>
+    <!-- kula -->
+    <circle cx="246" cy="141" r="13" fill="#9ca3af" stroke="#4b5563" stroke-width="1.5"/>
+    <!-- fjäder -->
+    <path d="M 259 141 l 8 -8 l 8 16 l 8 -16 l 8 16 l 8 -8" fill="none" stroke="#6b7280" stroke-width="2"/>
+    <!-- anslutningar -->
+    <rect x="128" y="131" width="38" height="20" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <rect x="314" y="131" width="38" height="20" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <!-- flödesriktning -->
+    <line x1="366" y1="141" x2="412" y2="141" stroke="#6b7280" stroke-width="2"/>
+    <path d="M 412 141 l -11 -6 l 0 12 z" fill="#6b7280"/>
+    <!-- spärrad riktning -->
+    <line x1="114" y1="141" x2="68" y2="141" stroke="#d1d5db" stroke-width="2"/>
+    <line x1="80" y1="130" x2="92" y2="152" stroke="#9ca3af" stroke-width="2"/>
+    <text x="240" y="218" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Backventil</text>
+  </svg>`,
+
+  "cable": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- rak kontakt -->
+    <rect x="96" y="126" width="46" height="30" rx="4" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <g stroke="#9ca3af" stroke-width="1.5">
+      <line x1="106" y1="126" x2="106" y2="156"/><line x1="116" y1="126" x2="116" y2="156"/>
+      <line x1="126" y1="126" x2="126" y2="156"/>
+    </g>
+    <circle cx="90" cy="141" r="9" fill="#9ca3af" stroke="#4b5563" stroke-width="1.5"/>
+    <!-- kabel -->
+    <path d="M 142 141 q 60 -44 120 0 t 118 0" fill="none" stroke="#6b7280" stroke-width="7" stroke-linecap="round"/>
+    <!-- vinklad kontakt -->
+    <rect x="380" y="126" width="34" height="30" rx="4" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <rect x="392" y="96" width="30" height="30" rx="4" fill="#9ca3af" stroke="#4b5563" stroke-width="1.5"/>
+    <text x="240" y="218" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Kabel med kontakt</text>
+  </svg>`,
+
+  "rod-lock": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- kolvstång genom bromsen -->
+    <rect x="70" y="134" width="340" height="14" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- bromshus -->
+    <rect x="188" y="100" width="104" height="82" rx="5" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- klämbackar -->
+    <rect x="206" y="118" width="68" height="16" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="206" y="148" width="68" height="16" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- klämkraft -->
+    <path d="M 240 106 l 0 10" stroke="#6b7280" stroke-width="2"/>
+    <path d="M 240 118 l -5 -7 l 10 0 z" fill="#6b7280"/>
+    <path d="M 240 176 l 0 -10" stroke="#6b7280" stroke-width="2"/>
+    <path d="M 240 164 l -5 7 l 10 0 z" fill="#6b7280"/>
+    <!-- lossningsport -->
+    <rect x="292" y="112" width="18" height="12" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <text x="240" y="218" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Stångbroms</text>
+  </svg>`,
+
+  "controller": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <rect x="146" y="88" width="188" height="108" rx="5" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- skärm -->
+    <rect x="166" y="104" width="76" height="46" rx="2" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <g stroke="#6b7280" stroke-width="2.5">
+      <line x1="178" y1="120" x2="214" y2="120"/><line x1="178" y1="132" x2="200" y2="132"/>
+    </g>
+    <!-- knappar -->
+    <circle cx="266" cy="114" r="8" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <circle cx="294" cy="114" r="8" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <circle cx="266" cy="140" r="8" fill="#9ca3af" stroke="#4b5563" stroke-width="1.5"/>
+    <circle cx="294" cy="140" r="8" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- bussanslutningar -->
+    <rect x="166" y="164" width="52" height="18" rx="2" fill="#9ca3af" stroke="#4b5563" stroke-width="1.5"/>
+    <rect x="228" y="164" width="52" height="18" rx="2" fill="#9ca3af" stroke="#4b5563" stroke-width="1.5"/>
+    <text x="240" y="230" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Styrenhet</text>
+  </svg>`,
 };
 
 const FALLBACK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
@@ -331,8 +572,24 @@ function toDataUrl(svg: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
+/**
+ * Kategorislugen i databasen och ritningens namn hade glidit isär på tre
+ * ställen. Ritningarna FANNS -- de låg bara under ett annat namn, och 71
+ * produkter visade därför den grå "Industrikomponent"-rutan i onödan.
+ *
+ * Alias i stället för att döpa om: slugen i databasen är den som står i
+ * URL:er och i kategorimenyn, och ritningens namn är det som står i den här
+ * filen. Att tvinga ihop dem hade betytt en migration för ett stavfel.
+ */
+const RITNING_ALIAS: Record<string, string> = {
+  tubing: "hose",                  // 24 produkter
+  frl: "air-preparation",          // 24
+  "flow-control": "speed-controller", // 23
+};
+
 export function getCategoryImage(categorySlug: string, _square = false): string {
-  return toDataUrl(svgs[categorySlug] ?? FALLBACK_SVG);
+  const nyckel = RITNING_ALIAS[categorySlug] ?? categorySlug;
+  return toDataUrl(svgs[nyckel] ?? FALLBACK_SVG);
 }
 
 export function getBrandImage(_brandSlug: string): string {
