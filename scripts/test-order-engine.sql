@@ -9,7 +9,8 @@
 -- en inköpsorder där leverantören inte svarat på alla rader, 116-121 att
 -- inköpsorderns avledda värden räknas om när raderna ändras, 122-125 en
 -- leverantör vi inte aktiverat, 126-131 att offert och beställning hålls isär,
--- 132-145 checkoutens fält och att ordern fryser dem.
+-- 132-145 checkoutens fält och att ordern fryser dem, 146-156 försändelser,
+-- delleverans och att ordern är levererad först när varje rad är det.
 --
 -- Kör i SQL-editorn eller via execute_sql. Skapar sin egen provdata och
 -- STÄDAR UPP SIG SJÄLV, utan att förlita sig på en yttre rollback -- provet
@@ -1078,6 +1079,77 @@ begin
 
   delete from orders where id=v_ord;
   delete from rfqs where contact_email like '%@example.invalid';
+end $$;
+
+-- ── DEL 13: försändelser, delleverans och §18 punkt 14 ────────────────────
+--
+-- "Ordern blir inte levererad förrän samtliga orderrader är levererade."
+--
+-- Kontroll 146 är den som skyddar kunden: två av fyra cylindrar på väg gör
+-- INTE raden skickad. Den som läser "skickad" väntar sig fyra.
+
+do $$
+declare
+  v_admin uuid := (select id from auth.users order by created_at limit 1);
+  v_p1 uuid; v_p2 uuid; v_ord uuid; v_r1 uuid; v_r2 uuid;
+  v_f1 uuid; v_f2 uuid; v_txt text;
+begin
+  select id into v_p1 from products where status='active' order by sku limit 1;
+  select id into v_p2 from products where status='active' and id<>v_p1 order by sku limit 1;
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims', format('{"sub":"%s","role":"authenticated"}', v_admin), true);
+  v_ord := create_order_with_items(
+    format('{"user_id":"%s","customer_name":"Leveransprov","customer_email":"l@example.invalid"}', v_admin)::jsonb,
+    format('[{"product_id":"%s","sku":"A","name":"fyra st","qty":4,"unit_price_ex_vat":100},
+             {"product_id":"%s","sku":"B","name":"en st","qty":1,"unit_price_ex_vat":50}]', v_p1, v_p2)::jsonb);
+  reset role; perform set_config('request.jwt.claims','',true);
+
+  select id into v_r1 from order_items where order_id=v_ord and line_no=1;
+  select id into v_r2 from order_items where order_id=v_ord and line_no=2;
+
+  -- Försändelse 1: HALVA rad 1.
+  insert into shipments (order_id, shipment_no, carrier, tracking_number, status, shipped_at)
+  values (v_ord, 1, 'DHL', 'ABC123', 'in_transit', now()) returning id into v_f1;
+  insert into shipment_items (shipment_id, order_item_id, qty) values (v_f1, v_r1, 2);
+
+  select status into v_txt from order_items where id=v_r1;
+  perform pg_temp.kolla(146, 'halvt skickad rad är INTE skickad', 'pending', v_txt);
+  select status into v_txt from orders where id=v_ord;
+  perform pg_temp.kolla(147, 'ordern är inte skickad av en halv rad', 'new', v_txt);
+
+  insert into shipment_items (shipment_id, order_item_id, qty) values (v_f1, v_r1, 2);
+  select status into v_txt from order_items where id=v_r1;
+  perform pg_temp.kolla(148, 'hela raden skickad ger skickad', 'shipped', v_txt);
+  select status into v_txt from orders where id=v_ord;
+  perform pg_temp.kolla(149, 'ordern blir skickad när något rört sig', 'shipped', v_txt);
+
+  update shipments set status='delivered', delivered_at=now() where id=v_f1;
+  select status into v_txt from order_items where id=v_r1;
+  perform pg_temp.kolla(150, 'levererad försändelse levererar sina rader', 'delivered', v_txt);
+  select status into v_txt from orders where id=v_ord;
+  perform pg_temp.kolla(151, 'ordern är INTE levererad medan en rad saknas', 'shipped', v_txt);
+
+  -- Försändelse 2, en annan transportör.
+  insert into shipments (order_id, shipment_no, carrier, tracking_number, status, shipped_at, delivered_at)
+  values (v_ord, 2, 'PostNord', 'XYZ789', 'delivered', now(), now()) returning id into v_f2;
+  insert into shipment_items (shipment_id, order_item_id, qty) values (v_f2, v_r2, 1);
+
+  select status into v_txt from orders where id=v_ord;
+  perform pg_temp.kolla(152, 'ordern levererad först när SAMTLIGA rader är det', 'delivered', v_txt);
+  perform pg_temp.kolla(153, 'leveransdatum sattes', 'ja',
+    case when (select delivered_at from orders where id=v_ord) is not null then 'ja' else 'nej' end);
+  perform pg_temp.kolla(154, 'två försändelser på ordern', '2',
+    (select count(*)::text from shipments where order_id=v_ord));
+
+  insert into tracking_events (shipment_id, status, description, location, source)
+  values (v_f1, 'delivered', 'Utlämnad till godsmottagning', 'Linköping', 'carrier');
+  perform pg_temp.kolla(155, 'spårningshändelse kopplad till försändelsen', '1',
+    (select count(*)::text from tracking_events where shipment_id=v_f1));
+
+  delete from orders where id=v_ord;
+  perform pg_temp.kolla(156, 'försändelserna följer med när ordern raderas', '0',
+    (select count(*)::text from shipments where order_id=v_ord));
 end $$;
 
 select nr, kontroll, case when ok then 'OK' else 'FEL' end as utfall,

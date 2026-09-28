@@ -33,7 +33,7 @@ katalogen gör det.
 | Leverantörs-PO som PDF och e-post | ⚠️ | `supplier-po`-funktionen finns och är provad mot en riktig adminsession; ingen leverantör är aktiverad eller har beställningsadress, så inget kan skickas |
 | Manuell leverantörsbekräftelse | ✅ | `register_supplier_ack()` klassar grön/gul/röd; röd stoppar raden tills en människa beslutar |
 | Status per orderrad | ✅ | `order_items.status`, `order_status_events` |
-| Manuell tracking | ⚠️ | `orders.tracking_number` finns; ingen modell per försändelse |
+| Manuell tracking | ✅ | `shipments` + `shipment_items` + `tracking_events`; en orderrad kan delas mellan försändelser |
 | Faktura och dokument | ❌ | `orders.invoice_*` + `fortnox-order` finns, ingen dokumentmodell |
 | Automatiska kundmejl | ⚠️ | `order-status-email` finns men triggas från webbläsaren |
 | Audit log | ✅ | `audit_log` + `fn_audit_log`-triggers på alla nya tabeller |
@@ -86,7 +86,7 @@ frakt, betalningsvillkor, produktdatarättigheter).
 
 ## Provet
 
-`scripts/test-order-engine.sql` — 145 kontroller, självstädande, körs mot
+`scripts/test-order-engine.sql` — 156 kontroller, självstädande, körs mot
 databasen:
 
 | Del | Kontroller | Vad den vaktar |
@@ -103,6 +103,7 @@ databasen:
 | 10 | 122–125 | en leverantör vi inte aktiverat |
 | 11 | 126–131 | att offert och beställning hålls isär |
 | 12 | 132–145 | checkoutens fält, och att ordern fryser dem |
+| 13 | 146–156 | försändelser, delleverans, och §18 punkt 14 |
 
 ## §18: acceptanskriterierna
 
@@ -116,11 +117,11 @@ databasen:
 | 6 | Leverantörsorder som PDF och e-post | ⚠️ byggd, blockerad på adresser |
 | 7–8 | Leverantören bekräftar helt / delvis | ✅ |
 | 9 | Kundportalen visar det begripligt | ❌ |
-| 10–11 | Delleverans och tracking per rad | ❌ |
+| 10–11 | Delleverans och tracking per rad | ✅ |
 | 12–13 | Leveransmejl, andra försändelsen | ❌ |
-| 14 | "Levererad" först när alla rader är det | ❌ |
+| 14 | "Levererad" först när alla rader är det | ✅ |
 | 15 | Faktura och dokument i portalen | ❌ |
 | 16 | Allt i audit log | ✅ |
 | 17 | Samma knapptryckning skapar aldrig en dubblett | ✅ |
 
-**6 av 17 klara, 4 halva.**
+**9 av 17 klara, 3 halva.**
