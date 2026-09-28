@@ -23,7 +23,7 @@ katalogen gör det.
 
 | Steg | Läge | Var |
 |---|---|---|
-| B2B-checkout | ❌ | blockerad, se nedan |
+| B2B-checkout | ⚠️ | adresser, datum, referens, delleverans/samlad — allt utom priser och betalning |
 | Ordernummer | ✅ | `next_document_number('MV')`, trigger på `orders` |
 | Kundens PO-nummer | ✅ | `orders.po_number` |
 | Kundens PO som uppladdad fil | ❌ | `document-ai` finns och läser PO-PDF:er, men inget lagras |
@@ -86,7 +86,7 @@ frakt, betalningsvillkor, produktdatarättigheter).
 
 ## Provet
 
-`scripts/test-order-engine.sql` — 131 kontroller, självstädande, körs mot
+`scripts/test-order-engine.sql` — 145 kontroller, självstädande, körs mot
 databasen:
 
 | Del | Kontroller | Vad den vaktar |
@@ -102,6 +102,7 @@ databasen:
 | 9 | 116–121 | att inköpsorderns avledda värden räknas om när raderna ändras |
 | 10 | 122–125 | en leverantör vi inte aktiverat |
 | 11 | 126–131 | att offert och beställning hålls isär |
+| 12 | 132–145 | checkoutens fält, och att ordern fryser dem |
 
 ## §18: acceptanskriterierna
 
@@ -122,4 +123,4 @@ databasen:
 | 16 | Allt i audit log | ✅ |
 | 17 | Samma knapptryckning skapar aldrig en dubblett | ✅ |
 
-**6 av 17 klara, 3 halva.**
+**6 av 17 klara, 4 halva.**

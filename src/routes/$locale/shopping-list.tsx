@@ -63,6 +63,23 @@ function ShoppingListPage() {
    * vägen -- den går inte att härleda i efterhand.
    */
   const [avsikt, setAvsikt] = useState<"quote" | "order">("quote");
+  /**
+   * Checkoutens fält (§2). Visas bara när kunden valt BESTÄLL -- en
+   * offertförfrågan ska inte kräva leveransadress för att få ett pris.
+   */
+  const [levNamn, setLevNamn] = useState("");
+  const [levGata, setLevGata] = useState("");
+  const [levPost, setLevPost] = useState("");
+  const [levOrt, setLevOrt] = useState("");
+  const [fakturaSamma, setFakturaSamma] = useState(true);
+  const [fakGata, setFakGata] = useState("");
+  const [fakPost, setFakPost] = useState("");
+  const [fakOrt, setFakOrt] = useState("");
+  const [fakEpost, setFakEpost] = useState("");
+  const [onskatDatum, setOnskatDatum] = useState("");
+  const [levInstruktion, setLevInstruktion] = useState("");
+  const [levSatt, setLevSatt] = useState<"partial" | "consolidated">("partial");
+  const [kundRef, setKundRef] = useState("");
 
   useEffect(() => {
     loadCatalog().then(setCatalog);
@@ -205,6 +222,21 @@ function ShoppingListPage() {
           item_name: item.order_code ? item.name : null,
         })),
         p_intent: avsikt,
+        // Bara för en beställning. En offertförfrågan har inga av de här
+        // fälten ifyllda, och servern kräver dem inte heller.
+        p_checkout: avsikt === "order" ? {
+          delivery_name: levNamn, delivery_street: levGata,
+          delivery_postal: levPost, delivery_city: levOrt, delivery_country: "SE",
+          invoice_street: fakturaSamma ? levGata : fakGata,
+          invoice_postal: fakturaSamma ? levPost : fakPost,
+          invoice_city:   fakturaSamma ? levOrt  : fakOrt,
+          invoice_country: "SE",
+          invoice_email: fakEpost,
+          desired_delivery_date: onskatDatum,
+          delivery_instructions: levInstruktion,
+          delivery_mode: levSatt,
+          customer_reference: kundRef,
+        } : {},
         p_hp: rfqHp,
       });
 
@@ -656,6 +688,85 @@ function ShoppingListPage() {
                     onChange={(e) => setRfqMessage(e.target.value)}
                   />
                 </div>
+
+                {/* ── Checkouten (§2) ──────────────────────────────────────
+                    Bara för en BESTÄLLNING. En offertförfrågan ska få ett pris
+                    utan att kunden först lämnar ut leveransadress och
+                    fakturauppgifter -- det är två olika frågor. */}
+                {avsikt === "order" && (
+                  <div className="mt-4 space-y-3 border-t border-border pt-4">
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Leveransadress</p>
+                      <p className="text-[11px] text-muted-foreground">Dit varorna ska. Krävs för en beställning.</p>
+                    </div>
+                    <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Godsmottagare / c/o (valfritt)"
+                      value={levNamn} onChange={(e) => setLevNamn(e.target.value)} />
+                    <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Gatuadress *" required
+                      value={levGata} onChange={(e) => setLevGata(e.target.value)} />
+                    <div className="grid sm:grid-cols-2 gap-2.5">
+                      <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Postnummer" value={levPost} onChange={(e) => setLevPost(e.target.value)} />
+                      <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Ort" value={levOrt} onChange={(e) => setLevOrt(e.target.value)} />
+                    </div>
+
+                    <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <input type="checkbox" checked={fakturaSamma}
+                        onChange={(e) => setFakturaSamma(e.target.checked)} className="rounded accent-info" />
+                      Fakturaadress är densamma
+                    </label>
+                    {!fakturaSamma && (
+                      <div className="space-y-2.5">
+                        <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Fakturaadress" value={fakGata} onChange={(e) => setFakGata(e.target.value)} />
+                        <div className="grid sm:grid-cols-2 gap-2.5">
+                          <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Postnummer" value={fakPost} onChange={(e) => setFakPost(e.target.value)} />
+                          <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Ort" value={fakOrt} onChange={(e) => setFakOrt(e.target.value)} />
+                        </div>
+                      </div>
+                    )}
+                    <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" type="email" placeholder="E-post för faktura (valfritt)"
+                      value={fakEpost} onChange={(e) => setFakEpost(e.target.value)} />
+
+                    <div className="grid sm:grid-cols-2 gap-2.5">
+                      <label className="text-xs text-muted-foreground">
+                        Önskat leveransdatum
+                        <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" type="date" value={onskatDatum} onChange={(e) => setOnskatDatum(e.target.value)} />
+                      </label>
+                      <label className="text-xs text-muted-foreground">
+                        Er referens (projekt, kostnadsställe)
+                        <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" value={kundRef} onChange={(e) => setKundRef(e.target.value)} />
+                      </label>
+                    </div>
+
+                    <textarea
+                      className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30 resize-none"
+                      rows={2} placeholder="Leveransinstruktioner — lastkaj, öppettider, ring innan…"
+                      value={levInstruktion} onChange={(e) => setLevInstruktion(e.target.value)} />
+
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Leverans</p>
+                      {/* Ett val kunden gör, inte något vi antar. Gissningen
+                          hade blivit synlig först när halva ordern kom. */}
+                      <div className="grid sm:grid-cols-2 gap-2">
+                        {([["partial", "Skicka det som finns", "Delleveranser allt eftersom."],
+                           ["consolidated", "Vänta tills allt är klart", "En samlad leverans."]] as const).map(([v, rubrik, hjalp]) => (
+                          <label key={v} className={`rounded-lg border p-2.5 cursor-pointer transition ${
+                            levSatt === v ? "border-info bg-info/5" : "border-border hover:bg-surface-alt"}`}>
+                            <input type="radio" name="levsatt" checked={levSatt === v}
+                              onChange={() => setLevSatt(v)} className="sr-only" />
+                            <span className="block text-sm font-medium">{rubrik}</span>
+                            <span className="block text-[11px] text-muted-foreground">{hjalp}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Priser finns inte i katalogen. Att visa "—" på varje rad
+                        vore sämre än att säga varför. */}
+                    <p className="text-[11px] text-muted-foreground border-t border-border pt-3">
+                      Priser bekräftas i orderbekräftelsen. Vi hör av oss innan något skickas
+                      om något avviker från det ni väntat er.
+                    </p>
+                  </div>
+                )}
 
                 {/* Honeypot — hidden from real users via CSS, not `type="hidden"`,
                     so form-filling bots that read layout still find and fill it. */}

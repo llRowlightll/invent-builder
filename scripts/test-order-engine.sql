@@ -8,7 +8,8 @@
 -- 95-111 leverantörens bekräftelse hela vägen till kundens orderrad, 112-115
 -- en inköpsorder där leverantören inte svarat på alla rader, 116-121 att
 -- inköpsorderns avledda värden räknas om när raderna ändras, 122-125 en
--- leverantör vi inte aktiverat, 126-131 att offert och beställning hålls isär.
+-- leverantör vi inte aktiverat, 126-131 att offert och beställning hålls isär,
+-- 132-145 checkoutens fält och att ordern fryser dem.
 --
 -- Kör i SQL-editorn eller via execute_sql. Skapar sin egen provdata och
 -- STÄDAR UPP SIG SJÄLV, utan att förlita sig på en yttre rollback -- provet
@@ -995,6 +996,88 @@ begin
 
   delete from orders where rfq_id = v_offert;
   delete from rfqs where id in (v_offert, v_order, v_tredje);
+end $$;
+
+-- ── DEL 12: checkoutens fält, och att de FRYSER ──────────────────────────
+--
+-- Kunden kunde beställa utan att någonsin ange vart varan skulle: formuläret
+-- frågade efter namn, telefon och ett PO-nummer, inte efter leveransadress
+-- eller om delleverans är okej. orders hade inga adressfält alls.
+--
+-- Kontroll 145 är den viktigaste: ordern bär en EGEN kopia. Flyttar kunden
+-- efter att ordern lagts ska den gamla ordern fortfarande visa vart den
+-- skickades -- §3 kräver en fryst kopia av det som gällde vid köpet.
+
+do $$
+declare
+  v_p uuid; v_rfq uuid; v_ord uuid; v_o orders; v_fel text; v_res record;
+  v_checkout jsonb := jsonb_build_object(
+    'delivery_name','Godsmottagningen','delivery_street','Verkstadsgatan 4',
+    'delivery_postal','582 54','delivery_city','Linköping','delivery_country','SE',
+    'invoice_street','Box 12','invoice_postal','581 01','invoice_city','Linköping',
+    'invoice_country','SE','invoice_email','faktura@example.invalid',
+    'desired_delivery_date', (current_date + 21)::text,
+    'delivery_instructions','Lastkaj B, ring 30 min innan',
+    'delivery_mode','consolidated','customer_reference','Projekt Nord 2026');
+begin
+  select id into v_p from products where status='active' order by sku limit 1;
+
+  begin
+    perform submit_rfq('P','Kund','x@example.invalid','','','','','',
+      jsonb_build_array(jsonb_build_object('product_id', v_p::text,'qty',1)), '', 'order', '{}'::jsonb);
+    v_fel := 'gick igenom';
+  exception when others then v_fel := 'avvisad';
+  end;
+  perform pg_temp.kolla(132, 'beställning utan leveransadress avvisas', 'avvisad', v_fel);
+
+  -- En offertförfrågan frågar bara om pris och ska inte kräva adress.
+  begin
+    perform submit_rfq('P','Kund','q@example.invalid','','','','','',
+      jsonb_build_array(jsonb_build_object('product_id', v_p::text,'qty',1)), '', 'quote', '{}'::jsonb);
+    v_fel := 'gick igenom';
+  exception when others then v_fel := 'avvisad';
+  end;
+  perform pg_temp.kolla(133, 'offertförfrågan kräver ingen adress', 'gick igenom', v_fel);
+
+  begin
+    perform submit_rfq('P','Kund','y@example.invalid','','','','','',
+      jsonb_build_array(jsonb_build_object('product_id', v_p::text,'qty',1)), '', 'order',
+      v_checkout || jsonb_build_object('delivery_mode','kanske'));
+    v_fel := 'gick igenom';
+  exception when others then v_fel := 'avvisad';
+  end;
+  perform pg_temp.kolla(134, 'okänt leveranssätt avvisas', 'avvisad', v_fel);
+
+  select submit_rfq('Beställning','Kund','k@example.invalid','070-1234567','Provbolaget','556000-0000','PO-9','',
+    jsonb_build_array(jsonb_build_object('product_id', v_p::text,'qty',3)), '', 'order', v_checkout) into v_rfq;
+  perform pg_temp.kolla(135, 'leveransadressen sparas', 'Verkstadsgatan 4',
+    (select address_street from rfqs where id=v_rfq));
+  perform pg_temp.kolla(136, 'fakturaadressen sparas separat', 'Box 12',
+    (select invoice_street from rfqs where id=v_rfq));
+  perform pg_temp.kolla(137, 'samlad leverans är kundens val', 'consolidated',
+    (select delivery_mode from rfqs where id=v_rfq));
+
+  update rfq_items set unit_price=100 where rfq_id=v_rfq;
+  update rfqs set intent='quote', status='quoted', discount_pct=0 where id=v_rfq;
+  select * into v_res from respond_to_quote(v_rfq,'accepted',null);
+  v_ord := v_res.order_id;
+  select * into v_o from orders where id=v_ord;
+
+  perform pg_temp.kolla(138, 'ordern bär leveransadressen', 'Verkstadsgatan 4', v_o.delivery_street);
+  perform pg_temp.kolla(139, 'ordern bär fakturaadressen', 'Box 12', v_o.invoice_street);
+  perform pg_temp.kolla(140, 'ordern bär önskat leveransdatum', (current_date+21)::text, v_o.desired_delivery_date::text);
+  perform pg_temp.kolla(141, 'ordern bär leveransinstruktionen', 'Lastkaj B, ring 30 min innan', v_o.delivery_instructions);
+  perform pg_temp.kolla(142, 'ordern bär kundens interna referens', 'Projekt Nord 2026', v_o.customer_reference);
+  perform pg_temp.kolla(143, 'ordern bär leveranssättet', 'consolidated', v_o.delivery_mode);
+  perform pg_temp.kolla(144, 'ordern bär kontakttelefonen', '070-1234567', v_o.contact_phone);
+
+  -- Adressen är FRYST.
+  update rfqs set address_street='Nya gatan 99' where id=v_rfq;
+  perform pg_temp.kolla(145, 'orderns adress ändras inte när förfrågan gör det', 'Verkstadsgatan 4',
+    (select delivery_street from orders where id=v_ord));
+
+  delete from orders where id=v_ord;
+  delete from rfqs where contact_email like '%@example.invalid';
 end $$;
 
 select nr, kontroll, case when ok then 'OK' else 'FEL' end as utfall,
