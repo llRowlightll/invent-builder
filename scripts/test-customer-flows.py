@@ -132,6 +132,15 @@ def run_customer_checks(email: str, password: str) -> None:
         _, status2 = call_function("rfq-status-request", token, {"rfq_id": "00000000-0000-0000-0000-000000000000"})
         check("rfq-status-request: rejects non-owned rfq_id", status2 in (403, 404), f"http {status2}")
 
+        # Städa bort provraden. Utan det här växte rfqs med en [TEST]-rad per
+        # natt — 43 stycken hann samlas och de låg blandade med riktiga
+        # kundförfrågningar i adminvyn. Att raderingen går igenom bevisar
+        # dessutom DELETE-policyn på egna rader, precis som för claims nedan.
+        rest("DELETE", f"rfq_status_log?rfq_id=eq.{rfq_id}", token)
+        rest("DELETE", f"rfqs?id=eq.{rfq_id}", token)
+        kvar_rfq = rest("GET", f"rfqs?id=eq.{rfq_id}&select=id", token)
+        check("rfqs: provraden städas bort", isinstance(kvar_rfq, list) and len(kvar_rfq) == 0, str(kvar_rfq)[:200])
+
     claim = rest(
         "POST", "claims", token,
         body={"user_id": user_id, "title": "[TEST] automated flow check", "description": "Created by test-customer-flows.py", "urgency": "low"},
