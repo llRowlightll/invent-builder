@@ -768,10 +768,13 @@
     "sendQuote": "Skicka offertförfrågan",
     "rfqTitle": "Inköpslista",
     "sentTitle": "Offertförfrågan skickad!",
-    "sentBody": "Vi återkommer med en offert inom 24 timmar.",
+    "sentBody": "Vi återkommer med en offert inom 1–2 arbetsdagar. Ingen order är lagd.",
     "sentBodyTrack": "Du kan följa statusen under Mina förfrågningar.",
     "viewRfq": "Visa din förfrågan",
-    "viewOrders": "Alla mina förfrågningar"
+    "viewOrders": "Alla mina förfrågningar",
+    "sentTitleOrder": "Beställning mottagen!",
+    "sentBodyOrder": "Vi bekräftar pris och leveranstid inom 1–2 arbetsdagar. Först då läggs ordern.",
+    "sendOrder": "Skicka beställning"
   },
   "configuratorPage": {
     "title": "EA Linjäraxel",

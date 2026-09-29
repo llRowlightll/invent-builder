@@ -767,11 +767,14 @@
     "sendQuote": "Enviar solicitud de oferta",
     "rfqTitle": "Lista de compras",
     "sentTitle": "¡Solicitud de oferta enviada!",
-    "sentBody": "Le responderemos con una oferta en 24 horas.",
+    "sentBody": "Le responderemos con una oferta en 1–2 días laborables. No se ha realizado ningún pedido.",
     "sentBodyTrack": "Puede seguir el estado en Mis solicitudes.",
     "viewRfq": "Ver su solicitud",
     "viewOrders": "Todas mis solicitudes",
-    "loginToQuote": "Inicia sesión para guardar y seguir esta solicitud."
+    "loginToQuote": "Inicia sesión para guardar y seguir esta solicitud.",
+    "sentTitleOrder": "¡Solicitud de pedido recibida!",
+    "sentBodyOrder": "Confirmaremos precio y plazo en 1–2 días laborables. El pedido se realiza solo entonces.",
+    "sendOrder": "Enviar solicitud de pedido"
   },
   "configuratorPage": {
     "title": "EA Eje lineal",

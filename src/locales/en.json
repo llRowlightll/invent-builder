@@ -767,11 +767,14 @@
     "sendQuote": "Submit quote request",
     "rfqTitle": "Purchase list",
     "sentTitle": "Quote request sent!",
-    "sentBody": "We will get back to you with a quote within 24 hours.",
+    "sentBody": "We will get back to you with a quote within 1–2 business days. No order has been placed.",
     "sentBodyTrack": "Track status under My RFQs.",
     "viewRfq": "View your request",
     "viewOrders": "All my requests",
-    "loginToQuote": "Log in to save and track this request."
+    "loginToQuote": "Log in to save and track this request.",
+    "sentTitleOrder": "Order request received!",
+    "sentBodyOrder": "We will confirm price and lead time within 1–2 business days. The order is placed only then.",
+    "sendOrder": "Send order request"
   },
   "configuratorPage": {
     "title": "EA Linear Axis",
