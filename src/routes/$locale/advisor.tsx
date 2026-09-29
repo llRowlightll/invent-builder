@@ -308,7 +308,7 @@ function AdvisorPage() {
                       >
                         <div className="font-medium text-foreground">{p.name}</div>
                         <div className="text-xs text-muted-foreground mt-0.5">
-                          {p.brand.name} · {p.sku}
+                          {p.brand.name} · <span className="tabular">{p.sku}</span>
                         </div>
                       </Link>
                     </li>

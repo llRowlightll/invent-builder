@@ -775,7 +775,7 @@ function AdminOrdersPage() {
                                 {spo.rader.map(l => (
                                   <div key={l.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs border-t border-border pt-1.5">
                                     <span className="font-mono text-[10px] text-muted-foreground w-6">{l.line_no}</span>
-                                    <span className="font-mono text-[11px]">{l.sku}</span>
+                                    <span className="tabular text-[11px]">{l.sku}</span>
                                     <span className="text-muted-foreground">
                                       {l.ack_qty ?? l.qty} st
                                       {l.ack_qty != null && l.ack_qty !== l.qty && <span className="text-destructive"> (beställt {l.qty})</span>}

@@ -184,7 +184,7 @@ export default function PublicOffertPage() {
             <tbody>
               {lineItems.map((it, i) => (
                 <tr key={it.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                  <td className="py-2.5 pr-3 text-xs text-gray-500 font-mono">{it.product?.sku ?? "—"}</td>
+                  <td className="py-2.5 pr-3 text-xs text-muted-foreground tabular">{it.product?.sku ?? "—"}</td>
                   <td className="py-2.5 pr-3">
                     <div className="text-gray-800">{it.product?.name ?? "—"}</div>
                     {it.note && <div className="text-xs text-gray-500 mt-0.5">{it.note}</div>}

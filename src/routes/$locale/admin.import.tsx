@@ -354,7 +354,7 @@ function ImportPage() {
                     const ok = !!(r.sku && r.name && r.brand_slug && r.category_slug);
                     return (
                       <tr key={i} className={`border-b border-border last:border-0 ${ok ? "" : "bg-destructive/5"}`}>
-                        <td className="px-3 py-2 font-mono">{r.sku}</td>
+                        <td className="px-3 py-2 tabular">{r.sku}</td>
                         <td className="px-3 py-2 max-w-[200px] truncate">{r.name}</td>
                         <td className="px-3 py-2">{r.brand_slug}</td>
                         <td className="px-3 py-2">{r.category_slug}</td>

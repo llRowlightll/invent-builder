@@ -431,7 +431,7 @@ function ClaimsPage() {
                   <div className="font-medium text-sm text-foreground mt-1">{c.title}</div>
                   <div className="text-[11px] text-muted-foreground mt-0.5 flex gap-3">
                     {c.order_ref && <span>Ref: {c.order_ref}</span>}
-                    {c.sku && <span>SKU: {c.sku}</span>}
+                    {c.sku && <span>SKU: <span className="tabular">{c.sku}</span></span>}
                     <span>{new Date(c.created_at).toLocaleDateString("sv-SE")}</span>
                   </div>
                 </div>
