@@ -505,7 +505,7 @@ function ShoppingListPage() {
                   onClick={() => { setAvsikt("order"); handleRequestQuote(); }}
                   className="px-5 py-2.5 rounded-lg bg-info text-primary-foreground text-sm font-semibold hover:opacity-90 transition shadow-sm"
                 >
-                  Beställ →
+                  {t("shoppingList.sendOrder")}
                 </button>
               </div>
             </div>
@@ -832,9 +832,12 @@ function ShoppingListPage() {
             <div className="size-16 rounded-full bg-[oklch(0.55_0.15_155)]/15 flex items-center justify-center mx-auto mb-4 text-3xl">
               ✓
             </div>
-            <h2 className="text-xl font-semibold">{t("shoppingList.sentTitle")}</h2>
+            <h2 className="text-xl font-semibold">
+              {t(avsikt === "order" ? "shoppingList.sentTitleOrder" : "shoppingList.sentTitle")}
+            </h2>
             <p className="text-sm text-muted-foreground mt-2">
-              {t("shoppingList.sentBody")}{!rfqSentAnon && ` ${t("shoppingList.sentBodyTrack")}`}
+              {t(avsikt === "order" ? "shoppingList.sentBodyOrder" : "shoppingList.sentBody")}
+              {!rfqSentAnon && ` ${t("shoppingList.sentBodyTrack")}`}
             </p>
             {rfqSentAnon ? (
               // Anonymous submission — no account, so no "my RFQs"/"my orders" to
