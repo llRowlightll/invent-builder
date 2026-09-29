@@ -5,6 +5,12 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* Emil Kowalskis signaturkurva, avläst ur Sonner och Vaul i node_modules.
+     Startar snabbt och bromsar hårt in i slutläget. Tailwinds standard är en
+     ease-in-out som bromsar i BÖRJAN, vilket läser som tvekan. */
+  --ease-rorelse: cubic-bezier(0.32, 0.72, 0, 1);
+  --default-transition-timing-function: var(--ease-rorelse);
+  --default-transition-duration: 200ms;
   --font-sans: Archivo, "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   /* Noll är standard: panel, tabell och kort bär data och har raka hörn.
@@ -129,4 +135,42 @@
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
+}
+
+/* ---- Rörelse ---------------------------------------------------------- */
+
+/* Ingång: transform och opacity enbart — båda komponeras på GPU:n och utlöser
+   varken layout eller paint. Slutläget är elementets naturliga läge, så en
+   sida där animeringen aldrig kör renderar ändå rätt. */
+@keyframes rorelse-in {
+  from { opacity: 0; transform: translateY(12px); }
+}
+
+@utility rorelse-in {
+  animation: rorelse-in 420ms var(--ease-rorelse) backwards;
+}
+
+/* Trappan hålls kort. Summan av fördröjning och varaktighet ska ligga under
+   600 ms, annars står besökaren och väntar på sidhuvudet. */
+@utility rorelse-steg-1 { animation-delay:  60ms; }
+@utility rorelse-steg-2 { animation-delay: 120ms; }
+@utility rorelse-steg-3 { animation-delay: 180ms; }
+
+/* Ursprungsmedveten rörelse: Radix exponerar data-side, så en panel skalas
+   från den kant den faktiskt växer ur i stället för från sin mitt. */
+[data-side="bottom"] { transform-origin: top; }
+[data-side="top"]    { transform-origin: bottom; }
+[data-side="left"]   { transform-origin: right; }
+[data-side="right"]  { transform-origin: left; }
+
+/* Av betyder av. Inte "kortare" — slutläget ska vara korrekt utan att en enda
+   animering körts. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
