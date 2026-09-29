@@ -54,6 +54,7 @@ jobs:
           deno check --no-lock --node-modules-dir=none supabase/functions/supplier-po/index.ts
           deno check --no-lock --node-modules-dir=none supabase/functions/order-status-email/index.ts
           deno check --no-lock --node-modules-dir=none supabase/functions/rfq-notify/index.ts
+          deno check --no-lock --node-modules-dir=none supabase/functions/rfq-status-request/index.ts
           # --allow-read krävs av synktestet, som läser src/lib/physics.ts och
           # gör bygget rött om husets kraftmodell glidit isär mellan
           # Deno-runtimen och Vite-runtimen. Utan behörigheten hoppar testet
@@ -129,6 +130,22 @@ jobs:
         if: steps.deploy_po.outcome != 'success'
         run: |
           echo "::error::supplier-po deploy did not succeed (outcome=${{ steps.deploy_po.outcome }})."
+          exit 1
+
+      - name: Deploy rfq-status-request to Supabase
+        continue-on-error: true
+        id: deploy_status
+        run: npx --yes supabase@latest functions deploy rfq-status-request --project-ref buqfbcztspswezwyafxo
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Fail if rfq-status-request deploy did not succeed
+        # Den här låg på version 1 och hade driftsatts för hand -- entrypointen
+        # pekade på /tmp i stället för på runnern. En rättning i repot nådde
+        # alltså aldrig produktion utan att någon kom ihåg att trycka själv.
+        if: steps.deploy_status.outcome != 'success'
+        run: |
+          echo "::error::rfq-status-request deploy did not succeed (outcome=${{ steps.deploy_status.outcome }})."
           exit 1
 
       - name: Wait for cold start

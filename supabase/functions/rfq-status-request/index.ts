@@ -80,9 +80,18 @@ Deno.serve(async (req) => {
     });
     if (insErr) throw new Error(`Failed to log status request: ${insErr.message}`);
 
+    // Nattkörningen i customer-flow-tests.yml skapar en riktig rfq-rad och
+    // anropar den här funktionen för att prova ÄGARKONTROLLEN — att en ägd
+    // rfq_id ger 200 och en främmande ger 403. Den provar inte utskicket.
+    // Utan det här undantaget skickades ett "Statusfråga"-mejl till
+    // adminlådan varje natt, och 43 sådana hann skickas innan någon
+    // kopplade ihop dem med testet. Loggraden skrivs fortfarande, så det
+    // testet faktiskt kontrollerar är orört.
+    const arProvrad = (rfq.title ?? "").startsWith("[TEST]");
+
     // Best-effort notification — the request already succeeded from the
     // customer's point of view even if the email send fails.
-    if (RESEND_KEY) {
+    if (RESEND_KEY && !arProvrad) {
       const ref = rfq_id.slice(0, 8).toUpperCase();
       const html = `
         <p><strong>Kund efterfrågar statusuppdatering</strong></p>
