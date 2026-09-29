@@ -143,22 +143,22 @@ function Landing() {
           }}
         />
         <div className="container-page py-20 md:py-28 relative">
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-4 rorelse-in">
             <span className="text-[10px] uppercase tracking-[0.22em] text-primary-foreground/60 border border-primary-foreground/20 rounded-full px-3 py-0.5">
               {t("index.b2bBadge")}
             </span>
           </div>
-          <h1 className="text-4xl md:text-6xl font-semibold tracking-tight max-w-3xl leading-[1.05]">
+          <h1 className="text-[2.75rem] md:text-[4.25rem] font-bold tracking-[-0.032em] max-w-3xl leading-[0.97] text-balance rorelse-in rorelse-steg-1">
             <EditableText contentKey="index.heroTitle" locale={locale} fallback={t("index.heroTitle")} /><br />
-            <span style={{ color: "var(--gold)" }}>
+            <span className="font-normal italic" style={{ color: "var(--gold)" }}>
               <EditableText contentKey="index.heroTitleAccent" locale={locale} fallback={t("index.heroTitleAccent")} />
             </span>
           </h1>
-          <p className="mt-5 text-lg text-primary-foreground/75 max-w-xl">
+          <p className="mt-6 text-lg text-primary-foreground/75 max-w-xl rorelse-in rorelse-steg-2">
             <EditableText contentKey="index.heroSubtitle" locale={locale} fallback={t("index.heroSubtitle")} multiline />
           </p>
 
-          <form onSubmit={onSearch} className="mt-8 flex gap-2 max-w-2xl">
+          <form onSubmit={onSearch} className="mt-8 flex gap-2 max-w-2xl rorelse-in rorelse-steg-3">
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -167,7 +167,7 @@ function Landing() {
             />
             <button
               type="submit"
-              className="rounded-md bg-gold text-gold-foreground px-5 py-3 text-sm font-medium hover:opacity-90 transition"
+              className="rounded-md bg-gold text-gold-foreground px-5 py-3 text-sm font-medium transition hover:brightness-105 active:translate-y-px select-none"
             >
               {t("index.searchButton")}
             </button>
@@ -187,13 +187,13 @@ function Landing() {
           </div>
 
           {/* Tre vägar in */}
-          <div className="mt-12 grid sm:grid-cols-3 gap-4 max-w-4xl">
+          <div className="mt-12 grid sm:grid-cols-3 gap-4 max-w-4xl rorelse-in rorelse-steg-3">
             {VAGAR.map((v) => (
               <Link
                 key={v.to}
                 to={v.to}
                 params={{ locale }}
-                className="group border border-primary-foreground/15 rounded-lg px-5 py-4 bg-primary-foreground/5 backdrop-blur-sm hover:bg-primary-foreground/10 hover:border-primary-foreground/30 transition"
+                className="group border border-primary-foreground/15 px-5 py-4 bg-primary-foreground/5 backdrop-blur-sm transition hover:bg-primary-foreground/10 hover:border-primary-foreground/30 md:hover:-translate-y-0.5"
               >
                 <div className="flex items-baseline gap-2">
                   <span className="text-sm" style={{ color: "var(--gold)" }}>{v.tecken}</span>
