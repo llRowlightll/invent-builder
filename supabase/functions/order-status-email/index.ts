@@ -22,6 +22,7 @@
  * actually succeeded; reading the real row sidesteps that class of bug too).
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { skickaMejl } from "../_shared/notify.ts";
 import { escapeHtml, safeHref } from "../_shared/html.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -375,13 +376,18 @@ Deno.serve(async (req) => {
     // BCC admin on quote + acceptance so they see both sides of the conversation
     const bcc = (payload.status === "quoted" || payload.status === "accepted") ? [ADMIN_EMAIL] : undefined;
 
-    const res = await fetch(RESEND_API, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${RESEND_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: FROM, to: payload.contact_email, bcc, subject, html }),
+    // Nyckeln bär statusen: en order SKA få ett mejl per statusbyte, men ett
+    // omkört anrop för samma status ska inte ge ett andra.
+    const svar = await skickaMejl({
+      kind: kind === "claim" ? "claim" : "order_status",
+      to: payload.contact_email,
+      bcc,
+      subject,
+      html,
+      idempotencyKey: `${kind === "claim" ? "claim" : "order_status"}:${id}:${payload.status}`,
+      ref: { table: kind === "claim" ? "claims" : kind === "order" ? "orders" : "rfqs", id },
     });
-    const data = await res.json();
-    return new Response(JSON.stringify({ ok: res.ok, data }), {
+    return new Response(JSON.stringify({ ok: svar.ok, redanSkickat: svar.redanSkickat, fel: svar.fel }), {
       headers: { ...cors, "Content-Type": "application/json" },
     });
   } catch (err) {

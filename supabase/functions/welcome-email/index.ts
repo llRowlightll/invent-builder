@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { skickaMejl } from "../_shared/notify.ts";
 import { escapeHtml } from "../_shared/html.ts";
 
 /**
@@ -177,20 +178,21 @@ Deno.serve(async (req: Request) => {
     const firstName = safeName.split(" ")[0] || "";
     const subject = firstName ? `Välkommen till Maskinval, ${firstName}! 🎉` : "Välkommen till Maskinval! 🎉";
 
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
-      body: JSON.stringify({ from: FROM, to: [email], subject, html: buildHtml(safeName, locale || "sv") }),
+    // Nyckeln är adressen: ett välkomstmejl per konto, hur många gånger
+    // funktionen än råkar anropas vid registreringen.
+    const svar = await skickaMejl({
+      kind: "welcome",
+      to: email,
+      subject,
+      html: buildHtml(safeName, locale || "sv"),
+      idempotencyKey: `welcome:${String(email).toLowerCase()}`,
     });
-    const data = await res.json();
-    if (!res.ok) {
-      console.error("[welcome-email] Resend error:", data);
-      return new Response(JSON.stringify({ error: data }), {
+    if (!svar.ok) {
+      return new Response(JSON.stringify({ error: svar.fel }), {
         status: 500, headers: { ...cors, "Content-Type": "application/json" },
       });
     }
-    console.log(`[welcome-email] Sent to ${email}`, data.id);
-    return new Response(JSON.stringify({ ok: true, id: data.id }), {
+    return new Response(JSON.stringify({ ok: true, redanSkickat: svar.redanSkickat }), {
       headers: { ...cors, "Content-Type": "application/json" },
     });
   } catch (err) {

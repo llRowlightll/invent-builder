@@ -15,6 +15,7 @@
  * redan känner sina egna priser; mejlet går bara till suppliers.order_email.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { skickaMejl } from "../_shared/notify.ts";
 import { requireAdmin } from "../_shared/admin-auth.ts";
 import { byggPoDokument, faarSkickas, amnesrad, type PoForetag } from "./po-document.ts";
 import { renderaPoPdf } from "./pdf.ts";
@@ -194,21 +195,23 @@ Deno.serve(async (req) => {
     return json({ ok: false, skal: "Inköpsordern hann skickas av någon annan.", kan_bekraftas: false }, 409);
   }
 
-  const svar = await fetch(RESEND_API, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${RESEND_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from: FROM,
-      to: till,
-      reply_to: dok.foretag.email,
-      subject: amnesrad(dok),
-      html: mejlHtml(dok.poNumber, dok.foretag, dok.leverantor!.name, dok.leverantor!.customer_number),
-      attachments: [{ filename: `${dok.poNumber}.pdf`, content: base64(pdf) }],
-    }),
+  // Den riktiga dubbelspärren är reservationen ovanför: sent_at sätts FÖRE
+  // utskicket och rullas tillbaka om det faller. Loggnyckeln får därför
+  // minuten i sig -- ett omsänt försök efter ett fel ska få en egen rad och
+  // inte mötas av "redan skickad".
+  const svar = await skickaMejl({
+    kind: "supplier_po",
+    to: till,
+    replyTo: dok.foretag.email,
+    subject: amnesrad(dok),
+    html: mejlHtml(dok.poNumber, dok.foretag, dok.leverantor!.name, dok.leverantor!.customer_number),
+    attachments: [{ filename: `${dok.poNumber}.pdf`, content: base64(pdf) }],
+    idempotencyKey: `supplier_po:${dok.poNumber}:${new Date().toISOString().slice(0, 16)}`,
+    ref: { table: "supplier_purchase_orders", id: spoId },
   });
 
   if (!svar.ok) {
-    const text = await svar.text();
+    const text = svar.fel ?? "okänt fel";
     // Rulla tillbaka reservationen: ingenting gick iväg, och nästa försök ska
     // inte mötas av "redan skickad". Statusen återställs till den den HADE --
     // "draft" hade varit fel för en inköpsorder som skickas om.

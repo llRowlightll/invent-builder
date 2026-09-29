@@ -16,6 +16,7 @@
  * rfq-notify and order-status-email.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { skickaMejl } from "../_shared/notify.ts";
 import { escapeHtml } from "../_shared/html.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -91,7 +92,7 @@ Deno.serve(async (req) => {
 
     // Best-effort notification — the request already succeeded from the
     // customer's point of view even if the email send fails.
-    if (RESEND_KEY && !arProvrad) {
+    if (RESEND_KEY) {
       const ref = rfq_id.slice(0, 8).toUpperCase();
       const html = `
         <p><strong>Kund efterfrågar statusuppdatering</strong></p>
@@ -100,11 +101,18 @@ Deno.serve(async (req) => {
         ${note ? `<p>Meddelande: "${escapeHtml(note)}"</p>` : ""}
         <p><a href="https://maskinval.se/sv/rfq/${rfq_id}">Öppna förfrågan →</a></p>
       `;
-      await fetch(RESEND_API, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${RESEND_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: FROM, to: ADMIN_EMAIL, subject: `🔔 Statusfråga — RFQ #${ref}`, html }),
-      }).catch((e) => console.error("admin notify failed:", e));
+      // En kund kan fråga om status flera gånger, och varje fråga är sin egen
+      // händelse -- nyckeln får därför tiden i sig. Det är rätt: två frågor
+      // ska ge två mejl, men ett anrop som körs om ska inte ge ett andra.
+      await skickaMejl({
+        kind: "status_request",
+        to: ADMIN_EMAIL,
+        subject: `🔔 Statusfråga — RFQ #${ref}`,
+        html,
+        idempotencyKey: `status_request:${rfq_id}:${new Date().toISOString().slice(0, 16)}`,
+        ref: { table: "rfqs", id: rfq_id },
+        torrkorning: arProvrad,
+      });
     }
 
     return new Response(JSON.stringify({ ok: true }), { headers: { ...CORS, "Content-Type": "application/json" } });

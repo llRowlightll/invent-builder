@@ -48,13 +48,14 @@ jobs:
         # picture). This flag forces Deno back to its own global npm-cache
         # resolution instead, which needs no local node_modules at all.
         run: |
-          deno check --no-lock --node-modules-dir=none supabase/functions/groq-advisor/index.ts
-          # supplier-po skickar inköpsordrar till leverantörer. Den får inte
-          # deployas trasig -- ett fel här betyder att ingen beställning går ut.
-          deno check --no-lock --node-modules-dir=none supabase/functions/supplier-po/index.ts
-          deno check --no-lock --node-modules-dir=none supabase/functions/order-status-email/index.ts
-          deno check --no-lock --node-modules-dir=none supabase/functions/rfq-notify/index.ts
-          deno check --no-lock --node-modules-dir=none supabase/functions/rfq-status-request/index.ts
+          # Typkontrollera ALLA funktioner, inte ett urval. supplier-po skickar
+          # inköpsordrar till leverantörer och får inte driftsättas trasig -- ett
+          # fel där betyder att ingen beställning går ut -- men samma sak gäller
+          # var och en av de andra, och ett urval blir bara inaktuellt.
+          for f in supabase/functions/*/index.ts; do
+            echo "check $f"
+            deno check --no-lock --node-modules-dir=none "$f"
+          done
           # --allow-read krävs av synktestet, som läser src/lib/physics.ts och
           # gör bygget rött om husets kraftmodell glidit isär mellan
           # Deno-runtimen och Vite-runtimen. Utan behörigheten hoppar testet
@@ -66,87 +67,54 @@ jobs:
         with:
           node-version: 22
 
-      - name: Deploy groq-advisor to Supabase
-        # continue-on-error: deploy is best-effort — tests still run against live endpoint
-        # even if SUPABASE_ACCESS_TOKEN is missing or invalid.
-        continue-on-error: true
-        id: deploy
-        run: npx --yes supabase@latest functions deploy groq-advisor --project-ref buqfbcztspswezwyafxo
+      # Alla funktioner driftsätts i EN loop, av ett skäl som kostat oss redan:
+      # nio av fjorton låg utanför CI och hade driftsatts för hand. En av dem,
+      # rfq-status-request, stod kvar på version 1 med entrypoint under /tmp --
+      # en rättning i repot nådde alltså aldrig produktion, och ingen märkte
+      # det förrän någon läste den driftsatta koden. Med en lista i stället för
+      # ett stegpar per funktion kostar det EN rad att lägga till nästa, så
+      # ingen frestas att hoppa över det.
+      #
+      # Loopen sväljer inte fel: varje misslyckad deploy samlas och steget dör
+      # röd på slutet. En tyst hoppad deploy lämnar gammal kod live medan CI
+      # ser grön ut (PR #68), och det är hela poängen med kontrollen.
+      - name: Deploy all edge functions to Supabase
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - name: Fail if deploy did not succeed
-        # A failed/skipped deploy must turn the run RED. Otherwise the live function
-        # silently stays on the old code while CI looks green (PR #68 incident).
-        if: steps.deploy.outcome != 'success'
         run: |
-          echo "::error::Edge function deploy did not succeed (outcome=${{ steps.deploy.outcome }})."
-          echo "::error::The live function was NOT updated — failing the run so it can't slip through."
-          exit 1
-
-      - name: Deploy rfq-notify to Supabase
-        # Den här skickar kvittensen till kunden när en offertförfrågan eller
-        # beställning kommer in. Den låg utanför CI och hade deployats för
-        # hand -- precis som order-status-email.
-        continue-on-error: true
-        id: deploy_rfq
-        run: npx --yes supabase@latest functions deploy rfq-notify --project-ref buqfbcztspswezwyafxo
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - name: Fail if rfq-notify deploy did not succeed
-        if: steps.deploy_rfq.outcome != 'success'
-        run: |
-          echo "::error::rfq-notify deploy did not succeed (outcome=${{ steps.deploy_rfq.outcome }})."
-          exit 1
-
-      - name: Deploy order-status-email to Supabase
-        # Funktionen skickar kundens statusmejl OCH reklamationssvar. Den låg
-        # utanför CI och hade deployats för hand -- en ändring i repot hade
-        # alltså inte gått live, och ingen hade märkt det förrän en kund
-        # undrade varför den inte hört något.
-        continue-on-error: true
-        id: deploy_mail
-        run: npx --yes supabase@latest functions deploy order-status-email --project-ref buqfbcztspswezwyafxo
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - name: Fail if order-status-email deploy did not succeed
-        if: steps.deploy_mail.outcome != 'success'
-        run: |
-          echo "::error::order-status-email deploy did not succeed (outcome=${{ steps.deploy_mail.outcome }})."
-          exit 1
-
-      - name: Deploy supplier-po to Supabase
-        continue-on-error: true
-        id: deploy_po
-        run: npx --yes supabase@latest functions deploy supplier-po --project-ref buqfbcztspswezwyafxo
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - name: Fail if supplier-po deploy did not succeed
-        # Samma skäl som ovan: en tyst hoppad deploy lämnar den gamla koden
-        # live medan CI ser grön ut.
-        if: steps.deploy_po.outcome != 'success'
-        run: |
-          echo "::error::supplier-po deploy did not succeed (outcome=${{ steps.deploy_po.outcome }})."
-          exit 1
-
-      - name: Deploy rfq-status-request to Supabase
-        continue-on-error: true
-        id: deploy_status
-        run: npx --yes supabase@latest functions deploy rfq-status-request --project-ref buqfbcztspswezwyafxo
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - name: Fail if rfq-status-request deploy did not succeed
-        # Den här låg på version 1 och hade driftsatts för hand -- entrypointen
-        # pekade på /tmp i stället för på runnern. En rättning i repot nådde
-        # alltså aldrig produktion utan att någon kom ihåg att trycka själv.
-        if: steps.deploy_status.outcome != 'success'
-        run: |
-          echo "::error::rfq-status-request deploy did not succeed (outcome=${{ steps.deploy_status.outcome }})."
-          exit 1
+          set -u
+          FUNCTIONS="
+            groq-advisor
+            rfq-notify
+            order-status-email
+            rfq-status-request
+            supplier-po
+            ai-search
+            welcome-email
+            hubspot-sync
+            fortnox-order
+            book-shipment
+            document-ai
+            extract-prices
+            extract-products
+            generate-product-images
+          "
+          MISSLYCKADE=""
+          for fn in $FUNCTIONS; do
+            echo "::group::deploy $fn"
+            if npx --yes supabase@latest functions deploy "$fn" --project-ref buqfbcztspswezwyafxo; then
+              echo "✓ $fn"
+            else
+              echo "::error::$fn deploy misslyckades — den live-funktionen står kvar på gammal kod."
+              MISSLYCKADE="$MISSLYCKADE $fn"
+            fi
+            echo "::endgroup::"
+          done
+          if [ -n "$MISSLYCKADE" ]; then
+            echo "::error::Dessa funktioner driftsattes INTE:$MISSLYCKADE"
+            exit 1
+          fi
+          echo "Alla $(echo $FUNCTIONS | wc -w) funktioner driftsatta."
 
       - name: Wait for cold start
         run: sleep 8

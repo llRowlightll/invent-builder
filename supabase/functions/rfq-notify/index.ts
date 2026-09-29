@@ -15,6 +15,7 @@
  * real RFQ that genuinely exists, with its real, already-stored content.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { skickaMejl } from "../_shared/notify.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -59,18 +60,7 @@ function docRef(rfqId: string) {
   return rfqId.slice(0, 8).toUpperCase();
 }
 
-async function sendEmail(to: string, subject: string, html: string) {
-  const res = await fetch(RESEND_API, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${RESEND_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: FROM, to, subject, html }),
-  });
-  if (!res.ok) {
-    const txt = await res.text();
-    console.error("Resend error:", res.status, txt);
-  }
-  return res.ok;
-}
+
 
 // ── HTML helpers ──────────────────────────────────────────────────────────────
 const emailWrap = (body: string) => `<!DOCTYPE html>
@@ -289,14 +279,35 @@ Deno.serve(async (req) => {
       total_ex_vat: totalExVat,
     };
 
-    // Fire both emails in parallel
+    // Nycklarna beskriver HÄNDELSEN, inte anropet: körs funktionen två gånger
+    // för samma rfq skickas ingenting en andra gång. Skyddet sitter i det unika
+    // indexet på notifications.idempotency_key, inte här.
+    //
+    // Nattkörningens provrader loggas men skickas inte -- se rfq-status-request
+    // för samma undantag och skälet till det.
+    const torrkorning = (rfq.title ?? "").startsWith("[TEST]");
+
     await Promise.all([
-      sendEmail(ADMIN_EMAIL,        `🔔 Ny RFQ #${payload.order_ref} — ${payload.contact_name}`, adminHtml(payload)),
-      sendEmail(payload.contact_email,
-        payload.intent === "order"
+      skickaMejl({
+        kind: "rfq_admin",
+        to: ADMIN_EMAIL,
+        subject: `🔔 Ny RFQ #${payload.order_ref} — ${payload.contact_name}`,
+        html: adminHtml(payload),
+        idempotencyKey: `rfq_admin:${rfq_id}`,
+        ref: { table: "rfqs", id: rfq_id },
+        torrkorning,
+      }),
+      skickaMejl({
+        kind: "rfq_customer",
+        to: payload.contact_email,
+        subject: payload.intent === "order"
           ? `Beställning mottagen #${payload.order_ref} — Maskinval`
           : `Offertförfrågan mottagen #${payload.order_ref} — Maskinval`,
-        customerHtml(payload)),
+        html: customerHtml(payload),
+        idempotencyKey: `rfq_customer:${rfq_id}`,
+        ref: { table: "rfqs", id: rfq_id },
+        torrkorning,
+      }),
     ]);
 
     return new Response(JSON.stringify({ ok: true }), {

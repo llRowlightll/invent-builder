@@ -183,7 +183,9 @@ async function callGroq(
   temperature = 0.2,
   model = LLM_MODEL
 ): Promise<string | null> {
-  const tryModel = async (m: string): Promise<{ ok: boolean; text: string; rateLimited: boolean }> => {
+  const tryModel = async (
+    m: string,
+  ): Promise<{ ok: boolean; text: string; rateLimited: boolean; retryAfter: number | null }> => {
     const body: Record<string, unknown> = { model: m, messages, max_tokens: maxTokens, temperature };
     if (jsonMode) body.response_format = { type: "json_object" };
     const res = await fetch(LLM_URL, {
@@ -193,11 +195,22 @@ async function callGroq(
     });
     const text = await res.text();
     if (!res.ok) {
-      console.error("LLM error:", res.status, m, text.slice(0, 200));
-      return { ok: false, text, rateLimited: res.status === 429 };
+      // Groq säger SJÄLV när det är lönt att komma tillbaka. Ett minutstak ger
+      // några sekunder, ett dygnstak ger tusentals -- och det är skillnaden
+      // mellan "vänta lite" och "ge upp nu".
+      const raw = res.headers.get("retry-after");
+      const sek = raw === null ? null : Number.isFinite(Number(raw)) ? Number(raw) : null;
+      console.error("LLM error:", res.status, m, `retry-after=${raw ?? "-"}`, text.slice(0, 200));
+      return { ok: false, text, rateLimited: res.status === 429, retryAfter: sek };
     }
-    return { ok: true, text, rateLimited: false };
+    return { ok: true, text, rateLimited: false, retryAfter: null };
   };
+
+  // Hur länge vi som mest står och väntar på ett kvottak. Edge-funktionen har
+  // en tidsbudget och användaren sitter och tittar -- ett minutstak släpper
+  // inom några sekunder, och släpper det inte då är det inte ett minutstak.
+  const MAX_VANTAN_S = 5;
+  const sov = (s: number) => new Promise((r) => setTimeout(r, s * 1000));
 
   const contentOf = (text: string): string | null =>
     JSON.parse(text).choices?.[0]?.message?.content ?? null;
@@ -211,11 +224,32 @@ async function callGroq(
     console.log("Primary model rate-limited, falling back to", LLM_MODEL_FAST);
     const fallback = await tryModel(LLM_MODEL_FAST);
     if (fallback.ok) return contentOf(fallback.text);
-    if (fallback.rateLimited) throw new Error("RATE_LIMITED");
+    if (fallback.rateLimited) {
+      // Sista chansen: har Groq sagt att taket släpper inom några sekunder är
+      // det ett minutstak, och då är väntan hela lösningen. 6 907 anrop hade
+      // fallit på rate_limited utan att någon väntat en enda sekund.
+      const vanta = fallback.retryAfter ?? primary.retryAfter;
+      if (vanta !== null && vanta > 0 && vanta <= MAX_VANTAN_S) {
+        console.log(`Kvottak, väntar ${vanta}s enligt retry-after och provar igen`);
+        await sov(vanta);
+        const sista = await tryModel(LLM_MODEL_FAST);
+        if (sista.ok) return contentOf(sista.text);
+      }
+      throw new Error("RATE_LIMITED");
+    }
     return null;
   }
 
-  if (primary.rateLimited) throw new Error("RATE_LIMITED");
+  if (primary.rateLimited) {
+    const vanta = primary.retryAfter;
+    if (vanta !== null && vanta > 0 && vanta <= MAX_VANTAN_S) {
+      console.log(`Kvottak, väntar ${vanta}s enligt retry-after och provar igen`);
+      await sov(vanta);
+      const sista = await tryModel(model);
+      if (sista.ok) return contentOf(sista.text);
+    }
+    throw new Error("RATE_LIMITED");
+  }
 
   // Omförsök vid TOM GENERERING, inte vid kvot.
   //
