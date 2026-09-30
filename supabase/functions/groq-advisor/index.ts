@@ -1561,6 +1561,30 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
         es: `⚠️ Carrera máx. ${actualMax} mm — requisito ${maxRequiredStroke} mm.`,
       });
     }
+    // ÖVERSKJUTANDE SLAGLÄNGD ÄR EN AVVIKELSE, INTE EN FÖRDEL.
+    //
+    // Blocket ovanför fångar för KORT slag. För långt fanns inte, och modellen
+    // skrev därför "Längre slaglängd än krav (200 mm)" som en PRO med grön bock
+    // -- i en applikation där kravet var 150 mm. Extra slag kräver mekaniskt
+    // ändstopp, mer monteringsutrymme, mer luft per cykel och ger längre
+    // cykeltid, plus kollisionsrisk om rörelsen inte begränsas.
+    //
+    // Gäller inte konfigurerbara familjer: där VÄLJS slaglängden vid order, och
+    // blocket ovanför förklarar redan det.
+    if (!isConfigurable && maxRequiredStroke > 0 && actualMax > maxRequiredStroke * 1.02) {
+      const LANGRE_SLAG_PRO = /(slagl[äa]ngd|stroke|\bhub\b|carrera).{0,30}(l[äa]ngre|extra|mer\b|över|exceed|longer|more\b|l[äa]nger|mayor|superior)/i;
+      opt.pros = ((opt.pros as string[] | undefined) ?? []).filter(pro => !LANGRE_SLAG_PRO.test(pro));
+      const avvikelse = pick(locale, {
+        sv: `Avviker från önskad slaglängd: ${actualMax} mm mot ${maxRequiredStroke} mm. Rörelsen måste begränsas mekaniskt eller med justerbart ändstopp.`,
+        en: `Deviates from the requested stroke: ${actualMax} mm against ${maxRequiredStroke} mm. The motion must be limited mechanically or with an adjustable end stop.`,
+        de: `Weicht vom gewünschten Hub ab: ${actualMax} mm statt ${maxRequiredStroke} mm. Die Bewegung muss mechanisch oder mit einstellbarem Endanschlag begrenzt werden.`,
+        es: `Se desvía de la carrera solicitada: ${actualMax} mm frente a ${maxRequiredStroke} mm. El movimiento debe limitarse mecánicamente o con un tope final ajustable.`,
+      });
+      const cons = ((opt.cons as string[] | undefined) ?? []);
+      if (!cons.some(c => /slagl[äa]ngd|stroke|\bhub\b|carrera/i.test(c))) cons.unshift(avvikelse);
+      opt.cons = cons;
+    }
+
     if (isWashdown && !isWashdownProduct(cat)) {
       opt.badge = closestCatalogBadge;
       opt.why = `${opt.why} ` + pick(locale, {
