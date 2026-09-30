@@ -147,7 +147,7 @@ export default function AdminProductsPage() {
       </div>
 
       {msg && (
-        <div className={`mb-4 px-4 py-2 rounded-md text-sm ${msg.ok ? "bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)]" : "bg-destructive/10 text-destructive"}`}>
+        <div className={`mb-4 px-4 py-2 rounded-md text-sm ${msg.ok ? "bg-success-surface text-success-deep" : "bg-destructive/10 text-destructive"}`}>
           {msg.text}
         </div>
       )}
@@ -309,7 +309,7 @@ export default function AdminProductsPage() {
                 <LabelInput label="Spänning" value={draft.voltage ?? ""} onChange={(v) => setDraft((d) => ({ ...d, voltage: v }))} placeholder="24VDC" />
               </div>
               <LabelInput label="Bild URL" value={draft.image_url ?? ""} onChange={(v) => setDraft((d) => ({ ...d, image_url: v }))} placeholder="https://…" />
-              {msg && <div className={`text-xs px-3 py-2 rounded ${msg.ok ? "text-[oklch(0.32_0.12_155)]" : "text-destructive"}`}>{msg.text}</div>}
+              {msg && <div className={`text-xs px-3 py-2 rounded ${msg.ok ? "text-success-deep" : "text-destructive"}`}>{msg.text}</div>}
               <div className="flex gap-2 pt-2">
                 <button onClick={saveEdit} disabled={saving}
                   className="flex-1 text-sm font-medium px-4 py-2 rounded-md bg-info text-primary-foreground hover:opacity-90 disabled:opacity-50 transition">
@@ -342,8 +342,8 @@ function LabelInput({ label, value, onChange, placeholder, type = "text" }: {
 
 function AvailBadge({ v }: { v: string | null }) {
   const map: Record<string, string> = {
-    stock: "bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)]",
-    order: "bg-[oklch(0.94_0.08_85)] text-[oklch(0.38_0.12_75)]",
+    stock: "bg-success-surface text-success-deep",
+    order: "bg-warning-surface text-warning-deep",
     discontinued: "bg-muted text-muted-foreground",
   };
   return (
@@ -355,7 +355,7 @@ function AvailBadge({ v }: { v: string | null }) {
 
 function StatusBadge({ v }: { v: string | null }) {
   const map: Record<string, string> = {
-    active: "text-[oklch(0.60_0.18_155)]", draft: "text-muted-foreground", archived: "text-muted-foreground/50",
+    active: "text-success", draft: "text-muted-foreground", archived: "text-muted-foreground/50",
   };
   return <span className={`text-[10px] ${map[v ?? "draft"] ?? ""}`}>{v ?? "draft"}</span>;
 }

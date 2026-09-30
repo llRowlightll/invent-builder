@@ -46,9 +46,9 @@ type Rfq = {
 
 const STATUSES = [
   { key: "new",        label: "Ny",               dot: "bg-info",                       text: "text-info" },
-  { key: "processing", label: "Under behandling",  dot: "bg-[oklch(0.72_0.18_80)]",      text: "text-[oklch(0.72_0.18_80)]" },
-  { key: "quoted",     label: "Offert skickad",    dot: "bg-[oklch(0.60_0.18_290)]",     text: "text-[oklch(0.60_0.18_290)]" },
-  { key: "accepted",   label: "Accepterad",        dot: "bg-[oklch(0.60_0.18_155)]",     text: "text-[oklch(0.60_0.18_155)]" },
+  { key: "processing", label: "Under behandling",  dot: "bg-warning",      text: "text-warning" },
+  { key: "quoted",     label: "Offert skickad",    dot: "bg-quoted",     text: "text-quoted" },
+  { key: "accepted",   label: "Accepterad",        dot: "bg-success",     text: "text-success" },
   { key: "rejected",   label: "Avvisad",           dot: "bg-destructive",                text: "text-destructive" },
 ];
 
@@ -299,7 +299,7 @@ export default function AdminRfqPage() {
                           arbete: den ena ska prissättas och skickas tillbaka,
                           den andra ska verkställas. Det måste synas i listan. */}
                       {r.intent === "order" && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[oklch(0.95_0.05_155)] text-[oklch(0.35_0.15_155)] font-semibold shrink-0">
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-success-surface text-success-deep font-semibold shrink-0">
                           BESTÄLLNING
                         </span>
                       )}
@@ -426,7 +426,7 @@ export default function AdminRfqPage() {
                   </button>
 
                   {emailSent && (
-                    <div className="flex items-center gap-2 text-xs text-[oklch(0.60_0.18_155)] bg-[oklch(0.60_0.18_155)]/10 rounded-md px-3 py-2">
+                    <div className="flex items-center gap-2 text-xs text-success bg-success/10 rounded-md px-3 py-2">
                       <span>✓</span>
                       <span>
                         E-post skickad till <strong>{selected.contact_email}</strong>
@@ -451,7 +451,7 @@ export default function AdminRfqPage() {
                       href={`/${locale}/admin/offert/${selected.id}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="block w-full text-center text-sm font-medium px-4 py-2 rounded-md border border-[oklch(0.72_0.12_290)] text-[oklch(0.50_0.18_290)] hover:bg-[oklch(0.97_0.02_290)] transition"
+                      className="block w-full text-center text-sm font-medium px-4 py-2 rounded-md border border-quoted text-quoted-deep hover:bg-quoted-surface transition"
                     >
                       📄 Öppna / redigera offert (OE)
                     </a>
@@ -461,8 +461,8 @@ export default function AdminRfqPage() {
                   {selected.status === "accepted" && (
                     <div className="pt-2 border-t border-border space-y-2">
                       {createdOrderId ? (
-                        <div className="rounded-md bg-[oklch(0.96_0.04_155)] border border-[oklch(0.72_0.12_155)] px-4 py-3 text-sm space-y-1">
-                          <p className="font-semibold text-[oklch(0.32_0.12_155)]">✓ Order skapad!</p>
+                        <div className="rounded-md bg-success-surface border border-success px-4 py-3 text-sm space-y-1">
+                          <p className="font-semibold text-success-deep">✓ Order skapad!</p>
                           <div className="flex gap-3">
                             <a href={`/${locale}/admin/orders`} className="text-info text-xs underline hover:opacity-80">
                               Orderhantering →
@@ -477,7 +477,7 @@ export default function AdminRfqPage() {
                           <button
                             onClick={createOrder}
                             disabled={creatingOrder}
-                            className="w-full text-sm font-medium px-4 py-2.5 rounded-md bg-[oklch(0.60_0.18_155)] text-white hover:opacity-90 disabled:opacity-50 transition"
+                            className="w-full text-sm font-medium px-4 py-2.5 rounded-md bg-success text-white hover:opacity-90 disabled:opacity-50 transition"
                           >
                             {creatingOrder ? "Skapar order…" : "📦 Skapa order"}
                           </button>

@@ -28,9 +28,9 @@ interface RfqRow {
 
 const RFQ_STATUS_META: Record<string, { dot: string; text: string; label: string }> = {
   new:        { dot: "bg-info",                       text: "text-info",                        label: "Mottagen" },
-  processing: { dot: "bg-[oklch(0.72_0.18_80)]",     text: "text-[oklch(0.55_0.18_80)]",       label: "Under behandling" },
-  quoted:     { dot: "bg-[oklch(0.60_0.18_290)]",    text: "text-[oklch(0.60_0.18_290)]",      label: "Offert skickad" },
-  accepted:   { dot: "bg-[oklch(0.60_0.18_155)]",    text: "text-[oklch(0.60_0.18_155)]",      label: "Accepterad" },
+  processing: { dot: "bg-warning",     text: "text-warning-deep",       label: "Under behandling" },
+  quoted:     { dot: "bg-quoted",    text: "text-quoted",      label: "Offert skickad" },
+  accepted:   { dot: "bg-success",    text: "text-success",      label: "Accepterad" },
   rejected:   { dot: "bg-destructive",               text: "text-destructive",                 label: "Avvisad" },
 };
 
@@ -364,7 +364,7 @@ export function OrdersPage() {
                   params={{ locale, rfqId: rfq.id }}
                   className={`flex items-start gap-4 bg-card rounded-xl p-5 hover:border-info transition group border ${
                     rfq.status === "quoted"
-                      ? "border-[oklch(0.75_0.10_55)] bg-[oklch(0.99_0.02_55)]"
+                      ? "border-gold bg-gold-surface"
                       : "border-border"
                   }`}
                 >
@@ -391,7 +391,7 @@ export function OrdersPage() {
                         </span>
                       )}
                       {rfq.status === "quoted" && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[oklch(0.94_0.06_55)] text-[oklch(0.42_0.14_55)] border border-[oklch(0.82_0.10_55)] font-semibold animate-pulse">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-gold-surface text-gold-deep border border-gold font-semibold animate-pulse">
                           {locale === "sv" ? "⚡ Svar krävs" : "⚡ Action required"}
                         </span>
                       )}

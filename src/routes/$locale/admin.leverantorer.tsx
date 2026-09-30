@@ -141,12 +141,12 @@ function AdminLeverantorer() {
     return FRAGOR.filter((f) => f.klar(s, kanaler[s.id])).length;
   }
 
-  if (laddar) return <div className="p-8 text-gray-500">Laddar…</div>;
+  if (laddar) return <div className="p-8 text-muted-foreground">Laddar…</div>;
 
   return (
     <div className="max-w-6xl mx-auto p-6">
-      <h1 className="text-2xl font-bold text-gray-900">Leverantörer</h1>
-      <p className="mt-1 text-sm text-gray-600 max-w-3xl">
+      <h1 className="text-2xl font-bold text-foreground">Leverantörer</h1>
+      <p className="mt-1 text-sm text-muted-foreground max-w-3xl">
         En leverantör är den vi lägger inköpsordern hos — inte samma sak som tillverkaren.
         Köper vi Festo via distributör ska distributören ligga som egen leverantör.
         Order Engine får inte beställa från en leverantör som inte är aktiv.
@@ -167,7 +167,7 @@ function AdminLeverantorer() {
           const n = klara(s);
           const utvald = oppen === s.id;
           return (
-            <div key={s.id} className="bg-white border border-gray-200 rounded-xl shadow-sm">
+            <div key={s.id} className="bg-white border border-border rounded-xl shadow-sm">
               <button
                 onClick={() => setOppen(utvald ? null : s.id)}
                 // Utan aria-label heter knappen ingenting: en skärmläsare säger
@@ -175,22 +175,22 @@ function AdminLeverantorer() {
                 // formuläret är öppet.
                 aria-label={`${s.name}, ${n} av 12 uppgifter insamlade`}
                 aria-expanded={utvald}
-                className="w-full flex items-center gap-4 p-4 text-left hover:bg-gray-50 rounded-xl"
+                className="w-full flex items-center gap-4 p-4 text-left hover:bg-muted rounded-xl"
               >
-                <span className="font-semibold text-gray-900 w-40">{s.name}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${s.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                <span className="font-semibold text-foreground w-40">{s.name}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${s.is_active ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
                   {s.is_active ? "Aktiv" : "Inaktiv"}
                 </span>
-                <span className="text-xs text-gray-500">{k ? `${k.method} · ${k.status}` : "ingen kanal"}</span>
+                <span className="text-xs text-muted-foreground">{k ? `${k.method} · ${k.status}` : "ingen kanal"}</span>
                 <span className="ml-auto flex items-center gap-2">
-                  <span className="h-1.5 w-32 bg-gray-200 rounded-full overflow-hidden">
+                  <span className="h-1.5 w-32 bg-surface-alt rounded-full overflow-hidden">
                     <span className="block h-full bg-blue-500" style={{ width: `${(n / 12) * 100}%` }} />
                   </span>
-                  <span className="text-xs text-gray-500 tabular-nums">{n}/12</span>
+                  <span className="text-xs text-muted-foreground tabular-nums">{n}/12</span>
                   {/* När uppgifterna senast rördes. En uppgift från i våras är
                       inte värd lika mycket som en från gårdagens samtal, och
                       utan datum går de inte att skilja åt. */}
-                  <span className="text-[10px] text-gray-400 tabular-nums w-16 text-right">
+                  <span className="text-[10px] text-muted-foreground tabular-nums w-16 text-right">
                     {n > 0 && s.updated_at
                       ? new Date(s.updated_at).toLocaleDateString("sv-SE", { month: "short", day: "numeric" })
                       : ""}
@@ -199,15 +199,15 @@ function AdminLeverantorer() {
               </button>
 
               {utvald && (
-                <div className="border-t border-gray-100 p-5 space-y-6">
+                <div className="border-t border-border p-5 space-y-6">
                   <ol className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
                     {FRAGOR.map((f) => {
                       const klar = f.klar(s, k);
                       return (
-                        <li key={f.nr} className={klar ? "text-green-700" : "text-gray-500"}>
+                        <li key={f.nr} className={klar ? "text-green-700" : "text-muted-foreground"}>
                           <span className="font-medium">{klar ? "✓" : "○"} {f.nr}. {f.rubrik}</span>
                           {/* Frågan i klartext, för den som sitter i mötet. */}
-                          {!klar && <span className="block pl-4 text-gray-400">{f.fraga}</span>}
+                          {!klar && <span className="block pl-4 text-muted-foreground">{f.fraga}</span>}
                         </li>
                       );
                     })}
@@ -263,7 +263,7 @@ function AdminLeverantorer() {
                           onSave={(v) => spara(s.id, { system_notes: v })} />
                   </Grupp>
 
-                  <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+                  <div className="flex items-center gap-3 pt-2 border-t border-border">
                     <label className="flex items-center gap-2 text-sm">
                       <input type="checkbox" checked={s.is_active}
                              onChange={(e) => spara(s.id, { is_active: e.target.checked })} />
@@ -276,7 +276,7 @@ function AdminLeverantorer() {
                     )}
                     <span className="ml-auto text-xs">
                       {sparar
-                        ? <span className="text-gray-400">sparar…</span>
+                        ? <span className="text-muted-foreground">sparar…</span>
                         : sparatVid && Date.now() - sparatVid < 4000
                           ? <span className="text-green-600">✓ sparat</span>
                           : null}
@@ -295,7 +295,7 @@ function AdminLeverantorer() {
 function Grupp({ titel, children }: { titel: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">{titel}</h3>
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{titel}</h3>
       <div className="grid grid-cols-2 gap-3">{children}</div>
     </div>
   );
@@ -309,12 +309,12 @@ function Falt({ label, value, onSave, bred }: {
   useEffect(() => { setV(value ?? ""); }, [value]);
   return (
     <label className={`block text-sm ${bred ? "col-span-2" : ""}`}>
-      <span className="text-xs text-gray-500">{label}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
       <input
         value={v}
         onChange={(e) => setV(e.target.value)}
         onBlur={() => { if (v !== (value ?? "")) onSave(v); }}
-        className="mt-0.5 w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        className="mt-0.5 w-full border border-border rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
       />
     </label>
   );
@@ -326,11 +326,11 @@ function Val({ label, value, options, onChange, etiketter }: {
 }) {
   return (
     <label className="block text-sm">
-      <span className="text-xs text-gray-500">{label}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-0.5 w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm bg-white"
+        className="mt-0.5 w-full border border-border rounded-lg px-2.5 py-1.5 text-sm bg-white"
       >
         {options.map((o) => (
           <option key={o} value={o}>{etiketter?.[o] ?? (o === "" ? "—" : o)}</option>

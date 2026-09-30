@@ -241,7 +241,7 @@ function ProductDetail() {
             }}
             className={`block w-full text-center mt-2 px-3 py-2 rounded-md text-sm font-semibold transition ${
               addedToCart
-                ? "bg-[oklch(0.55_0.15_155)]/15 text-[oklch(0.45_0.15_155)]"
+                ? "bg-success/15 text-success-deep"
                 : "bg-info text-primary-foreground hover:opacity-90"
             }`}
           >

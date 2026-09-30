@@ -221,7 +221,7 @@ export default function AdminImagesPage() {
             >
               {PROVIDER_META[p].label}
               {PROVIDER_META[p].free && (
-                <span className="ml-1.5 bg-[oklch(0.55_0.15_155)]/15 text-[oklch(0.45_0.15_155)] px-1 py-0.5 rounded text-[10px] font-semibold">
+                <span className="ml-1.5 bg-success/15 text-success-deep px-1 py-0.5 rounded text-[10px] font-semibold">
                   GRATIS
                 </span>
               )}
@@ -280,7 +280,7 @@ export default function AdminImagesPage() {
             {running ? "Genererar…" : `Generera alla (${missing})`}
           </button>
           {missing === 0 && (
-            <span className="text-sm text-[oklch(0.55_0.15_155)]">✓ Alla produkter har bilder!</span>
+            <span className="text-sm text-success">✓ Alla produkter har bilder!</span>
           )}
         </div>
       </div>
@@ -289,7 +289,7 @@ export default function AdminImagesPage() {
       {log.length > 0 && (
         <div
           ref={logRef}
-          className="rounded-lg border border-border bg-[oklch(0.12_0.01_240)] text-[oklch(0.85_0.05_155)] font-mono text-xs p-4 mb-6 max-h-48 overflow-y-auto space-y-0.5"
+          className="rounded-lg border border-border bg-[oklch(0.12_0.01_240)] text-success font-mono text-xs p-4 mb-6 max-h-48 overflow-y-auto space-y-0.5"
         >
           {log.map((line, i) => (
             <div
@@ -345,8 +345,8 @@ export default function AdminImagesPage() {
                   <td className="px-4 py-2 text-xs">{p.category ?? "—"}</td>
                   <td className="px-4 py-2">
                     {p.image_url ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[oklch(0.55_0.15_155)]">
-                        <span className="size-1.5 rounded-full bg-[oklch(0.55_0.15_155)]" />
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-success">
+                        <span className="size-1.5 rounded-full bg-success" />
                         Klar
                       </span>
                     ) : (

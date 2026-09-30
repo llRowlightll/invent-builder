@@ -230,7 +230,7 @@ function EkonomiPage() {
         {cards.map((c) => (
           <div key={c.label} className="rounded-xl border border-border bg-card p-4">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{c.label}</div>
-            <div className={`text-xl font-bold mt-1 tabular-nums ${c.label.startsWith("Resultat") ? (sum.result >= 0 ? "text-[oklch(0.55_0.16_155)]" : "text-destructive") : ""}`}>{c.value}</div>
+            <div className={`text-xl font-bold mt-1 tabular-nums ${c.label.startsWith("Resultat") ? (sum.result >= 0 ? "text-success" : "text-destructive") : ""}`}>{c.value}</div>
             <div className="text-[11px] text-muted-foreground mt-0.5">{c.sub}</div>
           </div>
         ))}

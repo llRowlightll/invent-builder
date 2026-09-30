@@ -45,6 +45,17 @@
   --color-warning: var(--warning);
   --color-warning-strong: var(--warning-strong);
   --color-teal: var(--teal);
+  --color-success-surface: var(--success-surface);
+  --color-success: var(--success);
+  --color-success-deep: var(--success-deep);
+  --color-warning-surface: var(--warning-surface);
+  --color-warning-deep: var(--warning-deep);
+  --color-quoted-surface: var(--quoted-surface);
+  --color-quoted: var(--quoted);
+  --color-quoted-deep: var(--quoted-deep);
+  --color-info-surface: var(--info-surface);
+  --color-gold-surface: var(--gold-surface);
+  --color-gold-deep: var(--gold-deep);
 }
 
 :root {
@@ -87,6 +98,23 @@
   /* Matt teal — enda kvarvarande sidoaccent */
   --teal: oklch(0.52 0.07 200);          /* matte teal #2C6E72-ish */
 
+  /* Tillståndsskalan. 178 hårdkodade oklch-värden i 29 filer ersätts av de
+     här: fem kulörfamiljer i tre band -- yta, bas, text. De hårdkodade var
+     tonade för vitt papper och följde aldrig med till mörkt läge.
+     Ljushetsvärdena är uträknade, inte valda: -deep klarar 4.5:1 och bas
+     3:1 mot sin botten i BÅDA teman. */
+  --success-surface: #dbfce5;
+  --success: #41a76d;
+  --success-deep: #16884f;
+  --warning-surface: #ffefd3;
+  --warning-deep: #9c6e00;
+  --quoted-surface: #f2ecff;
+  --quoted: #9c85ed;
+  --quoted-deep: #7e66cb;
+  --info-surface: #ffe6d3;
+  --gold-surface: #ffebd5;
+  --gold-deep: #b3621e;
+
   --border: oklch(0.22 0.04 265 / 0.12);
   --input: oklch(0.22 0.04 265 / 0.18);
   --ring: oklch(0.62 0.17 42 / 0.5);
@@ -110,6 +138,17 @@
   --accent-foreground: var(--foreground);
   --border: oklch(1 0 0 / 0.1);
   --input: oklch(1 0 0 / 0.15);
+  --success-surface: #002811;
+  --success: #66b282;
+  --success-deep: #9ad4ad;
+  --warning-surface: #2e1b00;
+  --warning-deep: #debf8d;
+  --quoted-surface: #21163f;
+  --quoted: #a090e3;
+  --quoted-deep: #c5bafc;
+  --info-surface: #3e0a00;
+  --gold-surface: #361500;
+  --gold-deep: #eeb792;
   --ring: oklch(0.74 0.105 80 / 0.6);
 }
 

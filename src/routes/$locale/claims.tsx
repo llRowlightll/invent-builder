@@ -80,7 +80,7 @@ const URGENCIES = [
 const STATUS_COLORS: Record<string, string> = {
   open:      "bg-info/10 text-info",
   in_review: "bg-amber-100 text-amber-700",
-  resolved:  "bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)]",
+  resolved:  "bg-success-surface text-success-deep",
   closed:    "bg-muted text-muted-foreground",
 };
 
@@ -243,7 +243,7 @@ function ClaimsPage() {
 
       {/* Success toast */}
       {submitSuccess && (
-        <div className="mb-6 rounded-xl border border-[oklch(0.72_0.12_155)] bg-[oklch(0.96_0.04_155)] p-4 flex items-start gap-3">
+        <div className="mb-6 rounded-xl border border-success bg-success-surface p-4 flex items-start gap-3">
           <span className="text-xl">✓</span>
           <div>
             <div className="font-semibold text-sm">{t("claimsPage.successTitle")}</div>
@@ -447,7 +447,7 @@ function ClaimsPage() {
                     <p className="text-sm text-foreground/80 whitespace-pre-wrap">{c.description}</p>
                   </div>
                   {c.resolution_note && (
-                    <div className="rounded-md border border-[oklch(0.72_0.12_155)] bg-[oklch(0.96_0.04_155)] p-3">
+                    <div className="rounded-md border border-success bg-success-surface p-3">
                       <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Svar från Maskinval</div>
                       <p className="text-sm text-foreground/80">{c.resolution_note}</p>
                     </div>

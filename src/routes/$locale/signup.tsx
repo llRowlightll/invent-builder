@@ -280,7 +280,7 @@ function SignupPage() {
           <div key={s} className="flex items-center gap-2">
             <div className={`size-7 rounded-full flex items-center justify-center text-xs font-bold transition ${
               s === step ? "bg-info text-primary-foreground" :
-              s < step  ? "bg-[oklch(0.72_0.12_155)] text-white" :
+              s < step  ? "bg-success text-white" :
               "bg-surface-alt text-muted-foreground border border-border"
             }`}>{s < step ? "✓" : s}</div>
             {s < 2 && <div className={`h-0.5 w-12 rounded transition ${s < step ? "bg-info" : "bg-border"}`} />}
@@ -359,8 +359,8 @@ function SignupPage() {
                       placeholder="556123-4567"
                       inputMode="numeric"
                       className={`w-full rounded-md border px-3 py-2 text-sm pr-8 bg-card transition ${
-                        orgStatus === "valid"   ? "border-[oklch(0.55_0.15_155)] bg-[oklch(0.98_0.02_155)]" :
-                        orgStatus === "invalid" ? "border-destructive bg-[oklch(0.98_0.02_20)]" :
+                        orgStatus === "valid"   ? "border-success bg-success-surface" :
+                        orgStatus === "invalid" ? "border-destructive bg-info-surface" :
                         "border-input"
                       }`}
                     />
@@ -368,7 +368,7 @@ function SignupPage() {
                       <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground animate-pulse">…</span>
                     )}
                     {orgStatus === "valid" && (
-                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[oklch(0.55_0.15_155)] text-sm">✓</span>
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-success text-sm">✓</span>
                     )}
                     {orgStatus === "invalid" && (
                       <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-destructive text-sm">✗</span>
@@ -378,7 +378,7 @@ function SignupPage() {
                     <p className="text-xs text-destructive mt-1">Ogiltigt organisationsnummer</p>
                   )}
                   {orgStatus === "valid" && (
-                    <p className="text-xs text-[oklch(0.55_0.15_155)] mt-1">Giltigt organisationsnummer</p>
+                    <p className="text-xs text-success mt-1">Giltigt organisationsnummer</p>
                   )}
                 </Field>
               ) : (

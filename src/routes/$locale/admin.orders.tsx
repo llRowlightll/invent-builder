@@ -54,9 +54,9 @@ interface SupplierPoRow {
 }
 
 const NIVA_ETIKETT: Record<string, { text: string; klass: string }> = {
-  gron: { text: "Bekräftad",        klass: "bg-[oklch(0.95_0.05_155)] text-[oklch(0.40_0.15_155)]" },
-  gul:  { text: "Mindre avvikelse", klass: "bg-[oklch(0.96_0.06_85)]  text-[oklch(0.45_0.15_75)]" },
-  rod:  { text: "Kräver beslut",    klass: "bg-[oklch(0.95_0.05_25)]  text-[oklch(0.45_0.18_25)]" },
+  gron: { text: "Bekräftad",        klass: "bg-success-surface text-success-deep" },
+  gul:  { text: "Mindre avvikelse", klass: "bg-warning-surface  text-warning-deep" },
+  rod:  { text: "Kräver beslut",    klass: "bg-info-surface  text-info" },
 };
 
 /**
@@ -611,7 +611,7 @@ function AdminOrdersPage() {
       </div>
 
       {spoOk && (
-        <div className="mb-4 rounded-lg border border-[oklch(0.72_0.12_155)] bg-[oklch(0.97_0.03_155)] px-4 py-3 text-sm text-[oklch(0.40_0.15_155)]">
+        <div className="mb-4 rounded-lg border border-success bg-success-surface px-4 py-3 text-sm text-success-deep">
           {spoOk}
         </div>
       )}
@@ -693,7 +693,7 @@ function AdminOrdersPage() {
                       >
                         {(spos[order.id] ?? []).length} st
                         {(spos[order.id] ?? []).some(r => r.needs_review) && (
-                          <span className="ml-1 text-[oklch(0.55_0.18_50)]" title="Behöver granskas">●</span>
+                          <span className="ml-1 text-gold" title="Behöver granskas">●</span>
                         )}
                       </button>
                     )}
@@ -708,7 +708,7 @@ function AdminOrdersPage() {
                         href={`/${locale}/admin/orderbekraftelse/${order.id}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="px-3 py-1 text-xs rounded-md border border-[oklch(0.72_0.12_290)] text-[oklch(0.50_0.18_290)] hover:bg-[oklch(0.97_0.02_290)] transition"
+                        className="px-3 py-1 text-xs rounded-md border border-quoted text-quoted-deep hover:bg-quoted-surface transition"
                         title="Öppna orderbekräftelse (OC)"
                       >
                         OC
@@ -740,7 +740,7 @@ function AdminOrdersPage() {
                             )}
                             <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{spo.status}</span>
                             {spo.needs_review && (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-[oklch(0.95_0.05_50)] text-[oklch(0.45_0.18_50)]">
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-gold-surface text-gold-deep">
                                 granska: {spo.review_reason ?? "okänt"}
                               </span>
                             )}
@@ -795,7 +795,7 @@ function AdminOrdersPage() {
                                         <button
                                           onClick={() => beslutaOmRad(l.id, "approve")}
                                           disabled={arbetar === l.id}
-                                          className="px-2 py-0.5 rounded border border-[oklch(0.72_0.12_155)] text-[oklch(0.40_0.15_155)] hover:bg-[oklch(0.97_0.03_155)] transition disabled:opacity-50"
+                                          className="px-2 py-0.5 rounded border border-success text-success-deep hover:bg-success-surface transition disabled:opacity-50"
                                         >
                                           Godkänn
                                         </button>

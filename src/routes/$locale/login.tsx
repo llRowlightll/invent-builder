@@ -80,7 +80,7 @@ function LoginPage() {
         </p>
 
         {forgotSent ? (
-          <div className="mt-8 rounded-xl border border-[oklch(0.72_0.12_155)] bg-[oklch(0.96_0.04_155)] p-5 text-center space-y-2">
+          <div className="mt-8 rounded-xl border border-success bg-success-surface p-5 text-center space-y-2">
             <div className="text-3xl">📬</div>
             <p className="font-semibold text-foreground">
               {locale === "sv" ? "Kolla din inkorg!" : "Check your inbox!"}

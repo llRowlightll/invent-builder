@@ -754,12 +754,12 @@ function OptionsStep({ t, locale, summary, options, requirements, onSelect, onBa
   requirements: Requirements | null; onSelect: (o: ActuatorOption) => void; onBack: () => void;
 }) {
   const BADGE_COLORS: Record<string, string> = {
-    "Bästa valet": "bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)]",
-    "Best choice": "bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)]",
+    "Bästa valet": "bg-success-surface text-success-deep",
+    "Best choice": "bg-success-surface text-success-deep",
     "Kompakt alternativ": "bg-info/10 text-info",
     "Compact option": "bg-info/10 text-info",
-    "Budgetalternativ": "bg-gold/20 text-[oklch(0.45_0.12_80)]",
-    "Budget option": "bg-gold/20 text-[oklch(0.45_0.12_80)]",
+    "Budgetalternativ": "bg-gold/20 text-warning-deep",
+    "Budget option": "bg-gold/20 text-warning-deep",
     "Premium alternativ": "bg-purple-100 text-purple-700",
     "Premium option": "bg-purple-100 text-purple-700",
   };
@@ -790,12 +790,12 @@ function OptionsStep({ t, locale, summary, options, requirements, onSelect, onBa
               >
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-gold/20 text-[oklch(0.45_0.12_80)]">
+                    <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-gold/20 text-warning-deep">
                       Kundlösning
                     </span>
-                    <span className="font-semibold text-foreground group-hover:text-[oklch(0.55_0.15_80)] transition">{opt.name}</span>
+                    <span className="font-semibold text-foreground group-hover:text-warning-deep transition">{opt.name}</span>
                   </div>
-                  <span className="text-[oklch(0.55_0.15_80)] text-sm font-medium shrink-0">
+                  <span className="text-warning-deep text-sm font-medium shrink-0">
                     🤝 Skicka förfrågan →
                   </span>
                 </div>
@@ -803,7 +803,7 @@ function OptionsStep({ t, locale, summary, options, requirements, onSelect, onBa
                 <div className="mt-3 grid sm:grid-cols-2 gap-3">
                   <div>
                     {opt.pros?.map((p, i) => (
-                      <div key={i} className="text-xs text-[oklch(0.45_0.12_80)] flex items-center gap-1 mt-1">
+                      <div key={i} className="text-xs text-warning-deep flex items-center gap-1 mt-1">
                         <span>✓</span> {p}
                       </div>
                     ))}
@@ -858,8 +858,8 @@ function OptionsStep({ t, locale, summary, options, requirements, onSelect, onBa
               <div className="mt-3 grid sm:grid-cols-2 gap-3">
                 <div>
                   {opt.pros?.map((p, i) => (
-                    <div key={i} className="text-xs text-[oklch(0.45_0.12_155)] flex items-center gap-1 mt-1">
-                      <span className="text-[oklch(0.55_0.15_155)]">✓</span> {p}
+                    <div key={i} className="text-xs text-success-deep flex items-center gap-1 mt-1">
+                      <span className="text-success">✓</span> {p}
                     </div>
                   ))}
                 </div>
@@ -910,13 +910,13 @@ function DimensioningBar({ label, required, available, unit, requiredLabel, avai
     <div className="min-w-[160px] flex-1">
       <div className="flex items-baseline justify-between text-[11px] mb-1">
         <span className="text-muted-foreground">{label}</span>
-        <span className={`font-semibold ${meets ? "text-[oklch(0.45_0.14_155)]" : "text-destructive"}`}>
+        <span className={`font-semibold ${meets ? "text-success-deep" : "text-destructive"}`}>
           {margin != null ? `${margin.toFixed(1)}×` : meets ? "✓" : "⚠"}
         </span>
       </div>
       <div className="relative h-2 rounded-full bg-muted overflow-hidden">
         <div
-          className={`absolute inset-y-0 left-0 rounded-full ${meets ? "bg-[oklch(0.72_0.15_155)]" : "bg-destructive/70"}`}
+          className={`absolute inset-y-0 left-0 rounded-full ${meets ? "bg-success" : "bg-destructive/70"}`}
           style={{ width: `${availPct}%` }}
         />
         <div
@@ -1474,8 +1474,8 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
                 onClick={() => { setEcoMode(v => !v); if (!ecoMode) setChosenAlt({}); }}
                 className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-semibold transition ${
                   ecoMode
-                    ? "bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)] border-[oklch(0.7_0.1_155)]"
-                    : "border-[oklch(0.7_0.1_155)] text-[oklch(0.45_0.15_155)] hover:bg-[oklch(0.92_0.06_155)/50]"
+                    ? "bg-success-surface text-success-deep border-success"
+                    : "border-success text-success-deep hover:bg-success-surface/50"
                 }`}
               >
                 <span>🔄</span>
@@ -1528,7 +1528,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
                 return (
                   <>
                     <tr key={i} className={`border-b border-border last:border-0 transition ${
-                      isSwapped ? "bg-[oklch(0.95_0.04_155)/30]" : i % 2 === 0 ? "" : "bg-muted/10"
+                      isSwapped ? "bg-success-surface/30" : i % 2 === 0 ? "" : "bg-muted/10"
                     }`}>
                       <td className="px-2 py-2 w-12">
                         {line.product?.image_url ? (
@@ -1569,7 +1569,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
                             ) : null;
                           })()}
                           {isSwapped && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[oklch(0.88_0.08_155)] text-[oklch(0.35_0.12_155)] font-semibold">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-success-surface text-success-deep font-semibold">
                               {t("machineBuilder.altSwappedBadge")}
                             </span>
                           )}
@@ -1666,7 +1666,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
           {t("machineBuilder.sendQuoteBody")}
         </p>
         {rfqSent ? (
-          <div className="rounded-lg bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)] px-4 py-4 space-y-1">
+          <div className="rounded-lg bg-success-surface text-success-deep px-4 py-4 space-y-1">
             <div className="font-semibold text-sm">✓ {t("machineBuilder.quoteThankYou")}</div>
             {rfqId && (
               <div className="text-xs opacity-80">

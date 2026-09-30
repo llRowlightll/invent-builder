@@ -67,7 +67,7 @@ const CATEGORY_META: Record<string, { label: string; icon: string; color: string
   fitting: {
     label: "Kopplingar",
     icon: "⊕",
-    color: "bg-slate-50 border-slate-200 text-slate-800",
+    color: "bg-muted border-border text-foreground",
   },
 };
 
@@ -108,10 +108,10 @@ function ConfigureIndexPage() {
     <div className="max-w-5xl mx-auto px-4 py-10">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">
+        <h1 className="text-3xl font-bold text-foreground">
           Festo Produktkonfigurator
         </h1>
-        <p className="text-gray-500 mt-2 text-lg">
+        <p className="text-muted-foreground mt-2 text-lg">
           Välj en produktfamilj och konfigurera din artikel steg för steg —
           få din orderkod direkt.
         </p>
@@ -123,8 +123,8 @@ function ConfigureIndexPage() {
           onClick={() => setActiveCategory(null)}
           className={`px-4 py-2 rounded-full text-sm font-medium border transition-all ${
             activeCategory === null
-              ? "bg-gray-900 text-white border-gray-900"
-              : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
+              ? "bg-foreground/85 text-white border-foreground/30"
+              : "bg-white text-muted-foreground border-border hover:border-border"
           }`}
         >
           Alla ({families.length})
@@ -141,7 +141,7 @@ function ConfigureIndexPage() {
               className={`px-4 py-2 rounded-full text-sm font-medium border transition-all ${
                 activeCategory === cat
                   ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"
+                  : "bg-white text-muted-foreground border-border hover:border-blue-400"
               }`}
             >
               {meta.icon} {meta.label} ({count})
@@ -156,12 +156,12 @@ function ConfigureIndexPage() {
           const meta = CATEGORY_META[family.category_slug] || {
             label: family.category_slug,
             icon: "📦",
-            color: "bg-gray-50 border-gray-200 text-gray-700",
+            color: "bg-muted border-border text-foreground",
           };
           return (
             <div
               key={family.id}
-              className="bg-white border border-gray-200 rounded-xl p-5 hover:border-blue-300 hover:shadow-md transition-all group"
+              className="bg-white border border-border rounded-xl p-5 hover:border-blue-300 hover:shadow-md transition-all group"
             >
               {/* Category badge */}
               <span
@@ -171,10 +171,10 @@ function ConfigureIndexPage() {
               </span>
 
               {/* Family name & title */}
-              <h2 className="text-xl font-bold text-gray-900 group-hover:text-blue-700 transition-colors">
+              <h2 className="text-xl font-bold text-foreground group-hover:text-blue-700 transition-colors">
                 {family.name}
               </h2>
-              <p className="text-gray-500 text-sm mt-1 leading-snug">
+              <p className="text-muted-foreground text-sm mt-1 leading-snug">
                 {family.title}
               </p>
 
@@ -187,7 +187,7 @@ function ConfigureIndexPage() {
                 )}
                 {family.stroke_min_mm != null &&
                   family.stroke_max_mm != null && (
-                    <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
+                    <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">
                       Slag: {family.stroke_min_mm}–{family.stroke_max_mm} mm
                     </span>
                   )}
@@ -220,7 +220,7 @@ function ConfigureIndexPage() {
       </div>
 
       {filtered.length === 0 && (
-        <div className="text-center py-16 text-gray-400">
+        <div className="text-center py-16 text-muted-foreground">
           <p className="text-lg">Inga produktfamiljer hittades</p>
         </div>
       )}

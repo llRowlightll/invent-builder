@@ -249,7 +249,7 @@ function ProjectsPage() {
                                   onClick={() => addLineToOffert(line)}
                                   className={`shrink-0 text-xs px-3 py-1 rounded-md font-medium transition ${
                                     added
-                                      ? "bg-[oklch(0.55_0.15_155)]/15 text-[oklch(0.45_0.15_155)]"
+                                      ? "bg-success/15 text-success-deep"
                                       : "border border-border hover:border-info hover:text-info text-muted-foreground"
                                   }`}
                                 >

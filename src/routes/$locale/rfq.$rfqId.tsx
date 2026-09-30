@@ -318,7 +318,7 @@ function RfqPage() {
           {!isAdmin && AWAITING_RESPONSE_STATUSES.includes(rfq.status) && (
             <div className={statusLog.length > 0 ? "pt-3 mt-3 border-t border-border" : ""}>
               {askSent ? (
-                <p className="text-sm text-[oklch(0.55_0.15_155)]">
+                <p className="text-sm text-success">
                   ✓ {locale === "sv" ? "Tack! Vi återkommer så snart vi kan." : "Thanks! We'll get back to you as soon as we can."}
                 </p>
               ) : showAskNote ? (
@@ -384,8 +384,8 @@ function RfqPage() {
 
       {/* Quote amount block — shown when status is "quoted" */}
       {rfq.status === "quoted" && rfq.quote_amount && (
-        <div className="mt-4 rounded-xl border border-[oklch(0.75_0.12_290)] bg-[oklch(0.97_0.03_290)] p-5">
-          <p className="text-xs uppercase tracking-wider text-[oklch(0.50_0.15_290)] font-semibold mb-1">
+        <div className="mt-4 rounded-xl border border-quoted bg-quoted-surface p-5">
+          <p className="text-xs uppercase tracking-wider text-quoted-deep font-semibold mb-1">
             {locale === "sv" ? "Offertbelopp (exkl. moms)" : "Quoted price (excl. VAT)"}
           </p>
           <p className="text-3xl font-bold text-foreground">
@@ -405,7 +405,7 @@ function RfqPage() {
             <button
               onClick={() => acceptQuote("accepted")}
               disabled={accepting}
-              className="px-5 py-2.5 rounded-md bg-[oklch(0.55_0.15_155)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition"
+              className="px-5 py-2.5 rounded-md bg-success text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition"
             >
               {accepting ? "…" : locale === "sv" ? "✓ Acceptera offert" : "✓ Accept quote"}
             </button>
@@ -425,7 +425,7 @@ function RfqPage() {
 
       {/* Accepted confirmation */}
       {rfq.status === "accepted" && (
-        <div className="mt-4 rounded-xl border border-[oklch(0.72_0.12_155)] bg-[oklch(0.96_0.04_155)] p-5 flex items-center gap-4">
+        <div className="mt-4 rounded-xl border border-success bg-success-surface p-5 flex items-center gap-4">
           <span className="text-2xl">✅</span>
           <div>
             <p className="font-semibold text-foreground">
@@ -553,7 +553,7 @@ function RfqPage() {
               {bookingLoading ? t("rfqPage.booking") : t("rfqPage.bookShipment")}
             </button>
             {bookingResult && (
-              <p className={`mt-2 text-sm ${bookingResult.includes("Fel") ? "text-destructive" : "text-[oklch(0.55_0.15_155)]"}`}>
+              <p className={`mt-2 text-sm ${bookingResult.includes("Fel") ? "text-destructive" : "text-success"}`}>
                 {bookingResult}
               </p>
             )}
