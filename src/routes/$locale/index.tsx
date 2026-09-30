@@ -243,7 +243,16 @@ function Landing() {
                   <div className="mt-1 text-xs text-muted-foreground">{p.category.name}</div>
                   <div className="mt-auto pt-3 border-t border-border mt-3 flex items-center justify-between">
                     <span className="text-[10px] text-muted-foreground">
-                      {p.lead_time_days != null ? (p.lead_time_days <= 7 ? t("index.inStock") : `${p.lead_time_days}d`) : "—"}
+                      {/* Sa tidigare "På lager" vid ≤7 dagar. Det var osant:
+                          alla 887 artiklar står som availability='order' och
+                          ingenting lagerförs. Dessutom är siffran en
+                          UPPSKATTNING -- 40 % av katalogen har samma 21 dagar
+                          tvärs alla åtta fabrikat, vilket är ett ifyllnadsvärde
+                          och ingen mätning. Därför "ca", och därför frågan i
+                          stället för ett streck när värdet saknas. */}
+                      {p.lead_time_days != null
+                        ? t("index.leadEst").replace("{d}", String(p.lead_time_days))
+                        : t("index.leadAsk")}
                     </span>
                     <span className="text-xs text-info">{t("index.viewProduct")}</span>
                   </div>

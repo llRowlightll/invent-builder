@@ -298,7 +298,15 @@ function ProductDetail() {
 
       <section className="mt-6 rounded-lg border border-border bg-card p-4 space-y-2 text-sm">
         <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-3">{t("productPage.priceSection")}</h2>
-        <Row k={t("productPage.estimatedDelivery")} v={t("productPage.contactForDelivery")} />
+        {/* Visade "Kontakta oss" även när en uppskattning fanns. Nu visas
+            uppskattningen där den finns, märkt som en sådan -- 40 % av
+            katalogen delar samma 21 dagar, så siffran är inte bekräftad. */}
+        <Row
+          k={t("productPage.estimatedDelivery")}
+          v={product.lead_time_days != null
+            ? t("index.leadEst").replace("{d}", String(product.lead_time_days))
+            : t("productPage.contactForDelivery")}
+        />
       </section>
 
       {Object.keys(product.specs).length > 0 && (

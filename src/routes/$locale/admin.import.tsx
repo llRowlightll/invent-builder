@@ -156,7 +156,7 @@ function ImportPage() {
     const bMap = new Map(brands?.map(b => [b.slug, b.id]));
     const cMap = new Map(cats?.map(c => [c.slug, c.id]));
 
-    const valid: { sku: string; name: string; brand_id: string; category_id: string; family: string | null; description: string | null; lead_time_days: number; ip_rating: string | null; fieldbus: string | null; voltage: string | null }[] = [];
+    const valid: { sku: string; name: string; brand_id: string; category_id: string; family: string | null; description: string | null; lead_time_days: number | null; ip_rating: string | null; fieldbus: string | null; voltage: string | null }[] = [];
     const skipped: string[] = [];
 
     for (const r of rows) {
@@ -173,7 +173,10 @@ function ImportPage() {
         category_id: catId,
         family: r.family?.trim() || null,
         description: r.description?.trim() || null,
-        lead_time_days: r.lead_time_days ? Number(r.lead_time_days) : 14,
+        // Tomt fält betyder OKÄND leveranstid, inte 14 dagar. Den gamla
+        // standarden skrev in ett påhittat värde som sedan visades för
+        // kunden som om någon kontrollerat det.
+        lead_time_days: r.lead_time_days ? Number(r.lead_time_days) : null,
         ip_rating: r.ip_rating?.trim() || null,
         fieldbus: r.fieldbus?.trim() || null,
         voltage: r.voltage?.trim() || null,
@@ -358,7 +361,7 @@ function ImportPage() {
                         <td className="px-3 py-2 max-w-[200px] truncate">{r.name}</td>
                         <td className="px-3 py-2">{r.brand_slug}</td>
                         <td className="px-3 py-2">{r.category_slug}</td>
-                        <td className="px-3 py-2 text-center">{r.lead_time_days || "14"}</td>
+                        <td className="px-3 py-2 text-center">{r.lead_time_days || "—"}</td>
                         <td className="px-3 py-2">
                           {ok
                             ? <span className="text-success-deep">✓</span>

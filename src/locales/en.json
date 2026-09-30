@@ -192,12 +192,13 @@
     "brand": "Brand",
     "category": "Category",
     "availability": "Availability",
-    "inStock": "Fast delivery",
-    "standard": "Standard (≤21d)",
-    "onOrder": "On order",
+    "inStock": "Short lead time (approx. ≤7 d)",
+    "standard": "Normal (approx. ≤21 d)",
+    "onOrder": "Long or unknown",
     "clearFilters": "Clear filters",
     "count": "products",
-    "of": "of"
+    "of": "of",
+    "leadEstimateNote": "Lead times are estimates and are confirmed in the quote."
   },
   "app": {
     "welcome": "Welcome",
@@ -226,7 +227,6 @@
     "featuredLabel": "Featured products",
     "featuredTitle": "Popular components",
     "featuredAll": "Full catalog →",
-    "inStock": "In stock",
     "viewProduct": "View →",
     "categoriesLabel": "Product families",
     "categoriesTitle": "Categories",
@@ -265,7 +265,9 @@
     "routePromiseBody": "Send a quote request or place an order. You hear back from a person, not a form.",
     "routeConfigCta": "Open the configurator",
     "routeAdvisorCta": "Ask the AI engineer",
-    "routePromiseCta": "Go to the list"
+    "routePromiseCta": "Go to the list",
+    "leadEst": "approx. {d} d",
+    "leadAsk": "Lead time on request"
   },
   "productsPage": {
     "aiSearchLabel": "✦ AI search",

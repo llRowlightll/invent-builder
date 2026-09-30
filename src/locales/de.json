@@ -192,12 +192,13 @@
     "brand": "Marke",
     "category": "Kategorie",
     "availability": "Verfügbarkeit",
-    "inStock": "Schnelle Lieferung",
-    "standard": "Standard (≤21d)",
-    "onOrder": "Auf Bestellung",
+    "inStock": "Kurze Lieferzeit (ca. ≤7 T)",
+    "standard": "Normal (ca. ≤21 T)",
+    "onOrder": "Lang oder unbekannt",
     "clearFilters": "Filter zurücksetzen",
     "count": "Produkte",
-    "of": "von"
+    "of": "von",
+    "leadEstimateNote": "Lieferzeiten sind Schätzungen und werden im Angebot bestätigt."
   },
   "app": {
     "welcome": "Willkommen",
@@ -226,7 +227,6 @@
     "featuredLabel": "Ausgewählte Produkte",
     "featuredTitle": "Beliebte Komponenten",
     "featuredAll": "Ganzer Katalog →",
-    "inStock": "Auf Lager",
     "viewProduct": "Ansehen →",
     "categoriesLabel": "Produktfamilien",
     "categoriesTitle": "Kategorien",
@@ -265,7 +265,9 @@
     "routePromiseBody": "Angebot anfragen oder bestellen. Sie hören von einem Menschen, nicht von einem Formular.",
     "routeConfigCta": "Konfigurator öffnen",
     "routeAdvisorCta": "KI-Ingenieur fragen",
-    "routePromiseCta": "Zur Liste"
+    "routePromiseCta": "Zur Liste",
+    "leadEst": "ca. {d} T",
+    "leadAsk": "Lieferzeit auf Anfrage"
   },
   "productsPage": {
     "aiSearchLabel": "✦ KI-Suche",

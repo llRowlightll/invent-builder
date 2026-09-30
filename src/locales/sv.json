@@ -192,12 +192,13 @@
     "brand": "Varumärke",
     "category": "Kategori",
     "availability": "Tillgänglighet",
-    "inStock": "Snabb leverans",
-    "standard": "Standard (≤21d)",
-    "onOrder": "Beställning",
+    "inStock": "Kort leveranstid (ca ≤7 dgr)",
+    "standard": "Normal (ca ≤21 dgr)",
+    "onOrder": "Lång eller okänd",
     "clearFilters": "Rensa filter",
     "count": "produkter",
-    "of": "av"
+    "of": "av",
+    "leadEstimateNote": "Leveranstiderna är uppskattningar och bekräftas i offerten."
   },
   "app": {
     "welcome": "Välkommen",
@@ -226,7 +227,6 @@
     "featuredLabel": "Utvalda produkter",
     "featuredTitle": "Populära komponenter",
     "featuredAll": "Hela katalogen →",
-    "inStock": "På lager",
     "viewProduct": "Visa →",
     "categoriesLabel": "Produktfamiljer",
     "categoriesTitle": "Kategorier",
@@ -265,7 +265,9 @@
     "routePromiseBody": "Skicka en offertförfrågan eller lägg en beställning. Du hör från en människa, inte ett formulär.",
     "routeConfigCta": "Öppna konfiguratorn",
     "routeAdvisorCta": "Fråga AI-ingenjören",
-    "routePromiseCta": "Till inköpslistan"
+    "routePromiseCta": "Till inköpslistan",
+    "leadEst": "ca {d} dgr",
+    "leadAsk": "Leveranstid på förfrågan"
   },
   "productsPage": {
     "aiSearchLabel": "✦ AI-sökning",

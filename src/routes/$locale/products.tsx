@@ -524,6 +524,12 @@ function ProductsPage() {
                 onChange={() => toggleSet(grades, g, setGrades)}
               />
             ))}
+            {/* Filtret sorterar på lead_time_days, som till 40 % är samma
+                ifyllda 21 dagar tvärs alla åtta fabrikat. Kunden ska veta att
+                det är en uppskattning innan hen filtrerar på den. */}
+            <p className="pt-2 text-[11px] leading-snug text-muted-foreground">
+              {t("products.leadEstimateNote")}
+            </p>
           </div>
         </AccordionFilter>
 
