@@ -897,8 +897,25 @@ function SpecChip({ label, value }: { label: string; value: string }) {
 // Renders nothing when the numbers needed for a given bar aren't available, so it
 // degrades silently for options/applications where force or stroke don't apply
 // (e.g. electric actuators, torque-based rotary picks, CUSTOM-SOLUTION).
-function DimensioningBar({ label, required, available, unit, requiredLabel, availableLabel }: {
-  label: string; required: number; available: number; unit: string; requiredLabel: string; availableLabel: string;
+/**
+ * Överskott betyder olika saker för olika storheter.
+ *
+ * För KRAFT är marginal en säkerhetsfaktor: 1,9× är bra, och grönt är rätt.
+ *
+ * För SLAGLÄNGD är det en AVVIKELSE. En cylinder med 200 mm slag när 150 krävs
+ * behöver ett mekaniskt ändstopp, mer monteringsutrymme, mer luft per cykel och
+ * ger längre cykeltid -- och risk för kollision om rörelsen inte begränsas.
+ * Baren visade tidigare "1,3×" i grönt och punktlistan skrev "Längre slaglängd
+ * än krav" som en fördel. Det är inte en fördel, och en maskinbyggare som litar
+ * på den gröna bocken bygger in ett fel.
+ *
+ * `overskottAr` säger vilket av de två som gäller.
+ */
+function DimensioningBar({ label, required, available, unit, requiredLabel, availableLabel,
+                           overskottAr = "marginal", avvikelseNot }: {
+  label: string; required: number; available: number; unit: string;
+  requiredLabel: string; availableLabel: string;
+  overskottAr?: "marginal" | "avvikelse"; avvikelseNot?: string;
 }) {
   const max = Math.max(required, available, 1) * 1.05; // headroom so the bar isn't edge-to-edge
   const availPct = Math.min((available / max) * 100, 100);
@@ -906,17 +923,25 @@ function DimensioningBar({ label, required, available, unit, requiredLabel, avai
   const meets = available >= required;
   const margin = required > 0 ? available / required : null;
 
+  // Ett par procent över är samma standardstorlek, inte en avvikelse.
+  const overskott = required > 0 && available > required * 1.02;
+  const avviker = overskottAr === "avvikelse" && overskott;
+
+  const ton = !meets ? "fel" : avviker ? "avvikelse" : "ok";
+  const textFarg = ton === "fel" ? "text-destructive" : ton === "avvikelse" ? "text-warning-deep" : "text-success-deep";
+  const stapelFarg = ton === "fel" ? "bg-destructive/70" : ton === "avvikelse" ? "bg-warning" : "bg-success";
+
   return (
     <div className="min-w-[160px] flex-1">
       <div className="flex items-baseline justify-between text-[11px] mb-1">
         <span className="text-muted-foreground">{label}</span>
-        <span className={`font-semibold ${meets ? "text-success-deep" : "text-destructive"}`}>
-          {margin != null ? `${margin.toFixed(1)}×` : meets ? "✓" : "⚠"}
+        <span className={`font-semibold ${textFarg}`}>
+          {!meets ? "⚠" : avviker ? `+${Math.round((margin! - 1) * 100)}%` : margin != null ? `${margin.toFixed(1)}×` : "✓"}
         </span>
       </div>
       <div className="relative h-2 rounded-full bg-muted overflow-hidden">
         <div
-          className={`absolute inset-y-0 left-0 rounded-full ${meets ? "bg-success" : "bg-destructive/70"}`}
+          className={`absolute inset-y-0 left-0 rounded-full ${stapelFarg}`}
           style={{ width: `${availPct}%` }}
         />
         <div
@@ -929,6 +954,9 @@ function DimensioningBar({ label, required, available, unit, requiredLabel, avai
         <span>{requiredLabel} {required.toLocaleString()} {unit}</span>
         <span>{availableLabel} {available.toLocaleString()} {unit}</span>
       </div>
+      {avviker && avvikelseNot && (
+        <p className="mt-1.5 text-[10.5px] leading-snug text-warning-deep">{avvikelseNot}</p>
+      )}
     </div>
   );
 }
@@ -963,6 +991,10 @@ function DimensioningPanel({ locale, requirements, option, bordered = true }: {
           unit="mm"
           requiredLabel={isSv ? "Krävs" : "Required"}
           availableLabel={isSv ? "Klarar" : "Rated"}
+          overskottAr="avvikelse"
+          avvikelseNot={isSv
+            ? "Avviker från önskad slaglängd. Rörelsen måste begränsas mekaniskt eller med justerbart ändstopp."
+            : "Deviates from the requested stroke. The motion must be limited mechanically or with an adjustable end stop."}
         />
       )}
     </div>
