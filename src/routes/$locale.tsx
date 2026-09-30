@@ -18,6 +18,22 @@ export const Route = createFileRoute("/$locale")({
     }
     return { locale: params.locale };
   },
+  // Rotens meta kan inte se vilket språk sidan är på, så og:locale sattes
+  // hårdkodat till en_US -- även på svenska sidor. Här finns parametern.
+  head: ({ params }) => {
+    const karta: Record<string, string> = {
+      sv: "sv_SE", en: "en_US", de: "de_DE", es: "es_ES",
+    };
+    const denna = karta[params.locale as string] ?? "en_US";
+    return {
+      meta: [
+        { property: "og:locale", content: denna },
+        ...Object.values(karta)
+          .filter((l) => l !== denna)
+          .map((l) => ({ property: "og:locale:alternate", content: l })),
+      ],
+    };
+  },
   component: LocaleLayout,
   notFoundComponent: () => (
     <div className="flex min-h-screen items-center justify-center">

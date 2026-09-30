@@ -80,10 +80,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:title", content: "Maskinval — Industrial automation" },
       { property: "og:description", content: "Search across Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work and Camozzi. AI-driven component selector with BOM and RFQ." },
       { property: "og:type", content: "website" },
-      { property: "og:locale", content: "en_US" },
-      { property: "og:locale:alternate", content: "sv_SE" },
-      { property: "og:locale:alternate", content: "de_DE" },
-      { property: "og:locale:alternate", content: "es_ES" },
+      // og:locale sätts av $locale-rutten, som vet vilket språk sidan är på.
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Maskinval — Industrial automation" },
       { name: "twitter:description", content: "AI search for pneumatics and automation. Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work, Camozzi." },
@@ -122,8 +119,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: React.ReactNode }) {
-  // Best-effort SSR lang from URL
-  const lang = DEFAULT_LOCALE;
+  // Språket läses ur URL:en HÄR, på servern.
+  //
+  // Tidigare stod det DEFAULT_LOCALE rakt av, alltså "en", och LangSync nedan
+  // rättade det -- men bara i webbläsaren, bakom typeof document !== "undefined".
+  // En besökare fick därför rätt värde efter hydrering medan GOOGLEBOT såg
+  // lang="en" på varenda svensk sida, i motsägelse mot sidans egna
+  // hreflang-taggar. Det gäller cirka 1 000 svenska URL:er.
+  const pathname = useRouterState({ select: (st) => st.location.pathname });
+  const seg = pathname.split("/")[1];
+  const lang = isLocale(seg) ? seg : DEFAULT_LOCALE;
   return (
     <html lang={lang} suppressHydrationWarning>
       <head>
