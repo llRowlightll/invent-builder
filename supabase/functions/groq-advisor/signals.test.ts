@@ -448,3 +448,32 @@ Deno.test("minBoreMm dimensioneras mot den angivna kraften", () => {
   assertEquals(h.minBoreMm, 51);
   assert(usableForceN(h.minBoreMm) >= 900, "vald borrning måste klara den angivna kraften");
 });
+
+Deno.test("needsRodLock: extern låsning räknas som låsningskrav", () => {
+  // Regressionen: en kund beskrev en vertikal press med "extern låsning".
+  // Mönstret kände bara "stångbroms" och "mekaniskt lås", så flaggan sattes
+  // aldrig och stycklistan fick ingen stångbroms -- backslagsventilen stod
+  // kvar ensam som om kravet var uppfyllt.
+  for (const t of [
+    "Vertikal dubbelverkande cylinder med extern låsning och justerbar slaglängd",
+    "behöver lastsäkring så locket inte faller",
+    "måste hålla lasten vid tryckbortfall",
+    "cylinder som ska låsa kolvstången",
+    "vertical press with external locking",
+    "vertikale Presse mit externer Verriegelung",
+    "prensa vertical con bloqueo externo",
+  ]) {
+    assert(needsRodLock(t), `skulle ha matchat: ${t}`);
+  }
+});
+
+Deno.test("needsRodLock: ändlägeslåsning är INTE en säkerhetsbroms", () => {
+  // Ändlägeslåsning är en cylinderoption (DSBC ...-S2), inte en fallskyddsbroms.
+  // Matchar den här skulle varenda DSBC-konfiguration få en stångbroms påtvingad.
+  for (const t of [
+    "DSBC Ø32 med ändlägeslåsning",
+    "cylinder med ändlägeslåsning i främre läge",
+  ]) {
+    assert(!needsRodLock(t), `skulle INTE ha matchat: ${t}`);
+  }
+});

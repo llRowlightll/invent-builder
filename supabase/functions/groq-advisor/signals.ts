@@ -454,7 +454,17 @@ export function isPneumaticByDrive(p: CatalogProduct): boolean {
  *  AND power loss (e-stop with corrosive media, etc.). A pilot check valve holds
  *  pressure but not a broken hose — a spring-applied rod lock is the fail-safe. */
 export function needsRodLock(text: string): boolean {
-  return /stångbroms|stång.?lås|rod.?lock|mekaniskt?\s+lås|fallskydd|spring.?applied|hållbroms|broms.*(strömavbrott|nödstopp|luftbortfall)|inte\s+fall(a|er)\s+(ner|ned)|får\s+inte\s+falla|kolbenstangenbremse|mechanische\s?verriegelung|mechanisches\s?schloss|absturzsicherung|darf\s?nicht\s?fallen|freno\s?de\s?vástago|bloqueo\s?mecánico|no\s?debe\s?caer|no\s?puede\s?caer/i.test(text);
+  // "extern låsning" saknades och det kostade oss en felaktig lösning.
+  //
+  // En kund beskrev en vertikal press med EXTERN LÅSNING. Mönstret kände igen
+  // "stångbroms" och "mekaniskt lås" men inte den formuleringen, så flaggan
+  // sattes aldrig -- stångbromsen lades inte till, och backslagsventilen stod
+  // kvar ensam som om kravet var uppfyllt. Den håller trycket, inte lasten.
+  //
+  // ÄNDLÄGESLÅSNING är medvetet INTE med här. Det är en cylinderoption för att
+  // låsa i ändläge, inte en säkerhetsbroms, och att blanda ihop dem skulle ge
+  // falska träffar på varenda DSBC-konfiguration.
+  return /stångbroms|stång.?lås|rod.?lock|mekaniskt?\s+lås|fallskydd|spring.?applied|hållbroms|broms.*(strömavbrott|nödstopp|luftbortfall)|inte\s+fall(a|er)\s+(ner|ned)|får\s+inte\s+falla|extern[at]?\s+låsning|lastsäkring|lasthållning|håll[a]?\s+lasten|lås[a]?\s+(lasten|kolvstången|cylindern)|kolbenstangenbremse|mechanische\s?verriegelung|mechanisches\s?schloss|absturzsicherung|darf\s?nicht\s?fallen|externe[rnms]?\s?verriegelung|lastsicherung|freno\s?de\s?vástago|bloqueo\s?mecánico|bloqueo\s?extern[oa]|no\s?debe\s?caer|no\s?puede\s?caer|external\s+lock(ing)?|load\s+holding/i.test(text);
 }
 
 /**
