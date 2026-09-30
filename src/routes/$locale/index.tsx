@@ -371,7 +371,7 @@ function Landing() {
               </div>
             </div>
             <div className="flex flex-col items-center gap-3">
-              <div className="size-12 rounded-full bg-[oklch(0.92_0.06_155)]/60 flex items-center justify-center text-2xl">👷</div>
+              <div className="size-12 rounded-full bg-success-surface/60 flex items-center justify-center text-2xl">👷</div>
               <div>
                 <div className="font-semibold text-sm text-foreground">{t("index.how2Title")}</div>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t("index.how2Body")}</p>
@@ -545,7 +545,7 @@ function BrandLogo({ slug, name }: { slug: string; name: string }) {
           loading="lazy"
         />
       ) : (
-        <span className="font-bold text-base tracking-tight text-gray-700 select-none">{name}</span>
+        <span className="font-bold text-base tracking-tight text-foreground select-none">{name}</span>
       )}
     </div>
   );

@@ -829,7 +829,7 @@ function ShoppingListPage() {
       {rfqSent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm bg-card rounded-2xl shadow-2xl p-8 text-center border border-border">
-            <div className="size-16 rounded-full bg-[oklch(0.55_0.15_155)]/15 flex items-center justify-center mx-auto mb-4 text-3xl">
+            <div className="size-16 rounded-full bg-success/15 flex items-center justify-center mx-auto mb-4 text-3xl">
               ✓
             </div>
             <h2 className="text-xl font-semibold">

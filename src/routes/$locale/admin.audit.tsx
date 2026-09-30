@@ -18,9 +18,9 @@ interface AuditRow {
 }
 
 const ACTION_STYLE: Record<string, string> = {
-  INSERT: "bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)]",
-  UPDATE: "bg-[oklch(0.94_0.08_85)] text-[oklch(0.38_0.12_75)]",
-  DELETE: "bg-[oklch(0.93_0.08_25)] text-[oklch(0.38_0.18_25)]",
+  INSERT: "bg-success-surface text-success-deep",
+  UPDATE: "bg-warning-surface text-warning-deep",
+  DELETE: "bg-info-surface text-info",
 };
 
 function AuditPage() {

@@ -352,14 +352,14 @@ function ConfiguratorPage() {
       <div className="max-w-5xl mx-auto px-4 py-8">
         {seo && (
           <header className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">{seo.name}</h1>
-            <p className="text-sm text-gray-500 mt-3 leading-relaxed max-w-2xl">{configuratorIntro(seo, locale)}</p>
+            <h1 className="text-3xl font-bold text-foreground">{seo.name}</h1>
+            <p className="text-sm text-muted-foreground mt-3 leading-relaxed max-w-2xl">{configuratorIntro(seo, locale)}</p>
             <div className="flex items-center gap-3 mt-3">
               {seo.standard && (
                 <span className="inline-block px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded font-medium">{seo.standard}</span>
               )}
               {seo.stroke_min_mm != null && seo.stroke_max_mm != null && seo.stroke_max_mm > 0 && (
-                <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
+                <span className="inline-block px-2 py-1 text-xs bg-muted text-muted-foreground rounded">
                   Slag: {seo.stroke_min_mm}–{seo.stroke_max_mm} mm
                 </span>
               )}
@@ -374,7 +374,7 @@ function ConfiguratorPage() {
 
   if (!family)
     return (
-      <div className="p-8 text-center text-gray-500">
+      <div className="p-8 text-center text-muted-foreground">
         <p className="text-lg font-medium mb-2">Produktfamilj ej hittad</p>
         <Link
           to={"/$locale/configure" as never}
@@ -402,23 +402,23 @@ function ConfiguratorPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-gray-500 mb-6">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
         <Link to={"/$locale/configure" as never} params={{ locale } as never} className="hover:text-blue-600">
           Konfigurator
         </Link>
         <span>›</span>
-        <span className="text-gray-400">
+        <span className="text-muted-foreground">
           {categoryLabels[family.category_slug] || family.category_slug}
         </span>
         <span>›</span>
-        <span className="text-gray-900 font-medium">{family.name}</span>
+        <span className="text-foreground font-medium">{family.name}</span>
       </div>
 
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">{family.name}</h1>
-        <p className="text-gray-600 mt-1 text-lg">{family.title}</p>
-        <p className="text-sm text-gray-500 mt-3 leading-relaxed max-w-2xl">
+        <h1 className="text-3xl font-bold text-foreground">{family.name}</h1>
+        <p className="text-muted-foreground mt-1 text-lg">{family.title}</p>
+        <p className="text-sm text-muted-foreground mt-3 leading-relaxed max-w-2xl">
           {configuratorIntro(
             {
               name: family.name,
@@ -437,7 +437,7 @@ function ConfiguratorPage() {
             </span>
           )}
           {family.stroke_min_mm != null && family.stroke_max_mm != null && (
-            <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
+            <span className="inline-block px-2 py-1 text-xs bg-muted text-muted-foreground rounded">
               Slag: {family.stroke_min_mm}–{family.stroke_max_mm} mm
             </span>
           )}
@@ -450,15 +450,15 @@ function ConfiguratorPage() {
           {params.map((param, idx) => (
             <div
               key={param.id}
-              className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm"
+              className="bg-white border border-border rounded-xl p-5 shadow-sm"
             >
               <div className="flex items-center gap-3 mb-4">
                 <span className="w-7 h-7 flex items-center justify-center rounded-full bg-blue-600 text-white text-sm font-bold flex-shrink-0">
                   {idx + 1}
                 </span>
-                <h3 className="font-semibold text-gray-800">{paramLabel(param.label, locale)}</h3>
+                <h3 className="font-semibold text-foreground">{paramLabel(param.label, locale)}</h3>
                 {!param.required && (
-                  <span className="text-xs text-gray-400 ml-auto bg-gray-100 px-2 py-0.5 rounded">
+                  <span className="text-xs text-muted-foreground ml-auto bg-muted px-2 py-0.5 rounded">
                     Valfritt
                   </span>
                 )}
@@ -476,7 +476,7 @@ function ConfiguratorPage() {
                       onClick={() =>
                         setSelections((prev) => clearValue(prev, param.param_key))
                       }
-                      className="text-xs text-gray-400 hover:text-gray-700 underline underline-offset-2"
+                      className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
                     >
                       Rensa
                     </button>
@@ -504,10 +504,10 @@ function ConfiguratorPage() {
                         [param.param_key]: e.target.value,
                       }))
                     }
-                    className="w-36 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-36 border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
-                  <span className="text-sm text-gray-500">mm</span>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-sm text-muted-foreground">mm</span>
+                  <span className="text-xs text-muted-foreground">
                     ({lo}–{hi} mm)
                   </span>
                 </div>
@@ -533,7 +533,7 @@ function ConfiguratorPage() {
                         className={`px-3 py-2 rounded-lg border text-sm font-medium transition-all text-left ${
                           selected
                             ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                            : "bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50"
+                            : "bg-white text-foreground border-border hover:border-blue-400 hover:bg-blue-50"
                         }`}
                       >
                         {/* Bortvalet har ingen kod att visa -- "none" är en
@@ -542,7 +542,7 @@ function ConfiguratorPage() {
                           <span className="block font-semibold">{val.code}</span>
                         )}
                         <span
-                          className={`block text-xs mt-0.5 ${selected ? "text-blue-100" : "text-gray-500"}`}
+                          className={`block text-xs mt-0.5 ${selected ? "text-blue-100" : "text-muted-foreground"}`}
                         >
                           {stripLeadingCode(valueLabel(val.label, locale), val.code)}
                         </span>
@@ -558,8 +558,8 @@ function ConfiguratorPage() {
         {/* Right: sticky order code panel */}
         <div className="space-y-4">
           {/* Live order code */}
-          <div className="bg-gray-900 text-white rounded-xl p-5 sticky top-4">
-            <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">
+          <div className="bg-foreground/85 text-white rounded-xl p-5 sticky top-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
               Orderkod
             </p>
             <p className="font-mono text-base font-bold break-all leading-tight min-h-[2.5rem]">
@@ -585,7 +585,7 @@ function ConfiguratorPage() {
               </ul>
             )}
 
-            <div className="mt-4 pt-4 border-t border-gray-700">
+            <div className="mt-4 pt-4 border-t border-foreground/30">
               <div className="flex items-center gap-2 mb-3">
                 <div
                   className={`w-2 h-2 rounded-full ${
@@ -596,7 +596,7 @@ function ConfiguratorPage() {
                         : "bg-yellow-400"
                   }`}
                 />
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-muted-foreground">
                   {blocking.length > 0
                     ? "Kombinationen går inte att beställa"
                     : isComplete
@@ -615,7 +615,7 @@ function ConfiguratorPage() {
                     setQty(Math.max(1, Math.floor(Number(e.target.value) || 1)));
                     setTillagdILista(false);
                   }}
-                  className="w-16 py-2.5 rounded-lg bg-gray-800 border border-gray-700 text-center text-sm text-white"
+                  className="w-16 py-2.5 rounded-lg bg-foreground/85 border border-foreground/30 text-center text-sm text-white"
                 />
                 <button
                   disabled={!isComplete}
@@ -641,7 +641,7 @@ function ConfiguratorPage() {
                       ? tillagdILista
                         ? "bg-green-500 text-white"
                         : "bg-blue-500 hover:bg-blue-400 text-white"
-                      : "bg-gray-700 text-gray-400 cursor-not-allowed"
+                      : "bg-foreground/85 text-muted-foreground cursor-not-allowed"
                   }`}
                 >
                   {tillagdILista ? "✓ Tillagd i listan" : "Lägg till i inköpslistan"}
@@ -664,8 +664,8 @@ function ConfiguratorPage() {
             const v = selections[k];
             return v !== "" && !(Array.isArray(v) && v.length === 0);
           }) && (
-            <div className="bg-white border border-gray-200 rounded-xl p-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            <div className="bg-white border border-border rounded-xl p-4">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                 Dina val
               </p>
               <div className="space-y-2">
@@ -678,8 +678,8 @@ function ConfiguratorPage() {
                     : val;
                   return (
                     <div key={p.id} className="flex justify-between text-sm gap-2">
-                      <span className="text-gray-500 shrink-0">{paramLabel(p.label, locale)}</span>
-                      <span className="font-medium text-gray-800 text-right">
+                      <span className="text-muted-foreground shrink-0">{paramLabel(p.label, locale)}</span>
+                      <span className="font-medium text-foreground text-right">
                         {display}
                       </span>
                     </div>
@@ -688,7 +688,7 @@ function ConfiguratorPage() {
               </div>
               <button
                 onClick={() => setSelections({})}
-                className="mt-3 text-xs text-gray-400 hover:text-red-500 transition-colors"
+                className="mt-3 text-xs text-muted-foreground hover:text-red-500 transition-colors"
               >
                 Rensa alla val
               </button>
@@ -698,19 +698,19 @@ function ConfiguratorPage() {
           {/* Tillverkarens underlag — visar VAD valen bygger på. Utan den här
               raden är konfiguratorn ett påstående; med den går den att spåra. */}
           {docs.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-xl p-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            <div className="bg-white border border-border rounded-xl p-4">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                 {locale === "sv" ? "Underlag" : "Source documents"}
               </p>
               <ul className="space-y-1.5">
                 {docs.map((d) => (
-                  <li key={d.source_file} className="text-xs text-gray-600 leading-snug">
-                    <span className="text-gray-400 mr-1.5">📄</span>
+                  <li key={d.source_file} className="text-xs text-muted-foreground leading-snug">
+                    <span className="text-muted-foreground mr-1.5">📄</span>
                     {d.doc_title ?? d.source_file}
                   </li>
                 ))}
               </ul>
-              <p className="mt-3 text-[11px] text-gray-400 leading-snug">
+              <p className="mt-3 text-[11px] text-muted-foreground leading-snug">
                 {locale === "sv"
                   ? "Beställnyckel och villkor är hämtade ur tillverkarens katalog."
                   : "Ordering key and conditions are taken from the manufacturer's catalogue."}
@@ -720,17 +720,17 @@ function ConfiguratorPage() {
 
           {/* Accessories */}
           {accessories.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-xl p-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            <div className="bg-white border border-border rounded-xl p-4">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                 Tillbehör & tillval
               </p>
               <div className="space-y-2 max-h-72 overflow-y-auto">
                 {accessories.map((acc) => (
                   <div key={acc.id} className="flex items-start gap-2 py-1">
-                    <span className="text-xs font-mono bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded mt-0.5 whitespace-nowrap flex-shrink-0">
+                    <span className="text-xs font-mono bg-muted text-foreground px-1.5 py-0.5 rounded mt-0.5 whitespace-nowrap flex-shrink-0">
                       {acc.accessory_code}
                     </span>
-                    <span className="text-sm text-gray-700 leading-tight">
+                    <span className="text-sm text-foreground leading-tight">
                       {acc.name
                         .replace(acc.accessory_code + " ", "")
                         .trim()}

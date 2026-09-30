@@ -316,7 +316,7 @@ ${co.name}`;
               : <>📎 Läs in leverantörsoffert</>}
           </button>
           {quoteReadMsg && (
-            <span className={`text-xs ${quoteReadMsg.startsWith("✓") ? "text-[oklch(0.50_0.18_155)]" : "text-destructive"}`}>
+            <span className={`text-xs ${quoteReadMsg.startsWith("✓") ? "text-success-deep" : "text-destructive"}`}>
               {quoteReadMsg}
             </span>
           )}
@@ -337,7 +337,7 @@ ${co.name}`;
             <button
               onClick={sendToCustomer}
               disabled={sending || sent}
-              className="px-4 py-1.5 text-sm rounded-md bg-[oklch(0.60_0.18_155)] text-white hover:opacity-90 transition disabled:opacity-50"
+              className="px-4 py-1.5 text-sm rounded-md bg-success text-white hover:opacity-90 transition disabled:opacity-50"
             >
               {sent ? "✓ Skickad" : sending ? "Skickar…" : "📧 Skicka till kund"}
             </button>
@@ -408,61 +408,61 @@ ${co.name}`;
               <div className="text-2xl font-bold tracking-tight" style={{ fontFamily: "system-ui, sans-serif" }}>
                 {co.name}
               </div>
-              <div className="text-xs text-gray-500 mt-1 space-y-0.5" style={{ fontFamily: "system-ui, sans-serif" }}>
+              <div className="text-xs text-muted-foreground mt-1 space-y-0.5" style={{ fontFamily: "system-ui, sans-serif" }}>
                 <div>{co.address}{co.postal ? `, ${co.postal}` : ""}</div>
                 <div>{co.email}{co.email && co.phone ? " · " : ""}{co.phone}</div>
                 {co.org && <div>Org.nr {co.org}</div>}
               </div>
             </div>
             <div className="text-right">
-              <div className="text-3xl font-light tracking-widest uppercase text-gray-300" style={{ fontFamily: "system-ui, sans-serif" }}>
+              <div className="text-3xl font-light tracking-widest uppercase text-muted-foreground/70" style={{ fontFamily: "system-ui, sans-serif" }}>
                 Offert
               </div>
-              <div className="text-sm text-gray-600 mt-2 space-y-0.5" style={{ fontFamily: "system-ui, sans-serif" }}>
-                <div><span className="text-gray-400">Ref:</span> {docRef(rfqId)}</div>
-                <div><span className="text-gray-400">Datum:</span> {today}</div>
-                <div><span className="text-gray-400">Giltig till:</span> {validUntil}</div>
+              <div className="text-sm text-muted-foreground mt-2 space-y-0.5" style={{ fontFamily: "system-ui, sans-serif" }}>
+                <div><span className="text-muted-foreground">Ref:</span> {docRef(rfqId)}</div>
+                <div><span className="text-muted-foreground">Datum:</span> {today}</div>
+                <div><span className="text-muted-foreground">Giltig till:</span> {validUntil}</div>
               </div>
             </div>
           </div>
 
           {/* Customer block */}
-          <div className="mb-8 p-4 bg-gray-50 rounded" style={{ fontFamily: "system-ui, sans-serif" }}>
-            <div className="text-xs uppercase tracking-wider text-gray-400 mb-2">Till</div>
-            <div className="font-semibold text-gray-800">{rfq.company ?? rfq.contact_name}</div>
-            {rfq.company && rfq.contact_name && <div className="text-sm text-gray-600">Att: {rfq.contact_name}</div>}
-            {rfq.org_number && <div className="text-sm text-gray-500">Org.nr {rfq.org_number}</div>}
-            {rfq.contact_email && <div className="text-sm text-gray-500">{rfq.contact_email}</div>}
-            {rfq.contact_phone && <div className="text-sm text-gray-500">{rfq.contact_phone}</div>}
-            {rfq.po_number && <div className="text-sm text-gray-600 mt-1">Er ref (PO): <span className="font-medium">{rfq.po_number}</span></div>}
+          <div className="mb-8 p-4 bg-muted rounded" style={{ fontFamily: "system-ui, sans-serif" }}>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Till</div>
+            <div className="font-semibold text-foreground">{rfq.company ?? rfq.contact_name}</div>
+            {rfq.company && rfq.contact_name && <div className="text-sm text-muted-foreground">Att: {rfq.contact_name}</div>}
+            {rfq.org_number && <div className="text-sm text-muted-foreground">Org.nr {rfq.org_number}</div>}
+            {rfq.contact_email && <div className="text-sm text-muted-foreground">{rfq.contact_email}</div>}
+            {rfq.contact_phone && <div className="text-sm text-muted-foreground">{rfq.contact_phone}</div>}
+            {rfq.po_number && <div className="text-sm text-muted-foreground mt-1">Er ref (PO): <span className="font-medium">{rfq.po_number}</span></div>}
           </div>
 
           {/* Admin-only document settings (hidden on print) */}
           <div className="print:hidden mb-6 grid grid-cols-2 gap-3 p-4 bg-amber-50 border border-amber-200 rounded text-xs">
             <label className="block">
-              <span className="text-gray-500 uppercase tracking-wide">Giltighetstid (dagar)</span>
+              <span className="text-muted-foreground uppercase tracking-wide">Giltighetstid (dagar)</span>
               <input value={validDays} onChange={e => setValidDays(e.target.value)}
-                className="mt-1 w-full border border-gray-200 rounded px-2 py-1" />
+                className="mt-1 w-full border border-border rounded px-2 py-1" />
             </label>
             <label className="block">
-              <span className="text-gray-500 uppercase tracking-wide">Leveranstid</span>
+              <span className="text-muted-foreground uppercase tracking-wide">Leveranstid</span>
               <input value={deliveryWeeks} onChange={e => setDeliveryWeeks(e.target.value)}
-                className="mt-1 w-full border border-gray-200 rounded px-2 py-1" />
+                className="mt-1 w-full border border-border rounded px-2 py-1" />
             </label>
             <label className="block">
-              <span className="text-gray-500 uppercase tracking-wide">Betalningsvillkor</span>
+              <span className="text-muted-foreground uppercase tracking-wide">Betalningsvillkor</span>
               <input value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)}
-                className="mt-1 w-full border border-gray-200 rounded px-2 py-1" />
+                className="mt-1 w-full border border-border rounded px-2 py-1" />
             </label>
             <label className="block">
-              <span className="text-gray-500 uppercase tracking-wide">Valuta</span>
+              <span className="text-muted-foreground uppercase tracking-wide">Valuta</span>
               <select value={currency} onChange={e => setCurrency(e.target.value)}
-                className="mt-1 w-full border border-gray-200 rounded px-2 py-1">
+                className="mt-1 w-full border border-border rounded px-2 py-1">
                 <option>SEK</option><option>EUR</option><option>USD</option>
               </select>
             </label>
             <label className="block col-span-2">
-              <span className="text-gray-500 uppercase tracking-wide">
+              <span className="text-muted-foreground uppercase tracking-wide">
                 Intro-rabatt (%)
                 {firstTimer && <span className="ml-2 text-emerald-700 normal-case font-medium">🎁 Förstagångskund</span>}
               </span>
@@ -470,7 +470,7 @@ ${co.name}`;
                 <input
                   type="number" min={0} max={90} value={discountPct}
                   onChange={e => { setDiscountPct(Math.max(0, Math.min(90, Number(e.target.value) || 0))); setSaved(false); }}
-                  className="w-20 border border-gray-200 rounded px-2 py-1" />
+                  className="w-20 border border-border rounded px-2 py-1" />
                 {firstTimer && discountPct === 0 && (
                   <button type="button"
                     onClick={() => { setDiscountPct(15); setSaved(false); }}
@@ -488,31 +488,31 @@ ${co.name}`;
           {/* Line items table */}
           <table className="w-full text-sm mb-2" style={{ fontFamily: "system-ui, sans-serif" }}>
             <thead>
-              <tr className="border-b-2 border-gray-800">
-                <th className="text-left py-2 text-xs uppercase tracking-wider text-gray-500 w-20">Art.nr</th>
-                <th className="text-left py-2 text-xs uppercase tracking-wider text-gray-500">Benämning</th>
-                <th className="text-right py-2 text-xs uppercase tracking-wider text-gray-500 w-16">Antal</th>
-                <th className="text-right py-2 text-xs uppercase tracking-wider text-gray-500 w-28">À-pris ex. moms</th>
-                <th className="text-right py-2 text-xs uppercase tracking-wider text-gray-500 w-28">Belopp ex. moms</th>
+              <tr className="border-b-2 border-foreground/30">
+                <th className="text-left py-2 text-xs uppercase tracking-wider text-muted-foreground w-20">Art.nr</th>
+                <th className="text-left py-2 text-xs uppercase tracking-wider text-muted-foreground">Benämning</th>
+                <th className="text-right py-2 text-xs uppercase tracking-wider text-muted-foreground w-16">Antal</th>
+                <th className="text-right py-2 text-xs uppercase tracking-wider text-muted-foreground w-28">À-pris ex. moms</th>
+                <th className="text-right py-2 text-xs uppercase tracking-wider text-muted-foreground w-28">Belopp ex. moms</th>
               </tr>
             </thead>
             <tbody>
               {lineItems.map((it, i) => (
-                <tr key={it.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                  <td className="py-2.5 pr-3 text-xs text-gray-500 font-mono">{it.order_code ?? it.product?.sku ?? "—"}</td>
+                <tr key={it.id} className={i % 2 === 0 ? "bg-white" : "bg-muted"}>
+                  <td className="py-2.5 pr-3 text-xs text-muted-foreground font-mono">{it.order_code ?? it.product?.sku ?? "—"}</td>
                   <td className="py-2.5 pr-3">
-                    <div className="text-gray-800">{it.item_name ?? it.product?.name ?? "Okänd produkt"}</div>
+                    <div className="text-foreground">{it.item_name ?? it.product?.name ?? "Okänd produkt"}</div>
                     {/* Note — editable in admin, shown on print */}
                     <div className="print:hidden mt-1">
                       <input
                         value={it.editNote}
                         onChange={e => setLine(it.id, "note", e.target.value)}
                         placeholder="Anteckning (syns på offert)"
-                        className="text-xs w-full border-b border-dashed border-gray-300 focus:outline-none focus:border-info bg-transparent text-gray-500"
+                        className="text-xs w-full border-b border-dashed border-border focus:outline-none focus:border-info bg-transparent text-muted-foreground"
                       />
                     </div>
                     {it.editNote && (
-                      <div className="hidden print:block text-xs text-gray-500 mt-0.5">{it.editNote}</div>
+                      <div className="hidden print:block text-xs text-muted-foreground mt-0.5">{it.editNote}</div>
                     )}
                   </td>
                   <td className="py-2.5 text-right">
@@ -522,7 +522,7 @@ ${co.name}`;
                       min={1}
                       value={it.editQty}
                       onChange={e => setLine(it.id, "qty", Number(e.target.value))}
-                      className="print:hidden w-14 text-right border border-gray-200 rounded px-1 text-sm focus:outline-none focus:ring-1 focus:ring-info"
+                      className="print:hidden w-14 text-right border border-border rounded px-1 text-sm focus:outline-none focus:ring-1 focus:ring-info"
                     />
                     <span className="hidden print:inline">{it.editQty}</span>
                   </td>
@@ -533,11 +533,11 @@ ${co.name}`;
                       step={1}
                       value={it.editPrice}
                       onChange={e => setLine(it.id, "price", Number(e.target.value))}
-                      className="print:hidden w-24 text-right border border-gray-200 rounded px-1 text-sm focus:outline-none focus:ring-1 focus:ring-info"
+                      className="print:hidden w-24 text-right border border-border rounded px-1 text-sm focus:outline-none focus:ring-1 focus:ring-info"
                     />
                     <span className="hidden print:inline">{fmt(it.editPrice, currency)}</span>
                   </td>
-                  <td className="py-2.5 text-right font-medium text-gray-800">
+                  <td className="py-2.5 text-right font-medium text-foreground">
                     {fmt(it.lineTotal, currency)}
                   </td>
                 </tr>
@@ -550,8 +550,8 @@ ${co.name}`;
             <table className="text-sm w-64">
               <tbody>
                 <tr>
-                  <td className="py-1 text-gray-500">Summa ex. moms</td>
-                  <td className="py-1 text-right font-medium text-gray-800">{fmt(totalEx, currency)}</td>
+                  <td className="py-1 text-muted-foreground">Summa ex. moms</td>
+                  <td className="py-1 text-right font-medium text-foreground">{fmt(totalEx, currency)}</td>
                 </tr>
                 {discountPct > 0 && (
                   <tr>
@@ -560,52 +560,52 @@ ${co.name}`;
                   </tr>
                 )}
                 <tr>
-                  <td className="py-1 text-gray-500">Moms 25 %</td>
-                  <td className="py-1 text-right text-gray-700">{fmt(vatAmt, currency)}</td>
+                  <td className="py-1 text-muted-foreground">Moms 25 %</td>
+                  <td className="py-1 text-right text-foreground">{fmt(vatAmt, currency)}</td>
                 </tr>
-                <tr className="border-t-2 border-gray-800">
-                  <td className="py-2 font-bold text-gray-900">Totalt att betala</td>
-                  <td className="py-2 text-right font-bold text-gray-900 text-base">{fmt(totalInc, currency)}</td>
+                <tr className="border-t-2 border-foreground/30">
+                  <td className="py-2 font-bold text-foreground">Totalt att betala</td>
+                  <td className="py-2 text-right font-bold text-foreground text-base">{fmt(totalInc, currency)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
           {/* Terms */}
-          <div className="border-t border-gray-200 pt-6 mb-6 grid grid-cols-3 gap-6 text-xs text-gray-600" style={{ fontFamily: "system-ui, sans-serif" }}>
+          <div className="border-t border-border pt-6 mb-6 grid grid-cols-3 gap-6 text-xs text-muted-foreground" style={{ fontFamily: "system-ui, sans-serif" }}>
             <div>
-              <div className="uppercase tracking-wider text-gray-400 mb-1">Betalningsvillkor</div>
+              <div className="uppercase tracking-wider text-muted-foreground mb-1">Betalningsvillkor</div>
               <div className="print:block hidden">{paymentTerms}</div>
               <input
                 value={paymentTerms}
                 onChange={e => setPaymentTerms(e.target.value)}
-                className="print:hidden w-full border-b border-dashed border-gray-300 focus:outline-none bg-transparent"
+                className="print:hidden w-full border-b border-dashed border-border focus:outline-none bg-transparent"
               />
             </div>
             <div>
-              <div className="uppercase tracking-wider text-gray-400 mb-1">Leveranstid</div>
+              <div className="uppercase tracking-wider text-muted-foreground mb-1">Leveranstid</div>
               <div className="print:block hidden">{deliveryWeeks}</div>
               <input
                 value={deliveryWeeks}
                 onChange={e => setDeliveryWeeks(e.target.value)}
-                className="print:hidden w-full border-b border-dashed border-gray-300 focus:outline-none bg-transparent"
+                className="print:hidden w-full border-b border-dashed border-border focus:outline-none bg-transparent"
               />
             </div>
             <div>
-              <div className="uppercase tracking-wider text-gray-400 mb-1">Giltighet</div>
+              <div className="uppercase tracking-wider text-muted-foreground mb-1">Giltighet</div>
               <div>{validDays} dagar (t.o.m. {validUntil})</div>
             </div>
           </div>
 
           {/* Footer note */}
-          <div className="mb-8 text-xs text-gray-500" style={{ fontFamily: "system-ui, sans-serif" }}>
+          <div className="mb-8 text-xs text-muted-foreground" style={{ fontFamily: "system-ui, sans-serif" }}>
             <div className="print:block hidden whitespace-pre-wrap">{footerNote}</div>
             <textarea
               value={footerNote}
               onChange={e => setFooterNote(e.target.value)}
               placeholder="Eventuella noteringar (visas på offerten)…"
               rows={3}
-              className="print:hidden w-full border border-dashed border-gray-300 rounded p-2 text-xs focus:outline-none focus:border-info resize-none bg-transparent"
+              className="print:hidden w-full border border-dashed border-border rounded p-2 text-xs focus:outline-none focus:border-info resize-none bg-transparent"
             />
           </div>
 
@@ -617,9 +617,9 @@ ${co.name}`;
           )}
 
           {/* Signature */}
-          <div className="border-t border-gray-200 pt-6 flex justify-between text-xs text-gray-500" style={{ fontFamily: "system-ui, sans-serif" }}>
+          <div className="border-t border-border pt-6 flex justify-between text-xs text-muted-foreground" style={{ fontFamily: "system-ui, sans-serif" }}>
             <div>
-              <div className="font-semibold text-gray-700 mb-1">{co.name}</div>
+              <div className="font-semibold text-foreground mb-1">{co.name}</div>
               {co.email && <div>{co.email}</div>}
               {co.phone && <div>{co.phone}</div>}
               {co.web && <div>{co.web}</div>}
@@ -627,8 +627,8 @@ ${co.name}`;
               {co.vat && <div>Momsreg.nr: {co.vat}</div>}
             </div>
             <div className="text-right">
-              <div className="text-gray-400 mb-4">Underskrift / Stämpel</div>
-              <div className="border-b border-gray-300 w-40" />
+              <div className="text-muted-foreground mb-4">Underskrift / Stämpel</div>
+              <div className="border-b border-border w-40" />
             </div>
           </div>
 

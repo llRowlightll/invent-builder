@@ -122,13 +122,13 @@ export default function PublicOffertPage() {
   }
 
   if (loading) return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+    <div className="flex min-h-screen items-center justify-center bg-muted">
       <div className="size-6 rounded-full border-2 border-blue-300 border-t-blue-600 animate-spin" />
     </div>
   );
 
   if (!rfq || !lineItems.length) return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 text-gray-500 text-sm">
+    <div className="flex min-h-screen items-center justify-center bg-muted text-muted-foreground text-sm">
       Offerten hittades inte eller har inga rader.
     </div>
   );
@@ -138,7 +138,7 @@ export default function PublicOffertPage() {
   const alreadyAnswered = rfq.status === "accepted" || rfq.status === "rejected" || accepted || declined;
 
   return (
-    <div className="min-h-screen bg-gray-100 py-10 px-4">
+    <div className="min-h-screen bg-muted py-10 px-4">
       <div className="mx-auto max-w-3xl bg-white shadow-lg rounded-lg overflow-hidden">
         <div className="px-12 py-10" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
 
@@ -146,52 +146,52 @@ export default function PublicOffertPage() {
           <div className="flex items-start justify-between mb-10">
             <div>
               <div className="text-2xl font-bold" style={{ fontFamily: "system-ui, sans-serif" }}>{co.name}</div>
-              <div className="text-xs text-gray-500 mt-1 space-y-0.5" style={{ fontFamily: "system-ui, sans-serif" }}>
+              <div className="text-xs text-muted-foreground mt-1 space-y-0.5" style={{ fontFamily: "system-ui, sans-serif" }}>
                 {(co.address || co.postal) && <div>{co.address}{co.postal ? `, ${co.postal}` : ""}</div>}
                 <div>{co.email}{co.email && co.phone ? " · " : ""}{co.phone}</div>
               </div>
             </div>
             <div className="text-right">
-              <div className="text-3xl font-light tracking-widest uppercase text-gray-300" style={{ fontFamily: "system-ui, sans-serif" }}>Offert</div>
-              <div className="text-sm text-gray-600 mt-2 space-y-0.5" style={{ fontFamily: "system-ui, sans-serif" }}>
-                <div><span className="text-gray-400">Ref:</span> {docRef(rfqId)}</div>
-                <div><span className="text-gray-400">Datum:</span> {today}</div>
+              <div className="text-3xl font-light tracking-widest uppercase text-muted-foreground/70" style={{ fontFamily: "system-ui, sans-serif" }}>Offert</div>
+              <div className="text-sm text-muted-foreground mt-2 space-y-0.5" style={{ fontFamily: "system-ui, sans-serif" }}>
+                <div><span className="text-muted-foreground">Ref:</span> {docRef(rfqId)}</div>
+                <div><span className="text-muted-foreground">Datum:</span> {today}</div>
               </div>
             </div>
           </div>
 
           {/* Customer */}
-          <div className="mb-8 p-4 bg-gray-50 rounded" style={{ fontFamily: "system-ui, sans-serif" }}>
-            <div className="text-xs uppercase tracking-wider text-gray-400 mb-2">Till</div>
-            <div className="font-semibold text-gray-800">{rfq.company ?? rfq.contact_name}</div>
-            {rfq.company && rfq.contact_name && <div className="text-sm text-gray-600">Att: {rfq.contact_name}</div>}
-            {rfq.org_number && <div className="text-sm text-gray-500">Org.nr {rfq.org_number}</div>}
-            {rfq.contact_email && <div className="text-sm text-gray-500">{rfq.contact_email}</div>}
-            {rfq.po_number && <div className="text-sm text-gray-600 mt-1">Er ref (PO): <span className="font-medium">{rfq.po_number}</span></div>}
+          <div className="mb-8 p-4 bg-muted rounded" style={{ fontFamily: "system-ui, sans-serif" }}>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Till</div>
+            <div className="font-semibold text-foreground">{rfq.company ?? rfq.contact_name}</div>
+            {rfq.company && rfq.contact_name && <div className="text-sm text-muted-foreground">Att: {rfq.contact_name}</div>}
+            {rfq.org_number && <div className="text-sm text-muted-foreground">Org.nr {rfq.org_number}</div>}
+            {rfq.contact_email && <div className="text-sm text-muted-foreground">{rfq.contact_email}</div>}
+            {rfq.po_number && <div className="text-sm text-muted-foreground mt-1">Er ref (PO): <span className="font-medium">{rfq.po_number}</span></div>}
           </div>
 
           {/* Line items */}
           <table className="w-full text-sm mb-2" style={{ fontFamily: "system-ui, sans-serif" }}>
             <thead>
-              <tr className="border-b-2 border-gray-800">
-                <th className="text-left py-2 text-xs uppercase tracking-wider text-gray-500 w-20">Art.nr</th>
-                <th className="text-left py-2 text-xs uppercase tracking-wider text-gray-500">Benämning</th>
-                <th className="text-right py-2 text-xs uppercase tracking-wider text-gray-500 w-16">Antal</th>
-                <th className="text-right py-2 text-xs uppercase tracking-wider text-gray-500 w-28">À-pris ex. moms</th>
-                <th className="text-right py-2 text-xs uppercase tracking-wider text-gray-500 w-28">Belopp ex. moms</th>
+              <tr className="border-b-2 border-foreground/30">
+                <th className="text-left py-2 text-xs uppercase tracking-wider text-muted-foreground w-20">Art.nr</th>
+                <th className="text-left py-2 text-xs uppercase tracking-wider text-muted-foreground">Benämning</th>
+                <th className="text-right py-2 text-xs uppercase tracking-wider text-muted-foreground w-16">Antal</th>
+                <th className="text-right py-2 text-xs uppercase tracking-wider text-muted-foreground w-28">À-pris ex. moms</th>
+                <th className="text-right py-2 text-xs uppercase tracking-wider text-muted-foreground w-28">Belopp ex. moms</th>
               </tr>
             </thead>
             <tbody>
               {lineItems.map((it, i) => (
-                <tr key={it.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                  <td className="py-2.5 pr-3 text-xs text-gray-500 font-mono">{it.product?.sku ?? "—"}</td>
+                <tr key={it.id} className={i % 2 === 0 ? "bg-white" : "bg-muted"}>
+                  <td className="py-2.5 pr-3 text-xs text-muted-foreground tabular">{it.product?.sku ?? "—"}</td>
                   <td className="py-2.5 pr-3">
-                    <div className="text-gray-800">{it.product?.name ?? "—"}</div>
-                    {it.note && <div className="text-xs text-gray-500 mt-0.5">{it.note}</div>}
+                    <div className="text-foreground">{it.product?.name ?? "—"}</div>
+                    {it.note && <div className="text-xs text-muted-foreground mt-0.5">{it.note}</div>}
                   </td>
                   <td className="py-2.5 text-right">{it.qty}</td>
                   <td className="py-2.5 text-right">{fmt(it.price, currency)}</td>
-                  <td className="py-2.5 text-right font-medium text-gray-800">{fmt(it.lineTotal, currency)}</td>
+                  <td className="py-2.5 text-right font-medium text-foreground">{fmt(it.lineTotal, currency)}</td>
                 </tr>
               ))}
             </tbody>
@@ -202,8 +202,8 @@ export default function PublicOffertPage() {
             <table className="text-sm w-64">
               <tbody>
                 <tr>
-                  <td className="py-1 text-gray-500">Summa ex. moms</td>
-                  <td className="py-1 text-right font-medium text-gray-800">{fmt(totalEx, currency)}</td>
+                  <td className="py-1 text-muted-foreground">Summa ex. moms</td>
+                  <td className="py-1 text-right font-medium text-foreground">{fmt(totalEx, currency)}</td>
                 </tr>
                 {discountPct > 0 && (
                   <tr>
@@ -212,12 +212,12 @@ export default function PublicOffertPage() {
                   </tr>
                 )}
                 <tr>
-                  <td className="py-1 text-gray-500">Moms 25 %</td>
-                  <td className="py-1 text-right text-gray-700">{fmt(vatAmt, currency)}</td>
+                  <td className="py-1 text-muted-foreground">Moms 25 %</td>
+                  <td className="py-1 text-right text-foreground">{fmt(vatAmt, currency)}</td>
                 </tr>
-                <tr className="border-t-2 border-gray-800">
-                  <td className="py-2 font-bold text-gray-900">Totalt att betala</td>
-                  <td className="py-2 text-right font-bold text-gray-900 text-base">{fmt(totalInc, currency)}</td>
+                <tr className="border-t-2 border-foreground/30">
+                  <td className="py-2 font-bold text-foreground">Totalt att betala</td>
+                  <td className="py-2 text-right font-bold text-foreground text-base">{fmt(totalInc, currency)}</td>
                 </tr>
               </tbody>
             </table>
@@ -243,20 +243,20 @@ export default function PublicOffertPage() {
               )}
             </div>
           ) : declined || rfq.status === "rejected" ? (
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center space-y-2">
+            <div className="rounded-xl border border-border bg-muted p-6 text-center space-y-2">
               <div className="text-2xl">✕</div>
-              <p className="font-semibold text-gray-700">Offert avböjd</p>
-              <p className="text-sm text-gray-500">
+              <p className="font-semibold text-foreground">Offert avböjd</p>
+              <p className="text-sm text-muted-foreground">
                 Kontakta oss på{" "}
                 <a href={`mailto:${co.email}`} className="underline">{co.email}</a>{" "}
                 om du har frågor.
               </p>
             </div>
           ) : (
-            <div className="border-t border-gray-200 pt-8 space-y-5" style={{ fontFamily: "system-ui, sans-serif" }}>
+            <div className="border-t border-border pt-8 space-y-5" style={{ fontFamily: "system-ui, sans-serif" }}>
               {/* PO input — customer can enter/confirm their PO number before accepting */}
               <div className="max-w-xs">
-                <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                <label className="block text-xs uppercase tracking-wider text-muted-foreground mb-1">
                   Ert PO-nummer (valfritt)
                 </label>
                 <input
@@ -264,11 +264,11 @@ export default function PublicOffertPage() {
                   value={poInput || rfq.po_number || ""}
                   onChange={e => setPoInput(e.target.value)}
                   placeholder="t.ex. PO-2024-001"
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30"
+                  className="w-full border border-border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30"
                 />
               </div>
               <div className="text-center space-y-4">
-                <p className="text-sm text-gray-600">Vill du acceptera denna offert?</p>
+                <p className="text-sm text-muted-foreground">Vill du acceptera denna offert?</p>
                 <div className="flex justify-center gap-4">
                   <button
                     onClick={() => respond("accepted")}
@@ -280,12 +280,12 @@ export default function PublicOffertPage() {
                   <button
                     onClick={() => respond("rejected")}
                     disabled={accepting || alreadyAnswered}
-                    className="px-8 py-3 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition disabled:opacity-50"
+                    className="px-8 py-3 rounded-lg border border-border text-muted-foreground hover:bg-muted transition disabled:opacity-50"
                   >
                     Avböj
                   </button>
                 </div>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-muted-foreground">
                   Har du frågor? <a href={`mailto:${co.email}`} className="underline">{co.email}</a>
                 </p>
               </div>

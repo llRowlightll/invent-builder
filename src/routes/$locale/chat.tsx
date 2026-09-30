@@ -743,12 +743,12 @@ function ChatPage() {
 // ── Advisor option card — mirrors machine-builder's option cards so the "same AI
 // voice" is also visually consistent, not just backed by the same data. ──────────
 const ADVISOR_BADGE_COLORS: Record<string, string> = {
-  "Bästa valet": "bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)]",
-  "Best choice": "bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)]",
+  "Bästa valet": "bg-success-surface text-success-deep",
+  "Best choice": "bg-success-surface text-success-deep",
   "Kompakt alternativ": "bg-info/10 text-info",
   "Compact option": "bg-info/10 text-info",
-  "Budgetalternativ": "bg-gold/20 text-[oklch(0.45_0.12_80)]",
-  "Budget option": "bg-gold/20 text-[oklch(0.45_0.12_80)]",
+  "Budgetalternativ": "bg-gold/20 text-warning-deep",
+  "Budget option": "bg-gold/20 text-warning-deep",
 };
 
 function AdvisorOptionCard({ opt, requirements, isSv, locale }: {
@@ -808,12 +808,12 @@ function AdvisorDimBar({ label, required, available, unit, requiredLabel, availa
     <div className="min-w-[140px] flex-1">
       <div className="flex items-baseline justify-between text-[11px] mb-1">
         <span className="text-muted-foreground">{label}</span>
-        <span className={`font-semibold ${meets ? "text-[oklch(0.45_0.14_155)]" : "text-destructive"}`}>
+        <span className={`font-semibold ${meets ? "text-success-deep" : "text-destructive"}`}>
           {margin != null ? `${margin.toFixed(1)}×` : meets ? "✓" : "⚠"}
         </span>
       </div>
       <div className="relative h-2 rounded-full bg-muted overflow-hidden">
-        <div className={`absolute inset-y-0 left-0 rounded-full ${meets ? "bg-[oklch(0.72_0.15_155)]" : "bg-destructive/70"}`} style={{ width: `${availPct}%` }} />
+        <div className={`absolute inset-y-0 left-0 rounded-full ${meets ? "bg-success" : "bg-destructive/70"}`} style={{ width: `${availPct}%` }} />
         <div className="absolute inset-y-0 w-[2px] bg-foreground/50" style={{ left: `${reqPct}%` }} />
       </div>
       <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-0.5">
@@ -837,7 +837,7 @@ function AddAllButton({ products, locale }: { products: ProductRow[]; locale: st
       onClick={handleAddAll}
       className={`text-xs px-3 py-1.5 rounded-md border transition ${
         added
-          ? "border-[oklch(0.60_0.18_155)] text-[oklch(0.50_0.18_155)] bg-[oklch(0.95_0.04_155)]"
+          ? "border-success text-success-deep bg-success-surface"
           : "border-border text-muted-foreground hover:border-info hover:text-info"
       }`}
     >
@@ -921,7 +921,7 @@ function ProductCard({
           <button
             type="button"
             onClick={handleAddToCart}
-            className={`text-[11px] font-medium transition ${added ? "text-[oklch(0.45_0.15_155)]" : "text-muted-foreground hover:text-info"}`}
+            className={`text-[11px] font-medium transition ${added ? "text-success-deep" : "text-muted-foreground hover:text-info"}`}
           >
             {added ? "✓" : "+"}
           </button>

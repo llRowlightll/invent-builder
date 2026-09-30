@@ -148,7 +148,7 @@ export default function AdminSettingsPage() {
             {saving ? "Sparar…" : "Spara inställningar"}
           </button>
           {saved && (
-            <span className="text-sm text-[oklch(0.50_0.18_155)]">✓ Sparat</span>
+            <span className="text-sm text-success-deep">✓ Sparat</span>
           )}
         </div>
       </form>

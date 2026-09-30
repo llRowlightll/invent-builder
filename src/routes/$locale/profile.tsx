@@ -9,9 +9,9 @@ export const Route = createFileRoute("/$locale/profile")({
 });
 
 const TIER_META: Record<string, { label: string; emoji: string; color: string; bg: string }> = {
-  enterprise: { label: "Enterprise",  emoji: "⭐", color: "text-[oklch(0.55_0.18_55)]",  bg: "bg-[oklch(0.96_0.05_55)]  border-[oklch(0.80_0.12_55)]" },
-  hot:        { label: "Hot prospect", emoji: "🔥", color: "text-[oklch(0.50_0.20_30)]",  bg: "bg-[oklch(0.96_0.05_30)]  border-[oklch(0.78_0.14_30)]" },
-  warm:       { label: "Warm lead",    emoji: "🌡️", color: "text-[oklch(0.50_0.15_75)]",  bg: "bg-[oklch(0.96_0.04_75)]  border-[oklch(0.80_0.10_75)]" },
+  enterprise: { label: "Enterprise",  emoji: "⭐", color: "text-gold",  bg: "bg-gold-surface  border-gold" },
+  hot:        { label: "Hot prospect", emoji: "🔥", color: "text-info",  bg: "bg-info-surface  border-info" },
+  warm:       { label: "Warm lead",    emoji: "🌡️", color: "text-warning-deep",  bg: "bg-warning-surface  border-warning" },
   cold:       { label: "Cold",         emoji: "❄️", color: "text-muted-foreground",        bg: "bg-surface-alt border-border" },
 };
 
@@ -323,7 +323,7 @@ function ProfilePage() {
             {saving ? t("profilePage.saving") : t("profilePage.saveProfile")}
           </button>
           {saving && <span className="text-sm text-muted-foreground">{t("profilePage.saving")}</span>}
-          {saved && !saving && <span className="text-sm text-[oklch(0.55_0.15_155)]">{t("profilePage.saved")}</span>}
+          {saved && !saving && <span className="text-sm text-success">{t("profilePage.saved")}</span>}
           <span className="ml-auto text-[11px] text-muted-foreground">{t("profilePage.autoSave")}</span>
         </div>
       </form>

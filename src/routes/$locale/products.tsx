@@ -226,8 +226,8 @@ function gradeOf(p: ProductRow): Grade {
   return "LOW";
 }
 const GRADE_STYLE: Record<Grade, string> = {
-  HIGH: "bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)]",
-  MEDIUM: "bg-[oklch(0.94_0.08_85)] text-[oklch(0.38_0.12_75)]",
+  HIGH: "bg-success-surface text-success-deep",
+  MEDIUM: "bg-warning-surface text-warning-deep",
   LOW: "bg-muted text-muted-foreground",
 };
 
@@ -621,7 +621,7 @@ function ProductsPage() {
                       onClick={() => quickAddToList(p)}
                       className={`text-[11px] transition font-medium px-2 py-0.5 rounded ${
                         addedSku === p.sku
-                          ? "text-[oklch(0.55_0.15_155)] bg-[oklch(0.55_0.15_155)]/10"
+                          ? "text-success bg-success/10"
                           : "text-muted-foreground hover:text-info"
                       }`}
                       title={t("productsPage.addToList")}

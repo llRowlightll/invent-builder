@@ -151,7 +151,7 @@ export default function IntegrationsPage() {
           <div className="flex items-center gap-2 mb-3">
             <span className="text-xl">🟠</span>
             <span className="font-semibold">HubSpot CRM</span>
-            <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-[oklch(0.92_0.06_155)]/30 text-[oklch(0.45_0.15_155)] font-medium">Aktiv</span>
+            <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-success-surface/30 text-success-deep font-medium">Aktiv</span>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
             Ny offert → automatiskt ny <strong>Kontakt</strong> + <strong>Deal</strong> i HubSpot.<br />
@@ -226,7 +226,7 @@ export default function IntegrationsPage() {
                   </td>
                   <td className="px-4 py-3">
                     {r.fortnox_order_id ? (
-                      <span className="text-xs font-mono text-[oklch(0.55_0.15_155)]">
+                      <span className="text-xs font-mono text-success">
                         Order {r.fortnox_order_id}
                       </span>
                     ) : (
@@ -244,7 +244,7 @@ export default function IntegrationsPage() {
                   </td>
                   <td className="px-4 py-3 text-xs">
                     {pushResult[r.id] && (
-                      <span className={pushResult[r.id].startsWith("✓") ? "text-[oklch(0.55_0.15_155)]" : "text-destructive"}>
+                      <span className={pushResult[r.id].startsWith("✓") ? "text-success" : "text-destructive"}>
                         {pushResult[r.id]}
                       </span>
                     )}
@@ -291,7 +291,7 @@ export default function IntegrationsPage() {
                   <td className="px-4 py-2 text-xs font-mono">{l.event}</td>
                   <td className="px-4 py-2">
                     {l.success
-                      ? <span className="text-xs text-[oklch(0.55_0.15_155)]">✓ OK</span>
+                      ? <span className="text-xs text-success">✓ OK</span>
                       : <span className="text-xs text-destructive">✗ Fel</span>}
                   </td>
                   <td className="px-4 py-2 text-xs text-muted-foreground truncate max-w-[200px]">

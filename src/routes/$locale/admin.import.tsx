@@ -332,7 +332,7 @@ function ImportPage() {
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="text-sm font-medium">
               Förhandsgranskning — {rows.length} rader
-              {validCount > 0 && <span className="ml-2 text-[oklch(0.45_0.12_155)]">✓ {validCount} giltiga</span>}
+              {validCount > 0 && <span className="ml-2 text-success-deep">✓ {validCount} giltiga</span>}
               {invalidCount > 0 && <span className="ml-2 text-destructive">✗ {invalidCount} ogiltiga</span>}
             </div>
           </div>
@@ -354,14 +354,14 @@ function ImportPage() {
                     const ok = !!(r.sku && r.name && r.brand_slug && r.category_slug);
                     return (
                       <tr key={i} className={`border-b border-border last:border-0 ${ok ? "" : "bg-destructive/5"}`}>
-                        <td className="px-3 py-2 font-mono">{r.sku}</td>
+                        <td className="px-3 py-2 tabular">{r.sku}</td>
                         <td className="px-3 py-2 max-w-[200px] truncate">{r.name}</td>
                         <td className="px-3 py-2">{r.brand_slug}</td>
                         <td className="px-3 py-2">{r.category_slug}</td>
                         <td className="px-3 py-2 text-center">{r.lead_time_days || "14"}</td>
                         <td className="px-3 py-2">
                           {ok
-                            ? <span className="text-[oklch(0.45_0.12_155)]">✓</span>
+                            ? <span className="text-success-deep">✓</span>
                             : <span className="text-destructive">✗ saknar fält</span>}
                         </td>
                       </tr>
@@ -403,7 +403,7 @@ function ImportPage() {
         <div className="rounded-lg border border-border bg-card p-4 space-y-1">
           {log.map((l, i) => (
             <div key={i} className={`text-sm flex items-start gap-2 ${
-              l.type === "ok" ? "text-[oklch(0.45_0.12_155)]" :
+              l.type === "ok" ? "text-success-deep" :
               l.type === "err" ? "text-destructive" :
               "text-muted-foreground"
             }`}>

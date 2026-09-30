@@ -30,9 +30,9 @@ type StatusCount = { status: string; n: number };
 
 const STATUS_META: Record<string, { label: string; dot: string }> = {
   new:        { label: "Ny",              dot: "bg-info" },
-  processing: { label: "Under behandling", dot: "bg-[oklch(0.72_0.18_80)]" },
-  quoted:     { label: "Offert skickad",  dot: "bg-[oklch(0.60_0.18_290)]" },
-  accepted:   { label: "Accepterad",      dot: "bg-[oklch(0.60_0.18_155)]" },
+  processing: { label: "Under behandling", dot: "bg-warning" },
+  quoted:     { label: "Offert skickad",  dot: "bg-quoted" },
+  accepted:   { label: "Accepterad",      dot: "bg-success" },
   rejected:   { label: "Avvisad",         dot: "bg-destructive" },
 };
 

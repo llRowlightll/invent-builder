@@ -451,7 +451,7 @@ export default function AdminPricingPage() {
                     const isDirty = edited[r.id] !== undefined;
                     return (
                       <tr key={r.id} className={`transition ${isDirty ? "bg-info/5" : "hover:bg-surface-alt/40"}`}>
-                        <td className="px-4 py-2 font-mono text-[11px] text-muted-foreground">{r.sku}</td>
+                        <td className="px-4 py-2 tabular text-[11px] text-muted-foreground">{r.sku}</td>
                         <td className="px-4 py-2 max-w-[180px] truncate font-medium">{r.name}</td>
                         <td className="px-4 py-2 text-muted-foreground text-xs">{r.brand.name}</td>
                         <td className="px-4 py-2">

@@ -129,7 +129,7 @@ export default function AdminKnowledgePage() {
       </div>
 
       {msg && (
-        <div className={`mb-4 px-4 py-2 rounded-md text-sm ${msg.ok ? "bg-[oklch(0.92_0.06_155)] text-[oklch(0.32_0.12_155)]" : "bg-destructive/10 text-destructive"}`}>
+        <div className={`mb-4 px-4 py-2 rounded-md text-sm ${msg.ok ? "bg-success-surface text-success-deep" : "bg-destructive/10 text-destructive"}`}>
           {msg.text}
         </div>
       )}

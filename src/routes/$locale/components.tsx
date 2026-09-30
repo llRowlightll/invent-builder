@@ -202,7 +202,7 @@ function ComponentsPage() {
             <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {families.map((f) => (
                 <article key={f.sku} className="rounded-xl border border-border bg-card p-5 flex flex-col">
-                  <div className="font-mono text-xs text-muted-foreground">{f.sku}</div>
+                  <div className="tabular text-xs text-muted-foreground">{f.sku}</div>
                   <h3 className="mt-1 font-semibold">{f.name}</h3>
                   <p className="mt-2 text-sm text-muted-foreground flex-1">
                     {f.description ?? (locale === "sv" ? "Komponentfamilj." : "Component family.")}

@@ -277,9 +277,9 @@ function AddCustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
 }
 
 const TIER_META: Record<string, { label: string; emoji: string; dot: string }> = {
-  enterprise: { label: "Enterprise",  emoji: "⭐", dot: "bg-[oklch(0.62_0.17_55)]" },
-  hot:        { label: "Hot",         emoji: "🔥", dot: "bg-[oklch(0.58_0.20_30)]" },
-  warm:       { label: "Warm",        emoji: "🌡️", dot: "bg-[oklch(0.62_0.15_75)]" },
+  enterprise: { label: "Enterprise",  emoji: "⭐", dot: "bg-gold" },
+  hot:        { label: "Hot",         emoji: "🔥", dot: "bg-info" },
+  warm:       { label: "Warm",        emoji: "🌡️", dot: "bg-warning-deep" },
   cold:       { label: "Cold",        emoji: "❄️", dot: "bg-muted-foreground" },
 };
 
@@ -395,7 +395,7 @@ export default function CrmPage() {
           </button>
         </form>
         {testResult && (
-          <p className={`mt-2 text-sm ${testResult.startsWith("✓") ? "text-[oklch(0.55_0.15_155)]" : "text-destructive"}`}>
+          <p className={`mt-2 text-sm ${testResult.startsWith("✓") ? "text-success" : "text-destructive"}`}>
             {testResult}
           </p>
         )}

@@ -308,7 +308,7 @@ function AdvisorPage() {
                       >
                         <div className="font-medium text-foreground">{p.name}</div>
                         <div className="text-xs text-muted-foreground mt-0.5">
-                          {p.brand.name} · {p.sku}
+                          {p.brand.name} · <span className="tabular">{p.sku}</span>
                         </div>
                       </Link>
                     </li>
@@ -328,7 +328,7 @@ function AdvisorPage() {
 
           {/* Contact form */}
           {sent ? (
-            <div className="rounded-xl border border-[oklch(0.72_0.12_155)] bg-[oklch(0.96_0.04_155)] p-6 text-center space-y-2">
+            <div className="rounded-xl border border-success bg-success-surface p-6 text-center space-y-2">
               <div className="text-3xl">✓</div>
               <div className="font-semibold text-foreground">{t("advisorPage2.sent")}</div>
               <p className="text-sm text-muted-foreground">
@@ -366,7 +366,7 @@ function AdvisorPage() {
                       <div className="text-xs text-muted-foreground">
                         <div className="font-semibold text-foreground">{imageAnalysis.component_type}</div>
                         {imageAnalysis.manufacturer && <div>{imageAnalysis.manufacturer}{imageAnalysis.model_number ? ` — ${imageAnalysis.model_number}` : ""}</div>}
-                        <div className="mt-0.5 text-[oklch(0.50_0.18_155)]">✓ {isSv ? "Identifierad" : "Identified"}</div>
+                        <div className="mt-0.5 text-success-deep">✓ {isSv ? "Identifierad" : "Identified"}</div>
                       </div>
                     )}
                     <button type="button" onClick={() => { setImageFile(null); setImagePreview(null); setImageAnalysis(null); }}

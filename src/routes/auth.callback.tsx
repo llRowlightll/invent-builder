@@ -130,7 +130,7 @@ function AuthCallback() {
           </div>
 
           {resetDone ? (
-            <div className="rounded-xl border border-[oklch(0.72_0.12_155)] bg-[oklch(0.96_0.04_155)] p-5 text-center space-y-2">
+            <div className="rounded-xl border border-success bg-success-surface p-5 text-center space-y-2">
               <div className="text-2xl">✓</div>
               <p className="font-semibold">Lösenordet är uppdaterat!</p>
               <p className="text-sm text-muted-foreground">Omdirigerar till din profil…</p>
@@ -204,7 +204,7 @@ function AuthCallback() {
             </button>
           </form>
         ) : (
-          <div className="rounded-lg bg-[oklch(0.92_0.06_155)]/30 border border-[oklch(0.72_0.12_155)] px-4 py-3 text-sm text-[oklch(0.32_0.12_155)]">
+          <div className="rounded-lg bg-success-surface/30 border border-success px-4 py-3 text-sm text-success-deep">
             ✓ Ny länk skickad — kolla din inkorg.
           </div>
         )}

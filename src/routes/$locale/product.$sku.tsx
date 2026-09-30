@@ -5,6 +5,7 @@ import { loadCatalog } from "@/lib/catalog";
 import { supabase } from "@/integrations/supabase/client";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
+import { ArticleNumber } from "@/components/ArticleNumber";
 import { addToShoppingList } from "@/lib/cart";
 import { SITE, hreflangLinks } from "@/lib/site";
 
@@ -221,7 +222,9 @@ function ProductDetail() {
           </div>
           <BrandBadge slug={product.brand.slug} name={product.brand.name} />
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{product.name}</h1>
-          <div className="mt-2 font-mono text-xs text-muted-foreground">{product.sku}</div>
+          <div className="mt-2.5">
+            <ArticleNumber value={product.sku} copyable />
+          </div>
           {product.description && <p className="mt-4 text-sm text-foreground/80 leading-relaxed">{product.description}</p>}
         </div>
         <aside className="rounded-lg border border-border bg-surface-alt p-4 space-y-3 text-sm">
@@ -238,7 +241,7 @@ function ProductDetail() {
             }}
             className={`block w-full text-center mt-2 px-3 py-2 rounded-md text-sm font-semibold transition ${
               addedToCart
-                ? "bg-[oklch(0.55_0.15_155)]/15 text-[oklch(0.45_0.15_155)]"
+                ? "bg-success/15 text-success-deep"
                 : "bg-info text-primary-foreground hover:opacity-90"
             }`}
           >
@@ -346,7 +349,7 @@ function ProductDetail() {
             {alternatives.map((r) => (
               <li key={r.id} className="contents">
                 <div>
-                  <ProductMini p={r} locale={locale} />
+                  <ProductMini p={r} locale={locale} as="div" />
                   {altBasis[r.sku] && (
                     <div className="mt-1 text-[11px] text-muted-foreground">
                       {altBasis[r.sku] === "bore+stroke"
@@ -374,15 +377,22 @@ function Row({ k, v }: { k: string; v: string }) {
     </div>
   );
 }
-function ProductMini({ p, locale }: { p: ProductRow; locale: string }) {
+/**
+ * `as` finns för att kortet används i två lägen. Under "Tillbehör och
+ * relaterat" ligger det direkt i sin <ul> och ska då vara ett <li>. Under
+ * "Alternativ" ligger det inuti ett <li className="contents"> som bär
+ * jämförelsenoten bredvid -- och ett <li> inuti ett <li> är ogiltig HTML som
+ * gav hydreringsfel i konsolen på varje produktsida.
+ */
+function ProductMini({ p, locale, as: El = "li" }: { p: ProductRow; locale: string; as?: "li" | "div" }) {
   return (
-    <li className="rounded-md border border-border bg-card p-3 hover:border-info">
+    <El className="rounded-md border border-border bg-card p-3 hover:border-info">
       <Link to="/$locale/product/$sku" params={{ locale, sku: p.sku } as never} className="block">
         <div className="text-xs text-muted-foreground">{p.brand.name}</div>
         <div className="font-medium text-foreground text-sm mt-0.5 line-clamp-2">{p.name}</div>
-        <div className="font-mono text-[10px] text-muted-foreground mt-1">{p.sku}</div>
+        <div className="mt-1"><ArticleNumber value={p.sku} variant="compact" /></div>
       </Link>
-    </li>
+    </El>
   );
 }
 
