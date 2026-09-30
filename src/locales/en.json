@@ -217,9 +217,9 @@
   },
   "index": {
     "b2bBadge": "B2B · Industrial automation",
-    "heroTitle": "From your application",
-    "heroTitleAccent": "to a part number.",
-    "heroSubtitle": "Search across Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work and Camozzi — pneumatic cylinders, electric actuators, valves and more.",
+    "heroTitle": "Describe what it needs to do.",
+    "heroTitleAccent": "Get the part number.",
+    "heroSubtitle": "Eight brands, 846 parts, one search box. No login to browse.",
     "searchPlaceholder": "Describe your application or search for a product…",
     "searchButton": "Search",
     "searchTry": "Try:",

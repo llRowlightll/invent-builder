@@ -298,11 +298,17 @@ export default function AdminRfqPage() {
                       {/* En beställning och en offertförfrågan kräver olika
                           arbete: den ena ska prissättas och skickas tillbaka,
                           den andra ska verkställas. Det måste synas i listan. */}
-                      {r.intent === "order" && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-success-surface text-success-deep font-semibold shrink-0">
-                          BESTÄLLNING
-                        </span>
-                      )}
+                      {/* BÅDA får en märkning. Tidigare fick bara beställningen
+                          en, så det enda som sa "offert" var frånvaron av
+                          badge -- och frånvaro är ingen signal. En pill bär
+                          alltid sin text. */}
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold shrink-0 ${
+                        r.intent === "order"
+                          ? "bg-success-surface text-success-deep"
+                          : "bg-quoted-surface text-quoted-deep"
+                      }`}>
+                        {r.intent === "order" ? "BESTÄLLNING" : "OFFERT"}
+                      </span>
                       <span className="text-sm font-medium truncate">{r.company ?? r.contact_name ?? "Okänd"}</span>
                     </div>
                     <div className="text-xs text-muted-foreground truncate">{r.contact_email}</div>
@@ -327,8 +333,23 @@ export default function AdminRfqPage() {
           ) : (
             <div className="rounded-xl border border-border bg-card overflow-hidden">
               <div className="px-5 py-4 border-b border-border bg-surface-alt/40">
-                <h2 className="font-semibold">{selected.company ?? selected.contact_name ?? "Okänd kund"}</h2>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="font-semibold">{selected.company ?? selected.contact_name ?? "Okänd kund"}</h2>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                    selected.intent === "order"
+                      ? "bg-success-surface text-success-deep"
+                      : "bg-quoted-surface text-quoted-deep"
+                  }`}>
+                    {selected.intent === "order" ? "BESTÄLLNING" : "OFFERT"}
+                  </span>
+                </div>
                 <p className="text-xs text-muted-foreground">{selected.id.slice(0, 8)}… · {new Date(selected.created_at).toLocaleString("sv-SE")}</p>
+                {/* Sägs i klartext, för det var precis frågan: har en order lagts? */}
+                <p className="text-xs mt-1.5 text-muted-foreground">
+                  {selected.intent === "order"
+                    ? "Kunden har beställt. Prissätt och bekräfta — ordern skapas när du klickar Skapa order."
+                    : "Offertförfrågan. Ingen order är lagd, och ingen skapas förrän du gör det själv."}
+                </p>
               </div>
 
               <div className="p-5 space-y-5">

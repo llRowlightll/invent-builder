@@ -217,7 +217,12 @@ function ShoppingListPage() {
         p_items: items.map((item) => ({
           product_id: item.product_id,
           qty: item.qty,
-          role: "ordered",
+          // role beskriver vad delen gör I MASKINEN -- psu, drive, cable --
+          // och sätts av maskinbyggaren. En rad från inköpslistan har ingen
+          // sådan roll. Här stod "ordered", vilket inte är en roll alls utan
+          // lästes som orderstatus: adminvyn visade "Roll: ordered" bredvid
+          // en offertförfrågan där ingen order fanns.
+          role: null,
           order_code: item.order_code ?? null,
           item_name: item.order_code ? item.name : null,
         })),

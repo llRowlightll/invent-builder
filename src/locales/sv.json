@@ -217,9 +217,9 @@
   },
   "index": {
     "b2bBadge": "B2B · Industriell automation",
-    "heroTitle": "Från din applikation",
-    "heroTitleAccent": "till ett artikelnummer.",
-    "heroSubtitle": "Sök tvärs över Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work och Camozzi — pneumatiska cylindrar, elektriska aktuatorer, ventiler och mer.",
+    "heroTitle": "Beskriv vad den ska göra.",
+    "heroTitleAccent": "Få artikelnumret.",
+    "heroSubtitle": "Åtta fabrikat, 846 artiklar, en sökruta. Ingen inloggning för att leta.",
     "searchPlaceholder": "Beskriv din applikation eller sök produkt…",
     "searchButton": "Sök",
     "searchTry": "Försök:",
