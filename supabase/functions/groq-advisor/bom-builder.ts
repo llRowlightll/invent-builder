@@ -452,10 +452,15 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
       kind: "check_valve",
       role: pick(locale, { sv: "Pilotmanövrerad backslagsventil", en: "Pilot-operated check valve", de: "Pilotgesteuertes Rückschlagventil", es: "Válvula antirretorno pilotada" }),
       reason: pick(locale, {
-        sv: "OBLIGATORISK vid pneumatisk vertikal last — förhindrar att lasten faller vid lufttrycksförlust (IEC 60947-5-1)",
-        en: "MANDATORY for pneumatic vertical load — prevents load drop on air pressure loss (IEC 60947-5-1)",
-        de: "ZWINGEND ERFORDERLICH bei pneumatischer vertikaler Last — verhindert ein Absinken der Last bei Luftdruckverlust (IEC 60947-5-1)",
-        es: "OBLIGATORIO para carga vertical neumática — evita la caída de la carga ante pérdida de presión de aire (IEC 60947-5-1)",
+        // Texten sa tidigare att ventilen "förhindrar att lasten faller".
+        // Det är att lova för mycket: den håller TRYCKET kvar i cylindern, men
+        // luft komprimeras och tätningar läcker, och vid slangbrott eller
+        // nödstoppsavluftning håller den ingenting. Rad 3b nedan säger redan
+        // detta korrekt om stångbromsen -- den här raden motsa den.
+        sv: "OBLIGATORISK vid pneumatisk vertikal last — håller kvar trycket i cylindern vid lufttrycksförlust och minskar oavsiktlig rörelse. Ersätter INTE en mekanisk stångbroms: vid slangbrott eller nödstoppsavluftning håller den ingenting.",
+        en: "MANDATORY for pneumatic vertical load — traps pressure in the cylinder on air loss and reduces unintended movement. Does NOT replace a mechanical rod lock: it holds nothing through a hose rupture or e-stop venting.",
+        de: "ZWINGEND ERFORDERLICH bei pneumatischer vertikaler Last — hält den Druck im Zylinder bei Luftverlust und verringert unbeabsichtigte Bewegung. Ersetzt KEINE mechanische Kolbenstangenbremse: bei Schlauchbruch oder Not-Halt-Entlüftung hält sie nichts.",
+        es: "OBLIGATORIO para carga vertical neumática — retiene la presión en el cilindro ante pérdida de aire y reduce el movimiento involuntario. NO sustituye un bloqueo de vástago mecánico: ante rotura de manguera o purga de emergencia no sujeta nada.",
       }),
     });
   }
