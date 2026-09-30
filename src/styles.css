@@ -11,7 +11,11 @@
   --ease-rorelse: cubic-bezier(0.32, 0.72, 0, 1);
   --default-transition-timing-function: var(--ease-rorelse);
   --default-transition-duration: 200ms;
-  --font-sans: Archivo, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  /* Systemets eget typsnitt, på begäran. Det är SF Pro på macOS/iOS, Segoe UI
+     på Windows och Roboto på Android -- alltså det läsaren redan är van vid,
+     och noll nedladdning. Archivo låg här ett tag; se git-historiken. */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+               "Helvetica Neue", Arial, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   /* Noll är standard: panel, tabell och kort bär data och har raka hörn.
      2px finns bara på det som klickas eller skrivs i. */

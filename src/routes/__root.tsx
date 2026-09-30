@@ -92,15 +92,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:image", content: `${SITE}/og-image.svg` },
     ],
     links: [
-      // Archivo bär gränssnittet, IBM Plex Mono bär artikelnummer och mätvärden.
+      // Gränssnittet går på systemets eget typsnitt. IBM Plex Mono laddas bara
+      // för artikelnummer och mätvärden, där den gör ett jobb ingen annan gör:
+      // den skiljer noll från O och ett från l, och ger likbreda siffror så en
+      // kolumn med artikelnummer går att jämföra kolumnvis.
       // Utan dessa renderar hela sajten i system-ui.
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
         href:
-          "https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,500;0,600;0,700;1,400" +
-          "&family=IBM+Plex+Mono:wght@400;500&display=swap",
+          "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap",
       },
       { rel: "stylesheet", href: appCss },
       // Favicons — Google Search picks the 48px-multiple PNG; browsers prefer SVG.
