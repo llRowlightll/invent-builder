@@ -263,12 +263,63 @@ export type BomKind =
   | "sensor" | "cable"
   | "warning";
 
+/**
+ * Hur säkert vi vet att raden stämmer.
+ *
+ * Fanns inte alls, och det är grundorsaken till att lösningar kunde se
+ * kompletta ut när de inte var det. En rad kunde bara finnas eller inte finnas
+ * -- den kunde inte vara OSÄKER. Varje gång systemet saknade ett faktum
+ * producerade det i stället en rimlig mening, och läsaren hade ingen chans att
+ * skilja den från ett verifierat påstående.
+ *
+ * Statusen sätts av KOD ur vad databasen faktiskt innehåller, aldrig av
+ * språkmodellen. Samma princip som badge: struktur är serverns, prosa är
+ * modellens.
+ */
+export type Verifiering =
+  | "verifierad"            // produktdata och kompatibilitet bekräftade
+  | "kraver_konfiguration"  // rätt familj, men fullständig typkod saknas
+  | "kraver_verifiering"    // en kritisk uppgift eller relation saknas
+  | "avvikelse"             // uppfyller funktionen men avviker från ett krav
+  | "ej_uppfyllt"           // ett obligatoriskt krav saknas helt
+  | "ej_godkand";           // får inte användas i den här konfigurationen
+
+/** Statusar som INTE får finnas i en lösning som kallas beställningsklar. */
+const BLOCKERANDE: ReadonlySet<Verifiering> = new Set<Verifiering>([
+  "kraver_verifiering", "ej_uppfyllt", "ej_godkand",
+]);
+
 export interface BomRow {
   sku: string;
   quantity: number;
   kind: BomKind;
   role: string;
   reason: string;
+  /** Utelämnad = "verifierad". Sätts av koden, aldrig av modellen. */
+  verifiering?: Verifiering;
+  /** Varför statusen är vad den är, i klartext för läsaren. */
+  verifieringsskal?: string;
+}
+
+/**
+ * Får lösningen kallas beställningsklar?
+ *
+ * Nej så snart en enda rad är oviss. Det är hela poängen: en lösning med en
+ * overifierad givare är inte "nästan klar", den är inte klar -- och den som
+ * beställer på den upptäcker det först när delarna inte passar ihop.
+ */
+export function bedomLosning(rows: BomRow[]): {
+  bestallningsklar: boolean;
+  blockerande: Array<{ sku: string; role: string; verifiering: Verifiering; skal: string }>;
+} {
+  const blockerande = rows
+    .filter(r => r.verifiering && BLOCKERANDE.has(r.verifiering))
+    .map(r => ({
+      sku: r.sku, role: r.role,
+      verifiering: r.verifiering as Verifiering,
+      skal: r.verifieringsskal ?? "",
+    }));
+  return { bestallningsklar: blockerande.length === 0, blockerande };
 }
 
 /** En kant i maskingrafen. Relationstyperna är exakt de som bom_connections
@@ -1144,6 +1195,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     });
   }
 
+  satteVerifiering(rows, ctx);
   return rows;
 }
 
@@ -1189,6 +1241,61 @@ export const isGripperFamily = (p: CatalogProduct) => /,/.test(String(p.key_spec
  * primära. Att hellre koppla mot primären än att gissa är avsiktligt -- en
  * felaktig kant är värre än en förenklad, eftersom den ser lika auktoritativ ut.
  */
+/**
+ * Sätter verifieringsstatus på varje rad, deterministiskt ur vad vi FAKTISKT
+ * vet. Körs sist i buildMandatoryBomRows så den kan resonera om helheten.
+ *
+ * Reglerna är avsiktligt försiktiga: tveksamma fall blir "kräver verifiering",
+ * aldrig "verifierad". Det är billigare att be någon kontrollera en rad som
+ * stämde än att skicka en lösning som inte gör det.
+ */
+function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
+  const { products, primaryBrand, locale } = ctx;
+  const fabrikatAv = (sku: string) => products.find(p => p.sku === sku)?.brand ?? "";
+
+  for (const r of rows) {
+    if (r.kind === "warning") continue;          // annotation, ingen komponent
+    if (r.verifiering) continue;                 // redan satt av sin egen rad
+
+    // Ingen produkt hittades. Raden beskriver ett KRAV, inte en artikel.
+    if (r.sku === "SPECIFY") {
+      // Styrning och lastsäkring är obligatoriska krav som användaren begärt.
+      // Saknas artikeln är kravet inte uppfyllt, inte bara overifierat.
+      const arObligatoriskt = r.kind === "mount" || r.kind === "rod_lock";
+      r.verifiering = arObligatoriskt ? "ej_uppfyllt" : "kraver_verifiering";
+      r.verifieringsskal = pick(locale, {
+        sv: "Ingen artikel i katalogen matchar kravet — måste anges manuellt före beställning.",
+        en: "No catalogue item matches this requirement — must be specified manually before ordering.",
+        de: "Kein Katalogartikel erfüllt diese Anforderung — muss vor der Bestellung manuell angegeben werden.",
+        es: "Ningún artículo del catálogo cumple este requisito — debe especificarse manualmente antes de pedir.",
+      });
+      continue;
+    }
+
+    // GIVARE ÖVER FABRIKATSGRÄNS. Granskningen fångade en Festo SIES-givare
+    // vald till en Metal Work CMPC. Att båda nämner T-spår räcker inte:
+    // spårdimension, magnettyp och montering måste stämma. Tillverkare
+    // konstruerar sina givarlinjer för sina EGNA cylindrars spår, så ett
+    // korsfabrikat är obekräftat tills product_relations säger annat -- och
+    // den tabellen täcker 2,5 % av katalogen.
+    if (r.kind === "sensor" && primaryBrand) {
+      const givarFabrikat = fabrikatAv(r.sku);
+      if (givarFabrikat && givarFabrikat !== primaryBrand) {
+        r.verifiering = "kraver_verifiering";
+        r.verifieringsskal = pick(locale, {
+          sv: `Givaren är ${givarFabrikat}, cylindern ${primaryBrand}. Spårtyp, spårdimension, magnettyp och montering är inte verifierade mot varandra — kontrollera mot databladen eller välj en givare från ${primaryBrand}.`,
+          en: `The sensor is ${givarFabrikat}, the cylinder ${primaryBrand}. Groove type, groove dimension, magnet type and mounting are not verified against each other — check the datasheets or choose a ${primaryBrand} sensor.`,
+          de: `Der Sensor ist ${givarFabrikat}, der Zylinder ${primaryBrand}. Nutform, Nutmaß, Magnettyp und Montage sind nicht gegeneinander verifiziert — Datenblätter prüfen oder einen ${primaryBrand}-Sensor wählen.`,
+          es: `El sensor es ${givarFabrikat} y el cilindro ${primaryBrand}. Tipo de ranura, dimensión, tipo de imán y montaje no están verificados entre sí — compruebe las hojas de datos o elija un sensor ${primaryBrand}.`,
+        });
+        continue;
+      }
+    }
+
+    r.verifiering = "verifierad";
+  }
+}
+
 export function deriveBomConnections(rows: BomRow[]): BomConnection[] {
   const idx = (k: BomKind) => rows.map((r, i) => ({ r, i })).filter(x => x.r.kind === k).map(x => x.i);
 
