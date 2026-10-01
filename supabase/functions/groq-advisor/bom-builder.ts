@@ -593,16 +593,44 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     });
   } else if (isPneumatic) {
     const valveMatch = findCatalogProductByType("valve", products);
+    // Anslutningen hårdkodades till G1/4 oavsett vilken ventil som matchades.
+    // Resultatet motsade sig själv i en och samma rad: komponenten var
+    // MFH-5-1/8-S med G1/8, medan motiveringen bad kunden välja G1/4.
+    //
+    // Den läses nu ur den MATCHADE produkten -- ur portspecen om den finns,
+    // annars ur namnet, där den oftast står. Hittas den inte sägs ingen
+    // storlek alls, för en påhittad storlek är sämre än ingen.
+    const ventilPort =
+      (valveMatch?.key_specs?.port as string | undefined) ??
+      (valveMatch?.key_specs?.port_size as string | undefined) ??
+      (`${valveMatch?.name ?? ""} ${valveMatch?.sku ?? ""}`.match(/\bG\s?\d\/\d\b|\bM\d+\b/i)?.[0]);
+    const portText = ventilPort
+      ? pick(locale, {
+          sv: ` Ventilens anslutning är ${ventilPort} — kontrollera att den matchar cylinderns portar.`,
+          en: ` The valve's port is ${ventilPort} — check that it matches the cylinder's ports.`,
+          de: ` Der Anschluss des Ventils ist ${ventilPort} — prüfen, ob er zu den Zylinderanschlüssen passt.`,
+          es: ` La conexión de la válvula es ${ventilPort} — compruebe que coincide con los puertos del cilindro.`,
+        })
+      : pick(locale, {
+          sv: " Välj anslutning efter cylinderns portstorlek.",
+          en: " Select the port to match the cylinder's port size.",
+          de: " Anschluss passend zur Anschlussgröße des Zylinders wählen.",
+          es: " Elija la conexión según el tamaño de puerto del cilindro.",
+        });
+
     rows.push({
       sku: valveMatch?.sku ?? "SPECIFY", quantity: uc,
       kind: "valve",
       role: pick(locale, { sv: "Magnetventil (5/2-vägs styrventil)", en: "Solenoid valve (5/2-way directional)", de: "Magnetventil (5/2-Wege-Steuerventil)", es: "Electroválvula (5/2 vías)" }),
       reason: pick(locale, {
-        sv: "OBLIGATORISK för pneumatisk cylinder — 5/2-vägs magnetventil styr cylinderns riktning (fram/åter). Välj spänning 24 V DC och anslutning G1/4.",
-        en: "MANDATORY for pneumatic cylinder — 5/2-way solenoid valve controls cylinder direction (extend/retract). Select 24 V DC coil and G1/4 port.",
-        de: "ZWINGEND ERFORDERLICH für Pneumatikzylinder — das 5/2-Wege-Magnetventil steuert die Zylinderrichtung (Aus-/Einfahren). 24-V-DC-Spule und G1/4-Anschluss wählen.",
-        es: "OBLIGATORIO para cilindro neumático — la electroválvula 5/2 controla la dirección del cilindro (avance/retroceso). Seleccione bobina de 24 V CC y conexión G1/4.",
-      }),
+        // Gängan ensam räcker inte som dimensionering: ventilen måste klara
+        // cylinderns LUFTFLÖDE vid den cykelfrekvens applikationen kräver.
+        // En Ø80 på 15 cykler/min drar långt mer än en Ø20 på samma gänga.
+        sv: "OBLIGATORISK för pneumatisk cylinder — 5/2-vägs magnetventil styr cylinderns riktning (fram/åter). Välj 24 V DC spole. Dimensionera efter erforderligt luftflöde vid cylinderns volym och cykelfrekvens, inte bara efter gängan.",
+        en: "MANDATORY for a pneumatic cylinder — the 5/2-way solenoid valve controls direction (extend/retract). Select a 24 V DC coil. Size it by the air flow required at the cylinder's volume and cycle rate, not by the thread alone.",
+        de: "ZWINGEND ERFORDERLICH für Pneumatikzylinder — das 5/2-Wege-Magnetventil steuert die Richtung (Aus-/Einfahren). 24-V-DC-Spule wählen. Nach dem erforderlichen Luftdurchsatz bei Zylindervolumen und Taktrate auslegen, nicht allein nach dem Gewinde.",
+        es: "OBLIGATORIO para cilindro neumático — la electroválvula 5/2 controla la dirección (avance/retroceso). Seleccione bobina de 24 V CC. Dimensiónela por el caudal de aire necesario según el volumen del cilindro y la frecuencia de ciclo, no solo por la rosca.",
+      }) + portText,
     });
   }
 
