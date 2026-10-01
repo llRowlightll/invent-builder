@@ -509,6 +509,23 @@ export function isNonArticulatingActuator(p: CatalogProduct): boolean {
   return /slide|linjärslid|linjarslid|rodless|kolvstångslös|kolvstangslos|guide/i.test(`${p.name} ${p.sku}`);
 }
 
+/**
+ * Kräver applikationen styrning eller vridskydd?
+ *
+ * Fanns inte alls, och det kostade oss en lösning. En kund valde "Ja, ledning"
+ * i wizarden; det fanns ingen flagga att landa i, ingen BOM-rad blev följden,
+ * och stycklistan saknade styrning helt. Optionskortet skrev till och med
+ * "ingen inbyggd guidning -- extra komponent behövs för anti-rotation" bland
+ * nackdelarna, så kunskapen fanns -- den nådde bara aldrig stycklistan.
+ *
+ * En kolvstångscylinder kan rotera kring sin egen axel och tål dåligt
+ * sidokrafter. Ska den bära en pressplatta eller ett verktyg behövs antingen
+ * en styrd cylinder eller en separat linjärstyrning.
+ */
+export function needsGuidance(text: string): boolean {
+  return /ledning|guidning|styrning|vridskydd|anti.?rotation|rotationssäkr|får inte rotera|inte vrida sig|sidokraft|sidolast|tvärkraft|pressplatta|guided|anti.?rotat|side.?load|lateral.?load|führung|verdrehsicherung|querkraft|guiado|antigiro|carga.?lateral/i.test(text);
+}
+
 /** Returns true if user wants mounting brackets / foot mounts / flanges. */
 export function needsMounting(text: string): boolean {
   return /fotfäste|foot.*mount|fot.*fäste|flansfäste|flange.*mount|monteringsfäste|bracket|montering|montage|fäste|befästning|konsol|mounting|swivel.*flange|trunnion/i.test(text);
@@ -839,6 +856,7 @@ export interface HazardFlags {
   isEndPosDetect: boolean;
   isArticulated: boolean;
   isMounting: boolean;
+  isGuided: boolean;
   isLowCost: boolean;
   is24x7: boolean;
   isDirtyEnv: boolean;
@@ -904,6 +922,7 @@ export function detectHazards(
   const isEndPosDetect = needsEndPositionDetection(text);
   const isArticulated = needsArticulatedMount(text);
   const isMounting = needsMounting(text);
+  const isGuided = needsGuidance(text);
   const isLowCost = needsLowCost(text);
   const is24x7 = needsContinuousDuty(text);
   const isDirtyEnv = needsDirtyEnv(text);
@@ -968,7 +987,7 @@ export function detectHazards(
     isAtex, isAtexDust, isVerticalLoad, isHighTemp, isLowTemp, isHydraulic, isVeryHighForce,
     isOxygenClean, isEsdSafe, isHighCycle, isHighSpeed, isSilSafety, isOutdoor, isPharmaGmp,
     isFoodGrade, isBatteryDryroom, isRodLock, isWashdown, isEndPosDetect, isArticulated,
-    isMounting, isLowCost, is24x7, isDirtyEnv, isHighPrecision, minBoreMm,
+    isMounting, isGuided, isLowCost, is24x7, isDirtyEnv, isHighPrecision, minBoreMm,
     requiredMaxTempC, minStrokeMm, perAxisStrokes, requiredStrokeMm, speedMs, precisionMm,
     explicitBoreMm, loadKg, gripForceN, holdingForceN, torqueNm, rotationDeg, cycleTimeS,
     dynamics, conflicts,

@@ -11,7 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { type CatalogProduct, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
-import { type HazardFlags, pick, isPneumaticByDrive } from "./signals.ts";
+import { type HazardFlags, pick, isPneumaticByDrive, isNonArticulatingActuator } from "./signals.ts";
 
 export function buildCustomSolutionOption(
   minStroke: number, locale: string, maxCatalogStroke: number, catalogCanHandle: boolean,
@@ -312,7 +312,7 @@ export function klassaLuftberedning(namn: string): Luftberedning {
 export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   const { primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
           isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, locale, products,
-          isMounting, isArticulated, isRodLock, primaryBoreMm, primaryBrand: primaryBrandFetched, isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
+          isMounting, isGuided, isArticulated, isRodLock, primaryBoreMm, primaryBrand: primaryBrandFetched, isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
           isMultiAxis, perAxisStrokes, isBatteryDryroom, unitCount } = ctx;
   const isPneumatic = !isElectric && !isAtex && !isAtexDust;
   // Found 2026-08-28 (adversarial test): a "6 identiska cylinderstationer"
@@ -527,6 +527,44 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
             es: `Indique un bloqueo de vástago/freno mecánico en ${boreTxt} — accionado por resorte, bloquea ante fallo de aire/alimentación. DEBE coincidir con el diámetro del cilindro; no hay variante ${boreTxt} en stock (a medida/oferta).`,
           }),
     });
+  }
+
+  // ── 3c. Styrning / vridskydd ─────────────────────────────────────
+  // Kravet hade ingenstans att ta vägen: det fanns ingen isGuided-flagga, så
+  // "Ja, ledning" i wizarden gav varken rad eller varning. Optionskortet skrev
+  // mycket riktigt "ingen inbyggd guidning" bland nackdelarna, men stycklistan
+  // visste inget om det.
+  //
+  // En kolvstångscylinder kan rotera kring sin axel och tål dåligt sidokrafter.
+  // Bär den en pressplatta eller ett verktyg krävs antingen en STYRD cylinder
+  // (katalogen har 118, t.ex. Bosch Rexroth GPC-BV) eller en separat
+  // linjärstyrning. Är den primära redan styrd behövs ingenting.
+  if (isGuided && isPneumatic) {
+    const primaryProd = products.find(p => p.sku === primarySku);
+    const primaryArStyrd = primaryProd ? isNonArticulatingActuator(primaryProd) : false;
+    if (!primaryArStyrd) {
+      const styrd = products.find(p =>
+        p.category === "cylinder" && /guide|styrd|führung/i.test(`${p.name} ${p.sku}`) &&
+        primaryBoreMm > 0 && firstNumAbs(p.key_specs?.bore_mm) === primaryBoreMm);
+      rows.push({
+        sku: styrd?.sku ?? "SPECIFY", quantity: uc,
+        kind: "mount",
+        role: pick(locale, { sv: "Styrning / vridskydd", en: "Guidance / anti-rotation", de: "Führung / Verdrehsicherung", es: "Guiado / antigiro" }),
+        reason: styrd
+          ? pick(locale, {
+              sv: `${styrd.name} — styrd cylinder i samma borrning. Den valda cylindern har ingen inbyggd styrning: en kolvstång kan rotera kring sin axel och tål dåligt sidokrafter. Byt till den här, eller behåll den valda och lägg till en separat linjärstyrning.`,
+              en: `${styrd.name} — guided cylinder in the same bore. The selected cylinder has no built-in guidance: a piston rod can rotate about its axis and tolerates side loads poorly. Switch to this one, or keep the selected cylinder and add a separate linear guide.`,
+              de: `${styrd.name} — geführter Zylinder in gleicher Bohrung. Der gewählte Zylinder hat keine integrierte Führung: eine Kolbenstange kann sich um ihre Achse drehen und verträgt Querkräfte schlecht. Auf diesen wechseln oder den gewählten behalten und eine separate Linearführung ergänzen.`,
+              es: `${styrd.name} — cilindro guiado del mismo diámetro. El cilindro elegido no tiene guiado integrado: un vástago puede girar sobre su eje y tolera mal las cargas laterales. Cambie a este, o conserve el elegido y añada una guía lineal separada.`,
+            })
+          : pick(locale, {
+              sv: "OBLIGATORISK — den valda cylindern har ingen inbyggd styrning, och en kolvstång kan rotera kring sin axel och tål dåligt sidokrafter. Ange styrd cylinder eller separat linjärstyrning dimensionerad för lastens moment. Ingen matchande styrd variant i katalogen för den här borrningen.",
+              en: "MANDATORY — the selected cylinder has no built-in guidance, and a piston rod can rotate about its axis and tolerates side loads poorly. Specify a guided cylinder or a separate linear guide sized for the load's moment. No matching guided variant in the catalogue for this bore.",
+              de: "ZWINGEND ERFORDERLICH — der gewählte Zylinder hat keine integrierte Führung, und eine Kolbenstange kann sich um ihre Achse drehen und verträgt Querkräfte schlecht. Geführten Zylinder oder separate Linearführung angeben, ausgelegt auf das Lastmoment. Keine passende geführte Variante im Katalog für diese Bohrung.",
+              es: "OBLIGATORIO — el cilindro elegido no tiene guiado integrado, y un vástago puede girar sobre su eje y tolera mal las cargas laterales. Indique un cilindro guiado o una guía lineal separada dimensionada para el momento de la carga. No hay variante guiada equivalente en el catálogo para este diámetro.",
+            }),
+      });
+    }
   }
 
   // ── 4. Valve terminal (multi-actuator / fieldbus) OR single directional valve ─
