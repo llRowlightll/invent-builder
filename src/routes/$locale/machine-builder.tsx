@@ -2363,7 +2363,14 @@ function MachineVisualizer({ selected, description, answers }: {
   const isVacuum = selected.sku.includes("DHVZ") || selected.sku.includes("VN");
   const bore = selected.bore_mm ?? 50;
   const stroke = Math.min(selected.stroke_mm ?? 200, 300);
-  const isVertical = /lyft|vertikal|upp|lift|vertical|press/i.test(description + JSON.stringify(answers));
+  // Mönstret hade bart "upp" utan ordgräns, och en kund skrev "Kartongerna
+  // väger UPP TILL 25 kg" om ett horisontellt kartongstopp. Kundens egna ord
+  // fick 3D-vyn att rita maskinen stående. Orden är nu ordgränsade, och ett
+  // uttryckligt horisontellt val slår alltid detekteringen -- samma regel som
+  // needsVerticalLoad i signals.ts.
+  const beskrivning = description + " " + JSON.stringify(answers);
+  const isVertical = !/\bhorisontell?\b|\bhorizontal\b|\bliggande\b/i.test(beskrivning)
+    && /\blyft\w*\b|\bvertikal\w*\b|\buppåt\b|\blift\w*\b|\bvertical\b|\bpress\w*\b/i.test(beskrivning);
 
   useEffect(() => {
     const canvas = canvasRef.current;

@@ -293,7 +293,24 @@ export function needsAtex(text: string): boolean {
 
 /** Vertical / suspended load: cylinder holds weight against gravity.
  *  On air-pressure loss the load WILL fall unless a lock valve is fitted. */
+/**
+ * Uttryckligt HORISONTELLT val slår alltid vertikaldetektering.
+ *
+ * Rapporterat: en kund beskrev ett kartongstopp på ett transportband och valde
+ * "Horisontell orientering" i wizarden. Stycklistan motiverade ändå
+ * backslagsventilen med "OBLIGATORISK vid pneumatisk vertikal last".
+ *
+ * Detektorerna är rena textmönster utan negationshantering: de letar efter ord
+ * som antyder vertikalitet men vet ingenting om ett svar som säger motsatsen.
+ * Ett uttryckligt användarval är starkare bevis än ett ord någonstans i
+ * prosan, så det får vinna.
+ */
+export function sagerHorisontell(text: string): boolean {
+  return /\bhorisontell?\b|\bhorisontal\b|\bhorizontal\b|\bliggande\b|\bi\s?plan(et)?\b|\bwaagerecht\b|\bhorizontale?\b/i.test(text);
+}
+
 export function needsVerticalLoad(text: string): boolean {
+  if (sagerHorisontell(text)) return false;
   return /\blyft|\bhissa\b|\bhäng.*last\b|\blast.*häng\b|\bvertikal|\bcylinder.*vertikal\b|\bz[.-]?axel\b|\bz[.-]?axis\b|\bpress.*ner\b|\bpress.*ned\b|\bnedåt\b|\buppåt\b|\bvertical.*load\b|\bhanging.*load\b|\bsuspended.*load\b|\blifting.*cyl\b|\bcylinder.*lyft\b|\bz[.-]?achse\b|\bheben\b|\bhebt\b|\bhängende\s?last\b|\bnach\s?unten\b|\bnach\s?oben\b|\belevar\b|\blevantar\b|\bcarga\s?suspendida\b|\bcarga\s?colgante\b|\beje\s?z\b|\bhacia\s?abajo\b|\bhacia\s?arriba\b/i.test(text);
 }
 

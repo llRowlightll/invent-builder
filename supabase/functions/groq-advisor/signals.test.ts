@@ -504,3 +504,20 @@ Deno.test("needsGuidance: en vanlig cylinderbeskrivning utlöser den inte", () =
     assert(!needsGuidance(t), `skulle INTE ha matchat: ${t}`);
   }
 });
+
+Deno.test("ett uttryckligt horisontellt val slår vertikaldetekteringen", () => {
+  // Rapporterat: kartongstopp på transportband, användaren valde "Horisontell
+  // orientering". Stycklistan motiverade ändå backslagsventilen med
+  // "OBLIGATORISK vid pneumatisk vertikal last" -- en regel från ett tidigare
+  // vertikalt pressfall som följde med till ett case där villkoret inte gällde.
+  assert(!needsVerticalLoad("stoppar kartonger på transportband, horisontell orientering"));
+  assert(!needsVerticalLoad("liggande montage, cylindern lyfter inget"));
+  assert(!needsVerticalLoad("horizontal orientation, carton stop"));
+});
+
+Deno.test("vertikaldetekteringen fungerar fortfarande när inget motsäger den", () => {
+  // Regressionsskydd: fixen ovan får inte stänga av vertikallogiken helt.
+  assert(needsVerticalLoad("vertikal press som pressar plastlock nedåt"));
+  assert(needsVerticalLoad("cylinder som ska lyfta 15 kg"));
+  assert(needsVerticalLoad("hängande last i z-axel"));
+});
