@@ -318,7 +318,11 @@ Deno.test("unitCount does NOT scale the valve terminal itself -- one manifold se
 
 Deno.test("unitCount does NOT scale the FRL -- one central air-prep unit feeds all stations by design", () => {
   const rows = buildMandatoryBomRows(bomCtx({ primarySku: "TEST-PRIMARY", unitCount: 6 }));
-  const frlRow = rows.find((r) => /FRL-enhet/i.test(r.role));
+  // Leta på kind, inte på role. role är lokaliserad visningstext och ändrar sig
+  // med produkten -- raden heter numera "Filterregulator" eller "Luftfilter
+  // (UTAN regulator)" beroende på vad katalogmatchen faktiskt är. kind är den
+  // stabila komponenttypen, precis som kommentaren vid BomKind slår fast.
+  const frlRow = rows.find((r) => r.kind === "frl");
   assert(frlRow, "expected an FRL row");
   assertEquals(frlRow!.quantity, 1, "FRL stays a single shared unit");
   assert(/6 station/i.test(frlRow!.reason), "expected the sizing note to state the station count");

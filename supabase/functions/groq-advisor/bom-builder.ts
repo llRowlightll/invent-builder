@@ -280,6 +280,35 @@ export interface BomConnection {
   relation: "controlled_by" | "air_supply" | "requires" | "accessory" | "mounted_on" | "senses";
 }
 
+/**
+ * Vad luftberedningsprodukten FAKTISKT är.
+ *
+ * Kategorin "air-preparation" blandar fyra olika saker, och BOM-raden kallade
+ * dem alla "FRL-enhet (Filter-Regulator-Smörjare)" oavsett vilken som matchade.
+ * En granskning fångade följden: MS4 Filter G1/4 presenterades som komplett FRL
+ * med motiveringen att den "säkerställer rätt arbetstryck". Ett filter reglerar
+ * inget tryck.
+ *
+ * Det spelar roll bortom ordvalet: utan REGULATOR går arbetstrycket inte att
+ * ställa, och då går presskraften inte att begränsa. Strypbackventiler reglerar
+ * hastighet, inte statisk kraft.
+ *
+ * Ordningen är viktig -- mest specifik först, eftersom "MS4 Filter+Regulator"
+ * innehåller både ordet filter och ordet regulator.
+ */
+export type Luftberedning = "frl" | "filter_regulator" | "endast_regulator" | "endast_filter" | "okand";
+
+export function klassaLuftberedning(namn: string): Luftberedning {
+  const n = (namn ?? "").toLowerCase();
+  if (!n) return "okand";
+  // Smörjare med: hel FRL. "-AS" är Festos ändelse för kombienhet.
+  if (/\bfrl\b|service\s?unit|smörj|lubric|öler|-as\b/.test(n)) return "frl";
+  if (/filter\s*[+\-–/]?\s*regulator|filter-regulator|\blfr\b|\bac\d|\baw\d|\bfr-\s?\d/.test(n)) return "filter_regulator";
+  if (/\bregulator\b|tryckreducering|druckregel|reguladora|\blr-|\bar\d/.test(n)) return "endast_regulator";
+  if (/\bfilter\b|separator|avskiljare|\blf-/.test(n)) return "endast_filter";
+  return "okand";
+}
+
 export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   const { primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
           isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, locale, products,
@@ -583,17 +612,72 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
       de: ` Die Durchflusskapazität für ${uc} Stationen dimensionieren.`,
       es: ` Dimensione la capacidad de caudal para ${uc} estaciones.`,
     }) : "";
+    // Rollen beskriver vad produkten FAKTISKT är, inte vad kategorin heter.
+    // Tidigare stod "FRL-enhet (Filter-Regulator-Smörjare)" även när matchen var
+    // MS4 Filter G1/4 -- ett filter -- med motiveringen att den "säkerställer
+    // rätt arbetstryck". Ett filter reglerar inget tryck.
+    const sort = klassaLuftberedning(frlMatch?.name ?? "");
+    const harRegulator = sort === "frl" || sort === "filter_regulator" || sort === "endast_regulator";
+
+    const roll = pick(locale, {
+      sv: sort === "frl" ? "FRL-enhet (filter, regulator, smörjare)"
+        : sort === "filter_regulator" ? "Filterregulator (filter + tryckregulator)"
+        : sort === "endast_regulator" ? "Tryckregulator"
+        : sort === "endast_filter" ? "Luftfilter (UTAN regulator)"
+        : "Luftberedning",
+      en: sort === "frl" ? "FRL unit (filter, regulator, lubricator)"
+        : sort === "filter_regulator" ? "Filter-regulator (filter + pressure regulator)"
+        : sort === "endast_regulator" ? "Pressure regulator"
+        : sort === "endast_filter" ? "Air filter (WITHOUT regulator)"
+        : "Air preparation",
+      de: sort === "frl" ? "FRL-Einheit (Filter, Regler, Öler)"
+        : sort === "filter_regulator" ? "Filterregler (Filter + Druckregler)"
+        : sort === "endast_regulator" ? "Druckregler"
+        : sort === "endast_filter" ? "Luftfilter (OHNE Regler)"
+        : "Luftaufbereitung",
+      es: sort === "frl" ? "Unidad FRL (filtro, regulador, lubricador)"
+        : sort === "filter_regulator" ? "Filtro-regulador (filtro + regulador de presión)"
+        : sort === "endast_regulator" ? "Regulador de presión"
+        : sort === "endast_filter" ? "Filtro de aire (SIN regulador)"
+        : "Tratamiento de aire",
+    });
+
     rows.push({
       sku: frlMatch?.sku ?? "SPECIFY", quantity: 1,
       kind: "frl",
-      role: pick(locale, { sv: "FRL-enhet (Filter-Regulator-Smörjare)", en: "FRL unit (Filter-Regulator-Lubricator)", de: "FRL-Einheit (Filter-Regler-Öler)", es: "Unidad FRL (Filtro-Regulador-Lubricador)" }),
-      reason: pick(locale, {
-        sv: "OBLIGATORISK för pneumatiskt system — luftberedning säkerställer rätt arbetstryck, filtrerad luft (≥40 µm) och smörjning av cylindertätningar. Välj regulator med manometer 0–10 bar.",
-        en: "MANDATORY for pneumatic system — air preparation ensures correct working pressure, filtered air (≥40 µm) and seal lubrication. Select regulator with pressure gauge 0–10 bar.",
-        de: "ZWINGEND ERFORDERLICH für pneumatische Systeme — die Luftaufbereitung stellt den richtigen Arbeitsdruck, gefilterte Luft (≥40 µm) und die Schmierung der Zylinderdichtungen sicher. Regler mit Manometer 0–10 bar wählen.",
-        es: "OBLIGATORIO para sistemas neumáticos — el tratamiento de aire garantiza la presión de trabajo correcta, aire filtrado (≥40 µm) y lubricación de las juntas del cilindro. Seleccione un regulador con manómetro de 0-10 bar.",
-      }) + frlSizingNote,
+      role: roll,
+      reason: (harRegulator
+        ? pick(locale, {
+            sv: "OBLIGATORISK för pneumatiskt system — filtrerad luft (≥40 µm) och inställbart arbetstryck. Regulatorn är också det som begränsar cylinderns kraft: kraften följer trycket, så ställ in det efter önskad presskraft och läs av på manometern.",
+            en: "MANDATORY for a pneumatic system — filtered air (≥40 µm) and adjustable working pressure. The regulator is also what limits cylinder force: force follows pressure, so set it for the intended press force and read it on the gauge.",
+            de: "ZWINGEND ERFORDERLICH für pneumatische Systeme — gefilterte Luft (≥40 µm) und einstellbarer Arbeitsdruck. Der Regler begrenzt auch die Zylinderkraft: die Kraft folgt dem Druck, also auf die gewünschte Presskraft einstellen und am Manometer ablesen.",
+            es: "OBLIGATORIO para sistemas neumáticos — aire filtrado (≥40 µm) y presión de trabajo ajustable. El regulador es además lo que limita la fuerza del cilindro: la fuerza sigue a la presión, así que ajústela a la fuerza de prensado deseada y léala en el manómetro.",
+          })
+        : pick(locale, {
+            sv: "Filtrerar luften (≥40 µm) men REGLERAR INGET TRYCK. Komplettera med en tryckregulator med manometer — utan den går arbetstrycket inte att ställa, och därmed inte heller cylinderns kraft.",
+            en: "Filters the air (≥40 µm) but REGULATES NO PRESSURE. Add a pressure regulator with a gauge — without one the working pressure cannot be set, and therefore neither can the cylinder force.",
+            de: "Filtert die Luft (≥40 µm), REGELT ABER KEINEN DRUCK. Mit einem Druckregler mit Manometer ergänzen — ohne ihn lässt sich der Arbeitsdruck nicht einstellen und damit auch nicht die Zylinderkraft.",
+            es: "Filtra el aire (≥40 µm) pero NO REGULA NINGUNA PRESIÓN. Añada un regulador de presión con manómetro — sin él no se puede ajustar la presión de trabajo ni, por tanto, la fuerza del cilindro.",
+          })) + frlSizingNote,
     });
+
+    // Saknas regulatorn är det inte en formuleringsfråga utan en lucka i
+    // lösningen: presskraften går då inte att begränsa. Strypbackventilerna
+    // nedan reglerar HASTIGHET, inte statisk kraft.
+    if (!harRegulator) {
+      const regMatch = products.find(p => klassaLuftberedning(p.name ?? "") === "endast_regulator");
+      rows.push({
+        sku: regMatch?.sku ?? "SPECIFY", quantity: 1,
+        kind: "frl",
+        role: pick(locale, { sv: "Tryckregulator med manometer", en: "Pressure regulator with gauge", de: "Druckregler mit Manometer", es: "Regulador de presión con manómetro" }),
+        reason: pick(locale, {
+          sv: "OBLIGATORISK — luftberedningen ovan filtrerar men reglerar inget tryck. Cylinderkraften följer trycket, så utan regulator går presskraften inte att begränsa. Strypbackventiler reglerar hastighet, inte statisk kraft.",
+          en: "MANDATORY — the air preparation above filters but regulates no pressure. Cylinder force follows pressure, so without a regulator the press force cannot be limited. Flow-control valves regulate speed, not static force.",
+          de: "ZWINGEND ERFORDERLICH — die Luftaufbereitung oben filtert, regelt aber keinen Druck. Die Zylinderkraft folgt dem Druck, ohne Regler lässt sich die Presskraft nicht begrenzen. Drosselrückschlagventile regeln die Geschwindigkeit, nicht die statische Kraft.",
+          es: "OBLIGATORIO — el tratamiento de aire anterior filtra pero no regula presión. La fuerza del cilindro sigue a la presión, así que sin regulador no se puede limitar la fuerza de prensado. Las válvulas reguladoras de caudal regulan la velocidad, no la fuerza estática.",
+        }),
+      });
+    }
   }
 
   // ── 6. Shock absorbers (high speed ≥1000 mm/s) ───────────────────
@@ -1067,15 +1151,22 @@ export function deriveBomConnections(rows: BomRow[]): BomConnection[] {
     total === actuators.length ? actuators[n] : actuators[0];
 
   // ── Luftvägen: FRL -> ventilramp -> ventil -> aktuator ────────────────────
-  const airSource = terminals[0] ?? frls[0];
-  if (terminals.length > 0 && frls.length > 0) link(terminals[0], frls[0], "air_supply");
+  // Luftberedningen kan vara FLERA moduler i serie. När katalogmatchen bara är
+  // ett filter läggs en separat tryckregulator till, och den sitter NEDSTRÖMS:
+  // filter -> regulator -> ventil. Ventilen ska därför ta luft från den SISTA
+  // modulen i kedjan, inte från den första -- annars hamnar regulatorn utanför
+  // flödet och grafen visar den som en lös nod.
+  frls.forEach((f, n) => { if (n > 0) link(f, frls[n - 1], "air_supply"); });
+  const sistaFrl = frls.length > 0 ? frls[frls.length - 1] : undefined;
+  const airSource = terminals[0] ?? sistaFrl;
+  if (terminals.length > 0 && sistaFrl !== undefined) link(terminals[0], sistaFrl, "air_supply");
   valves.forEach((v, n) => {
     if (airSource !== undefined && airSource !== v) link(v, airSource, "air_supply");
     link(actuatorFor(n, valves.length), v, "controlled_by");
   });
   // Ingen ventil alls (t.ex. ren elektrisk lösning): koppla aktuatorn direkt
   // till luftberedningen om sådan finns, annars lämna den fristående.
-  if (valves.length === 0 && frls.length > 0) link(actuators[0], frls[0], "air_supply");
+  if (valves.length === 0 && sistaFrl !== undefined) link(actuators[0], sistaFrl, "air_supply");
 
   // ── Elektrisk kedja: drivsteg styr motor, motor sitter på aktuatorn ───────
   motors.forEach((m, n) => {
