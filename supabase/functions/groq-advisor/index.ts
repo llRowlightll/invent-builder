@@ -44,6 +44,7 @@ import {
   detectHazards,
   type HazardFlags,
   detectEndEffectorIntent,
+  extractRequiredMaxTemp,
 } from "./signals.ts";
 import {
   buildCustomSolutionOption,
@@ -51,6 +52,7 @@ import {
   findAxisActuator,
   type BomCtx,
   buildMandatoryBomRows,
+  bedomLosning,
   deriveBomConnections,
   deriveSubsystems,
   firstNumAbs,
@@ -676,6 +678,24 @@ async function handleQuestions(description: string, locale: string): Promise<Res
     catch { return questionsFailed(locale, t0, "json_parse_failed"); }
   } catch (e) {
     if ((e as Error).message === "RATE_LIMITED") {
+      // Loggas som allt annat som fallerar här. Fram till nu returnerade den
+      // här grenen 503 utan att gå via questionsFailed(), och var därmed den
+      // ENDA felvägen i steg 1 som inte skrev till integration_logs -- trots
+      // att kvottaket är den vanligaste orsaken till att steget fallerar.
+      //
+      // Det är precis hålet som kommentaren ovanför questionsFailed säger är
+      // igenlagt ("invisible in telemetry too"): den fixen lade loggningen i
+      // questionsFailed, och den här grenen går förbi den funktionen. Mätt
+      // 2026-10-01: integration_logs visade 82 questions-anrop på sju dagar
+      // och noll fel, samtidigt som ett eget anrop fick 503 på första
+      // försöket. Man kan inte laga det man inte kan se.
+      //
+      // Statuskoden stannar på 503 och blir inte 502: klienten skiljer på dem
+      // (advisor-client.ts kastar RATE_LIMITED just på 503) och visar ett eget
+      // meddelande om att vänta i stället för det allmänna felet.
+      logAdvisorEvent("questions", {
+        locale, question_count: 0, duration_ms: Date.now() - t0, rate_limited: true,
+      }, false, "rate_limited");
       return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
     }
     return questionsFailed(locale, t0, (e as Error).message || "unknown");
@@ -1871,6 +1891,7 @@ async function handleBom(
     ...hazards,
     primarySku, primaryIsFamilyProd, isElectric, locale,
     products: atexSafeProducts, primaryBoreMm, primaryBrand, unitCount,
+    kravTempC: extractRequiredMaxTemp(combinedText, answers),
   };
   const mandatoryBom = buildMandatoryBomRows(bomCtx);
   console.log(`[bom v49] primary=${primarySku} electric=${isElectric} vertical=${hazards.isVerticalLoad} highSpeed=${hazards.isHighSpeed} multiAxis=${hazards.isMultiAxis} mounting=${hazards.isMounting} mandatoryRows=${mandatoryBom.length}`);
@@ -2021,7 +2042,18 @@ JSON: { "title": "...", "explanation": "..." }`;
     subsystems: [...new Set(subsystems.filter(Boolean))].length,
   }, true, wasRateLimited ? "rate_limited" : undefined);
 
-  return Response.json({ title, explanation, bom: bomWithGroups, connections }, { headers: CORS });
+  // Domen går MED i svaret. bedomLosning() har funnits sedan #312 och var
+  // exporterad, testad -- och anropad av ingen. En rad kunde alltså komma
+  // tillbaka märkt "ej_uppfyllt" utan att något i systemet drog slutsatsen att
+  // lösningen då inte är beställningsbar. Att räkna ut ett svar och inte skicka
+  // det är samma sak som att inte räkna ut det.
+  const dom = bedomLosning(finalBom);
+
+  return Response.json({
+    title, explanation, bom: bomWithGroups, connections,
+    bestallningsklar: dom.bestallningsklar,
+    blockerande: dom.blockerande,
+  }, { headers: CORS });
 }
 
 

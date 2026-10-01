@@ -11,7 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { type CatalogProduct, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
-import { type HazardFlags, pick, isPneumaticByDrive, isNonArticulatingActuator } from "./signals.ts";
+import { type HazardFlags, pick, isPneumaticByDrive, isNonArticulatingActuator, parseProductTempMax } from "./signals.ts";
 
 export function buildCustomSolutionOption(
   minStroke: number, locale: string, maxCatalogStroke: number, catalogCanHandle: boolean,
@@ -240,6 +240,13 @@ export interface BomCtx extends HazardFlags {
   primaryBoreMm: number;   // fetched by SKU — `products` (30/category) may miss the primary
   primaryBrand: string;    // same as above — see fetchPrimaryInfo() call site
   unitCount: number;       // extractUnitCount() — N identical stations; 1 when not stated
+  /**
+   * Högsta temperatur kunden angett, i °C. 0 när inget sagts eller när det
+   * ligger under 80 °C -- extractRequiredMaxTemp släpper igenom allt därunder,
+   * eftersom standardtätningar klarar det och en kontroll då bara blir brus.
+   * Över den gränsen är det ett krav som varje rad ska mätas mot.
+   */
+  kravTempC: number;
 }
 
 /**
@@ -1250,7 +1257,7 @@ export const isGripperFamily = (p: CatalogProduct) => /,/.test(String(p.key_spec
  * stämde än att skicka en lösning som inte gör det.
  */
 function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
-  const { products, primaryBrand, locale } = ctx;
+  const { products, primaryBrand, locale, kravTempC } = ctx;
   const fabrikatAv = (sku: string) => products.find(p => p.sku === sku)?.brand ?? "";
 
   for (const r of rows) {
@@ -1287,6 +1294,47 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
           en: `The sensor is ${givarFabrikat}, the cylinder ${primaryBrand}. Groove type, groove dimension, magnet type and mounting are not verified against each other — check the datasheets or choose a ${primaryBrand} sensor.`,
           de: `Der Sensor ist ${givarFabrikat}, der Zylinder ${primaryBrand}. Nutform, Nutmaß, Magnettyp und Montage sind nicht gegeneinander verifiziert — Datenblätter prüfen oder einen ${primaryBrand}-Sensor wählen.`,
           es: `El sensor es ${givarFabrikat} y el cilindro ${primaryBrand}. Tipo de ranura, dimensión, tipo de imán y montaje no están verificados entre sí — compruebe las hojas de datos o elija un sensor ${primaryBrand}.`,
+        });
+        continue;
+      }
+    }
+
+    // TEMPERATUR. Fram till 2026-10-01 satte den här funktionen "verifierad" på
+    // allt som varken var en SPECIFY-rad eller en givare över fabrikatsgräns --
+    // utan att jämföra en enda siffra mot ett enda krav.
+    //
+    // Hittat i ett eget hårt testfall: kunden angav 90 °C, och FE-HGL-1-4-B --
+    // den pilotstyrda backslagsventil vars ENDA uppgift är att hålla 45 kg kvar
+    // ovanför en operatör som arbetar under lasten -- är katalogsatt -10…+70 °C.
+    // Raden kom tillbaka märkt "verifierad".
+    //
+    // Ordet påstår att någon kontrollerat. Saknas uppgiften är det sanna svaret
+    // "kräver verifiering", inte tystnad. parseProductTempMax returnerar 0 för
+    // okänt med kommentaren "do not block", och det är rätt för RANKNING: en
+    // produkt utan uppgift ska inte sorteras bort. Men samma 0 blir en osanning
+    // i det ögonblick den trycks ut som en etikett till kunden.
+    if (kravTempC > 0) {
+      const prod = products.find(p => p.sku === r.sku);
+      const maxC = prod ? parseProductTempMax(prod.key_specs ?? {}) : 0;
+
+      if (maxC > 0 && maxC < kravTempC) {
+        r.verifiering = "ej_uppfyllt";
+        r.verifieringsskal = pick(locale, {
+          sv: `Katalogen anger max ${maxC} °C för artikeln, kravet är ${kravTempC} °C. Komponenten är inte godkänd för miljön och måste bytas före beställning.`,
+          en: `The catalogue rates this item to max ${maxC} °C, the requirement is ${kravTempC} °C. The component is not approved for this environment and must be replaced before ordering.`,
+          de: `Der Katalog gibt für diesen Artikel max. ${maxC} °C an, gefordert sind ${kravTempC} °C. Die Komponente ist für diese Umgebung nicht zugelassen und muss vor der Bestellung ersetzt werden.`,
+          es: `El catálogo indica un máximo de ${maxC} °C para este artículo y el requisito es ${kravTempC} °C. El componente no está homologado para este entorno y debe sustituirse antes de pedir.`,
+        });
+        continue;
+      }
+
+      if (maxC === 0) {
+        r.verifiering = "kraver_verifiering";
+        r.verifieringsskal = pick(locale, {
+          sv: `Kravet är ${kravTempC} °C och vi har ingen temperaturuppgift för artikeln. Kontrollera mot databladet innan beställning — vi påstår inte att den klarar det.`,
+          en: `The requirement is ${kravTempC} °C and we hold no temperature rating for this item. Check the datasheet before ordering — we are not claiming it is suitable.`,
+          de: `Gefordert sind ${kravTempC} °C, und für diesen Artikel liegt uns keine Temperaturangabe vor. Vor der Bestellung im Datenblatt prüfen — wir behaupten nicht, dass er geeignet ist.`,
+          es: `El requisito es ${kravTempC} °C y no disponemos de dato de temperatura para este artículo. Compruébelo en la hoja de datos antes de pedir — no afirmamos que sea apto.`,
         });
         continue;
       }
