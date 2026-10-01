@@ -9,6 +9,7 @@ import {
   deriveBomConnections,
   deriveSubsystems,
   findAxisActuator,
+  bedomLosning,
 } from "./bom-builder.ts";
 import { type CatalogProduct, normalizeKeySpecs } from "./scoring.ts";
 
@@ -465,4 +466,49 @@ Deno.test("en riktig stycklista från buildMandatoryBomRows ger en sammanhängan
   assert(rows.length > 3, "stycklistan ska ha innehåll");
   assert(rows.every(r => typeof r.kind === "string"), "varje rad måste ha en kind");
   assert(isConnected(rows), "den verkliga stycklistan ska hänga ihop");
+});
+
+Deno.test("bedomLosning: en enda oviss rad gör lösningen icke beställningsklar", () => {
+  // Hela poängen med statusfältet. En lösning med en overifierad givare är
+  // inte "nästan klar" -- den som beställer på den upptäcker felet först när
+  // delarna inte passar ihop.
+  const rader: BomRow[] = [
+    { sku: "MW-CMPC-80", quantity: 1, kind: "actuator", role: "Primär aktuator", reason: "", verifiering: "verifierad" },
+    { sku: "FE-SIES-8M", quantity: 2, kind: "sensor", role: "Ändlägesgivare", reason: "",
+      verifiering: "kraver_verifiering", verifieringsskal: "Givaren är Festo, cylindern Metal Work." },
+  ];
+  const d = bedomLosning(rader);
+  assert(!d.bestallningsklar, "en overifierad givare ska blockera");
+  assertEquals(d.blockerande.length, 1);
+  assertEquals(d.blockerande[0].sku, "FE-SIES-8M");
+});
+
+Deno.test("bedomLosning: ett ouppfyllt obligatoriskt krav blockerar", () => {
+  const rader: BomRow[] = [
+    { sku: "MW-CMPC-80", quantity: 1, kind: "actuator", role: "Primär aktuator", reason: "", verifiering: "verifierad" },
+    { sku: "SPECIFY", quantity: 1, kind: "mount", role: "Styrning / vridskydd", reason: "",
+      verifiering: "ej_uppfyllt", verifieringsskal: "Ingen artikel matchar kravet." },
+  ];
+  assert(!bedomLosning(rader).bestallningsklar, "ej_uppfyllt ska blockera");
+});
+
+Deno.test("bedomLosning: avvikelse och kräver-konfiguration blockerar INTE", () => {
+  // En avvikelse är redovisad och accepterad; en familjeprodukt konfigureras
+  // vid order. Båda är ärliga tillstånd, inte okända.
+  const rader: BomRow[] = [
+    { sku: "A", quantity: 1, kind: "actuator", role: "Aktuator", reason: "", verifiering: "avvikelse" },
+    { sku: "B", quantity: 1, kind: "valve", role: "Ventil", reason: "", verifiering: "kraver_konfiguration" },
+    { sku: "C", quantity: 1, kind: "frl", role: "FRL", reason: "" },
+  ];
+  assert(bedomLosning(rader).bestallningsklar, "dessa tre ska inte blockera");
+});
+
+Deno.test("satteVerifiering: SPECIFY på ett obligatoriskt krav blir ej_uppfyllt", () => {
+  const rows = buildMandatoryBomRows(bomCtx({ primarySku: "TEST-PRIMARY", isGuided: true }));
+  const styrning = rows.find(r => r.kind === "mount" && r.sku === "SPECIFY");
+  if (styrning) {
+    assertEquals(styrning.verifiering, "ej_uppfyllt",
+      "styrning utan artikel är ett OUPPFYLLT krav, inte bara overifierat");
+    assert((styrning.verifieringsskal ?? "").length > 0, "skälet ska stå i klartext");
+  }
 });
