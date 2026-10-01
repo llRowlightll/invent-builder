@@ -10,7 +10,7 @@ import {
   needsAtex, needsAtexDust, needsVerticalLoad, needsHighTemp, needsLowTemp,
   isHydraulicApplication, needsVeryHighForce, needsOxygenClean, needsHighCycle,
   needsHighSpeed, needsSilSafety, needsOutdoor, needsPharmaGmp, needsBatteryDryroom,
-  needsRodLock, needsWashdown, needsEndPositionDetection, needsArticulatedMount,
+  needsRodLock, needsGuidance, needsWashdown, needsEndPositionDetection, needsArticulatedMount,
   needsMounting, needsLowCost, needsContinuousDuty, needsDirtyEnv,
   extractRequiredMaxTemp, extractMinStroke, extractPerAxisStrokes, extractSpeedMs,
   extractPrecisionMm, extractExplicitBoreMm, calcMinBoreMm, extractTorqueNm,
@@ -475,5 +475,32 @@ Deno.test("needsRodLock: ändlägeslåsning är INTE en säkerhetsbroms", () => 
     "cylinder med ändlägeslåsning i främre läge",
   ]) {
     assert(!needsRodLock(t), `skulle INTE ha matchat: ${t}`);
+  }
+});
+
+Deno.test("needsGuidance: styrningskravet har någonstans att ta vägen", () => {
+  // Regressionen: en kund valde "Ja, ledning" i wizarden. Det fanns ingen
+  // isGuided-flagga alls, så kravet försvann -- ingen BOM-rad, ingen varning.
+  // Optionskortet skrev till och med "ingen inbyggd guidning" bland
+  // nackdelarna, så kunskapen fanns; den nådde bara aldrig stycklistan.
+  for (const t of [
+    "Ja, ledning behövs",
+    "cylindern får inte rotera",
+    "behöver vridskydd på kolvstången",
+    "pressplatta som tar sidokrafter",
+    "needs anti-rotation guidance",
+    "mit Verdrehsicherung",
+    "requiere antigiro",
+  ]) {
+    assert(needsGuidance(t), `skulle ha matchat: ${t}`);
+  }
+});
+
+Deno.test("needsGuidance: en vanlig cylinderbeskrivning utlöser den inte", () => {
+  for (const t of [
+    "pneumatisk cylinder Ø40 med 200 mm slag",
+    "dubbelverkande cylinder för horisontell transport",
+  ]) {
+    assert(!needsGuidance(t), `skulle INTE ha matchat: ${t}`);
   }
 });

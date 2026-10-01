@@ -59,6 +59,7 @@ function bomCtx(over: Partial<BomCtx> = {}): BomCtx {
     isEndPosDetect: false,
     isArticulated: false,
     isMounting: false,
+    isGuided: false,
     isLowCost: false,
     is24x7: false,
     isDirtyEnv: false,
