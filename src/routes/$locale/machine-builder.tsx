@@ -1874,7 +1874,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
 
 // ── BOM System View ─────────────────────────────────────────────────────────
 // Classifies a BOM line's role into a visual system node type
-type NodeType = "supply" | "frl" | "valve" | "actuator" | "sensor" | "fitting" | "drive" | "psu" | "cable" | "mount" | "gripper" | "vacuum" | "other";
+type NodeType = "supply" | "frl" | "valve" | "check_valve" | "flow_control" | "actuator" | "sensor" | "fitting" | "drive" | "psu" | "cable" | "mount" | "gripper" | "vacuum" | "other";
 
 /**
  * Serverns stabila komponenttyp -> diagrammets nodtyp.
@@ -1895,7 +1895,17 @@ type NodeType = "supply" | "frl" | "valve" | "actuator" | "sensor" | "fitting" |
  */
 const KIND_TO_NODE: Record<string, NodeType> = {
   actuator: "actuator", motor: "actuator", drive: "drive",
-  valve: "valve", valve_terminal: "valve", check_valve: "valve", flow_control: "valve",
+  // Backslagsventil och strypbackventil är INTE styrventiler och fick inte
+  // ritas som sådana. Schemat visade "Pilotmanövrerad backslagsventil" i rutan
+  // STYRVENTIL medan den riktiga 5/2-ventilen försvann bakom "+2" -- fyra
+  // skilda komponenter kollapsade till en nod. Backslagsventilen är dessutom
+  // säkerhetsrelevant vid vertikal last; att rita den som en styrventil döljer
+  // vad lösningen faktiskt gör.
+  //
+  // Ventilterminalen får däremot ligga kvar som "valve": den ÄR en styrventil,
+  // bara flera i samma hus.
+  valve: "valve", valve_terminal: "valve",
+  check_valve: "check_valve", flow_control: "flow_control",
   frl: "frl", silencer: "other", tubing: "fitting", fitting: "fitting",
   rod_lock: "mount", shock_absorber: "mount", mount: "mount",
   sensor: "sensor", cable: "cable", warning: "other",
@@ -1906,6 +1916,10 @@ function classifyRole(role: string, sku: string): NodeType {
   const s = sku.toLowerCase();
   if (/lufttill|supply|compressor|source|luft/.test(r)) return "supply";
   if (/frl|filter|regulator|lubric|luftbered/.test(r)) return "frl";
+  // Före den generella ventilraden: "backslagsventil" innehåller "ventil" och
+  // hade annars blivit en styrventil.
+  if (/backslag|back.?ventil|check.?valve|non.?return|rückschlag|antirretorno/.test(r)) return "check_valve";
+  if (/stryp|flödesregl|hastighetsregl|flow.?control|speed.?control|drossel|regulador de caudal/.test(r)) return "flow_control";
   if (/ventil|valve|direktional|styrventi|solenoid|5\/2|3\/2/.test(r)) return "valve";
   // Drive check BEFORE actuator — "servo motor driver", "drivmodul" etc. contain
   // "motor" which would otherwise hit the actuator branch first.
@@ -1928,6 +1942,8 @@ const NODE_META: Record<NodeType, { label: string; color: string; fill: string; 
   supply:   { label: "Lufttillförsel",  color: "#64748b", fill: "#f1f5f9", icon: "◎" },
   frl:      { label: "FRL-enhet",       color: "#0ea5e9", fill: "#e0f2fe", icon: "⧖" },
   valve:    { label: "Styrventil",      color: "#6366f1", fill: "#eef2ff", icon: "⇌" },
+  check_valve:  { label: "Backslagsventil",  color: "#b45309", fill: "#fef3c7", icon: "⊣" },
+  flow_control: { label: "Strypbackventil",  color: "#0d9488", fill: "#ccfbf1", icon: "⧗" },
   actuator: { label: "Aktuator",        color: "#0284c7", fill: "#dbeafe", icon: "⇒" },
   sensor:   { label: "Sensor",          color: "#16a34a", fill: "#dcfce7", icon: "◈" },
   fitting:  { label: "Anslutning/Slang",color: "#94a3b8", fill: "#f8fafc", icon: "⊕" },
