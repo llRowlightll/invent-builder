@@ -82,7 +82,19 @@ interface BomLine {
   /** Delsystemsgruppering från servern. null för varningsrader, som är
    *  annotationer och inte komponenter. */
   subsystem?: string | null;
+  /** Serverns verifieringsstatus för raden. "verifierad" betyder att de krav vi
+   *  KAN kontrollera har kontrollerats -- inte att allt är kontrollerat. */
+  verifiering?: string;
+  verifieringsskal?: string;
   product?: ProductRow;
+}
+
+/** Serverns dom över hela lösningen. Räknas INTE om här: `bedomLosning()` äger
+ *  vilka statusar som blockerar, och en kopia av den regeln i klienten skulle
+ *  driva isär från serverns -- samma fälla som advisor-client.ts beskriver. */
+interface Dom {
+  bestallningsklar: boolean;
+  blockerande: Array<{ sku: string; role: string; verifiering: string; skal: string }>;
 }
 
 type Step = "describe" | "q_loading" | "questions" | "o_loading" | "options" | "bom_loading" | "result";
@@ -160,6 +172,7 @@ function MachineBuilderPage() {
   const [bom, setBom] = useState<BomLine[]>([]);
   const [bomTitle, setBomTitle] = useState("");
   const [connections, setConnections] = useState<BomConnection[]>([]);
+  const [dom, setDom] = useState<Dom | null>(null);
   const [bomExplanation, setBomExplanation] = useState("");
   const [catalog, setCatalog] = useState<ProductRow[]>([]);
   const [error, setError] = useState("");
@@ -341,6 +354,11 @@ function MachineBuilderPage() {
       const enriched = enrichWithCatalog<BomLine>(data.bom ?? []);
       setBom(enriched);
       setConnections(data.connections ?? []);
+      // Äldre driftsatta versioner av funktionen svarar utan dom. Då är null
+      // rätt: ingen banner alls är ärligare än ett påhittat "klar".
+      setDom(typeof data.bestallningsklar === "boolean"
+        ? { bestallningsklar: data.bestallningsklar, blockerande: data.blockerande ?? [] }
+        : null);
       setBomTitle(data.title ?? "");
       setBomExplanation(data.explanation ?? "");
       setStep("result");
@@ -359,6 +377,7 @@ function MachineBuilderPage() {
     setRequirements(null);
     setSelected(null);
     setBom([]);
+    setDom(null);
     setBomTitle("");
     setBomExplanation("");
     setRfqSent(false);
@@ -449,6 +468,7 @@ function MachineBuilderPage() {
           selected={selected}
           requirements={requirements}
           bom={bom}
+          dom={dom}
           connections={connections}
           catalog={catalog}
           description={description}
@@ -644,6 +664,60 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
   // All number fields allow 0 — 0 is a valid answer (e.g. "0 mm precision" = no precision req,
   // "0 bar" = no pressure needed). Only reject negative numbers and NaN.
 
+  // En flervalsfråga har aldrig alla svar. Alternativen kommer från modellen
+  // och täcker det vanliga fallet; verkligheten har alltid ett fall till --
+  // hängande i tak, 30 graders lutning, "roterar OCH lyfter". Utan en väg in
+  // för eget svar tvingas kunden välja det närmaste alternativet, och ett
+  // närmevärde som skickas vidare som ett faktum är precis det som bygger fel
+  // stycklista.
+  //
+  // Fritexten kostar ingenting i precision: index.ts slår ihop beskrivningen
+  // och ALLA svar till en sträng som varje detektor kör sina uttryck på, så
+  // ett eget svar väger lika tungt som ett förvalt -- oftast tyngre, eftersom
+  // det innehåller just de fraser detektorerna letar efter.
+  //
+  // Läget initieras ur svaren och inte som tomt, för steg 3 har en väg
+  // tillbaka hit. Ett sparat svar som inte finns bland alternativen ÄR ett
+  // eget svar, och utan den här härledningen kom det tillbaka osynligt: kvar
+  // i `answers` och på väg till servern, men utan något valt på skärmen.
+  const [egnaSvar, setEgnaSvar] = useState<Set<string>>(() => {
+    const set = new Set<string>();
+    for (const q of questions) {
+      const val = answers[q.id];
+      if (q.type === "choice" && q.options?.length && val && !q.options.includes(val)) {
+        set.add(q.id);
+      }
+    }
+    return set;
+  });
+
+  function valjAlternativ(q: Question, opt: string) {
+    setAnswers({ ...answers, [q.id]: opt });
+    if (egnaSvar.has(q.id)) {
+      const kvar = new Set(egnaSvar);
+      kvar.delete(q.id);
+      setEgnaSvar(kvar);
+    }
+  }
+
+  function vaxlaEgetSvar(q: Question) {
+    const nytt = new Set(egnaSvar);
+    if (nytt.has(q.id)) {
+      // Tillbaka till alternativen. Fritexten slängs, annars skickas ett svar
+      // som inte längre går att se på skärmen.
+      nytt.delete(q.id);
+      const utan = { ...answers };
+      delete utan[q.id];
+      setAnswers(utan);
+    } else {
+      // Nollas, så att inget alternativ står kvar som valt samtidigt som
+      // fältet. Tomt svar håller också Fortsätt avstängd tills något skrivits.
+      nytt.add(q.id);
+      setAnswers({ ...answers, [q.id]: "" });
+    }
+    setEgnaSvar(nytt);
+  }
+
   const allAnswered = questions.length > 0 && questions.every(q => {
     const val = answers[q.id];
     if (val === undefined || val === "") return false;
@@ -679,21 +753,51 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
               </div>
             </div>
             {q.type === "choice" && q.options?.length ? (
-              <div className="flex flex-wrap gap-2 ml-7">
-                {q.options.map(opt => (
+              <div className="ml-7 space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  {q.options.map(opt => {
+                    // Ett förvalt alternativ får inte se valt ut medan fritexten
+                    // är öppen, även om det som skrivits råkar stämma ord för ord.
+                    const vald = !egnaSvar.has(q.id) && answers[q.id] === opt;
+                    return (
+                      <button
+                        key={opt}
+                        onClick={() => valjAlternativ(q, opt)}
+                        className={`px-3 py-1.5 rounded-lg border text-sm transition ${
+                          vald
+                            ? "border-info bg-info/10 text-info font-medium"
+                            : "border-border text-muted-foreground hover:border-info hover:text-foreground"
+                        }`}
+                      >
+                        {vald && <span className="mr-1">✓</span>}
+                        {opt}
+                      </button>
+                    );
+                  })}
                   <button
-                    key={opt}
-                    onClick={() => setAnswers({ ...answers, [q.id]: opt })}
+                    onClick={() => vaxlaEgetSvar(q)}
+                    aria-expanded={egnaSvar.has(q.id)}
                     className={`px-3 py-1.5 rounded-lg border text-sm transition ${
-                      answers[q.id] === opt
+                      egnaSvar.has(q.id)
                         ? "border-info bg-info/10 text-info font-medium"
-                        : "border-border text-muted-foreground hover:border-info hover:text-foreground"
+                        : "border-dashed border-border text-muted-foreground hover:border-info hover:text-foreground"
                     }`}
                   >
-                    {answers[q.id] === opt && <span className="mr-1">✓</span>}
-                    {opt}
+                    {egnaSvar.has(q.id) && <span className="mr-1">✓</span>}
+                    {t("machineBuilder.ownAnswer")}
                   </button>
-                ))}
+                </div>
+                {egnaSvar.has(q.id) && (
+                  <input
+                    type="text"
+                    autoFocus
+                    value={answers[q.id] ?? ""}
+                    onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
+                    placeholder={t("machineBuilder.typeAnswer")}
+                    aria-label={q.label}
+                    className="w-full max-w-md px-3 py-2 rounded-lg border border-input text-sm focus:outline-none focus:ring-2 focus:ring-info/50 bg-background transition"
+                  />
+                )}
               </div>
             ) : (
               /* Fallback for number, text, or any other type Groq returns */
@@ -1312,11 +1416,11 @@ function findAlternativesTiered(
 }
 
 // ── Result Step ─────────────────────────────────────────────────────────────
-function ResultStep({ t, locale, title, explanation, selected, requirements, bom, connections, catalog, description, answers,
+function ResultStep({ t, locale, title, explanation, selected, requirements, bom, dom, connections, catalog, description, answers,
   rfqName, rfqEmail, rfqCompany, rfqPhone, rfqPoNumber, rfqOrgNumber, rfqSent, rfqId, autoSaved,
   setRfqName, setRfqEmail, setRfqCompany, setRfqPhone, setRfqPoNumber, setRfqOrgNumber, setRfqSent, setRfqId, onRestart, onBack }: {
   t: (key: import("@/lib/i18n").TKey) => string; locale: string; title: string; explanation: string;
-  selected: ActuatorOption; requirements: Requirements | null; bom: BomLine[]; connections: BomConnection[]; catalog: ProductRow[]; description: string; answers: Record<string, string>;
+  selected: ActuatorOption; requirements: Requirements | null; bom: BomLine[]; dom: Dom | null; connections: BomConnection[]; catalog: ProductRow[]; description: string; answers: Record<string, string>;
   rfqName: string; rfqEmail: string; rfqCompany: string; rfqPhone: string; rfqPoNumber: string; rfqOrgNumber: string;
   rfqSent: boolean; rfqId: string; autoSaved: boolean;
   setRfqName: (v: string) => void; setRfqEmail: (v: string) => void;
@@ -1540,6 +1644,36 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
             </button>
           </div>
         </div>
+        {/* Serverns dom. Fram till 2026-10-01 räknade servern ut en status per
+            rad och en samlad bedömning -- och skickade ingendera vidare, så en
+            rad märkt "ej uppfyllt" syntes aldrig för den som skulle beställa.
+            Offertknappen längre ned står kvar med flit: när lösningen inte går
+            ihop är det att prata med en människa som ÄR nästa steg, inte en
+            vägg. */}
+        {dom && !dom.bestallningsklar && (
+          <div className="mx-4 mb-4 rounded-lg border border-warning/40 bg-warning-surface px-4 py-3">
+            <div className="flex items-start gap-2">
+              <span className="text-warning-deep shrink-0 mt-0.5" aria-hidden>⚠</span>
+              <div className="space-y-2 min-w-0">
+                <p className="text-sm font-semibold text-warning-deep">
+                  {t("machineBuilder.notOrderReady")}
+                </p>
+                <ul className="space-y-1.5">
+                  {dom.blockerande.map((b, i) => (
+                    <li key={`${b.sku}-${i}`} className="text-[13px] text-foreground">
+                      <span className="tabular font-medium">{b.sku}</span>
+                      <span className="text-muted-foreground"> — {b.role}: </span>
+                      {b.skal}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-muted-foreground">
+                  {t("machineBuilder.notOrderReadyHelp")}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

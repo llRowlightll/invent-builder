@@ -25,6 +25,7 @@ function prod(
 function bomCtx(over: Partial<BomCtx> = {}): BomCtx {
   return {
     primarySku: "TEST-PRIMARY",
+    kravTempC: 0,   // inget temperaturkrav som standard; sätts per test
     primaryIsFamilyProd: false,
     isElectric: false,
     locale: "sv",
@@ -511,4 +512,64 @@ Deno.test("satteVerifiering: SPECIFY på ett obligatoriskt krav blir ej_uppfyllt
       "styrning utan artikel är ett OUPPFYLLT krav, inte bara overifierat");
     assert((styrning.verifieringsskal ?? "").length > 0, "skälet ska stå i klartext");
   }
+});
+
+// ── "Verifierad" måste betyda att något kontrollerats ────────────────────────
+// Hittat 2026-10-01 i ett eget hårt testfall: kunden angav 90 °C, och
+// FE-HGL-1-4-B -- den pilotstyrda backslagsventil vars enda uppgift är att
+// hålla 45 kg kvar ovanför en operatör -- är katalogsatt -10…+70 °C. Raden kom
+// tillbaka märkt "verifierad". satteVerifiering jämförde aldrig en enda siffra:
+// allt som inte var en SPECIFY-rad eller en korsfabrikatsgivare föll igenom
+// till "verifierad".
+Deno.test("temperatur: en artikel under kravet är ej_uppfyllt, inte verifierad", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "FE-CYL",
+    primaryBrand: "festo",
+    kravTempC: 90,
+    products: [
+      prod("FE-CYL", "cylinders", "festo", { temp_range: "-20…+80", bore_mm: 50 }),
+    ],
+  }));
+  const primar = rows.find(r => r.sku === "FE-CYL");
+  assert(primar, "primäraktuatorn ska finnas i listan");
+  assertEquals(primar!.verifiering, "ej_uppfyllt");
+  assert(/80/.test(primar!.verifieringsskal ?? ""), "skälet ska ange artikelns gräns");
+  assert(/90/.test(primar!.verifieringsskal ?? ""), "skälet ska ange kravet");
+});
+
+Deno.test("temperatur: saknad uppgift ger kraver_verifiering, aldrig verifierad", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "FE-CYL",
+    primaryBrand: "festo",
+    kravTempC: 90,
+    products: [prod("FE-CYL", "cylinders", "festo", { bore_mm: 50 })],
+  }));
+  const primar = rows.find(r => r.sku === "FE-CYL");
+  assertEquals(primar!.verifiering, "kraver_verifiering");
+});
+
+// Kontrollen får inte göra varje vanligt jobb till en vägg. extractRequiredMaxTemp
+// returnerar 0 under 80 °C, och då ska ingenting ha ändrats.
+Deno.test("temperatur: utan krav är raden verifierad som förut", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "FE-CYL",
+    primaryBrand: "festo",
+    kravTempC: 0,
+    products: [prod("FE-CYL", "cylinders", "festo", { bore_mm: 50 })],
+  }));
+  const primar = rows.find(r => r.sku === "FE-CYL");
+  assertEquals(primar!.verifiering, "verifierad");
+});
+
+// Grinden ska dra slutsatsen av raderna, inte bara bära dem.
+Deno.test("bedomLosning blockerar när en rad är ej_uppfyllt", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "FE-CYL",
+    primaryBrand: "festo",
+    kravTempC: 90,
+    products: [prod("FE-CYL", "cylinders", "festo", { temp_range: "-20…+80", bore_mm: 50 })],
+  }));
+  const dom = bedomLosning(rows);
+  assertEquals(dom.bestallningsklar, false);
+  assert(dom.blockerande.some(b => b.sku === "FE-CYL"), "aktuatorn ska stå bland de blockerande");
 });

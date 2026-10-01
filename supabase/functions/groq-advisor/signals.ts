@@ -316,7 +316,7 @@ export function needsVerticalLoad(text: string): boolean {
 
 /** High temperature environment (>80°C). Standard NBR seals fail — need PTFE/FKM/HT variants. */
 export function needsHighTemp(text: string): boolean {
-  return /\bugn\b|\bfornace\b|\bautoklav\b|\bsteam\b|\bånga\b|\bvulk\b|\bsintr\b|\bsmält\b|\bhög.*temp\b|\bhigh.*temp\b|\bvarm.*milj\b|\bhet.*milj\b|\b[89]\d\s*°?\s*[cC]\b|\b1[0-9]\d\s*°?\s*[cC]\b|\b200\s*°?\s*[cC]\b|\bhögtemperatur\b|\bheat.*treat\b|\bvärmebehandl\b|\bofen\b|\bautoklav\w*\b|\bdampf\b|\bhohe\s?temperatur\b|\bheiße\s?umgebung\b|\bwärmebehandl\w*\b|\bgeschmolzen\b|\bhorno\b|\bvapor\b|\balta\s?temperatura\b|\bambiente\s?caliente\b|\btratamiento\s?térmico\b|\bfundido\b/i.test(text);
+  return /\bugn\b|\bfornace\b|\bautoklav\b|\bsteam\b|(?<![\wåäöÅÄÖ])ånga(?![\wåäöÅÄÖ])|\bvulk\b|\bsintr\b|\bsmält\b|\bhög.*temp\b|\bhigh.*temp\b|\bvarm.*milj\b|\bhet.*milj\b|\b[89]\d\s*°?\s*[cC]\b|\b1[0-9]\d\s*°?\s*[cC]\b|\b200\s*°?\s*[cC]\b|\bhögtemperatur\b|\bheat.*treat\b|\bvärmebehandl\b|\bofen\b|\bautoklav\w*\b|\bdampf\b|\bhohe\s?temperatur\b|\bheiße\s?umgebung\b|\bwärmebehandl\w*\b|\bgeschmolzen\b|\bhorno\b|\bvapor\b|\balta\s?temperatura\b|\bambiente\s?caliente\b|\btratamiento\s?térmico\b|\bfundido\b/i.test(text);
 }
 
 /** Low temperature environment (<-10°C). Standard seals crack/harden — need LT/FKM variants. */
@@ -326,7 +326,7 @@ export function needsLowTemp(text: string): boolean {
 
 /** Hydraulic application — entirely different product family (100–350 bar oil). NOT in pneumatic catalog. */
 export function isHydraulicApplication(text: string): boolean {
-  return /\bhydraulisk\b|\bhydraulic\b|\bhydraul\b|\bolje.*cylinder\b|\bcylinder.*olja\b|\bolje.*tryck\b|\bhydro.*cyl\b|\bhydro.*press\b|\bhydraulisch\w*\b|\bölzylinder\b|\böldruck\b|\bhidráulic\w*\b|\bcilindro\s?hidráulico\b|\bpresión\s?de\s?aceite\b/i.test(text);
+  return /\bhydraulisk\b|\bhydraulic\b|\bhydraul\b|\bolje.*cylinder\b|\bcylinder.*olja\b|\bolje.*tryck\b|\bhydro.*cyl\b|\bhydro.*press\b|\bhydraulisch\w*\b|(?<![\wöäüÖÄÜß])ölzylinder(?![\wöäüÖÄÜß])|(?<![\wöäüÖÄÜß])öldruck(?![\wöäüÖÄÜß])|\bhidráulic\w*\b|\bcilindro\s?hidráulico\b|\bpresión\s?de\s?aceite\b/i.test(text);
 }
 
 /** Force requirement that likely exceeds pneumatic capability (>8 000 N at reasonable bore/pressure). */
@@ -413,7 +413,7 @@ export function needsAtexDust(text: string): boolean {
  * Dew point typically -40 to -60 °C — particle generation is a critical risk.
  */
 export function needsBatteryDryroom(text: string): boolean {
-  return /\bdryroom\b|\bdry\s*room\b|\btorrkammare\b|\blitiumjon\b|\blithium[-\s]?ion\b|\bli[-\s]?ion\b|\bbatterifabrik\b|\bbattery\s*(?:manufactur|produc|cell|fabrik)\b|\bbatteriproduk\b|\bbattericell\b|\bkatod(?:material)?\w*\b|\banod(?:material)?\w*\b|\belektrod(?:material)?\w*\b|\belectrode\b|\bpouch\s*cell\b|\blitiumbatteri\b|\bcell\s*monter\b|\bcu\/zn\/ni\b|\bkoppar.*zink.*nickel\b|\btrockenraum\b|\blithium[-\s]?ionen\b|\bbatteriefertigung\b|\bbatterieproduktion\b|\bsala\s?seca\b|\blitio[-\s]?ion\b|\bproducción\s?de\s?baterías\b|\bcátodo\w*\b|\bánodo\w*\b|\belectrodo\w*\b/i.test(text);
+  return /\bdryroom\b|\bdry\s*room\b|\btorrkammare\b|\blitiumjon\b|\blithium[-\s]?ion\b|\bli[-\s]?ion\b|\bbatterifabrik\b|\bbattery\s*(?:manufactur|produc|cell|fabrik)\b|\bbatteriproduk\b|\bbattericell\b|\bkatod(?:material)?\w*\b|\banod(?:material)?\w*\b|\belektrod(?:material)?\w*\b|\belectrode\b|\bpouch\s*cell\b|\blitiumbatteri\b|\bcell\s*monter\b|\bcu\/zn\/ni\b|\bkoppar.*zink.*nickel\b|\btrockenraum\b|\blithium[-\s]?ionen\b|\bbatteriefertigung\b|\bbatterieproduktion\b|\bsala\s?seca\b|\blitio[-\s]?ion\b|\bproducción\s?de\s?baterías\b|\bcátodo\w*\b|(?<![\wáéíóúñÁÉÍÓÚÑ])ánodo\w*|\belectrodo\w*\b/i.test(text);
 }
 
 /** Extract numeric speed in m/s from free text + answers (for mechanism compatibility check). */
@@ -490,12 +490,49 @@ export function needsRodLock(text: string): boolean {
  * standard aluminum cylinders will corrode immediately.
  */
 export function needsWashdown(text: string): boolean {
-  return /washdown|wash[-\s]down|livsmedel|food[-\s]grade|food[-\s]safe|mejeri|dairy|slakteri|slakter|livsmedelsgodkänd|livsmedelsgodkand|ip[-\s]?69|högtrycksspolning|högtryck.*spol|spol.*kemik|kemisk.*reng|cip\b|sip\b|hygienic|hygienisk|clean[-\s]design|cleandesign|rostfri|stainless|korrosionsskyddad|vätsk.*milj|blot.*milj|kemikalie|frätande|korrosiv|korrosion|\bsyra\b|syrabeständig|aggressiva?\s+(medier|vätskor|kemikalier)|lebensmittel\w*|molkerei|schlachthof|edelstahl|rostfrei\w*|hochdruckreinig\w*|chemikalie\w*|ätzend\w*|\bsäure\b|säurebeständig\w*|\balimentos?\b|grado\s?alimentici\w*|lácte\w*|matadero|acero\s?inoxidable|limpieza\s?a\s?alta\s?presión|químic\w*|corrosiv\w*|\bácido\b/i.test(text);
+  return /washdown|wash[-\s]down|livsmedel|food[-\s]grade|food[-\s]safe|mejeri|dairy|slakteri|slakter|livsmedelsgodkänd|livsmedelsgodkand|ip[-\s]?69|högtrycksspolning|högtryck.*spol|spol.*kemik|kemisk.*reng|cip\b|sip\b|hygienic|hygienisk|clean[-\s]design|cleandesign|rostfri|stainless|korrosionsskyddad|vätsk.*milj|blot.*milj|kemikalie|frätande|korrosiv|korrosion|\bsyra\b|syrabeständig|aggressiva?\s+(medier|vätskor|kemikalier)|lebensmittel\w*|molkerei|schlachthof|edelstahl|rostfrei\w*|hochdruckreinig\w*|chemikalie\w*|ätzend\w*|\bsäure\b|säurebeständig\w*|\balimentos?\b|grado\s?alimentici\w*|lácte\w*|matadero|acero\s?inoxidable|limpieza\s?a\s?alta\s?presión|químic\w*|corrosiv\w*|(?<![\wáéíóúñÁÉÍÓÚÑ])ácido(?![\wáéíóúñÁÉÍÓÚÑ])/i.test(text);
 }
 
 /** Returns true if the user requested end-position / stroke-end detection (sensors). */
 export function needsEndPositionDetection(text: string): boolean {
-  return /detekt|givare|sensor|ändläge|end.pos|end.stop|stroke.end|reed|proximity|närhets|position.*detect|detect.*position|elektron.*detekt|signalera|signal.*läge|läges.*signal|kontrollera.*läge|läge.*kontroll|home.*detect|detect.*home|smcm|smc.*sensor|piston.*sens/i.test(text);
+  if (/detekt|givare|sensor|ändläge|end.pos|end.stop|stroke.end|reed|proximity|närhets|position.*detect|detect.*position|elektron.*detekt|signalera|signal.*läge|läges.*signal|kontrollera.*läge|läge.*kontroll|home.*detect|detect.*home|smcm|smc.*sensor|piston.*sens/i.test(text)) {
+    return true;
+  }
+
+  // Hittat 2026-10-01 (eget hårt testfall): kunden skrev "Vi behöver veta när
+  // den är i topp och i botten" -- och fick ingen givarrad. Uttrycken ovan är
+  // alla FACKORD. En kund som redan säger "ändlägesgivare" behöver sällan
+  // hjälp att inse att hen behöver en; den som beskriver behovet på vanlig
+  // svenska är precis den som gör det.
+  //
+  // Konsekvensen var tyst, vilket är det värsta: stycklistan saknade de två
+  // givarna utan att någonstans nämna att de uteblev.
+  //
+  // Verbet måste stå nära lägesordet, annars fastnar "vi behöver veta vad det
+  // kostar ... cylindern går till botten" på samma mening. 40 tecken räcker
+  // för "veta när den är i " och stoppar vid meningsslut.
+  // \b duger inte här. Det är ASCII-baserat i JavaScript, så \b före "å" i
+  // "återkoppling" står mellan två tecken som BÅDA är icke-ord enligt \w --
+  // ingen gräns, ingen träff, aldrig. Samma sak för ä, ö, ü och é. Det kostade
+  // ett rött test innan det syntes, och hade annars tyst tagit bort halva
+  // svenskan ur detektorn. (?<!\p{L}) med u-flaggan är gränsen som faktiskt
+  // gäller alla bokstäver, i alla fyra språken.
+  const verbNaraLage =
+    /(?<!\p{L})(veta|se|visa|bekräfta|indikera|avkänn\p{L}*)(?!\p{L})[^.!?]{0,40}(?<!\p{L})(topp|botten|ändläg\p{L}*|utfälld|infälld|ute|inne|framme|tillbaka|hemläge|öppen|stängd)(?!\p{L})/iu;
+  const verbNaraLageEn =
+    /(?<!\p{L})(know|see|show|confirm|indicate|tell)(?!\p{L})[^.!?]{0,40}(?<!\p{L})(top|bottom|extended|retracted|home position|fully out|fully in)(?!\p{L})/iu;
+  const verbNaraLageDe =
+    /(?<!\p{L})(wissen|sehen|erkennen|bestätigen|melden)(?!\p{L})[^.!?]{0,40}(?<!\p{L})(oben|unten|ausgefahren|eingefahren|grundstellung)(?!\p{L})/iu;
+  const verbNaraLageEs =
+    /(?<!\p{L})(saber|ver|confirmar|indicar)(?!\p{L})[^.!?]{0,40}(?<!\p{L})(arriba|abajo|extendido|retraído|posición inicial)(?!\p{L})/iu;
+
+  // Återkoppling till styrsystemet sägs ofta utan att någon position nämns.
+  const aterkoppling =
+    /(?<!\p{L})(återkoppl\p{L}*|lägesindik\p{L}*|indikering|feedback|rückmeldung|realimentación|retroalimentación)(?!\p{L})/iu;
+
+  return verbNaraLage.test(text) || verbNaraLageEn.test(text) ||
+    verbNaraLageDe.test(text) || verbNaraLageEs.test(text) ||
+    aterkoppling.test(text);
 }
 
 /** Explicitly requested bore (user typed/answered "diameter 50", "Ø63", "borrning 40").

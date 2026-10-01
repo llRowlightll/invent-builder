@@ -521,3 +521,59 @@ Deno.test("vertikaldetekteringen fungerar fortfarande när inget motsäger den",
   assert(needsVerticalLoad("cylinder som ska lyfta 15 kg"));
   assert(needsVerticalLoad("hängande last i z-axel"));
 });
+
+// ── Ändlägesdetektering på vanligt språk ────────────────────────────────────
+// Hittat 2026-10-01 i ett eget hårt testfall: kunden skrev "Vi behöver veta när
+// den är i topp och i botten" och fick INGEN givarrad i stycklistan -- tyst,
+// utan en rad som sa att den uteblev. Alla uttryck i detektorn var fackord, och
+// den kund som redan skriver "ändlägesgivare" är inte den som behöver hjälpen.
+Deno.test("needsEndPositionDetection: vanligt språk, inte bara fackord", () => {
+  const ska = [
+    "Vi behöver veta när den är i topp och i botten.",
+    "Vi vill se när cylindern är framme.",
+    "Maskinen ska bekräfta att verktyget är i hemläge innan start.",
+    "Vi behöver återkoppling till PLC:n.",
+    "We need to know when it is at the top and at the bottom.",
+    "Wir müssen wissen, wann er ausgefahren ist.",
+    "Necesitamos saber cuándo está arriba.",
+    "Rückmeldung an die SPS erforderlich.",
+  ];
+  for (const t of ska) {
+    assert(needsEndPositionDetection(t), `skulle ha träffat: ${t}`);
+  }
+
+  // Fackorden som redan fungerade får inte sluta fungera.
+  for (const t of ["2 st ändlägesgivare", "magnetgivare för positionsdetektering"]) {
+    assert(needsEndPositionDetection(t), `regression: ${t}`);
+  }
+});
+
+// Verbet måste stå NÄRA lägesordet. Annars drar en mening som bara råkar
+// innehålla både "veta" och "botten" in två givare som ingen bett om.
+Deno.test("needsEndPositionDetection: slår inte till på löst relaterad text", () => {
+  const skaInte = [
+    "Vi behöver veta vad en komplett lösning kostar, och cylindern ska gå ända ner till botten av slaget.",
+    "Lyfter en plåtdel 15 kg vertikalt 200 mm i en pressstation.",
+    "Vi vill se en offert så snart som möjligt.",
+    "Stoppdon som stoppar kartonger på ett transportband.",
+  ];
+  for (const t of skaInte) {
+    assertEquals(needsEndPositionDetection(t), false, `skulle INTE ha träffat: ${t}`);
+  }
+});
+
+// Hittat 2026-10-01 vid en genomsökning efter \b framför icke-ASCII: fem
+// nyckelord låg i sina alternationer utan att någonsin kunna matcha, eftersom
+// \b i JavaScript är ASCII-baserat och därför inte ser en gräns framför å, ä,
+// ö eller á. Orden var inte fel stavade och inte fel placerade -- de var
+// oläsbara för motorn. Testet låser fast att de lever, och att de inte börjat
+// matcha inuti andra ord ("långa slag" är inte ånga).
+Deno.test("nyckelord med diakriter matchar -- och bara som egna ord", () => {
+  assert(needsHighTemp("Processen avger ånga kontinuerligt."), "ånga");
+  assertEquals(needsHighTemp("Vi kör långa slag i en vanlig verkstad."), false, "långa != ånga");
+
+  assert(isHydraulicApplication("Wir brauchen einen Ölzylinder."), "ölzylinder");
+  assert(isHydraulicApplication("Öldruck 200 bar."), "öldruck");
+
+  assert(needsWashdown("Limpieza con ácido en la línea."), "ácido");
+});
