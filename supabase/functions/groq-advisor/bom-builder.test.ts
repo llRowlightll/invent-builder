@@ -27,6 +27,7 @@ function bomCtx(over: Partial<BomCtx> = {}): BomCtx {
     primarySku: "TEST-PRIMARY",
     kravTempC: 0,   // inget temperaturkrav som standard; sätts per test
     primarySpecs: {},
+    kravTempMinC: NaN,
     primaryIsFamilyProd: false,
     isElectric: false,
     locale: "sv",
@@ -549,9 +550,14 @@ Deno.test("temperatur: saknad uppgift ger kraver_verifiering, aldrig verifierad"
   assertEquals(primar!.verifiering, "kraver_verifiering");
 });
 
-// Kontrollen får inte göra varje vanligt jobb till en vägg. extractRequiredMaxTemp
-// returnerar 0 under 80 °C, och då ska ingenting ha ändrats.
-Deno.test("temperatur: utan krav är raden verifierad som förut", () => {
+// Det här testet hävdade tidigare "verifierad" när INGENTING kontrollerats, och
+// låste därmed fast det hål som #313 skulle laga: under 80 °C hoppas hela
+// temperaturblocket över, och varje rad föll igenom till ett godkännande. En
+// adversariell granskning 2026-10-02 pekade ut just det -- "sviten är grön
+// därför att den kodifierar hålet".
+//
+// Nu är utfallet "inga_krav": blockerar inte, men lovar heller ingenting.
+Deno.test("utan angivet krav påstås ingen verifiering", () => {
   const rows = buildMandatoryBomRows(bomCtx({
     primarySku: "FE-CYL",
     primaryBrand: "festo",
@@ -559,7 +565,49 @@ Deno.test("temperatur: utan krav är raden verifierad som förut", () => {
     products: [prod("FE-CYL", "cylinders", "festo", { bore_mm: 50 })],
   }));
   const primar = rows.find(r => r.sku === "FE-CYL");
+  assertEquals(primar!.verifiering, "inga_krav");
+  assertEquals(bedomLosning(rows).blockerande.some(b => b.sku === "FE-CYL"), false,
+    "inga_krav får inte blockera en beställning");
+});
+
+// "Verifierad" ska säga VAD som prövades, annars är ordet lika tomt som förut.
+Deno.test("verifierad anger vad som prövades", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "FE-CYL",
+    primaryBrand: "festo",
+    kravTempC: 90,
+    primarySpecs: { temp_range: "-20…+120" },
+    products: [],
+  }));
+  const primar = rows.find(r => r.sku === "FE-CYL");
   assertEquals(primar!.verifiering, "verifierad");
+  assert(/90/.test(primar!.verifieringsskal ?? ""), "skälet ska nämna kravet");
+  assert(/120/.test(primar!.verifieringsskal ?? ""), "skälet ska nämna artikelns gräns");
+});
+
+// Köldkrav kontrollerades inte alls före 2026-10-02.
+Deno.test("kyla: en artikel som inte går tillräckligt lågt är ej_uppfyllt", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "FE-CYL",
+    primaryBrand: "festo",
+    kravTempMinC: -30,
+    primarySpecs: { temp_range: "-10…+60" },
+    products: [],
+  }));
+  const primar = rows.find(r => r.sku === "FE-CYL");
+  assertEquals(primar!.verifiering, "ej_uppfyllt");
+  assert(/-10/.test(primar!.verifieringsskal ?? ""));
+});
+
+Deno.test("kyla: en artikel som går tillräckligt lågt blir verifierad", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "FE-CYL",
+    primaryBrand: "festo",
+    kravTempMinC: -30,
+    primarySpecs: { temp_range: "-40…+80" },
+    products: [],
+  }));
+  assertEquals(rows.find(r => r.sku === "FE-CYL")!.verifiering, "verifierad");
 });
 
 // Grinden ska dra slutsatsen av raderna, inte bara bära dem.

@@ -11,7 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { type CatalogProduct, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
-import { type HazardFlags, pick, isPneumaticByDrive, isNonArticulatingActuator, parseProductTempMax } from "./signals.ts";
+import { type HazardFlags, pick, isPneumaticByDrive, isNonArticulatingActuator, tolkaTempSpann } from "./signals.ts";
 
 export function buildCustomSolutionOption(
   minStroke: number, locale: string, maxCatalogStroke: number, catalogCanHandle: boolean,
@@ -254,6 +254,8 @@ export interface BomCtx extends HazardFlags {
    * viktigaste raden i listan mot kundens krav.
    */
   primarySpecs: Record<string, unknown>;
+  /** Lägsta temperatur kunden angett, °C. NaN när ingen minusgrad nämnts. */
+  kravTempMinC: number;
 }
 
 /**
@@ -291,7 +293,8 @@ export type BomKind =
  * modellens.
  */
 export type Verifiering =
-  | "verifierad"            // produktdata och kompatibilitet bekräftade
+  | "verifierad"            // NÅGOT prövades mot ett angivet krav och höll; skälet säger vad
+  | "inga_krav"             // inget krav fanns att pröva mot -- ingen kontroll, inget påstående
   | "kraver_konfiguration"  // rätt familj, men fullständig typkod saknas
   | "kraver_verifiering"    // en kritisk uppgift eller relation saknas
   | "avvikelse"             // uppfyller funktionen men avviker från ett krav
@@ -1264,7 +1267,7 @@ export const isGripperFamily = (p: CatalogProduct) => /,/.test(String(p.key_spec
  * stämde än att skicka en lösning som inte gör det.
  */
 function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
-  const { products, primaryBrand, locale, kravTempC, primarySku, primarySpecs } = ctx;
+  const { products, primaryBrand, locale, kravTempC, kravTempMinC, primarySku, primarySpecs } = ctx;
   const fabrikatAv = (sku: string) => products.find(p => p.sku === sku)?.brand ?? "";
 
   for (const r of rows) {
@@ -1320,29 +1323,22 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
     // okänt med kommentaren "do not block", och det är rätt för RANKNING: en
     // produkt utan uppgift ska inte sorteras bort. Men samma 0 blir en osanning
     // i det ögonblick den trycks ut som en etikett till kunden.
+    // Specarna: primären slås upp på sina EGNA först. `products` är en slice
+    // på 30 rader per kategori, och fetchPrimaryInfo:s egen kommentar säger att
+    // en primär sent i alfabetet ofta saknas där.
+    const specar = r.sku === primarySku && Object.keys(primarySpecs).length > 0
+      ? primarySpecs
+      : products.find(p => p.sku === r.sku)?.key_specs;
+    const spann = specar ? tolkaTempSpann(specar) : undefined;
+
+    // Vad som FAKTISKT prövades mot ett angivet krav. Tom lista betyder att
+    // ingenting prövades -- och då får raden inte kallas verifierad.
+    const provat: string[] = [];
+    let fallde = false;
+
+    // ── Värme ──────────────────────────────────────────────────────────────
     if (kravTempC > 0) {
-      // Primären slås upp på sina EGNA specar först. `products` är en slice på
-      // 30 rader per kategori, och fetchPrimaryInfo:s egen kommentar säger att
-      // en primär sent i alfabetet ofta saknas där. Utan det här fick själva
-      // cylindern "kräver verifiering" med skälet "ingen temperaturuppgift" --
-      // ett falskt skäl, eftersom uppgiften fanns hela tiden.
-      const specar = r.sku === primarySku && Object.keys(primarySpecs).length > 0
-        ? primarySpecs
-        : products.find(p => p.sku === r.sku)?.key_specs;
-      const maxC = specar ? parseProductTempMax(specar) : 0;
-
-      if (maxC > 0 && maxC < kravTempC) {
-        r.verifiering = "ej_uppfyllt";
-        r.verifieringsskal = pick(locale, {
-          sv: `Katalogen anger max ${maxC} °C för artikeln, kravet är ${kravTempC} °C. Komponenten är inte godkänd för miljön och måste bytas före beställning.`,
-          en: `The catalogue rates this item to max ${maxC} °C, the requirement is ${kravTempC} °C. The component is not approved for this environment and must be replaced before ordering.`,
-          de: `Der Katalog gibt für diesen Artikel max. ${maxC} °C an, gefordert sind ${kravTempC} °C. Die Komponente ist für diese Umgebung nicht zugelassen und muss vor der Bestellung ersetzt werden.`,
-          es: `El catálogo indica un máximo de ${maxC} °C para este artículo y el requisito es ${kravTempC} °C. El componente no está homologado para este entorno y debe sustituirse antes de pedir.`,
-        });
-        continue;
-      }
-
-      if (maxC === 0) {
+      if (!spann || !Number.isFinite(spann.max)) {
         r.verifiering = "kraver_verifiering";
         r.verifieringsskal = pick(locale, {
           sv: `Kravet är ${kravTempC} °C och vi har ingen temperaturuppgift för artikeln. Kontrollera mot databladet innan beställning — vi påstår inte att den klarar det.`,
@@ -1350,11 +1346,90 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
           de: `Gefordert sind ${kravTempC} °C, und für diesen Artikel liegt uns keine Temperaturangabe vor. Vor der Bestellung im Datenblatt prüfen — wir behaupten nicht, dass er geeignet ist.`,
           es: `El requisito es ${kravTempC} °C y no disponemos de dato de temperatura para este artículo. Compruébelo en la hoja de datos antes de pedir — no afirmamos que sea apto.`,
         });
-        continue;
+        fallde = true;
+      } else if (spann.max < kravTempC) {
+        r.verifiering = "ej_uppfyllt";
+        const variantnot = spann.variantberoende
+          ? pick(locale, {
+              sv: ` Katalogtexten anger flera spann ("${spann.text}") — siffran ovan är den som gäller oavsett utförande.`,
+              en: ` The catalogue text lists several ranges ("${spann.text}") — the figure above is the one that holds for every variant.`,
+              de: ` Der Katalogtext nennt mehrere Bereiche ("${spann.text}") — der obige Wert gilt für jede Variante.`,
+              es: ` El texto del catálogo indica varios rangos ("${spann.text}") — la cifra anterior es la que se cumple en todas las variantes.`,
+            })
+          : "";
+        r.verifieringsskal = pick(locale, {
+          sv: `Katalogen anger max ${spann.max} °C för artikeln, kravet är ${kravTempC} °C. Komponenten är inte godkänd för miljön och måste bytas före beställning.`,
+          en: `The catalogue rates this item to max ${spann.max} °C, the requirement is ${kravTempC} °C. The component is not approved for this environment and must be replaced before ordering.`,
+          de: `Der Katalog gibt für diesen Artikel max. ${spann.max} °C an, gefordert sind ${kravTempC} °C. Die Komponente ist für diese Umgebung nicht zugelassen und muss vor der Bestellung ersetzt werden.`,
+          es: `El catálogo indica un máximo de ${spann.max} °C para este artículo y el requisito es ${kravTempC} °C. El componente no está homologado para este entorno y debe sustituirse antes de pedir.`,
+        }) + variantnot;
+        fallde = true;
+      } else {
+        provat.push(pick(locale, {
+          sv: `värme upp till ${kravTempC} °C (artikeln klarar ${spann.max} °C)`,
+          en: `heat up to ${kravTempC} °C (the item is rated ${spann.max} °C)`,
+          de: `Wärme bis ${kravTempC} °C (der Artikel ist für ${spann.max} °C zugelassen)`,
+          es: `calor hasta ${kravTempC} °C (el artículo admite ${spann.max} °C)`,
+        }));
       }
     }
 
-    r.verifiering = "verifierad";
+    // ── Kyla ───────────────────────────────────────────────────────────────
+    // Fanns inte alls före 2026-10-02. "Frysrum, -30 °C" gav kravTempC = 0,
+    // hela blocket hoppades över, och allt märktes "verifierad" -- fastän
+    // tätningar hårdnar och polyamidslang blir spröd långt innan dess.
+    if (!fallde && Number.isFinite(kravTempMinC)) {
+      if (!spann || !Number.isFinite(spann.min)) {
+        r.verifiering = "kraver_verifiering";
+        r.verifieringsskal = pick(locale, {
+          sv: `Kravet är ${kravTempMinC} °C och vi har ingen uppgift om artikelns undre gräns. Kontrollera mot databladet innan beställning.`,
+          en: `The requirement is ${kravTempMinC} °C and we hold no lower temperature limit for this item. Check the datasheet before ordering.`,
+          de: `Gefordert sind ${kravTempMinC} °C, und zur unteren Grenze dieses Artikels liegt uns nichts vor. Vor der Bestellung im Datenblatt prüfen.`,
+          es: `El requisito es ${kravTempMinC} °C y no disponemos del límite inferior de este artículo. Compruébelo en la hoja de datos antes de pedir.`,
+        });
+        fallde = true;
+      } else if (spann.min > kravTempMinC) {
+        r.verifiering = "ej_uppfyllt";
+        r.verifieringsskal = pick(locale, {
+          sv: `Katalogen anger lägst ${spann.min} °C för artikeln, kravet är ${kravTempMinC} °C. Komponenten är inte godkänd för kylan och måste bytas före beställning.`,
+          en: `The catalogue rates this item down to ${spann.min} °C, the requirement is ${kravTempMinC} °C. The component is not approved for this cold and must be replaced before ordering.`,
+          de: `Der Katalog gibt für diesen Artikel min. ${spann.min} °C an, gefordert sind ${kravTempMinC} °C. Die Komponente ist für diese Kälte nicht zugelassen und muss vor der Bestellung ersetzt werden.`,
+          es: `El catálogo indica un mínimo de ${spann.min} °C para este artículo y el requisito es ${kravTempMinC} °C. El componente no está homologado para este frío y debe sustituirse antes de pedir.`,
+        });
+        fallde = true;
+      } else {
+        provat.push(pick(locale, {
+          sv: `kyla ned till ${kravTempMinC} °C (artikeln klarar ${spann.min} °C)`,
+          en: `cold down to ${kravTempMinC} °C (the item is rated ${spann.min} °C)`,
+          de: `Kälte bis ${kravTempMinC} °C (der Artikel ist für ${spann.min} °C zugelassen)`,
+          es: `frío hasta ${kravTempMinC} °C (el artículo admite ${spann.min} °C)`,
+        }));
+      }
+    }
+
+    if (fallde) continue;
+
+    // "Verifierad" betyder att NÅGOT prövades och höll, och skälet säger vad.
+    // Prövades ingenting finns inget att intyga -- och då säger vi det, i
+    // stället för att låta tystnad se ut som ett godkännande.
+    if (provat.length > 0) {
+      r.verifiering = "verifierad";
+      r.verifieringsskal = pick(locale, {
+        sv: `Prövad mot: ${provat.join("; ")}.`,
+        en: `Checked against: ${provat.join("; ")}.`,
+        de: `Geprüft gegen: ${provat.join("; ")}.`,
+        es: `Comprobado frente a: ${provat.join("; ")}.`,
+      });
+      continue;
+    }
+
+    r.verifiering = "inga_krav";
+    r.verifieringsskal = pick(locale, {
+      sv: "Inga angivna krav att pröva artikeln mot. Ingen kontroll har gjorts, och ingen utsaga görs om lämpligheten.",
+      en: "No stated requirements to check this item against. No check was performed, and no claim is made about suitability.",
+      de: "Keine angegebenen Anforderungen, gegen die dieser Artikel geprüft werden könnte. Es wurde nichts geprüft und nichts behauptet.",
+      es: "No hay requisitos declarados con los que comprobar este artículo. No se ha realizado ninguna comprobación ni se afirma nada sobre su idoneidad.",
+    });
   }
 }
 

@@ -163,21 +163,114 @@ export function detectCategories(text: string): string[] {
  * Handles formats: "5-60", "-10 to 80", "5…60°C", "T: -10...+80°C"
  * Returns 0 if unknown (no spec present).
  */
-export function parseProductTempMax(specs: Record<string, unknown>): number {
-  for (const key of ["temp_max", "temp_range", "operating_temp", "temperature_range", "temperature_max", "temp_rating", "ambient_temp"]) {
+export interface TempSpann {
+  /** Högsta godkända temperatur i °C. NaN när specen inte säger något. */
+  max: number;
+  /** Lägsta godkända temperatur i °C. NaN när specen inte säger något. */
+  min: number;
+  /**
+   * Specen anger FLERA spann, ett per variant. Då finns ingen enda siffra att
+   * påstå, och `max` bär det lägsta av dem -- det enda som är sant oavsett
+   * vilken variant kunden får.
+   */
+  variantberoende: boolean;
+  /** Rå text, så ett skäl kan citera den i stället för att sammanfatta den. */
+  text: string;
+}
+
+const TOM_SPANN: TempSpann = { max: NaN, min: NaN, variantberoende: false, text: "" };
+
+/**
+ * Läser ett temperaturspann ur en produktspec.
+ *
+ * Skriven 2026-10-02 mot katalogens FAKTISKA strängar, inte mot påhittade
+ * exempel. De vanligaste formerna är "-20–80 °C", "-10 to +80", "-20…+80" och
+ * "5–60". Men dessa finns också, och de är poängen:
+ *
+ *   "-10…+70 (utan givare), -10…+60 (med givare)"
+ *   "-20…+80 (utan givare), -10…+60 (med givare)"
+ *   "-10…+60 (med magnet); -10…+70 utan magnet (RQ)"
+ *
+ * Den gamla tolken tog Math.max över alla tal i fältet och svarade 70 på den
+ * första. Systemet lägger SJÄLV till ändlägesgivare i stycklistan -- och
+ * verifierade alltså cylindern mot dess gräns UTAN givare. Tio graders falskt
+ * godkännande på en rad som kunden läser som kontrollerad.
+ *
+ * Nu gäller det lägsta av de angivna spannen, och `variantberoende` säger att
+ * siffran beror på utförandet. Den som vill påstå något får påstå det som är
+ * sant för alla varianter.
+ *
+ * Teckenhanteringen är också fixad: "-40 – -10" gav tidigare 40, eftersom bara
+ * \d+ plockades ut och minustecknen föll bort. En köldartikel såg ut att klara
+ * fyrtio graders värme.
+ */
+export function tolkaTempSpann(specs: Record<string, unknown>): TempSpann {
+  for (const key of ["temp_range", "temperature_range", "operating_temp", "temp_max", "temperature_max", "temp_rating", "ambient_temp"]) {
     const v = specs[key];
     if (v == null) continue;
-    const s = String(v).replace(/[°Cc]/g, "").trim();
-    // Split on range separators (dash/en-dash/to/bis) then extract all positive integers.
-    // "5-60"   → ["5","60"]  → max 60   ✓
-    // "-10-80" → ["-10","80"] split → keep 10,80 → max 80  ✓
-    // "-10 to 80" → same → max 80  ✓
-    const parts = s.split(/(?:\s+to\s+|\s+bis\s+|[–—]|\s*-\s*(?=\d))/i);
-    const positiveNums = parts.flatMap(p => (p.match(/\d+(?:\.\d+)?/g) ?? [])).map(parseFloat);
-    if (positiveNums.length > 0) return Math.max(...positiveNums);
+    const text = String(v).trim();
+    if (!text) continue;
+
+    // Alla spann i strängen. Separatorn får vara …, –, —, "to", "bis", "till"
+    // eller ett vanligt bindestreck; tecknet på talen läses med.
+    const par = [...text.matchAll(
+      /([+-]?\d+(?:[.,]\d+)?)\s*(?:\u2026|\.{2,}|\u2013|\u2014|\bto\b|\bbis\b|\btill\b|-)\s*([+-]?\d+(?:[.,]\d+)?)/gi,
+    )].map(m => ({
+      lag: parseFloat(m[1].replace(",", ".")),
+      hog: parseFloat(m[2].replace(",", ".")),
+    })).filter(x => Number.isFinite(x.lag) && Number.isFinite(x.hog) && x.hog >= x.lag);
+
+    if (par.length > 0) {
+      // Lägsta taket och högsta golvet: det som gäller oavsett variant.
+      let max = Math.min(...par.map(x => x.hog));
+      const min = Math.max(...par.map(x => x.lag));
+      let variantberoende = par.length > 1;
+
+      // Kvalificerare som är en ENSAM siffra och inte ett spann:
+      //   "-10 to +70 (med givare +60)"
+      // Den sänker taket, men bara när den bär ett eget tecken eller en
+      // gradmarkering. Utan det kravet hade "(vikt 50 g)" i ett annat fält
+      // dragit ned ett fullgott tak till 50.
+      const konsumerat = new Set<number>();
+      for (const m of text.matchAll(
+        /([+-]?\d+(?:[.,]\d+)?)\s*(?:\u2026|\.{2,}|\u2013|\u2014|\bto\b|\bbis\b|\btill\b|-)\s*([+-]?\d+(?:[.,]\d+)?)/gi,
+      )) {
+        for (let i = m.index ?? 0; i < (m.index ?? 0) + m[0].length; i++) konsumerat.add(i);
+      }
+      for (const m of text.matchAll(/([+-]\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*°/g)) {
+        if (konsumerat.has(m.index ?? 0)) continue;
+        const n = parseFloat((m[1] ?? m[2]).replace(",", "."));
+        if (!Number.isFinite(n) || n >= max || n < min) continue;
+        max = n;
+        variantberoende = true;
+      }
+
+      return { max, min, variantberoende, text };
+    }
+
+    // Ensam siffra. I en *_max-nyckel ÄR den taket. I "ambient_temp: 20" är den
+    // lika gärna ett nominellt driftvärde, och att läsa den som en gräns gav
+    // falska underkännanden ("katalogen anger max 20 °C").
+    const ensam = text.match(/([+-]?\d+(?:[.,]\d+)?)/);
+    if (ensam && /_max$/.test(key)) {
+      const n = parseFloat(ensam[1].replace(",", "."));
+      if (Number.isFinite(n)) return { max: n, min: NaN, variantberoende: false, text };
+    }
   }
-  return 0; // unknown — do not block
+  return TOM_SPANN;
 }
+
+/**
+ * Bakåtkompatibel form för RANKNING: ett tal, 0 när inget går att läsa.
+ * Urvalet får vara tillåtande -- en produkt utan uppgift ska inte sorteras bort.
+ * Verifieringen använder tolkaTempSpann direkt, eftersom den behöver veta
+ * skillnaden mellan "okänt" och "beror på variant".
+ */
+export function parseProductTempMax(specs: Record<string, unknown>): number {
+  const spann = tolkaTempSpann(specs);
+  return Number.isFinite(spann.max) ? spann.max : 0; // 0 = okänt, blockera inte
+}
+
 
 /**
  * Extract the highest temperature requirement from description + answers.
@@ -226,6 +319,35 @@ export function extractRequiredMaxTemp(text: string, answers: Record<string, str
 
   const relevant = matches.filter(t => t > 80 && t < 1200);
   return relevant.length > 0 ? Math.max(...relevant) : 0;
+}
+
+/**
+ * Lägsta temperatur kunden angett, i °C. NaN när ingen minusgrad nämns.
+ *
+ * Fanns inte alls före 2026-10-02: needsLowTemp kunde säga att miljön är kall,
+ * men inget jämförde den mot en artikels undre gräns. "Frysrum, -30 °C" gav
+ * därför kravTempC = 0, hela temperaturblocket hoppades över, och varje rad
+ * märktes "verifierad" -- trots att standardtätningar hårdnar och
+ * polyamidslang blir spröd långt innan dess.
+ *
+ * Bara uttalade minusgrader räknas. Att gissa "frysrum betyder -25" vore att
+ * uppfinna ett krav, vilket är exakt det den här funktionen finns för att
+ * förhindra.
+ */
+export function extractRequiredMinTemp(text: string, answers: Record<string, string>): number {
+  const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
+  const tal: number[] = [];
+
+  // "-30 °C", "−30 grader", "- 30 C"
+  for (const m of allText.matchAll(/[-\u2212]\s*(\d{1,2})\s*(?:°\s*[cC]\b|grad\w*|\bC\b)/gi)) {
+    tal.push(-parseInt(m[1]));
+  }
+  // "minus 30 grader", "minus 30 °C"
+  for (const m of allText.matchAll(/\bminus\s*(\d{1,2})\s*(?:°?\s*[cC]\b|grad\w*)?/gi)) {
+    tal.push(-parseInt(m[1]));
+  }
+
+  return tal.length > 0 ? Math.min(...tal) : NaN;
 }
 
 export function strokeLabel(specs: Record<string, unknown>): string {
