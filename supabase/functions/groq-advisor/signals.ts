@@ -308,10 +308,24 @@ export function extractRequiredMaxTemp(text: string, answers: Record<string, str
   // "20 grader i lokalen, 400 grader i ugnen" tappade ugnen.
   for (const m of allText.matchAll(/(\d{2,3})\s*grad\w*/gi)) {
     const i = m.index ?? 0;
-    const efter = allText.slice(i + m[0].length, i + m[0].length + 12);
+    const efter = allText.slice(i + m[0].length, i + m[0].length + 14);
     // "90 grader C" och "90 grader varmt" är temperatur även i en vridmaskin.
     const uttalatTemp = /^\s*(c\b|celsius|varm|värme)/i.test(efter);
-    if (!uttalatTemp && VINKELORD.test(allText.slice(Math.max(0, i - 40), i + m[0].length + 40))) {
+    if (uttalatTemp) { matches.push(parseInt(m[1])); continue; }
+
+    // En temperatur anges aldrig PER något. "180 grader per cykel", "90 grader
+    // per takt", "60 grader per steg" är rörelse, inte värme.
+    //
+    // Den regeln behövdes utöver ordfönstret nedan, och saknades i första
+    // versionen av den här fixen: index.ts slår ihop beskrivningen med ALLA
+    // svarsvärden till en sträng, och mitt i den hamnade "Horisontellt 180
+    // grader per cykel Vanlig verkstad" -- fyrtio tecken utan ett enda
+    // vridord, trots att frågan hette "rotation". Fönstret räcker alltså inte
+    // när texten är hopfogad ur fält. Hittat genom att köra ett vridbord mot
+    // den driftsatta tjänsten och se "kravet är 180 °C" komma tillbaka.
+    if (/^\s*per\b/i.test(efter)) continue;
+
+    if (VINKELORD.test(allText.slice(Math.max(0, i - 40), i + m[0].length + 40))) {
       continue;
     }
     matches.push(parseInt(m[1]));

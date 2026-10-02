@@ -599,6 +599,29 @@ Deno.test("extractRequiredMaxTemp: vinkel är inte temperatur", () => {
   }
 });
 
+// Hittat 2026-10-02 genom att köra ett vridbord mot den DRIFTSATTA tjänsten
+// efter att fixen ovan gått live: den räckte inte. index.ts slår ihop
+// beskrivningen med alla svarsvärden till en enda sträng, och mitt i den
+// hamnade "Horisontellt 180 grader per cykel Vanlig verkstad" -- fyrtio tecken
+// utan ett enda vridord, trots att frågan hette "rotation". Ordfönstret kan
+// alltså inte vara den enda regeln när texten är hopfogad ur fält.
+//
+// En temperatur anges aldrig PER något. Den regeln är oberoende av fönstret.
+Deno.test("extractRequiredMaxTemp: 'grader per X' är alltid rörelse", () => {
+  const description = "Vridbord som roterar 180 grader per cykel i rumstemperatur. Last 5 kg, 20 cykler per minut.";
+  const answers = {
+    monteringslage: "Horisontellt",
+    rotation: "180 grader per cykel",
+    miljo: "Vanlig verkstad, rumstemperatur",
+  };
+  const combinedText = description + " " + Object.values(answers).join(" ");
+  assertEquals(extractRequiredMaxTemp(combinedText, answers), 0,
+    "hopfogade svarsfält fick 180 graders vridning att läsas som 180 °C");
+
+  assertEquals(extractRequiredMaxTemp("Indexering 90 grader per takt", {}), 0);
+  assertEquals(extractRequiredMaxTemp("Matar fram 120 grader per steg", {}), 0);
+});
+
 Deno.test("extractRequiredMaxTemp: riktiga temperaturkrav fångas fortfarande", () => {
   assertEquals(extractRequiredMaxTemp("Härdningslinje, 90 °C omgivning", {}), 90);
   assertEquals(extractRequiredMaxTemp("Omgivningen går upp till 90 grader C", {}), 90);
