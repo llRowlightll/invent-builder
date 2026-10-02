@@ -1160,6 +1160,10 @@ const BLOCKERANDE_STATUS = new Set(["kraver_verifiering", "ej_uppfyllt", "ej_god
  * heller -- ingenting är fel. Neutralt är det enda ärliga.
  */
 function statusStil(v: string): string {
+  // Underkänt och okänt är olika besked och ska se olika ut. Till 2026-10-02
+  // fick alla blockerande statusar samma gula färg, så "den här klarar
+  // bevisat inte miljön" och "vi vet inte" gick inte att skilja på en blick.
+  if (v === "ej_uppfyllt" || v === "ej_godkand") return "bg-destructive/10 text-destructive";
   if (BLOCKERANDE_STATUS.has(v)) return "bg-warning-surface text-warning-deep";
   if (v === "verifierad") return "bg-success-surface text-success-deep";
   return "bg-muted text-muted-foreground";
@@ -1207,7 +1211,7 @@ function exportBomPdf(bom: BomLine[], title: string, explanation: string, select
       <td style="text-align:center">${esc(l.quantity)}</td>
       <td>${esc(l.role)}</td>
       <td>${esc(l.reason)}</td>
-      <td>${l.verifiering ? `<span class="status ${blockerar ? "status-block" : l.verifiering === "verifierad" ? "status-ok" : "status-neutral"}">${esc(statusText(l.verifiering))}</span>` : ""}${
+      <td>${l.verifiering ? `<span class="status ${l.verifiering === "ej_uppfyllt" || l.verifiering === "ej_godkand" ? "status-fel" : blockerar ? "status-block" : l.verifiering === "verifierad" ? "status-ok" : "status-neutral"}">${esc(statusText(l.verifiering))}</span>` : ""}${
         l.verifieringsskal ? `<div class="skal">${esc(l.verifieringsskal)}</div>` : ""}</td>
     </tr>`;
   }).join("");
@@ -1239,6 +1243,7 @@ function exportBomPdf(bom: BomLine[], title: string, explanation: string, select
   .status-ok { background:#dcfce7; color:#14532d; }
   .status-block { background:#fed7aa; color:#7c2d12; }
   .status-neutral { background:#f1f5f9; color:#475569; }
+  .status-fel { background:#fee2e2; color:#991b1b; }
   .skal { font-size:10px; color:#555; margin-top:3px; }
   .dom { border:2px solid #c2410c; background:#fff7ed; padding:12px 14px; margin:16px 0; }
   .dom strong { color:#7c2d12; }
