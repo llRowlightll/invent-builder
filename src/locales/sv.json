@@ -626,6 +626,8 @@
     "ownAnswer": "Annat…",
     "notOrderReady": "Lösningen är inte klar att beställa",
     "notOrderReadyHelp": "Hör av dig till oss så går vi igenom alternativen tillsammans — begär offert nedan, så svarar en av våra tekniker.",
+    "ofRowsChecked": "av rader prövade mot angivna krav",
+    "nothingChecked": "inga krav angivna att pröva mot",
     "enterValue": "Ange värde",
     "findComponents": "Hitta komponenter →",
     "searchingComponents": "Söker bästa komponenter för din applikation…",

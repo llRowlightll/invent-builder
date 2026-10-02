@@ -2063,6 +2063,7 @@ JSON: { "title": "...", "explanation": "..." }`;
     title, explanation, bom: bomWithGroups, connections,
     bestallningsklar: dom.bestallningsklar,
     blockerande: dom.blockerande,
+    kontrollerat: dom.kontrollerat,
   }, { headers: CORS });
 }
 

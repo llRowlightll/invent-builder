@@ -626,6 +626,8 @@
     "ownAnswer": "Other…",
     "notOrderReady": "This solution is not ready to order",
     "notOrderReadyHelp": "Get in touch and we will go through the alternatives with you — request a quote below and one of our engineers will reply.",
+    "ofRowsChecked": "of rows checked against stated requirements",
+    "nothingChecked": "no stated requirements to check against",
     "enterValue": "Enter value",
     "findComponents": "Find components →",
     "searchingComponents": "Finding the best components for your application…",

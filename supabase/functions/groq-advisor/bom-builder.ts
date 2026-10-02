@@ -328,7 +328,20 @@ export interface BomRow {
 export function bedomLosning(rows: BomRow[]): {
   bestallningsklar: boolean;
   blockerande: Array<{ sku: string; role: string; verifiering: Verifiering; skal: string }>;
+  /**
+   * Hur mycket som FAKTISKT prövades. Tillagt 2026-10-02 efter en genomgång
+   * av fyra typfall där alla fyra kom tillbaka bestallningsklar = true med
+   * varenda rad "inga_krav" -- alltså noll genomförda kontroller.
+   *
+   * Grinden gör rätt: ingenting blockerar. Men ordet "beställningsklar" läses
+   * som ett utlåtande, och ett utlåtande byggt på noll prövningar är precis
+   * det fel vi tog bort på radnivå samma dag. Räkningen låter gränssnittet
+   * säga hur tunt underlaget är i stället för att tystnaden ser ut som ett
+   * godkännande.
+   */
+  kontrollerat: { verifierade: number; utan_krav: number; blockerande: number; rader: number };
 } {
+  const komponenter = rows.filter(r => r.kind !== "warning");
   const blockerande = rows
     .filter(r => r.verifiering && BLOCKERANDE.has(r.verifiering))
     .map(r => ({
@@ -336,7 +349,16 @@ export function bedomLosning(rows: BomRow[]): {
       verifiering: r.verifiering as Verifiering,
       skal: r.verifieringsskal ?? "",
     }));
-  return { bestallningsklar: blockerande.length === 0, blockerande };
+  return {
+    bestallningsklar: blockerande.length === 0,
+    blockerande,
+    kontrollerat: {
+      verifierade: komponenter.filter(r => r.verifiering === "verifierad").length,
+      utan_krav: komponenter.filter(r => r.verifiering === "inga_krav").length,
+      blockerande: blockerande.length,
+      rader: komponenter.length,
+    },
+  };
 }
 
 /** En kant i maskingrafen. Relationstyperna är exakt de som bom_connections
@@ -1267,7 +1289,7 @@ export const isGripperFamily = (p: CatalogProduct) => /,/.test(String(p.key_spec
  * stämde än att skicka en lösning som inte gör det.
  */
 function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
-  const { products, primaryBrand, locale, kravTempC, kravTempMinC, primarySku, primarySpecs } = ctx;
+  const { products, primaryBrand, locale, kravTempC, kravTempMinC, primarySku, primarySpecs, requiredStrokeMm } = ctx;
   const fabrikatAv = (sku: string) => products.find(p => p.sku === sku)?.brand ?? "";
 
   for (const r of rows) {
@@ -1408,6 +1430,36 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
     }
 
     if (fallde) continue;
+
+    // SLAGLÄNGD SOM INGEN HAR ANGETT.
+    //
+    // Hittat 2026-10-02 i en genomgång av fyra typfall: ett stoppdon för 5 kg
+    // kartonger fick "AVENTICS KPZ Ø20 kompaktcylinder, 5 mm slag", och ett
+    // plock-och-placera med vakuum fick Ø16 med 5 mm slag. Ett stoppdon måste
+    // resa sig upp i kartongens bana; fem millimeter räcker inte till något.
+    //
+    // Orsaken sitter i rankningen: actuatorTier säger `meets = requiredStroke
+    // === 0 || ...`, så när slaglängden är OKÄND uppfyller varje produkt
+    // kravet, och den minsta konkreta artikeln som klarar kraften vinner. Det
+    // beteendet är avsiktligt och regressionstestat för fallet då ett krav
+    // finns, så rankningen rörs inte här.
+    //
+    // Det som saknas är ärligheten: slaglängd är den mest avgörande siffran i
+    // en linjär aktuator, och säger kunden den inte ska systemet fråga efter
+    // den -- inte välja åt kunden och tiga. Villkoret är datadrivet: bara
+    // produkter som HAR ett slagmått har en slaglängd att sakna. En
+    // vridenhet har en vinkel i stället och berörs inte.
+    if (r.kind === "actuator" && requiredStrokeMm === 0 && specar &&
+        (specar.stroke_mm != null || specar.stroke_range != null)) {
+      r.verifiering = "kraver_verifiering";
+      r.verifieringsskal = pick(locale, {
+        sv: "Ingen slaglängd är angiven, och slaglängden avgör vilken variant som är rätt. Den valda artikeln klarar kraften, men vi kan inte säga att den har rätt rörelse — ange slaglängd före beställning.",
+        en: "No stroke length has been stated, and the stroke decides which variant is right. The selected item meets the force requirement, but we cannot say it has the right travel — specify the stroke before ordering.",
+        de: "Es ist kein Hub angegeben, und der Hub entscheidet, welche Variante richtig ist. Der gewählte Artikel erfüllt die Kraftanforderung, aber wir können nicht sagen, dass er den richtigen Weg hat — Hub vor der Bestellung angeben.",
+        es: "No se ha indicado ninguna carrera, y la carrera decide qué variante es la correcta. El artículo seleccionado cumple el requisito de fuerza, pero no podemos afirmar que tenga el recorrido adecuado — indique la carrera antes de pedir.",
+      });
+      continue;
+    }
 
     // FAMILJERAD MED SPECIFIKT ARTIKELNUMMER.
     //

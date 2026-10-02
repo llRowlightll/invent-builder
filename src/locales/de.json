@@ -626,6 +626,8 @@
     "ownAnswer": "Andere…",
     "notOrderReady": "Diese Lösung ist nicht bestellbereit",
     "notOrderReadyHelp": "Melden Sie sich bei uns, wir gehen die Alternativen gemeinsam durch — fordern Sie unten ein Angebot an, einer unserer Techniker antwortet.",
+    "ofRowsChecked": "von Zeilen gegen angegebene Anforderungen geprüft",
+    "nothingChecked": "keine angegebenen Anforderungen zum Prüfen",
     "enterValue": "Wert eingeben",
     "findComponents": "Komponenten finden →",
     "searchingComponents": "Beste Komponenten für Ihre Anwendung werden gesucht…",

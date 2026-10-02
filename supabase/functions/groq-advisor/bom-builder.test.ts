@@ -664,6 +664,7 @@ Deno.test("familjerad märks kraver_konfiguration, inte verifierad", () => {
   const rows = buildMandatoryBomRows(bomCtx({
     primarySku: "FESTO-193986",
     primaryBrand: "festo",
+    requiredStrokeMm: 200,   // slaglängd angiven, så familjefrågan prövas isolerat
     primarySpecs: { bore_mm: "8–63", stroke_mm: "500 mm" },
     products: [],
   }));
@@ -685,4 +686,58 @@ Deno.test("temperatur väger tyngre än konfiguration", () => {
     products: [],
   }));
   assertEquals(rows.find(r => r.sku === "FESTO-193986")!.verifiering, "ej_uppfyllt");
+});
+
+
+// ── Slaglängd som ingen angett ───────────────────────────────────────────────
+// Hittat 2026-10-02 i en genomgång av fyra typfall: ett stoppdon för 5 kg
+// kartonger fick "AVENTICS KPZ Ø20 kompaktcylinder, 5 mm slag", och ett
+// plock-och-placera med vakuum fick Ø16 med 5 mm slag. Ett stoppdon måste resa
+// sig upp i kartongens bana -- fem millimeter räcker inte till något.
+//
+// Rankningen rörs inte: actuatorTier:s beteende när inget krav finns är
+// avsiktligt och regressionstestat. Det som saknades var att SÄGA att
+// slaglängden saknas i stället för att välja åt kunden och tiga.
+Deno.test("slaglängd saknas: aktuatorn märks kraver_verifiering", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "AV-KPZ-20",
+    primaryBrand: "aventics",
+    requiredStrokeMm: 0,
+    primarySpecs: { stroke_mm: "5 mm", bore_mm: 20 },
+    products: [],
+  }));
+  const primar = rows.find(r => r.sku === "AV-KPZ-20");
+  assertEquals(primar!.verifiering, "kraver_verifiering");
+  assert(/slagl[äa]ngd/i.test(primar!.verifieringsskal ?? ""), "skälet ska nämna slaglängd");
+  assertEquals(bedomLosning(rows).bestallningsklar, false, "utan slaglängd är lösningen inte beställningsklar");
+});
+
+// En vridenhet har en vinkel, inte en slaglängd. Den ska inte fällas på ett
+// mått den aldrig haft.
+Deno.test("slaglängd: en produkt utan slagmått berörs inte", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "ARP-063-180",
+    primaryBrand: "camozzi",
+    requiredStrokeMm: 0,
+    primarySpecs: { rotation_deg: "180", torque_nm: "12" },
+    products: [],
+  }));
+  const primar = rows.find(r => r.sku === "ARP-063-180");
+  assertEquals(primar!.verifiering, "inga_krav");
+});
+
+// Räkningen finns för att tystnad inte ska läsas som godkännande.
+Deno.test("bedomLosning räknar hur mycket som faktiskt prövades", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "FE-CYL",
+    primaryBrand: "festo",
+    requiredStrokeMm: 100,
+    kravTempC: 90,
+    primarySpecs: { stroke_mm: "200 mm", temp_range: "-20…+120" },
+    products: [],
+  }));
+  const dom = bedomLosning(rows);
+  assertEquals(dom.kontrollerat.verifierade, 1, "primären prövades mot temperaturkravet");
+  assert(dom.kontrollerat.rader > 1, "listan har fler rader än primären");
+  assertEquals(dom.kontrollerat.rader, dom.kontrollerat.verifierade + dom.kontrollerat.utan_krav + dom.kontrollerat.blockerande);
 });

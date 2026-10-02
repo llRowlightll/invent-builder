@@ -95,6 +95,8 @@ interface BomLine {
 interface Dom {
   bestallningsklar: boolean;
   blockerande: Array<{ sku: string; role: string; verifiering: string; skal: string }>;
+  /** Hur mycket som faktiskt prövades. Utan den läses tystnad som godkännande. */
+  kontrollerat?: { verifierade: number; utan_krav: number; blockerande: number; rader: number };
 }
 
 type Step = "describe" | "q_loading" | "questions" | "o_loading" | "options" | "bom_loading" | "result";
@@ -357,7 +359,7 @@ function MachineBuilderPage() {
       // Äldre driftsatta versioner av funktionen svarar utan dom. Då är null
       // rätt: ingen banner alls är ärligare än ett påhittat "klar".
       setDom(typeof data.bestallningsklar === "boolean"
-        ? { bestallningsklar: data.bestallningsklar, blockerande: data.blockerande ?? [] }
+        ? { bestallningsklar: data.bestallningsklar, blockerande: data.blockerande ?? [], kontrollerat: data.kontrollerat }
         : null);
       setBomTitle(data.title ?? "");
       setBomExplanation(data.explanation ?? "");
@@ -1910,8 +1912,18 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
             </tbody>
           </table>
         </div>
-        <div className="px-4 py-2 bg-muted/20 border-t border-border text-xs text-muted-foreground">
-          {bom.length} {t("machineBuilder.articlesTotal")}
+        <div className="px-4 py-2 bg-muted/20 border-t border-border text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span>{bom.length} {t("machineBuilder.articlesTotal")}</span>
+          {/* Hur mycket som FAKTISKT prövades. Tillagt 2026-10-02: fyra typfall
+              kom tillbaka "beställningsklar" med varenda rad "inga krav" --
+              alltså noll kontroller. Ingenting blockerade, vilket är sant, men
+              utan den här raden läser kunden tystnaden som ett godkännande. */}
+          {dom?.kontrollerat && (
+            <span className={dom.kontrollerat.verifierade === 0 ? "text-warning-deep" : ""}>
+              · {dom.kontrollerat.verifierade} {t("machineBuilder.ofRowsChecked")} {dom.kontrollerat.rader}
+              {dom.kontrollerat.verifierade === 0 && ` — ${t("machineBuilder.nothingChecked")}`}
+            </span>
+          )}
         </div>
       </div>
 
