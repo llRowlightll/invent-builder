@@ -38,6 +38,13 @@ const fonster = (t: number, fran: number, till: number, inn = 0.3, ut = 0.25) =>
 interface Utsnitt { cx: number; cy: number; z: number }
 interface Bild {
   fil: string; adress: string; fran: Utsnitt; till: Utsnitt;
+  /**
+   * Utsnitt för stående format. Vyn där är högre än bred (5:4), så samma
+   * cx/cy/z som i liggande format visar en annan del av sidan. Med en synlig
+   * bredd kring 800 sidpixlar ryms sajtens innehållskolumn (x 530–1390), i
+   * större skala än i liggande format -- läsbart på en telefon.
+   */
+  staende?: { fran: Utsnitt; till: Utsnitt };
   etikett: string; text: string;
   /**
    * Ett område som suddas, i sidans CSS-pixlar. Startsidans bakgrundsfoto
@@ -51,24 +58,33 @@ interface Bild {
 
 const SIDA_B = 1920, SIDA_H = 1080;   // fångstens CSS-mått
 
+// Logotypen i navigeringsfältet (x 380–490) ska vara helt med eller helt
+// utanför. Ett utsnitt som skär den visar "askinval". Klippen där vänsterkanten
+// hamnar inne i fältet börjar därför under det (y > 64).
 const BILDER: Bild[] = [
   { fil: "hem.png", adress: "maskinval.se",
     fran: { cx: 980, cy: 330, z: 1.48 }, till: { cx: 900, cy: 320, z: 1.62 },
+    staende: { fran: { cx: 767, cy: 534, z: 2.25 }, till: { cx: 760, cy: 480, z: 2.5 } },
     etikett: "Maskinval", text: "", sudda: { x1: 1075, y1: 128, x2: 1360, y2: 200 } },
   { fil: "sok.png", adress: "maskinval.se/sv/products?q=DSBC",
     fran: { cx: 950, cy: 340, z: 1.55 }, till: { cx: 930, cy: 330, z: 1.72 },
+    staende: { fran: { cx: 797, cy: 540, z: 2.25 }, till: { cx: 745, cy: 470, z: 2.55 } },
     etikett: "Sök", text: "846 artiklar. Sök och filtrera." },
   { fil: "jamfor.png", adress: "maskinval.se/sv/compare",
     fran: { cx: 990, cy: 420, z: 1.5 }, till: { cx: 990, cy: 410, z: 1.64 },
+    staende: { fran: { cx: 1052, cy: 540, z: 2.23 }, till: { cx: 1020, cy: 500, z: 2.4 } },
     etikett: "Jämför", text: "Samma ISO-cylinder. Två fabrikat." },
   { fil: "bygg-beskrivning.png", adress: "maskinval.se/sv/machine-builder",
-    fran: { cx: 960, cy: 290, z: 1.72 }, till: { cx: 960, cy: 300, z: 1.95 },
+    fran: { cx: 960, cy: 378, z: 1.72 }, till: { cx: 960, cy: 350, z: 1.95 },
+    staende: { fran: { cx: 950, cy: 572, z: 2.38 }, till: { cx: 925, cy: 530, z: 2.6 } },
     etikett: "Bygg maskin", text: "Beskriv vad den ska göra." },
   { fil: "bygg-stycklista.png", adress: "maskinval.se/sv/machine-builder",
     fran: { cx: 1000, cy: 470, z: 1.5 }, till: { cx: 990, cy: 460, z: 1.62 },
+    staende: { fran: { cx: 990, cy: 570, z: 2.4 }, till: { cx: 995, cy: 555, z: 2.45 } },
     etikett: "Bygg maskin", text: "Få stycklistan." },
   { fil: "bygg-stycklista.png", adress: "maskinval.se/sv/machine-builder",
     fran: { cx: 980, cy: 455, z: 2.45 }, till: { cx: 950, cy: 450, z: 2.65 },
+    staende: { fran: { cx: 915, cy: 660, z: 3.0 }, till: { cx: 889, cy: 600, z: 3.3 } },
     etikett: "Verifiering", text: "Prövad mot dina krav." },
 ];
 
@@ -80,13 +96,15 @@ export const SajtTrailer: React.FC = () => {
   const portratt = H > W * 1.2;
   const kvadrat = !portratt && W < H * 1.2;
 
-  // Webbläsarfönstret har alltid 16:9-vy, så att samma utsnitt fungerar i alla format.
+  // Liggande och kvadratiskt format: 16:9-vy, samma utsnitt. Stående: en vy
+  // som är högre än bred (5:4) med egna utsnitt -- en 16:9-remsa fyllde bara
+  // en tredjedel av höjden och lämnade resten tomt.
   const ramB = portratt ? W - 9 * u : kvadrat ? W - 12 * u : W * 0.8;
-  const vyH = ramB * 9 / 16;
+  const vyH = portratt ? ramB * 1.25 : ramB * 9 / 16;
   const listH = Math.max(28, 3.4 * u);
   const ramH = vyH + listH;
   const ramX = (W - ramB) / 2;
-  const ramY = portratt ? H * 0.43 - ramH / 2 : kvadrat ? H * 0.56 - ramH / 2 : H * 0.44 - ramH / 2;
+  const ramY = portratt ? H * 0.5 - ramH / 2 + 6.5 * u : kvadrat ? H * 0.56 - ramH / 2 : H * 0.44 - ramH / 2;
 
   const iSajt = t >= T.klipp[0] && t < T.uppmaning;
   const sajtOp = fonster(t, T.klipp[0], T.uppmaning, 0.35, 0.35);
@@ -133,10 +151,11 @@ export const SajtTrailer: React.FC = () => {
                                   sammaSomNasta ? (t < slut ? 1 : 0) : 1 - in_(t, slut - 0.2, 0.2));
               if (op <= 0) return null;
               const p = interpolate(t, [start, slut], [0, 1], { easing: Easing.bezier(0.45, 0, 0.55, 1), extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+              const { fran, till } = portratt && b.staende ? b.staende : b;
               const ut: Utsnitt = {
-                cx: b.fran.cx + (b.till.cx - b.fran.cx) * p,
-                cy: b.fran.cy + (b.till.cy - b.fran.cy) * p,
-                z: b.fran.z + (b.till.z - b.fran.z) * p,
+                cx: fran.cx + (till.cx - fran.cx) * p,
+                cy: fran.cy + (till.cy - fran.cy) * p,
+                z: fran.z + (till.z - fran.z) * p,
               };
               return <Skarm key={i} bild={b} utsnitt={ut} vyB={ramB} vyH={vyH} opacity={op} />;
             })}
@@ -175,9 +194,11 @@ export const SajtTrailer: React.FC = () => {
       }}>
         <div style={{ display: "grid", justifyItems: "center", gap: 3.2 * u, textAlign: "center" }}>
           <div style={{ display: "grid", gap: 0.4 * u }}>
+            {/* Stående: bryt efter "Beskriv", inte mellan "den" och "ska" --
+                det automatiska radbrytet lämnade "göra." ensamt på en rad. */}
             <div style={{ fontSize: (portratt ? 7.6 : 6.8) * u, fontWeight: 700, letterSpacing: "-0.035em", lineHeight: 1.06,
                           transform: `translateY(${(1 - in_(t, T.uppmaning, 0.6)) * 1.6 * u}px)` }}>
-              Beskriv vad den ska göra.
+              {portratt ? <>Beskriv<br />vad den ska göra.</> : "Beskriv vad den ska göra."}
             </div>
             <div style={{ fontFamily: SANS_KURSIV, fontStyle: "italic", fontSize: (portratt ? 7.6 : 6.8) * u, fontWeight: 700,
                           letterSpacing: "-0.035em", lineHeight: 1.06, color: F.guld,
@@ -228,8 +249,10 @@ const Webblasarlist: React.FC<{ u: number; h: number; adress: string }> = ({ u, 
 /** En skärmbild, beskuren och skalad så att utsnittet fyller vyn. */
 const Skarm: React.FC<{ bild: Bild; utsnitt: Utsnitt; vyB: number; vyH: number; opacity: number }> =
   ({ bild, utsnitt, vyB, vyH, opacity }) => {
-  // Synlig bredd i sidans pixlar, och skalan från sida till vy.
-  const synligB = SIDA_B / utsnitt.z;
+  // Synlig bredd i sidans pixlar, och skalan från sida till vy. Aldrig så
+  // bred att den synliga höjden går utanför sidan -- då blev en tom rand kvar
+  // under bilden.
+  const synligB = Math.min(SIDA_B / utsnitt.z, SIDA_H * vyB / vyH);
   const skala = vyB / synligB;
   const synligH = vyH / skala;
   // Håll utsnittet innanför sidans kanter.
