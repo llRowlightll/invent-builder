@@ -76,6 +76,10 @@ export function addToShoppingList(
       String(updated.reduce((s, i) => s + i.qty, 0))
     );
     window.dispatchEvent(new Event("shopping-list-updated"));
+    // En egen händelse för just tillägg: layouten visar en kort bekräftelse.
+    // "shopping-list-updated" går även vid ändringar i korgen, och de ska inte
+    // ge en notis.
+    window.dispatchEvent(new CustomEvent("shopping-list-added", { detail: { name: product.name, qty } }));
   } catch {}
 }
 

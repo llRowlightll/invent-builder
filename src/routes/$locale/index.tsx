@@ -9,6 +9,7 @@ import featureImg from "@/assets/feature-component.jpg";
 import { getProductImage, getCategoryImage } from "@/lib/product-images";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { EditableText } from "@/components/EditableText";
+import { categoryName } from "@/lib/categories";
 
 export const Route = createFileRoute("/$locale/")({
   head: ({ params }) => {
@@ -37,13 +38,18 @@ export const Route = createFileRoute("/$locale/")({
       // Produkträkningen är borta. Den hämtade 5000 rader vid VARJE
       // serverrendering av startsidan, och fanns bara för siffran "846+" i
       // statistikraden -- som nu är ersatt av tre vägar in.
-      const [br, ct] = await Promise.all([
+      //
+      // Antalet artiklar i hjältetexten räknas här, men utan att hämta rader:
+      // head + count kostar ett enda tal. Det stod hårdkodat "846" och blev
+      // fel så fort en artikel avregistrerades.
+      const [br, ct, ant] = await Promise.all([
         supabase.from("brands").select("slug,name").order("name"),
         supabase.from("categories").select("slug,name").order("name"),
+        supabase.from("products").select("id", { count: "exact", head: true }).eq("status", "active"),
       ]);
-      return { brands: (br.data ?? []) as Brand[], cats: (ct.data ?? []) as Cat[] };
+      return { brands: (br.data ?? []) as Brand[], cats: (ct.data ?? []) as Cat[], antal: ant.count ?? null };
     } catch {
-      return { brands: [] as Brand[], cats: [] as Cat[] };
+      return { brands: [] as Brand[], cats: [] as Cat[], antal: null };
     }
   },
   component: Landing,
@@ -67,6 +73,12 @@ const CAT_ICONS: Record<string, string> = {
   coupling: "⊗",
   "seal-kit": "○",
 };
+
+/** "{antal} artiklar" med det levande talet, eller utan ledet om det inte gick att räkna. */
+function antalText(mall: string, antal: number | null): string {
+  if (antal != null) return mall.replace("{antal}", antal.toLocaleString("sv-SE"));
+  return mall.replace(/[^,.]*\{antal\}[^,.]*[,.]\s*/, "");
+}
 
 /**
  * Tre vägar in, i stället för fyra siffror.
@@ -194,7 +206,7 @@ function Landing() {
             </span>
           </h1>
           <p className="mt-6 text-lg text-primary-foreground/75 max-w-xl rorelse-in rorelse-steg-2">
-            <EditableText contentKey="index.heroSubtitle" locale={locale} fallback={t("index.heroSubtitle")} multiline />
+            <EditableText contentKey="index.heroSubtitle" locale={locale} fallback={antalText(t("index.heroSubtitle"), ld.antal)} multiline />
           </p>
 
           <form onSubmit={onSearch} className="mt-8 flex gap-2 max-w-2xl rorelse-in rorelse-steg-3">
@@ -271,7 +283,7 @@ function Landing() {
                 <div className="h-40 overflow-hidden bg-[#f8f9fb] flex items-center justify-center">
                   <img
                     src={getProductImage(p)}
-                    alt={p.category.name}
+                    alt={categoryName(p.category.slug, locale, p.category.name)}
                     className="w-full h-full object-contain"
                     loading="lazy"
                   />
@@ -279,7 +291,7 @@ function Landing() {
                 <div className="p-4 flex flex-col flex-1">
                   <div className="text-[10px] uppercase tracking-wider text-info font-medium">{p.brand.name}</div>
                   <div className="mt-1.5 font-medium text-foreground group-hover:text-info line-clamp-2 transition">{p.name}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">{p.category.name}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{categoryName(p.category.slug, locale, p.category.name)}</div>
                   <div className="mt-auto pt-3 border-t border-border mt-3 flex items-center justify-between">
                     <span className="text-[10px] text-muted-foreground">
                       {/* Sa tidigare "På lager" vid ≤7 dagar. Det var osant:
@@ -326,14 +338,14 @@ function Landing() {
                 <div className="aspect-[3/2] bg-[#f8f9fb] overflow-hidden flex items-center justify-center">
                   <img
                     src={getCategoryImage(c.slug)}
-                    alt={c.name}
+                    alt={categoryName(c.slug, locale, c.name)}
                     className="w-full h-full object-contain"
                     loading="lazy"
                   />
                 </div>
                 <div className="p-3">
                   <div className="text-lg" style={{ color: "var(--info)" }}>{CAT_ICONS[c.slug] ?? "▣"}</div>
-                  <div className="mt-1 font-medium text-foreground group-hover:text-info transition text-sm">{c.name}</div>
+                  <div className="mt-1 font-medium text-foreground group-hover:text-info transition text-sm">{categoryName(c.slug, locale, c.name)}</div>
                   <div className="mt-0.5 text-xs text-muted-foreground">{t("index.viewProduct")}</div>
                 </div>
               </Link>
@@ -440,7 +452,7 @@ function Landing() {
               search={{ q: undefined }}
               className="inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-md border border-border hover:border-info hover:text-info transition"
             >
-              👷 Prata med en ingenjör
+              {t("index.talkToEngineer")}
             </Link>
           </div>
         </div>
@@ -498,15 +510,15 @@ const FAQ_SV = [
   },
   {
     q: "Vilka märken erbjuder Maskinval?",
-    a: "Maskinval erbjuder komponenter från Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work och Camozzi — mer än 700 aktiva produkter. Alla märken i en gemensam katalog med jämförbara specs och leveranstider.",
+    a: "Maskinval erbjuder komponenter från åtta fabrikat: Festo, SMC, Parker, AVENTICS, Bosch Rexroth, Norgren, Metal Work och Camozzi. Alla i en gemensam katalog där specifikationerna kan jämföras sida vid sida.",
   },
   {
     q: "Vad är ISO 15552?",
-    a: "ISO 15552 (tidigare ISO 6431) är den internationella standarden för profilcylindrar. Standarden definierar montagemått, gängdimensioner och kolvdiametrar (32–320 mm) så att cylindrar från olika tillverkare är utbytbara. Parker P1D, Festo DSBC, Bosch Rexroth PRA och Camozzi KPZ är alla ISO 15552-kompatibla.",
+    a: "ISO 15552 (tidigare ISO 6431) är den internationella standarden för profilcylindrar. Standarden definierar montagemått, gängdimensioner och kolvdiametrar (32–320 mm) så att cylindrar från olika tillverkare är utbytbara. Parker P1D, Festo DSBC, AVENTICS PRA (tidigare Bosch Rexroth) och Camozzi Serie 63 är alla ISO 15552-cylindrar.",
   },
   {
     q: "Hur snabbt levereras komponenter?",
-    a: "Lagerförda standard-cylindrar från Bosch Rexroth, Parker och Camozzi levereras normalt inom 1–5 arbetsdagar. Specialmått och kundanpassade varianter tar 3–6 veckor. Leveranstid visas per produkt i katalogen.",
+    a: "Leveranstiden beror på fabrikat och utförande. Katalogen visar en uppskattning per artikel; bekräftad leveranstid och pris får du i offerten, inom 1–2 arbetsdagar.",
   },
 ];
 
@@ -525,7 +537,7 @@ const FAQ_EN = [
   },
   {
     q: "Which brands does Maskinval offer?",
-    a: "Maskinval offers components from Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work, and Camozzi — more than 700 active products in one unified catalog with comparable specs and lead times.",
+    a: "Maskinval offers components from eight brands: Festo, SMC, Parker, AVENTICS, Bosch Rexroth, Norgren, Metal Work and Camozzi, in one catalogue where specifications can be compared side by side.",
   },
 ];
 

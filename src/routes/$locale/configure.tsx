@@ -64,6 +64,12 @@ const CATEGORY_META: Record<string, { label: string; icon: string; color: string
     icon: "🛡️",
     color: "bg-orange-50 border-orange-200 text-orange-800",
   },
+  // Saknades: familjen Parker FRL visades under det råa namnet "air-preparation".
+  "air-preparation": {
+    label: "Luftberedning",
+    icon: "≋",
+    color: "bg-muted border-border text-foreground",
+  },
   fitting: {
     label: "Kopplingar",
     icon: "⊕",
@@ -109,7 +115,7 @@ function ConfigureIndexPage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground">
-          Festo Produktkonfigurator
+          Produktkonfigurator
         </h1>
         <p className="text-muted-foreground mt-2 text-lg">
           Välj en produktfamilj och konfigurera din artikel steg för steg —

@@ -72,10 +72,10 @@
   },
   "project": {
     "title": "Project",
-    "intro": "Describe what you want to do. I'll ask 2–5 questions and return a Best and a Cheapest solution with spares and an explanation.",
+    "intro": "Describe what you want to do. I'll ask 2–5 questions and return a proposal with spares and an explanation.",
     "placeholder": "e.g. I need to move a 30 kg load 500 mm horizontally on PROFINET",
     "best": "Best solution",
-    "cheapest": "Cheapest solution",
+    "cheapest": "Alternative solution",
     "why": "Why this selection",
     "openConfigurator": "Configure this bundle"
   },
@@ -107,7 +107,7 @@
     "name": "Your name",
     "email": "Email",
     "message": "Message",
-    "sent": "Thanks — we'll get back to you within one business day.",
+    "sent": "Thanks — we'll get back to you within 1–2 business days.",
     "submit": "Send message"
   },
   "configurator": {
@@ -220,7 +220,7 @@
     "b2bBadge": "B2B · Industrial automation",
     "heroTitle": "Describe what it needs to do.",
     "heroTitleAccent": "Get the part number.",
-    "heroSubtitle": "Eight brands, 846 parts, one search box. No login to browse.",
+    "heroSubtitle": "Eight brands, {antal} parts, one search box. No login to browse.",
     "searchPlaceholder": "Describe your application or search for a product…",
     "searchButton": "Search",
     "searchTry": "Try:",
@@ -235,14 +235,14 @@
     "viewProducts": "View products →",
     "featureLabel": "Configuration & advisory",
     "featureTitle": "The right component, directly",
-    "featureBody": "Describe your machine or process — our advisor identifies the best and most cost-effective solution. Configures order code, compares spec for spec and sends quote request.",
+    "featureBody": "Describe your machine or process — the advisor proposes components that meet the requirements and explains the choice. Configures order code, compares spec for spec and sends quote request.",
     "startAdvisor": "Start advisor →",
     "compareProducts": "Compare products",
     "exampleProduct": "Example product",
     "ctaAdvisorTitle": "Advisor",
-    "ctaAdvisorBody": "Describe your application — we recommend the Best and Most affordable package.",
+    "ctaAdvisorBody": "Describe your application — we propose components and explain the choice.",
     "ctaCompareTitle": "Compare products",
-    "ctaCompareBody": "Put 2–4 products side by side and see the best value per spec.",
+    "ctaCompareBody": "Put 2–4 products side by side and compare specification against specification.",
     "ctaMachineTitle": "Build machine",
     "ctaMachineBody": "Describe your application — AI generates a complete BOM and you send a quote with one click.",
     "open": "Open →",
@@ -251,8 +251,8 @@
     "how1Body": "Find the right component directly in the catalog — no waiting, no phone queues.",
     "how2Title": "Real engineers & salespeople",
     "how2Body": "Tough questions? Our technical salespeople with deep product knowledge answer personally.",
-    "how3Title": "Quote the same day",
-    "how3Body": "Send your bill of materials — we'll get back with price and lead time within one business day.",
+    "how3Title": "Quote within 1–2 business days",
+    "how3Body": "Send your bill of materials — we'll get back with price and lead time within 1–2 business days.",
     "metaTitleSuffix": "Pneumatics, cylinders & automation",
     "metaDescription": "Search industrial automation components from Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work and Camozzi. AI search, spec comparison and a complete bill of materials instantly.",
     "ogTitleSuffix": "Industrial automation",
@@ -267,7 +267,8 @@
     "routeAdvisorCta": "Ask the AI engineer",
     "routePromiseCta": "Go to the list",
     "leadEst": "approx. {d} d",
-    "leadAsk": "Lead time on request"
+    "leadAsk": "Lead time on request",
+    "talkToEngineer": "Talk to an engineer"
   },
   "productsPage": {
     "aiSearchLabel": "✦ AI search",
@@ -294,7 +295,7 @@
     "tryExample": "Try an example",
     "compareCount": "Compare",
     "browseCatalog": "Browse full catalog",
-    "bestVsCheapest": "Best vs. cheapest",
+    "bestVsCheapest": "Best vs. alternative",
     "compareSpecBySpec": "Compare spec by spec",
     "datasheet": "Datasheet →",
     "sendButton": "Send",
@@ -594,12 +595,12 @@
   },
   "advisorPage": {
     "title": "Advisor",
-    "subtitle": "What is your application? We recommend the Best and Most affordable package.",
+    "subtitle": "What is your application? We propose components and explain the choice.",
     "useCase": "Use case",
     "chooseUseCase": "— Choose —",
     "noProducts": "No recommended products yet for",
     "bestBadge": "Best choice",
-    "cheapestBadge": "Most affordable",
+    "cheapestBadge": "Alternative",
     "bestReason": "Selected for the best balance of performance and quality",
     "cheapestReason": "Shortest lead time and best price",
     "allRecommendations": "All recommendations",
@@ -647,8 +648,8 @@
     "specifyVariant": "Specify variant / request quote",
     "articlesTotal": "articles total",
     "sendQuote": "Send quote request",
-    "sendQuoteBody": "We'll send a quote with these items within 24 hours.",
-    "quoteThankYou": "✓ Thank you! We'll get back to you within 24 hours.",
+    "sendQuoteBody": "We'll send a quote with these items within 1–2 business days.",
+    "quoteThankYou": "✓ Thank you! We'll get back to you within 1–2 business days.",
     "yourNamePlaceholder": "Your name",
     "emailPlaceholder": "Email address",
     "sendButton": "Send →",
@@ -731,7 +732,7 @@
     "copyEmail": "Copy email"
   },
   "talkPage": {
-    "aiEngineerBody": "Our AI engineer lives in the Project view. Describe what you want and get a Best + Cheapest solution.",
+    "aiEngineerBody": "Our AI engineer lives in the Project view. Describe what you want and get a proposal with an explanation.",
     "openProject": "Open Project",
     "aiEngineerProject": "Open Project →"
   },
@@ -763,7 +764,7 @@
     "continueToQuote": "Continue to quote",
     "skipCompare": "Skip",
     "contactForm": "Your details",
-    "contactFormHint": "We will get back to you with a quote within 24 hours.",
+    "contactFormHint": "We'll get back with a quote within 1–2 business days.",
     "namePlaceholder": "Your name *",
     "emailPlaceholder": "Email address *",
     "companyPlaceholder": "Company",
@@ -781,7 +782,7 @@
     "loginToQuote": "Log in to save and track this request.",
     "sentTitleOrder": "Order request received!",
     "sentBodyOrder": "We will confirm price and lead time within 1–2 business days. The order is placed only then.",
-    "sendOrder": "Send order request"
+    "sendOrder": "Order – price confirmed first"
   },
   "configuratorPage": {
     "title": "EA Linear Axis",

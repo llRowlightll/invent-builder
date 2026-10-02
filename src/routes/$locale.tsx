@@ -10,6 +10,8 @@ import { useEffect, useRef, useState } from "react";
 import { isLocale, makeT, setLocaleCookie, getCookie, type Locale } from "@/lib/i18n";
 import { useAuth, useIsAdmin } from "@/lib/auth-context";
 import { useEditMode } from "@/lib/edit-mode-context";
+import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/$locale")({
   parseParams: (params) => {
@@ -35,16 +37,9 @@ export const Route = createFileRoute("/$locale")({
     };
   },
   component: LocaleLayout,
-  notFoundComponent: () => (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold">Not found</h1>
-        <Link to="/" className="text-sm underline mt-2 inline-block">
-          Home
-        </Link>
-      </div>
-    </div>
-  ),
+  // Sidan saknas -- på besökarens språk, inte "Not found / Home" på engelska
+  // på en svensk sajt.
+  notFoundComponent: () => <SidanSaknas />,
 });
 
 const LOCALE_META: Record<Locale, { flag: string; label: string }> = {
@@ -75,7 +70,11 @@ function LocaleLayout() {
   const { user, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
-  const [cookieConsent, setCookieConsent] = useState<string | null>(null);
+  // undefined = inte läst än. Kakan läses först i webbläsaren, och tills dess
+  // visas ingen banner. Förut var startläget null ("inget val"), så servern
+  // ritade alltid bannern och den blinkade till vid varje sidladdning även för
+  // den som redan valt (granskning 2026-10-02).
+  const [cookieConsent, setCookieConsent] = useState<string | null | undefined>(undefined);
   const langRef = useRef<HTMLDivElement>(null);
   const listCount = useShoppingListCount();
 
@@ -106,6 +105,21 @@ function LocaleLayout() {
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
+  // Bekräftelse när något läggs i korgen. Förut var den enda signalen en
+  // siffra vid korgikonen, och det var lätt att tro att klicket inte gjort
+  // något.
+  useEffect(() => {
+    function onAdded(e: Event) {
+      const namn = (e as CustomEvent<{ name: string }>).detail?.name ?? "";
+      toast(locale === "sv" ? "Tillagd i korgen" : "Added to cart", {
+        description: namn,
+        action: { label: locale === "sv" ? "Till korgen" : "View cart", onClick: () => navigate({ to: "/$locale/shopping-list", params: { locale } as never }) },
+      });
+    }
+    window.addEventListener("shopping-list-added", onAdded);
+    return () => window.removeEventListener("shopping-list-added", onAdded);
+  }, [locale, navigate]);
+
   function acceptCookies(type: "all" | "necessary") {
     const oneYear = 60 * 60 * 24 * 365;
     document.cookie = `mv_cookie_consent=${type}; Max-Age=${oneYear}; Path=/; SameSite=Lax`;
@@ -122,7 +136,6 @@ function LocaleLayout() {
   const navLinks = [
     { to: "/$locale/products", label: t("nav.products") },
     { to: "/$locale/configure", label: t("nav.configurator") },
-    { to: "/$locale/new", label: t("nav.new") },
     { to: "/$locale/chat", label: t("nav.chat") },
     { to: "/$locale/advisor", label: t("nav.advisor") },
     { to: "/$locale/guider", label: t("nav.guides") },
@@ -391,7 +404,7 @@ function LocaleLayout() {
       </main>
 
       {/* Cookie consent banner — GDPR: both options equally prominent */}
-      {!cookieConsent && (
+      {cookieConsent === null && (
         <div className="fixed bottom-0 inset-x-0 z-50 bg-card border-t border-border shadow-lg">
           <div className="container-page py-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
             <div className="flex-1 min-w-0">
@@ -432,7 +445,6 @@ function LocaleLayout() {
             <div className="font-medium text-foreground mb-2">{t("footer.tools")}</div>
             <ul className="space-y-1">
               <li><Link to="/$locale/products" params={{ locale }} className="hover:text-info">{t("nav.products")}</Link></li>
-              <li><Link to="/$locale/new" params={{ locale }} className="hover:text-info">{t("nav.new")}</Link></li>
               <li><Link to="/$locale/chat" params={{ locale }} search={{} as never} className="hover:text-info">{t("nav.chat")}</Link></li>
               <li><Link to="/$locale/compare" params={{ locale }} className="hover:text-info">{t("nav.compare")}</Link></li>
               <li><Link to="/$locale/advisor" params={{ locale }} search={{ q: undefined }} className="hover:text-info">{t("nav.advisor")}</Link></li>
@@ -442,7 +454,7 @@ function LocaleLayout() {
           </div>
           <div>
             <div className="font-medium text-foreground mb-2">{t("footer.brands")}</div>
-            <p className="leading-relaxed">Festo · SMC · Parker · Bosch Rexroth · Norgren · Metal Work · Camozzi</p>
+            <p className="leading-relaxed">Festo · SMC · Parker · AVENTICS · Bosch Rexroth · Norgren · Metal Work · Camozzi</p>
             <p className="mt-2 text-[11px]">{t("footer.productTypes")}</p>
           </div>
         </div>
@@ -462,6 +474,32 @@ function LocaleLayout() {
           </div>
         </div>
       </footer>
+      <Toaster position="bottom-right" />
+    </div>
+  );
+}
+
+const SAKNAS: Record<string, { rubrik: string; text: string; hem: string; katalog: string }> = {
+  sv: { rubrik: "Sidan finns inte", text: "Länken kan vara gammal, eller så har sidan flyttats.", hem: "Till startsidan", katalog: "Till katalogen" },
+  en: { rubrik: "Page not found", text: "The link may be old, or the page has moved.", hem: "Home", katalog: "Catalogue" },
+  de: { rubrik: "Seite nicht gefunden", text: "Der Link ist vielleicht veraltet, oder die Seite wurde verschoben.", hem: "Startseite", katalog: "Katalog" },
+  es: { rubrik: "Página no encontrada", text: "Puede que el enlace sea antiguo o que la página se haya movido.", hem: "Inicio", katalog: "Catálogo" },
+};
+
+function SidanSaknas() {
+  const path = typeof window !== "undefined" ? window.location.pathname : "";
+  const locale = (path.match(/^\/(sv|en|de|es)\b/)?.[1] ?? "sv") as Locale;
+  const x = SAKNAS[locale] ?? SAKNAS.sv;
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center px-4">
+      <div className="text-center max-w-md">
+        <h1 className="text-2xl font-semibold">{x.rubrik}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{x.text}</p>
+        <div className="mt-4 flex justify-center gap-4 text-sm">
+          <Link to="/$locale" params={{ locale }} className="underline hover:text-info">{x.hem}</Link>
+          <Link to="/$locale/products" params={{ locale }} className="underline hover:text-info">{x.katalog}</Link>
+        </div>
+      </div>
     </div>
   );
 }
