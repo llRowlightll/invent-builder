@@ -108,8 +108,14 @@ export function normalizeKeySpecs(raw: Record<string, unknown>): Record<string, 
   }
   if (!out.bore_mm && raw.bore_range) { out.bore_mm = raw.bore_range; }
   if (typeof out.bore_mm === "string") {
-    const nums = (out.bore_mm.match(/\d+(?:[.,]\d+)?/g) ?? []).map((s) => parseFloat(s.replace(",", ".")));
-    if (nums.length > 1) { out.bore_mm = Math.max(...nums) + " mm"; out.is_family = true; }
+    const nums = borrningstal(out.bore_mm);
+    if (nums.length > 1) {
+      // Spannet sparas. Maxvärdet nedan är till för URVALET -- räcker familjen
+      // alls? -- och får aldrig visas som radens borrning. Den storlek raden
+      // ska beställas i väljs av familjeborrning().
+      if (out.bore_range == null) out.bore_range = out.bore_mm;
+      out.bore_mm = Math.max(...nums) + " mm"; out.is_family = true;
+    }
     else if (nums.length === 1) { out.bore_mm = nums[0] + " mm"; }
   }
 
@@ -130,6 +136,66 @@ export function normalizeKeySpecs(raw: Record<string, unknown>): Record<string, 
   }
 
   return out;
+}
+
+/**
+ * Talen i ett borrningsvärde: "50 mm", "8–63", "12,16,20,25" eller
+ * "32–320 (STD); 32–125 (Type A/3/MCR)".
+ *
+ * Hittat 2026-10-02: listor utan mellanslag lästes med kommat som
+ * decimaltecken. "12,16,20,25,32,40,50,63" blev 12,16 · 20,25 · 32,4 · 50,63,
+ * så familjens största borrning blev 50,63 i stället för 63 -- och kraften
+ * räknades på en borrning som inte finns. Ett komma är ett decimaltecken bara
+ * när det är ensamt och följs av en enda siffra ("2,5").
+ *
+ * Bara första ledet läses: efter ";" eller "(" kommer undantag för särskilda
+ * utföranden, och "Type A/3" är ingen borrning.
+ */
+export function borrningstal(v: unknown): number[] {
+  const huvud = String(v ?? "").split(/[;(]/)[0];
+  const ettDecimaltal = /^\D*\d+,\d(?!\d)\D*$/.test(huvud);
+  const t = ettDecimaltal ? huvud.replace(",", ".") : huvud;
+  return (t.match(/\d+(?:\.\d+)?/g) ?? []).map(Number).filter((n) => n > 0);
+}
+
+/** Om ett borrningsvärde avser flera storlekar, alltså en familj. */
+export function arBorrningsspann(v: unknown): boolean {
+  return borrningstal(v).length > 1;
+}
+
+/** Standardborrningar (ISO 15552, 6432, 21287) -- storlekarna cylinderfamiljer byggs i. */
+export const STANDARDBORRNINGAR: readonly number[] = [2.5, 4, 6, 8, 10, 12, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 320];
+
+/**
+ * Den borrning en FAMILJ ska beställas i: minsta storlek i familjen som är
+ * minst minBoreMm. 0 betyder okänd -- inget krav, ingen familj, eller ett
+ * krav familjen inte når -- och då ska ingen borrning påstås.
+ *
+ * Hittat 2026-10-02 vid inspelningen av sajttrailern: FESTO-193986 har
+ * bore_mm "8–63". Alternativkortet visade Ø63 och 1 870 N (spannets max, som
+ * urvalet använder) medan stycklistans stångbroms skulle beställas i Ø8
+ * (spannets första tal) -- samma rad, samma sida. Lasten var 45 kg och
+ * krävde Ø50. Ingen av de två siffrorna var den storlek som skulle köpas.
+ *
+ * Ett spann ("8–63") läses som standardstegen inom spannet plus
+ * ändpunkterna (DGC och DGPL börjar på 18). En lista läses som just de
+ * storlekar den räknar upp.
+ */
+export function familjeborrning(spann: unknown, minBoreMm: number): number {
+  const tal = borrningstal(spann);
+  if (tal.length < 2 || !(minBoreMm > 0)) return 0;
+  const huvud = String(spann ?? "").split(/[;(]/)[0];
+  const lag = Math.min(...tal), hog = Math.max(...tal);
+  const storlekar = tal.length === 2 && /\d\s*[–—-]\s*\d/.test(huvud)
+    ? [lag, ...STANDARDBORRNINGAR.filter((d) => d > lag && d < hog), hog]
+    : [...new Set(tal)].sort((a, b) => a - b);
+  return storlekar.find((d) => d >= minBoreMm) ?? 0;
+}
+
+/** Teoretisk kraft vid 6 bar för en borrning, avrundad -- samma tal som
+ *  normalizeKeySpecs räknar fram när katalogen saknar en kraftuppgift. */
+export function kraftVid6Bar(boreMm: number): number {
+  return Math.round(Math.PI / 4 * boreMm * boreMm * 6 * 0.1);
 }
 
 /** Returns true for "family" products — product families covering a range, not a specific orderable SKU. */

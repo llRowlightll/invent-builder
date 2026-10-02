@@ -13,6 +13,9 @@ import {
   isAtexCapableProduct,
   scoreProduct,
   rankActuators,
+  borrningstal,
+  familjeborrning,
+  kraftVid6Bar,
 } from "./scoring.ts";
 
 function prod(
@@ -197,4 +200,58 @@ Deno.test("force check does NOT double-count for a pneumatic that has a bore", (
     scoreProduct(pneu, ctx({ minBoreMm: 39, requiredForceN: 687 })),
     scoreProduct(pneu, ctx({ minBoreMm: 39 })),
   );
+});
+
+
+// ── Familjens borrning (hittat 2026-10-02, sajttrailern) ─────────────────────
+// FESTO-193986 har bore_mm "8–63". Kortet visade Ø63 / 1 870 N, stycklistans
+// stångbroms Ø8 -- samma rad. Lasten (45 kg) krävde Ø50.
+
+Deno.test("borrningstal: en lista utan mellanslag är en lista, inte decimaltal", () => {
+  assertEquals(borrningstal("12,16,20,25,32,40,50,63"), [12, 16, 20, 25, 32, 40, 50, 63]);
+  assertEquals(borrningstal("6,10,16,25"), [6, 10, 16, 25]);
+  assertEquals(borrningstal("10, 16, 20, 25"), [10, 16, 20, 25]);
+  assertEquals(borrningstal("2,5"), [2.5], "ett ensamt komma med en siffra är ett decimaltecken");
+  assertEquals(borrningstal("8–63"), [8, 63]);
+  assertEquals(borrningstal("50 mm"), [50]);
+});
+
+Deno.test("borrningstal: bara första ledet -- undantagen efter ; och ( är inga storlekar", () => {
+  assertEquals(borrningstal("32–320 (STD); 32–125 (Type A/3/MCR/BTY/HCR)"), [32, 320]);
+  assertEquals(borrningstal("8–25 (STD); 16–25 (TP twin-rod)"), [8, 25]);
+});
+
+Deno.test("normalizeKeySpecs: en kommalista ger rätt största borrning och sparar spannet", () => {
+  // Förut 50,63 -- "50,63" lästes som ett decimaltal.
+  const ks = normalizeKeySpecs({ bore_mm: "12,16,20,25,32,40,50,63" });
+  assertEquals(ks.bore_mm, "63 mm");
+  assertEquals(ks.bore_range, "12,16,20,25,32,40,50,63");
+  assertEquals(ks.is_family, true);
+  // Kraften räknas på den verkliga största storleken, inte på Ø50,63.
+  assertEquals(ks.force_n, `${kraftVid6Bar(63)} N`);
+  // Ett enskilt mått är ingen familj och får inget spann.
+  const enkel = normalizeKeySpecs({ bore_mm: "40 mm" });
+  assertEquals(enkel.bore_range, undefined);
+  assertEquals(enkel.is_family, undefined);
+});
+
+Deno.test("familjeborrning: minsta storlek i familjen som räcker", () => {
+  assertEquals(familjeborrning("8–63", 50), 50, "45 kg kräver Ø50");
+  assertEquals(familjeborrning("8–63", 46), 50, "Ø46 finns inte -- nästa standardsteg");
+  assertEquals(familjeborrning("8–63", 5), 8, "under spannet: familjens minsta");
+  assertEquals(familjeborrning("18–63", 17), 18, "ändpunkten räknas även när den inte är standard (DGC, DGPL)");
+  assertEquals(familjeborrning("8,12,18,25,32", 15), 18, "en lista läses som just sina storlekar");
+  assertEquals(familjeborrning("32–320 (STD); 32–125 (Type A/3)", 140), 160);
+});
+
+Deno.test("familjeborrning: okänd storlek är 0, aldrig en gissning", () => {
+  assertEquals(familjeborrning("8–63", 0), 0, "inget krav: ingen storlek att påstå");
+  assertEquals(familjeborrning("8–63", 80), 0, "kravet når över familjen");
+  assertEquals(familjeborrning("50 mm", 40), 0, "ett enskilt mått är ingen familj");
+  assertEquals(familjeborrning(undefined, 40), 0);
+});
+
+Deno.test("kraftVid6Bar: samma tal som kortet visade för Ø63", () => {
+  assertEquals(kraftVid6Bar(63), 1870);
+  assertEquals(kraftVid6Bar(50), 1178);
 });
