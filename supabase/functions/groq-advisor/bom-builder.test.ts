@@ -741,3 +741,67 @@ Deno.test("bedomLosning räknar hur mycket som faktiskt prövades", () => {
   assert(dom.kontrollerat.rader > 1, "listan har fler rader än primären");
   assertEquals(dom.kontrollerat.rader, dom.kontrollerat.verifierade + dom.kontrollerat.utan_krav + dom.kontrollerat.blockerande);
 });
+
+
+// ── Familjens borrning i följdraderna (hittat 2026-10-02) ────────────────────
+// En last om 45 kg, vertikal, operatör under lasten. Primären FESTO-193986
+// har bore_mm "8–63". Stångbromsen skulle beställas i "Ø8" -- firstNumAbs tog
+// spannets första tal. handleBom väljer nu storleken via familjeborrning() och
+// lämnar den i primaryBoreMm.
+const DSNU_SPANN = { bore_mm: "8–63", stroke_mm: "500 mm" };
+
+Deno.test("familj: stångbromsen följer storleken som valts för lasten", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "FESTO-193986", primaryIsFamilyProd: true, primaryBoreMm: 50,
+    primarySpecs: DSNU_SPANN, isVerticalLoad: true, isRodLock: true,
+    products: [prod("FESTO-193986", "cylinder", "festo", DSNU_SPANN)],
+  }));
+  const las = rows.find(r => r.kind === "rod_lock");
+  assert(las, "stångbroms ska finnas");
+  assert(/Ø50/.test(las!.reason), `stångbromsen ska nämna Ø50: ${las!.reason}`);
+  assert(!/Ø8\b/.test(las!.reason) && !/Ø63/.test(las!.reason), "aldrig ett tal ur spannet");
+});
+
+Deno.test("familj utan last: följdraderna påstår ingen borrning", () => {
+  // Normaliserade specar har bore_mm = familjens max (63). Varken det eller
+  // spannets första tal får bli stångbromsens storlek.
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "FESTO-193986", primaryIsFamilyProd: true, primaryBoreMm: 0,
+    primarySpecs: DSNU_SPANN, isVerticalLoad: true, isRodLock: true, isMounting: true,
+    products: [prod("FESTO-193986", "cylinder", "festo", DSNU_SPANN)],
+  }));
+  for (const r of rows.filter(r => r.kind === "rod_lock" || r.kind === "mount")) {
+    assert(!/Ø\d/.test(r.reason), `${r.kind} ska inte gissa en borrning: ${r.reason}`);
+  }
+  assert(/cylinderns borrning/.test(rows.find(r => r.kind === "rod_lock")!.reason));
+});
+
+Deno.test("familj: primärradens motivering säger vilken storlek som ska beställas", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "FESTO-193986", primaryIsFamilyProd: true, primaryBoreMm: 50,
+    primarySpecs: DSNU_SPANN, requiredStrokeMm: 400,
+    products: [],
+  }));
+  const primar = rows.find(r => r.sku === "FESTO-193986")!;
+  assert(/beställ i Ø50/.test(primar.reason), primar.reason);
+  assertEquals(primar.verifiering, "kraver_konfiguration");
+  assert(/Beställ i Ø50/.test(primar.verifieringsskal ?? ""), primar.verifieringsskal);
+});
+
+Deno.test("familj: en kommalista räknas också som familj", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "SMC-CQ2", primaryBrand: "smc", requiredStrokeMm: 50,
+    primarySpecs: { bore_mm: "12,16,20,25,32,40,50,63", stroke_mm: "300 mm" },
+    products: [],
+  }));
+  assertEquals(rows.find(r => r.sku === "SMC-CQ2")!.verifiering, "kraver_konfiguration");
+});
+
+Deno.test("enskild artikel: stångbromsen följer artikelns egen borrning som förut", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "0822040200", primaryBoreMm: 0,
+    primarySpecs: { bore_mm: "40 mm" }, isVerticalLoad: true, isRodLock: true,
+    products: [prod("0822040200", "cylinder", "bosch-rexroth", { bore_mm: "40 mm", stroke_mm: "200 mm" })],
+  }));
+  assert(/Ø40/.test(rows.find(r => r.kind === "rod_lock")!.reason));
+});

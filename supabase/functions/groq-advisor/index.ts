@@ -21,6 +21,9 @@ import {
   isAtexCapableProduct,
   isWashdownProduct,
   rankActuators,
+  arBorrningsspann,
+  familjeborrning,
+  kraftVid6Bar,
 } from "./scoring.ts";
 import {
   langName,
@@ -1391,7 +1394,15 @@ async function handleOptions(
   // No exact-size stock match → the top pick is the closest (oversized) one. Per
   // policy we RECOMMEND it but don't present it as the definitive choice; the
   // honest path for an exact fit is a configurable variant or a custom solution.
-  const topBore0 = parseFloat(String(topProducts[0]?.key_specs?.bore_mm ?? "0"));
+  // Familjer har ingen borrning förrän någon väljer en. Den storlek raden ska
+  // beställas i bestäms här, en gång, och används av kortet, språkmodellen och
+  // efterkontrollen nedan. Se familjeborrning() i scoring.ts.
+  const familjeStorlek = new Map<string, number>(
+    topProducts.filter(p => arBorrningsspann(p.key_specs?.bore_range))
+      .map(p => [p.sku, familjeborrning(p.key_specs?.bore_range, Math.max(minBoreMm, explicitBoreMm))]));
+  const presenteradBorrning = (p: CatalogProduct | undefined): number =>
+    !p ? 0 : familjeStorlek.has(p.sku) ? (familjeStorlek.get(p.sku) ?? 0) : parseFloat(String(p.key_specs?.bore_mm ?? "0")) || 0;
+  const topBore0 = presenteradBorrning(topProducts[0]);
   // With an explicit bore: exact hit = exact (never "oversized" vs the LOAD minimum,
   // which would mislabel the precisely-requested Ø50); a differing top bore = inexact.
   const boreInexact = explicitBoreMm > 0
@@ -1400,8 +1411,15 @@ async function handleOptions(
 
   const serverOptions = topProducts.map((p, i) => {
     const ms = parseStrokeFromSpecs(p.key_specs ?? {});
-    const bore = parseFloat(String(p.key_specs?.bore_mm ?? "0")) || null;
-    const force = parseFloat(String(p.key_specs?.force_n ?? "0")) || null;
+    const arFamilj = familjeStorlek.has(p.sku);
+    const bore = presenteradBorrning(p) || null;
+    // En familjs kraft är kraften i den storlek den ska beställas i -- inte i
+    // familjens största, som kortet visade förut (Ø63, 1 870 N för en last som
+    // kräver Ø50). Okänd storlek ger ingen kraft alls i stället för en gissning.
+    const force = arFamilj
+      ? (bore ? kraftVid6Bar(bore) : null)
+      : parseFloat(String(p.key_specs?.force_n ?? "0")) || null;
+    const spannTxt = arFamilj ? String(p.key_specs?.bore_range ?? "").split(/[;(]/)[0].replace(/\s*mm\s*$/i, "").trim() : "";
     // Adversarial-test finding 2026-08-17: gpt-oss-120b is a reasoning model —
     // on a 3-item JSON array it sometimes spends its budget on hidden reasoning
     // and closes the array early, silently omitting the later SKUs from its
@@ -1410,6 +1428,7 @@ async function handleOptions(
     // numbers only, never invented.
     const fallbackWhy = [
       bore ? pick(locale, { sv: `Ø${bore} mm borr`, en: `Ø${bore} mm bore`, de: `Ø${bore} mm Bohrung`, es: `Ø${bore} mm de diámetro` }) : "",
+      arFamilj ? pick(locale, { sv: `serien finns i Ø${spannTxt} mm`, en: `series available in Ø${spannTxt} mm`, de: `Serie erhältlich in Ø${spannTxt} mm`, es: `serie disponible en Ø${spannTxt} mm` }) : "",
       ms > 0 ? pick(locale, { sv: `${ms} mm slag`, en: `${ms} mm stroke`, de: `${ms} mm Hub`, es: `${ms} mm de carrera` }) : "",
       force ? `${force} N` : "",
     ].filter(Boolean).join(", ");
@@ -1480,8 +1499,20 @@ async function handleOptions(
     return { force_n_at_6bar: force_n, ...rest };
   };
 
+  // En familjs specar säger annars bore_mm = familjens största borrning, och
+  // modellen skriver då "Ø63 ger 1 870 N" bredvid ett kort som säger Ø50.
+  const specsForLlm = (p: CatalogProduct): Record<string, unknown> => {
+    const ks = labelForceAtPressure(p.key_specs ?? {});
+    if (!familjeStorlek.has(p.sku)) return ks;
+    const { bore_mm: _max, force_n_at_6bar: _maxF, bore_range, ...rest } = ks;
+    const b = familjeStorlek.get(p.sku) ?? 0;
+    return b > 0
+      ? { ...rest, bore_mm: `${b} mm`, force_n_at_6bar: `${kraftVid6Bar(b)} N`,
+          bore_note: `series available in ${bore_range} mm; ${b} mm is the smallest size that meets the required force — order it in ${b} mm` }
+      : { ...rest, bore_range_mm: bore_range, bore_note: "series — the bore is chosen at order; no load was given to size it" };
+  };
   const preselectedStr = topProducts.map((p, i) =>
-    `${i+1}. SKU="${p.sku}" | ${p.name} [${p.brand}/${p.category}] stroke=${strokeLabel(p.key_specs??{})} specs:${JSON.stringify(labelForceAtPressure(p.key_specs??{}))}`
+    `${i+1}. SKU="${p.sku}" | ${p.name} [${p.brand}/${p.category}] stroke=${strokeLabel(p.key_specs??{})} specs:${JSON.stringify(specsForLlm(p))}`
   ).join("\n");
 
   // SECURITY/SAFETY: found via adversarial testing 2026-08-16 — asked for a Zone 1
@@ -1582,13 +1613,20 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     const closestCatalogBadge = pick(locale, { sv: "Närmaste katalogalternativ", en: "Closest catalog option", de: "Nächstgelegene Katalogoption", es: "Opción de catálogo más cercana" });
     if (isConfigurable && !tooShort) {
       opt.badge = pick(locale, { sv: "Konfigurera slag vid order", en: "Configure stroke at order", de: "Hub bei Bestellung konfigurieren", es: "Configurar carrera al pedido" });
+      const famB = familjeStorlek.get(sku) ?? 0;
+      const storlek = famB > 0 ? pick(locale, {
+        sv: ` Beställs i Ø${famB} — minsta storlek i serien som ger den kraft som krävs.`,
+        en: ` Order it in Ø${famB} — the smallest size in the series that gives the required force.`,
+        de: ` In Ø${famB} bestellen — die kleinste Größe der Serie, die die erforderliche Kraft liefert.`,
+        es: ` Pídalo en Ø${famB} — el tamaño más pequeño de la serie que da la fuerza necesaria.`,
+      }) : "";
       const note = pick(locale, {
         sv: `🔧 Produktfamilj/serie — exakt slaglängd${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} väljs vid beställning${actualMax > 0 ? `; serien täcker upp till ${actualMax} mm` : ""}.`,
         en: `🔧 Product family/series — exact stroke${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} is selected at order${actualMax > 0 ? `; the series covers up to ${actualMax} mm` : ""}.`,
         de: `🔧 Produktfamilie/-serie — die genaue Hublänge${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} wird bei der Bestellung ausgewählt${actualMax > 0 ? `; die Serie deckt bis zu ${actualMax} mm ab` : ""}.`,
         es: `🔧 Familia/serie de productos — la carrera exacta${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} se selecciona al realizar el pedido${actualMax > 0 ? `; la serie cubre hasta ${actualMax} mm` : ""}.`,
       });
-      opt.why = `${note} ${opt.why ?? ""}`.trim();
+      opt.why = `${note}${storlek} ${opt.why ?? ""}`.trim();
       // The LLM writes cons from the raw stroke_mm spec (the family's max, e.g.
       // 3200/4000mm) BEFORE this block runs, with no notion of "configurable at
       // order" -- so a family product got both "exact 300mm at order" (above,
@@ -1858,7 +1896,17 @@ async function handleBom(
   // categories — a trigger like "noggrann"/"precis" can put electric-actuator into
   // the categories even when the chosen primary is a pneumatic cylinder, which then
   // wrongly built an electric drivetrain (servo drive + motor cable) for it.
-  const { category: primaryCategory, boreMm: primaryBoreMm, brand: primaryBrand, specs: primarySpecs } = await fetchPrimaryInfo(primarySku);
+  const { category: primaryCategory, boreMm: primaryBoreMmKatalog, brand: primaryBrand, specs: primarySpecs } = await fetchPrimaryInfo(primarySku);
+  // En familj har ingen borrning förrän någon väljer en. firstNumAbs("8–63")
+  // gav 8, och stångbromsen till en last på 45 kg skulle beställas i Ø8. Här
+  // väljs samma storlek som alternativkortet visade; okänd storlek ger 0, och
+  // följdraderna säger då "cylinderns borrning" i stället för att gissa.
+  const primarSpann = [primarySpecs.bore_mm, primarySpecs.bore_range].find(arBorrningsspann);
+  // En uttryckligen angiven borrning väljer storleken, men aldrig under vad
+  // lasten kräver -- samma ordning som borrningsfiltret i alternativsteget.
+  const primaryBoreMm = primarSpann != null
+    ? familjeborrning(primarSpann, Math.max(hazards.minBoreMm, hazards.explicitBoreMm))
+    : primaryBoreMmKatalog;
   const isElectric = !hazards.isAtex && !hazards.isAtexDust && (primaryCategory
     ? ["electric-actuator", "linear-module", "servo-motor", "servo-drive"].includes(primaryCategory)
     : categories.some(c => c === "electric-actuator" || c === "linear-module"));
@@ -1918,7 +1966,10 @@ async function handleBom(
 
   // ── v40: Build complete mandatory BOM deterministically ─────────────────────
   // P2 force check: does the chosen actuator's rated force cover the computed peak load?
-  const ratedForceN = parseFloat(String(products.find(p => p.sku === primarySku)?.key_specs?.force_n ?? "0").replace(/[^\d.]/g, ""));
+  // En familj prövas i den storlek den ska beställas i, inte i sin största.
+  const ratedForceN = primarSpann != null && primaryBoreMm > 0
+    ? kraftVid6Bar(primaryBoreMm)
+    : parseFloat(String(products.find(p => p.sku === primarySku)?.key_specs?.force_n ?? "0").replace(/[^\d.]/g, ""));
   const forceShortfall = (hazards.dynamics && ratedForceN > 0 && hazards.dynamics.forceN > ratedForceN)
     ? { needN: Math.round(hazards.dynamics.forceN), ratedN: Math.round(ratedForceN) } : null;
   const bomCtx: BomCtx = {
@@ -1986,7 +2037,14 @@ ${specialConstraints ? `\nConstraints to mention: ${specialConstraints}` : ""}
 
 JSON: { "title": "...", "explanation": "..." }`;
 
-  const bomUser = `Application: ${description}\nRequirements: ${reqLines || "standard"}\nPrimary: ${primarySku}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
+  // Katalogtexten om en familj börjar ofta med dess minsta storlek ("DSNU-8-…").
+  // Utan storleken här kan modellen läsa den som primärens borrning.
+  const primarNot = primarSpann != null
+    ? (primaryBoreMm > 0
+      ? ` (product family ${String(primarSpann)} mm — order it in Ø${primaryBoreMm} mm for this load; the article number is not the bore)`
+      : ` (product family ${String(primarSpann)} mm — the bore is chosen at order; do not state one)`)
+    : "";
+  const bomUser = `Application: ${description}\nRequirements: ${reqLines || "standard"}\nPrimary: ${primarySku}${primarNot}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
 
   // ── Call LLM — if rate-limited, skip gracefully (mandatory BOM is already built) ──
   let raw: string | null = null;
