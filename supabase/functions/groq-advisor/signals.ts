@@ -1003,7 +1003,10 @@ export function detectConflicts(f: {
 export function detectEndEffectorIntent(text: string): "gripper" | "vacuum" | null {
   const t = text.toLowerCase();
   const vacuumAsk = /vakuumgrepp|vakuumgripare|sugkopp|sugkoppar|suction.?cup|\bsugg\b|ejektor|vakuum.{0,12}(plock|grepp|lyft|hanter)/i.test(t);
-  const gripperAsk = /gripdon|parallellgripare|vinkelgripare|griparback|\bgripper\b|\bgripare\b|klämback|gripa\s+(och|tag|fast|om)|griper\s+(om|fast|tag|och)/i.test(t);
+  // "parallellgrepp" och "vinkelgrepp" saknades till 2026-10-02: bara
+  // -gripare-formerna fanns, trots att -grepp är minst lika vanligt på
+  // svenska. "Vi ska gripa en detalj med ett parallellgrepp" gav null.
+  const gripperAsk = /gripdon|parallellgrip(are|grepp)?|parallellgrepp|vinkelgrip(are|grepp)?|vinkelgrepp|tregrepp|treback|griparback|\bgripper\b|\bgripare\b|\bgrepp(et|en)?\b|klämback|gripa\s+(och|tag|fast|om)|griper\s+(om|fast|tag|och)/i.test(t);
   // Fragile, flat parts imply vacuum even without the word (glass / PCB / thin sheet).
   const fragileFlat = /\bglas\b|glasskiv|\bwafer\b|kretskort|\bpcb\b|tunn(a|t)?\s*pl(å|a)t|folie|laminat|solcell|\bdisplay\b|\blins(er)?\b/i.test(t)
                       && /plock|lyft|grepp|gripa|hanter|flytta/i.test(t);
@@ -1011,6 +1014,27 @@ export function detectEndEffectorIntent(text: string): "gripper" | "vacuum" | nu
   if (gripperAsk) return "gripper";
   if (fragileFlat) return "vacuum";
   return null;
+}
+
+/**
+ * Sa kunden UTTRYCKLIGEN hur det ska gripas, eller gissade vi?
+ *
+ * detectEndEffectorIntent svarar "vacuum" både på "vakuumgrepp" (ett angivet
+ * krav) och på "lyfter glasskivor" (en härledning ur att glas är plant och
+ * ömtåligt). Skillnaden spelar roll i handleOptions, som hoppar över hela
+ * griporganet när rörelsen är flerkaxlig -- rimligt för en portal som råkar ha
+ * ett grepp, men fel när kunden själv skrivit vilket grepp hen vill ha.
+ *
+ * Hittat 2026-10-02: "Plockar och placerar kartong 2 kg — vakuumgrepp från
+ * magasin" är ett av de SEX exemplen på startsidan. Det gav en kompaktcylinder
+ * med 5 mm slag och inte en enda vakuumkomponent, trots att katalogen har 12.
+ * "Plocka och placera" räknas som flerkaxligt, och villkoret slängde det
+ * uttalade kravet.
+ */
+export function endEffectorExplicitlyAsked(text: string): boolean {
+  const t = text.toLowerCase();
+  return /vakuumgrepp|vakuumgripare|sugkopp|sugkoppar|suction.?cup|ejektor|vakuum.{0,12}(plock|grepp|lyft|hanter)/i.test(t)
+    || /gripdon|parallellgrip(are|grepp)?|parallellgrepp|vinkelgrip(are|grepp)?|vinkelgrepp|griparback|\bgripper\b|\bgripare\b|klämback/i.test(t);
 }
 
 /**

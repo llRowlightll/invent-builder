@@ -15,7 +15,7 @@ import {
   extractRequiredMaxTemp, extractMinStroke, extractPerAxisStrokes, extractSpeedMs,
   extractPrecisionMm, extractExplicitBoreMm, calcMinBoreMm, extractTorqueNm,
   extractRotationDeg, extractCycleTimeS, computeDynamics, detectConflicts,
-  extractUnitCount,
+  extractUnitCount, detectEndEffectorIntent, endEffectorExplicitlyAsked,
 } from "./signals.ts";
 
 // ── Explicit force statements must not round-trip through extractLoadKg ────────
@@ -632,4 +632,47 @@ Deno.test("extractRequiredMaxTemp: riktiga temperaturkrav fångas fortfarande", 
   assertEquals(extractRequiredMaxTemp("Cylinder i 40 °C verkstad", {}), 0);
   // Flera siffror: det gamla uttrycket tog bara första träffen och tappade ugnen.
   assertEquals(extractRequiredMaxTemp("20 grader i lokalen, 400 grader varmt i ugnen", {}), 400);
+});
+
+
+// ── Griporganet får inte tappas bort ─────────────────────────────────────────
+// Hittat 2026-10-02 i en genomgång: "Plockar och placerar kartong 2 kg —
+// vakuumgrepp från magasin" är ett av SEX exempel på startsidan. Det gav en
+// kompaktcylinder med 5 mm slag och inte en enda vakuumkomponent, trots att
+// katalogen har 12. Orsaken: handleOptions hoppar över griporganet när
+// rörelsen är flerkaxlig, och "plocka och placera" ÄR flerkaxligt.
+//
+// Villkorets skäl är rätt när vi själva HÄRLETT greppet ur att detaljen är
+// plan och ömtålig. Det är fel när kunden skrivit vilket grepp hen vill ha.
+Deno.test("uttalat griporgan skiljs från härlett", () => {
+  // Uttalat: kunden har namngett greppet.
+  for (const t of [
+    "Plockar och placerar kartong 2 kg — vakuumgrepp från magasin",
+    "Vakuumgrepp som lyfter glasskivor 4 kg i monteringscell",
+    "Vi behöver sugkoppar och en ejektor",
+    "Vi ska gripa en detalj med ett parallellgrepp",
+    "Ett vinkelgrepp som håller detaljen",
+  ]) {
+    assert(endEffectorExplicitlyAsked(t), `skulle vara uttalat: ${t}`);
+    assert(detectEndEffectorIntent(t) !== null, `intent saknas: ${t}`);
+  }
+
+  // Härlett: vi gissar ur att glas är plant och ömtåligt. Inget uttalat krav.
+  for (const t of [
+    "Treaxlig portal som flyttar glasskivor mellan två band",
+    "Lyfter tunn plåt från ett magasin",
+  ]) {
+    assertEquals(endEffectorExplicitlyAsked(t), false, `skulle INTE vara uttalat: ${t}`);
+  }
+
+  // Ingen grepptanke alls.
+  assertEquals(endEffectorExplicitlyAsked("Pneumatiskt stoppdon på ett transportband"), false);
+  assertEquals(detectEndEffectorIntent("Pneumatiskt stoppdon på ett transportband"), null);
+});
+
+// -grepp-formerna saknades; bara -gripare fanns.
+Deno.test("gripdon: både -gripare och -grepp känns igen", () => {
+  for (const t of ["parallellgripare", "parallellgrepp", "vinkelgripare", "vinkelgrepp", "gripdon"]) {
+    assertEquals(detectEndEffectorIntent(`Vi behöver ett ${t} för detaljen`), "gripper", t);
+  }
 });
