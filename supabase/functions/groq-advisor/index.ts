@@ -25,6 +25,7 @@ import {
   familjeborrning,
   kraftVid6Bar,
 } from "./scoring.ts";
+import { LANGRE_SLAG_PRO, rensaPositionsPros } from "./prosavakt.ts";
 import {
   langName,
   pick,
@@ -1133,10 +1134,7 @@ async function handleOptions(
         sku: p.sku, name: p.name,
         badge: i === 0 && torqueInexact
           ? pick(locale, { sv: "Närmaste — otillräckligt vridmoment", en: "Closest — insufficient torque", de: "Nächstgelegen — unzureichendes Drehmoment", es: "Más cercano — par insuficiente" })
-          : pick(locale, {
-              sv: ["Bästa valet", "Kompakt alternativ", "Budgetalternativ"], en: ["Best choice", "Compact option", "Budget option"],
-              de: ["Beste Wahl", "Kompakte Option", "Budget-Option"], es: ["Mejor opción", "Opción compacta", "Opción económica"],
-            })[i],
+          : platsmarke(i, locale),
         bore_mm: null, stroke_mm: null,
         // force_n bar till 2026-10-02 vridmomentet i newtonMETER, i ett fält
         // som heter newton. Det var ofarligt bara så länge requirements var
@@ -1438,10 +1436,7 @@ async function handleOptions(
         ? pick(locale, { sv: "Byggblock – rörelsedel", en: "Building block – motion", de: "Baustein – Bewegungsteil", es: "Componente – parte de movimiento" })
         : i === 0 && boreInexact
         ? pick(locale, { sv: "Närmaste — överdimensionerad", en: "Closest — oversized", de: "Nächstgelegen — überdimensioniert", es: "Más cercano — sobredimensionado" })
-        : pick(locale, {
-            sv: ["Bästa valet","Kompakt alternativ","Budgetalternativ"], en: ["Best choice","Compact option","Budget option"],
-            de: ["Beste Wahl","Kompakte Option","Budget-Option"], es: ["Mejor opción","Opción compacta","Opción económica"],
-          })[i],
+        : platsmarke(i, locale),
       bore_mm: bore,
       stroke_mm: ms > 0 ? ms : null,
       force_n: force,
@@ -1603,6 +1598,8 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     if (sku === "CUSTOM-SOLUTION") return opt;
     const cat = productMap.get(sku);
     if (!cat) return opt;
+    // Pneumatik har två ändlägen. Se prosavakt.ts.
+    opt.pros = rensaPositionsPros((opt.pros as string[] | undefined) ?? [], isPneumaticActuatorProduct(cat));
     const actualMax = parseStrokeFromSpecs(cat.key_specs ?? {});
     opt.stroke_mm = actualMax > 0 ? actualMax : null;
     // Family / configurable product: never present it as a silent exact match.
@@ -1657,7 +1654,6 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     // Gäller inte konfigurerbara familjer: där VÄLJS slaglängden vid order, och
     // blocket ovanför förklarar redan det.
     if (!isConfigurable && maxRequiredStroke > 0 && actualMax > maxRequiredStroke * 1.02) {
-      const LANGRE_SLAG_PRO = /(slagl[äa]ngd|stroke|\bhub\b|carrera).{0,30}(l[äa]ngre|extra|mer\b|över|exceed|longer|more\b|l[äa]nger|mayor|superior)/i;
       opt.pros = ((opt.pros as string[] | undefined) ?? []).filter(pro => !LANGRE_SLAG_PRO.test(pro));
       const avvikelse = pick(locale, {
         sv: `Avviker från önskad slaglängd: ${actualMax} mm mot ${maxRequiredStroke} mm. Rörelsen måste begränsas mekaniskt eller med justerbart ändstopp.`,
@@ -1843,6 +1839,21 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
 
   logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: finalOptions[0]?.sku ?? null, option_count: finalOptions.length }, true);
   return Response.json({ summary: finalSummary, options: finalOptions, requirements }, { headers: CORS });
+}
+
+/**
+ * Märket på alternativ 1–3 i rankningen.
+ *
+ * Fram till 2026-10-02 hette alternativ 2 och 3 alltid "Kompakt alternativ"
+ * och "Budgetalternativ" -- efter plats i listan, inte efter något som mätts.
+ * En Ø63×200 kallades kompakt, och "budget" sattes i en katalog där ingen
+ * artikel har ett pris. Ett märke är ett påstående. Det enda rankningen
+ * faktiskt vet är ordningen.
+ */
+function platsmarke(i: number, locale: string): string {
+  return i === 0
+    ? pick(locale, { sv: "Bästa valet", en: "Best choice", de: "Beste Wahl", es: "Mejor opción" })
+    : pick(locale, { sv: "Alternativ", en: "Alternative", de: "Alternative", es: "Alternativa" });
 }
 
 // ── ACTION: bom (v40) ─────────────────────────────────────────────────────────

@@ -870,10 +870,9 @@ function OptionsStep({ t, locale, summary, options, requirements, onSelect, onBa
   const BADGE_COLORS: Record<string, string> = {
     "Bästa valet": "bg-success-surface text-success-deep",
     "Best choice": "bg-success-surface text-success-deep",
-    "Kompakt alternativ": "bg-info/10 text-info",
-    "Compact option": "bg-info/10 text-info",
-    "Budgetalternativ": "bg-gold/20 text-warning-deep",
-    "Budget option": "bg-gold/20 text-warning-deep",
+    "Alternativ": "bg-muted text-muted-foreground",
+    "Alternative": "bg-muted text-muted-foreground",
+    "Alternativa": "bg-muted text-muted-foreground",
     "Premium alternativ": "bg-purple-100 text-purple-700",
     "Premium option": "bg-purple-100 text-purple-700",
   };
