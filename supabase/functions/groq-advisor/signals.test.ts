@@ -577,3 +577,36 @@ Deno.test("nyckelord med diakriter matchar -- och bara som egna ord", () => {
 
   assert(needsWashdown("Limpieza con ácido en la línea."), "ácido");
 });
+
+// ── "90 grader" är vinkel lika ofta som temperatur ───────────────────────────
+// Hittat 2026-10-02 av en adversariell granskning (doubt-driven-development):
+// "Vridbord som roterar 180 grader per cykel, rumstemperatur" lästes som ett
+// krav på 180 °C. Felet fanns latent länge, men #313 kopplade in värdet i
+// satteVerifiering och bedomLosning -- och gjorde en mild feldetektering till
+// ett fabricerat skäl som stoppar en beställning. Vridning i 90/180/270 grader
+// är standardspråket för svängenheter, så det här träffade brett.
+Deno.test("extractRequiredMaxTemp: vinkel är inte temperatur", () => {
+  const vinkel = [
+    "Vridbord som roterar 180 grader per cykel, rumstemperatur",
+    "Svängenhet 270 grader i en monteringscell",
+    "90 graders vridning av detaljen, 20 °C i lokalen",
+    "Indexering 60 grader per steg",
+    "Rotary unit turning 180 degrees per cycle",
+    "Schwenkeinheit 90 Grad pro Takt",
+  ];
+  for (const t of vinkel) {
+    assertEquals(extractRequiredMaxTemp(t, {}), 0, `vinkel lästes som temperatur: ${t}`);
+  }
+});
+
+Deno.test("extractRequiredMaxTemp: riktiga temperaturkrav fångas fortfarande", () => {
+  assertEquals(extractRequiredMaxTemp("Härdningslinje, 90 °C omgivning", {}), 90);
+  assertEquals(extractRequiredMaxTemp("Omgivningen går upp till 90 grader C", {}), 90);
+  assertEquals(extractRequiredMaxTemp("Ugnen håller 400 grader varmt", {}), 400);
+  // Även i en vridmaskin: står det uttryckligen C eller varmt är det temperatur.
+  assertEquals(extractRequiredMaxTemp("Vridbord i en ugn, 200 grader C", {}), 200);
+  // Under tröskeln ska inget krav uppstå -- standardtätningar klarar det.
+  assertEquals(extractRequiredMaxTemp("Cylinder i 40 °C verkstad", {}), 0);
+  // Flera siffror: det gamla uttrycket tog bara första träffen och tappade ugnen.
+  assertEquals(extractRequiredMaxTemp("20 grader i lokalen, 400 grader varmt i ugnen", {}), 400);
+});

@@ -185,11 +185,45 @@ export function parseProductTempMax(specs: Record<string, unknown>): number {
  * We use 80°C as threshold because standard NBR seals are rated to ~80°C;
  * anything above warrants a spec check.
  */
+/**
+ * Ord som gör "grader" till en VINKEL i stället för en temperatur.
+ *
+ * Hittat 2026-10-02 av en adversariell granskning: "Vridbord som roterar 180
+ * grader per cykel, rumstemperatur" lästes som ett krav på 180 °C. Felet låg i
+ * koden sedan länge men var milt så länge värdet bara var en vink till
+ * stycklistan. Sedan #313 driver det satteVerifiering och bedomLosning, och då
+ * blir det ett fabricerat skäl som stoppar en beställning: "kravet är 180 °C"
+ * till en kund som uttryckligen skrivit rumstemperatur.
+ *
+ * Vridning i 90/180/270 grader är det normala sättet att beskriva en
+ * svängenhet, ett vridbord eller en indexering, så det här träffar en stor del
+ * av det pneumatiska sortimentet.
+ */
+const VINKELORD =
+  /vrid|rotat|roter|sväng|svang|vinkel|varv|delning|indexer|\brotate\b|\brotation\b|swivel|\bangle\b|\bturn\b|dreh|schwenk|winkel|giro|rotaci|ángulo|angulo/i;
+
 export function extractRequiredMaxTemp(text: string, answers: Record<string, string>): number {
   const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
   const matches = [...allText.matchAll(/(\d{2,3})\s*°?\s*[cC]\b/gi)].map(m => parseInt(m[1]));
-  const grad = allText.match(/(\d{2,3})\s*grad/i);
-  if (grad) matches.push(parseInt(grad[1]));
+
+  // "90 grader" är temperatur i "90 grader varmt" och vinkel i "90 graders
+  // vridning". Siffran avgör ingenting -- orden runt omkring gör det. Ett
+  // missat temperaturkrav fångas nästan alltid av °C-mönstret ovan; ett
+  // påhittat stoppar en affär OCH ljuger om varför. Därför tvekar vi hitåt.
+  //
+  // matchAll och inte match: det gamla uttrycket tog bara FÖRSTA träffen, så
+  // "20 grader i lokalen, 400 grader i ugnen" tappade ugnen.
+  for (const m of allText.matchAll(/(\d{2,3})\s*grad\w*/gi)) {
+    const i = m.index ?? 0;
+    const efter = allText.slice(i + m[0].length, i + m[0].length + 12);
+    // "90 grader C" och "90 grader varmt" är temperatur även i en vridmaskin.
+    const uttalatTemp = /^\s*(c\b|celsius|varm|värme)/i.test(efter);
+    if (!uttalatTemp && VINKELORD.test(allText.slice(Math.max(0, i - 40), i + m[0].length + 40))) {
+      continue;
+    }
+    matches.push(parseInt(m[1]));
+  }
+
   const relevant = matches.filter(t => t > 80 && t < 1200);
   return relevant.length > 0 ? Math.max(...relevant) : 0;
 }

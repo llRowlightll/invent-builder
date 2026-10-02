@@ -1789,23 +1789,30 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
 // brand-ordered rows, so a late-alphabet primary (e.g. Metal Work HCR-50) is often
 // NOT in `products` — bore-matched accessory rows (rod lock, mounting) then had no
 // bore to match against and fell to SPECIFY even when the Ø-variant is stocked.
-async function fetchPrimaryInfo(sku: string): Promise<{ category: string; boreMm: number; brand: string }> {
-  if (!sku || sku === "CUSTOM-SOLUTION" || sku === "SPECIFY") return { category: "", boreMm: 0, brand: "" };
+// Specarna följer med ut sedan 2026-10-02. De hämtades redan här och kastades
+// sedan bort, medan satteVerifiering slog upp primären i `products` -- den
+// 30-raders slice som kommentaren ovan säger att primären ofta INTE finns i.
+// Följden blev att själva cylindern kunde märkas "kräver verifiering" med
+// skälet "vi har ingen temperaturuppgift för artikeln", när uppgiften låg i
+// den här funktionen en rad tidigare. En blockerande rad fäller hela lösningen.
+async function fetchPrimaryInfo(sku: string): Promise<{ category: string; boreMm: number; brand: string; specs: Record<string, unknown> }> {
+  if (!sku || sku === "CUSTOM-SOLUTION" || sku === "SPECIFY") return { category: "", boreMm: 0, brand: "", specs: {} };
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/products?sku=eq.${encodeURIComponent(sku)}&select=name,categories(slug),brands(slug),specs:product_specs(key,value)`, {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
     });
-    if (!res.ok) return { category: "", boreMm: 0, brand: "" };
+    if (!res.ok) return { category: "", boreMm: 0, brand: "", specs: {} };
     const d = await res.json();
-    if (!Array.isArray(d) || !d[0]) return { category: "", boreMm: 0, brand: "" };
+    if (!Array.isArray(d) || !d[0]) return { category: "", boreMm: 0, brand: "", specs: {} };
     const specs = Object.fromEntries(((d[0].specs ?? []) as Array<{ key: string; value: unknown }>).map(s => [s.key, s.value]));
     const boreMm = firstNumAbs(specs.bore_mm) || firstNumAbs(String(d[0].name ?? "").match(/Ø\s?(\d+)/)?.[1]);
     return {
       category: d[0]?.categories?.slug ? String(d[0].categories.slug) : "",
       boreMm,
       brand: d[0]?.brands?.slug ? String(d[0].brands.slug) : "",
+      specs,
     };
-  } catch { return { category: "", boreMm: 0, brand: "" }; }
+  } catch { return { category: "", boreMm: 0, brand: "", specs: {} }; }
 }
 
 async function handleBom(
@@ -1824,7 +1831,7 @@ async function handleBom(
   // categories — a trigger like "noggrann"/"precis" can put electric-actuator into
   // the categories even when the chosen primary is a pneumatic cylinder, which then
   // wrongly built an electric drivetrain (servo drive + motor cable) for it.
-  const { category: primaryCategory, boreMm: primaryBoreMm, brand: primaryBrand } = await fetchPrimaryInfo(primarySku);
+  const { category: primaryCategory, boreMm: primaryBoreMm, brand: primaryBrand, specs: primarySpecs } = await fetchPrimaryInfo(primarySku);
   const isElectric = !hazards.isAtex && !hazards.isAtexDust && (primaryCategory
     ? ["electric-actuator", "linear-module", "servo-motor", "servo-drive"].includes(primaryCategory)
     : categories.some(c => c === "electric-actuator" || c === "linear-module"));
@@ -1892,6 +1899,7 @@ async function handleBom(
     primarySku, primaryIsFamilyProd, isElectric, locale,
     products: atexSafeProducts, primaryBoreMm, primaryBrand, unitCount,
     kravTempC: extractRequiredMaxTemp(combinedText, answers),
+    primarySpecs,
   };
   const mandatoryBom = buildMandatoryBomRows(bomCtx);
   console.log(`[bom v49] primary=${primarySku} electric=${isElectric} vertical=${hazards.isVerticalLoad} highSpeed=${hazards.isHighSpeed} multiAxis=${hazards.isMultiAxis} mounting=${hazards.isMounting} mandatoryRows=${mandatoryBom.length}`);

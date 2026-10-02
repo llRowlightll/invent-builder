@@ -247,6 +247,13 @@ export interface BomCtx extends HazardFlags {
    * Över den gränsen är det ett krav som varje rad ska mätas mot.
    */
   kravTempC: number;
+  /**
+   * Primärartikelns egna specifikationer, hämtade på SKU. `products` är en
+   * slice på 30 rader per kategori och missar ofta just primären (se
+   * fetchPrimaryInfo), så utan den här går det inte att kontrollera den
+   * viktigaste raden i listan mot kundens krav.
+   */
+  primarySpecs: Record<string, unknown>;
 }
 
 /**
@@ -1257,7 +1264,7 @@ export const isGripperFamily = (p: CatalogProduct) => /,/.test(String(p.key_spec
  * stämde än att skicka en lösning som inte gör det.
  */
 function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
-  const { products, primaryBrand, locale, kravTempC } = ctx;
+  const { products, primaryBrand, locale, kravTempC, primarySku, primarySpecs } = ctx;
   const fabrikatAv = (sku: string) => products.find(p => p.sku === sku)?.brand ?? "";
 
   for (const r of rows) {
@@ -1314,8 +1321,15 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
     // produkt utan uppgift ska inte sorteras bort. Men samma 0 blir en osanning
     // i det ögonblick den trycks ut som en etikett till kunden.
     if (kravTempC > 0) {
-      const prod = products.find(p => p.sku === r.sku);
-      const maxC = prod ? parseProductTempMax(prod.key_specs ?? {}) : 0;
+      // Primären slås upp på sina EGNA specar först. `products` är en slice på
+      // 30 rader per kategori, och fetchPrimaryInfo:s egen kommentar säger att
+      // en primär sent i alfabetet ofta saknas där. Utan det här fick själva
+      // cylindern "kräver verifiering" med skälet "ingen temperaturuppgift" --
+      // ett falskt skäl, eftersom uppgiften fanns hela tiden.
+      const specar = r.sku === primarySku && Object.keys(primarySpecs).length > 0
+        ? primarySpecs
+        : products.find(p => p.sku === r.sku)?.key_specs;
+      const maxC = specar ? parseProductTempMax(specar) : 0;
 
       if (maxC > 0 && maxC < kravTempC) {
         r.verifiering = "ej_uppfyllt";
