@@ -654,3 +654,35 @@ Deno.test("temperatur: primärens egna specar fäller den när de inte räcker",
   assertEquals(primar!.verifiering, "ej_uppfyllt");
   assert(/80/.test(primar!.verifieringsskal ?? ""));
 });
+
+// ── Familjerad med ett specifikt artikelnummer ───────────────────────────────
+// Hittat 2026-10-02: FESTO-193986 står i katalogen som "ISO cylinder" med
+// bore_mm = 8–63, alltså hela DSNU-serien. Hos Festo är 193986 en DSNU-8 --
+// ÅTTA millimeters borrning. Testfallet behövde 63 mm och raden visade ändå
+// det numret. 17 artiklar i katalogen har den formen.
+Deno.test("familjerad märks kraver_konfiguration, inte verifierad", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "FESTO-193986",
+    primaryBrand: "festo",
+    primarySpecs: { bore_mm: "8–63", stroke_mm: "500 mm" },
+    products: [],
+  }));
+  const primar = rows.find(r => r.sku === "FESTO-193986");
+  assertEquals(primar!.verifiering, "kraver_konfiguration");
+  assert(/8–63/.test(primar!.verifieringsskal ?? ""), "skälet ska citera spannet");
+  // Att välja utförande vid order är ett normalt steg -- det ska inte blockera.
+  assertEquals(bedomLosning(rows).blockerande.some(b => b.sku === "FESTO-193986"), false);
+});
+
+// Temperaturen går före: en komponent som inte tål miljön är fel oavsett
+// vilket utförande man konfigurerar fram.
+Deno.test("temperatur väger tyngre än konfiguration", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "FESTO-193986",
+    primaryBrand: "festo",
+    kravTempC: 90,
+    primarySpecs: { bore_mm: "8–63", temp_range: "-20…+60" },
+    products: [],
+  }));
+  assertEquals(rows.find(r => r.sku === "FESTO-193986")!.verifiering, "ej_uppfyllt");
+});
