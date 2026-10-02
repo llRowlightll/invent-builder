@@ -296,7 +296,7 @@ const VINKELORD =
   /vrid|rotat|roter|sväng|svang|vinkel|varv|delning|indexer|\brotate\b|\brotation\b|swivel|\bangle\b|\bturn\b|dreh|schwenk|winkel|giro|rotaci|ángulo|angulo/i;
 
 export function extractRequiredMaxTemp(text: string, answers: Record<string, string>): number {
-  const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
+  const allText = utanIpProvvillkor(text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" "));
   const matches = [...allText.matchAll(/(\d{2,3})\s*°?\s*[cC]\b/gi)].map(m => parseInt(m[1]));
 
   // "90 grader" är temperatur i "90 grader varmt" och vinkel i "90 graders
@@ -484,9 +484,30 @@ export function needsVerticalLoad(text: string): boolean {
   return /\blyft|\bhissa\b|\bhäng.*last\b|\blast.*häng\b|\bvertikal|\bcylinder.*vertikal\b|\bz[.-]?axel\b|\bz[.-]?axis\b|\bpress.*ner\b|\bpress.*ned\b|\bnedåt\b|\buppåt\b|\bvertical.*load\b|\bhanging.*load\b|\bsuspended.*load\b|\blifting.*cyl\b|\bcylinder.*lyft\b|\bz[.-]?achse\b|\bheben\b|\bhebt\b|\bhängende\s?last\b|\bnach\s?unten\b|\bnach\s?oben\b|\belevar\b|\blevantar\b|\bcarga\s?suspendida\b|\bcarga\s?colgante\b|\beje\s?z\b|\bhacia\s?abajo\b|\bhacia\s?arriba\b/i.test(text);
 }
 
-/** High temperature environment (>80°C). Standard NBR seals fail — need PTFE/FKM/HT variants. */
-export function needsHighTemp(text: string): boolean {
-  return /\bugn\b|\bfornace\b|\bautoklav\b|\bsteam\b|(?<![\wåäöÅÄÖ])ånga(?![\wåäöÅÄÖ])|\bvulk\b|\bsintr\b|\bsmält\b|\bhög.*temp\b|\bhigh.*temp\b|\bvarm.*milj\b|\bhet.*milj\b|\b[89]\d\s*°?\s*[cC]\b|\b1[0-9]\d\s*°?\s*[cC]\b|\b200\s*°?\s*[cC]\b|\bhögtemperatur\b|\bheat.*treat\b|\bvärmebehandl\b|\bofen\b|\bautoklav\w*\b|\bdampf\b|\bhohe\s?temperatur\b|\bheiße\s?umgebung\b|\bwärmebehandl\w*\b|\bgeschmolzen\b|\bhorno\b|\bvapor\b|\balta\s?temperatura\b|\bambiente\s?caliente\b|\btratamiento\s?térmico\b|\bfundido\b/i.test(text);
+/**
+ * En IP-kods provvillkor inom parentes: "IP69K (högtryckstvätt/kemikalier,
+ * 100 bar, 80°C)". Det beskriver hur kapslingen provas, inte miljön maskinen
+ * står i.
+ *
+ * Hittat 2026-10-02 (granskning, livsmedelsfall med daglig skumtvätt):
+ * maskinbyggarens svarsalternativ för IP69K bär den texten, svaret fogas in i
+ * kravtexten, och "80°C" gjorde needsHighTemp sann. Alla tre alternativ fick
+ * nackdelen "applikationen kräver >80 °C" -- ett krav kunden aldrig ställt.
+ */
+export function utanIpProvvillkor(text: string): string {
+  return text.replace(/\bIP\s?\d{2}K?\s*\([^)]*\)/gi, (m) => m.replace(/\(.*\)/, ""));
+}
+
+/**
+ * High temperature environment (>80°C). Standard NBR seals fail — need PTFE/FKM/HT variants.
+ *
+ * Strikt ÖVER 80 °C, samma gräns som extractRequiredMaxTemp: standardtätningar
+ * klarar +80 °C, så "80 °C" är inget högtemperaturkrav. Mönstret tog förut
+ * med 80 genom [89]\d.
+ */
+export function needsHighTemp(textMedProv: string): boolean {
+  const text = utanIpProvvillkor(textMedProv);
+  return /\bugn\b|\bfornace\b|\bautoklav\b|\bsteam\b|(?<![\wåäöÅÄÖ])ånga(?![\wåäöÅÄÖ])|\bvulk\b|\bsintr\b|\bsmält\b|\bhög.*temp\b|\bhigh.*temp\b|\bvarm.*milj\b|\bhet.*milj\b|\b(?:8[1-9]|9\d)\s*°?\s*[cC]\b|\b1[0-9]\d\s*°?\s*[cC]\b|\b200\s*°?\s*[cC]\b|\bhögtemperatur\b|\bheat.*treat\b|\bvärmebehandl\b|\bofen\b|\bautoklav\w*\b|\bdampf\b|\bhohe\s?temperatur\b|\bheiße\s?umgebung\b|\bwärmebehandl\w*\b|\bgeschmolzen\b|\bhorno\b|\bvapor\b|\balta\s?temperatura\b|\bambiente\s?caliente\b|\btratamiento\s?térmico\b|\bfundido\b/i.test(text);
 }
 
 /** Low temperature environment (<-10°C). Standard seals crack/harden — need LT/FKM variants. */

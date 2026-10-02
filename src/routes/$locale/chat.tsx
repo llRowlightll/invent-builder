@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
-import { aiSearchProducts, aiExplain, aiAskKnowledge, aiExtractDimensions, aiVisionChat, type AiSearchResult, type ChatMessage } from "@/lib/ai.functions";
+import { aiSearchProducts, aiAskKnowledge, aiExtractDimensions, aiVisionChat, type AiSearchResult, type ChatMessage } from "@/lib/ai.functions";
 import { fileToBase64 } from "@/lib/document-ai";
 import { computePhysics } from "@/lib/physics";
 import type { ProductRow } from "@/lib/types";
@@ -173,7 +173,6 @@ function ChatPage() {
   const navigate = useNavigate();
   const isSv = locale === "sv";
   const aiSearch = useServerFn(aiSearchProducts);
-  const explain = useServerFn(aiExplain);
   const askKnowledge = useServerFn(aiAskKnowledge);
   const extractDims = useServerFn(aiExtractDimensions);
   const visionChat = useServerFn(aiVisionChat);
@@ -407,41 +406,53 @@ function ChatPage() {
           // the "fetching..." placeholder rather than leave it stuck.
           setMsgs((m) => m.filter((msg) => msg.text !== introText));
         });
-      } else if (deduped.length > 0) {
-        // Normal product results
-        const countText = isSv
-          ? `Hittade ${deduped.length} produkter som uppfyller de tekniska kraven:`
-          : `Found ${deduped.length} products meeting the technical requirements:`;
-        setMsgs((m) => [
-          ...m,
-          { role: "assistant", text: countText },
-          { role: "products" as MsgRole, products: deduped.slice(0, 6), aiResult },
-        ]);
-
-        // Async explanation + followup chips
-        const ctx = `Krav: ${q}\nFysik: ${physics.reasoning.join("; ")}\nProdukter: ${deduped.slice(0, 3).map((p) => `${p.name} (${p.sku})`).join(", ")}`;
-        explain({
-          data: {
-            context: ctx,
-            question: isSv
-              ? "Förklara i 2-3 meningar varför dessa produkter är rätt dimensionerade för kravet."
-              : "Explain in 2-3 sentences why these products are correctly sized for the requirement.",
-            locale,
-          },
-        }).then((exp) => {
-          const chips = generateFollowups(aiResult, isSv);
-          if (exp.source === "ai") {
-            setMsgs((m) => [...m, { role: "assistant", text: exp.text, followups: chips }]);
-          } else if (chips.length > 0) {
-            setMsgs((m) => [...m, { role: "assistant", followups: chips }]);
-          }
-        });
       } else {
-        // No results after physics filter
-        const noMatch = isSv
-          ? `Inga produkter i katalogen uppfyller de beräknade kraven (min borr ${physics.minBore_mm ?? "—"} mm, min slag ${physics.minStroke_mm ?? "—"} mm). Kontakta oss via Rådgivaren för en offert på rätt storlek.`
-          : `No products in the catalog meet the calculated requirements (min bore ${physics.minBore_mm ?? "—"} mm, min stroke ${physics.minStroke_mm ?? "—"} mm). Contact us via the Advisor for a custom quote.`;
-        setMsgs((m) => [...m, { role: "assistant", text: noMatch }]);
+        // Produktfrågor går genom samma härdade motor som maskinbyggaren.
+        //
+        // Hittat 2026-10-02 (granskning med en livsmedelsfråga): grenen här
+        // visade katalogträffar under rubriken "uppfyller de tekniska kraven"
+        // och bad sedan språkmodellen "förklara varför dessa produkter är rätt
+        // dimensionerade för kravet". En fråga som förutsätter svaret får ett
+        // svar som försvarar det: en cylinder med 10 mm slag mot ett krav på
+        // 50 mm kallades "IP69K-klassad" -- katalogen har ingen IP-uppgift för
+        // den -- och en extern stötdämpare skulle "realisera" de resterande
+        // 40 mm. Motorn har slag-, kraft- och miljöfilter, skriver bara om det
+        // som står i datat och redovisar det som inte uppfylls som nackdel.
+        const vantar = isSv ? "Väljer komponenter mot kraven…" : "Selecting components against the requirements…";
+        setMsgs((m) => [...m, { role: "assistant", text: vantar }]);
+        const svar = await advisorOptionsCall(q, locale).catch(() => null);
+        const valda = new Set((svar?.options ?? []).map((o) => o.sku));
+        setMsgs((m) => {
+          const utan = m.filter((msg) => msg.text !== vantar);
+          if (!svar?.options?.length) return utan;
+          return [...utan, {
+            role: "advisor-options" as MsgRole,
+            text: svar.summary,
+            advisorOptions: svar.options,
+            advisorRequirements: svar.requirements,
+          }];
+        });
+
+        // Övriga katalogträffar är ett komplement att bläddra i, inte ett
+        // påstående om att de uppfyller kraven.
+        const ovriga = deduped.filter((p) => !valda.has(p.sku)).slice(0, 4);
+        if (ovriga.length > 0) {
+          const rubrik = svar?.options?.length
+            ? (isSv ? "Fler artiklar i katalogen för samma sökning:" : "More catalogue items for the same search:")
+            : (isSv
+              ? "Artiklar i katalogen för sökningen. Motiveringen kunde inte hämtas just nu, så de är inte prövade mot dina krav:"
+              : "Catalogue items for the search. The analysis could not be fetched right now, so they have not been checked against your requirements:");
+          setMsgs((m) => [
+            ...m,
+            { role: "assistant", text: rubrik, followups: generateFollowups(aiResult, isSv) },
+            { role: "products" as MsgRole, products: ovriga, aiResult },
+          ]);
+        } else if (!svar?.options?.length) {
+          const noMatch = isSv
+            ? `Inga produkter i katalogen uppfyller de beräknade kraven (min borr ${physics.minBore_mm ?? "—"} mm, min slag ${physics.minStroke_mm ?? "—"} mm). Kontakta oss via Rådgivaren för en offert på rätt storlek.`
+            : `No products in the catalog meet the calculated requirements (min bore ${physics.minBore_mm ?? "—"} mm, min stroke ${physics.minStroke_mm ?? "—"} mm). Contact us via the Advisor for a custom quote.`;
+          setMsgs((m) => [...m, { role: "assistant", text: noMatch }]);
+        }
       }
 
     } catch (e) {
@@ -745,10 +756,9 @@ function ChatPage() {
 const ADVISOR_BADGE_COLORS: Record<string, string> = {
   "Bästa valet": "bg-success-surface text-success-deep",
   "Best choice": "bg-success-surface text-success-deep",
-  "Kompakt alternativ": "bg-info/10 text-info",
-  "Compact option": "bg-info/10 text-info",
-  "Budgetalternativ": "bg-gold/20 text-warning-deep",
-  "Budget option": "bg-gold/20 text-warning-deep",
+  "Alternativ": "bg-muted text-muted-foreground",
+  "Alternative": "bg-muted text-muted-foreground",
+  "Alternativa": "bg-muted text-muted-foreground",
 };
 
 function AdvisorOptionCard({ opt, requirements, isSv, locale }: {
@@ -774,6 +784,27 @@ function AdvisorOptionCard({ opt, requirements, isSv, locale }: {
         </a>
       </div>
       {opt.why && <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{opt.why}</p>}
+      {/* Motorns för- och nackdelar, som i maskinbyggaren. Utan dem visade
+          chatten bara motiveringen -- och tappade just det som är ärligt:
+          "IP67, ej IP69K som krävs". */}
+      {(opt.pros?.length > 0 || opt.cons?.length > 0) && (
+        <div className="mt-2 grid sm:grid-cols-2 gap-x-3">
+          <div>
+            {opt.pros?.map((p, i) => (
+              <div key={i} className="text-xs text-success-deep flex items-start gap-1 mt-1">
+                <span className="text-success">✓</span> {p}
+              </div>
+            ))}
+          </div>
+          <div>
+            {opt.cons?.map((c, i) => (
+              <div key={i} className="text-xs text-muted-foreground flex items-start gap-1 mt-1">
+                <span>—</span> {c}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {(showForce || showStroke) && (
         <div className="mt-3 pt-3 border-t border-border/60 flex flex-wrap gap-4">
           {showForce && (
