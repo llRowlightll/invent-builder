@@ -44,6 +44,10 @@ interface ActuatorOption {
   bore_mm?: number;
   stroke_mm?: number;
   force_n?: number;
+  /** Vridenheter. force_n bar tidigare vridmomentet i Nm — ett fält som heter
+   *  newton med newtonmeter i sig. Nu har de egna fält med rätt enhet. */
+  torque_nm?: number;
+  rotation_deg?: number;
   why: string;
   pros: string[];
   cons: string[];
@@ -57,6 +61,10 @@ interface Requirements {
   load_kg: number | null;
   required_force_n: number | null;
   required_stroke_mm: number | null;
+  /** Vridningens storheter. Tillagda 2026-10-02: vridgrenen var den enda väg
+   *  som inte skickade kraven alls, så en vridkund fick ingen dimensionering. */
+  required_torque_nm?: number | null;
+  required_rotation_deg?: number | null;
   safety_factor: number;
   pressure_bar: number;
 }
@@ -1075,7 +1083,9 @@ function DimensioningPanel({ locale, requirements, option, bordered = true }: {
 
   const showForce = requirements.required_force_n != null && option.force_n != null;
   const showStroke = requirements.required_stroke_mm != null && option.stroke_mm != null;
-  if (!showForce && !showStroke) return null;
+  const showTorque = requirements.required_torque_nm != null && option.torque_nm != null;
+  const showRotation = requirements.required_rotation_deg != null && option.rotation_deg != null;
+  if (!showForce && !showStroke && !showTorque && !showRotation) return null;
 
   return (
     <div className={`flex flex-wrap gap-4 ${bordered ? "mt-3 pt-3 border-t border-border/60" : ""}`}>
@@ -1087,6 +1097,26 @@ function DimensioningPanel({ locale, requirements, option, bordered = true }: {
           unit="N"
           requiredLabel={isSv ? "Krävs" : "Required"}
           availableLabel={isSv ? "Ger" : "Delivers"}
+        />
+      )}
+      {showTorque && (
+        <DimensioningBar
+          label={isSv ? "Vridmoment" : "Torque"}
+          required={requirements.required_torque_nm!}
+          available={option.torque_nm!}
+          unit="Nm"
+          requiredLabel={isSv ? "Krävs" : "Required"}
+          availableLabel={isSv ? "Ger" : "Delivers"}
+        />
+      )}
+      {showRotation && (
+        <DimensioningBar
+          label={isSv ? "Rörelseomfång" : "Rotation range"}
+          required={requirements.required_rotation_deg!}
+          available={option.rotation_deg!}
+          unit="°"
+          requiredLabel={isSv ? "Krävs" : "Required"}
+          availableLabel={isSv ? "Klarar" : "Rated"}
         />
       )}
       {showStroke && (

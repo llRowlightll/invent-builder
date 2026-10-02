@@ -15,7 +15,7 @@ import {
   extractRequiredMaxTemp, extractMinStroke, extractPerAxisStrokes, extractSpeedMs,
   extractPrecisionMm, extractExplicitBoreMm, calcMinBoreMm, extractTorqueNm,
   extractRotationDeg, extractCycleTimeS, computeDynamics, detectConflicts,
-  extractUnitCount, detectEndEffectorIntent, endEffectorExplicitlyAsked,
+  extractUnitCount, detectEndEffectorIntent, endEffectorExplicitlyAsked, parseRotationFromSpecs,
 } from "./signals.ts";
 
 // ── Explicit force statements must not round-trip through extractLoadKg ────────
@@ -675,4 +675,22 @@ Deno.test("gripdon: både -gripare och -grepp känns igen", () => {
   for (const t of ["parallellgripare", "parallellgrepp", "vinkelgripare", "vinkelgrepp", "gripdon"]) {
     assertEquals(detectEndEffectorIntent(`Vi behöver ett ${t} för detaljen`), "gripper", t);
   }
+});
+
+// ── Vridvinkel ur katalogens egna nycklar ────────────────────────────────────
+// Hittat 2026-10-02: vridgrenen var den enda väg i handleOptions som inte
+// returnerade något requirements-objekt alls, så en vridkund fick ingen
+// dimensionering att läsa. Den satte dessutom force_n = vridmomentet, alltså
+// newtonMETER i ett fält som heter newton -- ofarligt bara så länge panelen
+// aldrig ritades.
+//
+// Nycklarna är mätta mot katalogen: rotation_angle finns på 15 av 18
+// vridenheter och skrivs som ett spann, swivel_angle_max på 3 som ett tal.
+Deno.test("parseRotationFromSpecs läser katalogens former", () => {
+  assertEquals(parseRotationFromSpecs({ rotation_angle: "0–180" }), 180);
+  assertEquals(parseRotationFromSpecs({ rotation_angle: "0-90" }), 90);
+  assertEquals(parseRotationFromSpecs({ swivel_angle_max: "240" }), 240);
+  assertEquals(parseRotationFromSpecs({ rotation_angle: "90, 180, 270" }), 270);
+  assertEquals(parseRotationFromSpecs({ torque: "12" }), 0, "fel nyckel ska inte ge en vinkel");
+  assertEquals(parseRotationFromSpecs({}), 0);
 });

@@ -895,6 +895,25 @@ export function extractRotationDeg(text: string, answers: Record<string, string>
   return m ? parseFloat(m[1]) : 0;
 }
 
+/**
+ * Största vridvinkel en produkt klarar, i grader. 0 när inget går att läsa.
+ *
+ * Katalogens nycklar, mätt 2026-10-02: rotation_angle finns på 15 av 18
+ * vridenheter och skrivs som ett spann ("0–180"), swivel_angle_max på 3 och
+ * skrivs som ett tal ("240"). Spannets ÖVRE ände är det produkten klarar.
+ */
+export function parseRotationFromSpecs(specs: Record<string, unknown>): number {
+  for (const key of ["rotation_angle", "swivel_angle_max", "rotation_deg", "angle_deg"]) {
+    const v = specs[key];
+    if (v == null) continue;
+    const tal = String(v).match(/\d+(?:[.,]\d+)?/g);
+    if (tal && tal.length > 0) {
+      return Math.max(...tal.map(t => parseFloat(t.replace(",", "."))));
+    }
+  }
+  return 0;
+}
+
 export function parseTorqueFromSpecs(specs: Record<string, unknown>): number {
   const v = specs["torque"] ?? specs["torque_nm"];
   if (v == null) return 0;

@@ -39,6 +39,8 @@ import {
   extractTorqueNm,
   extractRotationDeg,
   parseTorqueFromSpecs,
+  parseRotationFromSpecs,
+  LOAD_SAFETY_FACTOR,
   extractUnitCount,
   requiredForceN as sigRequiredForceN,
   detectHazards,
@@ -1133,7 +1135,13 @@ async function handleOptions(
               de: ["Beste Wahl", "Kompakte Option", "Budget-Option"], es: ["Mejor opción", "Opción compacta", "Opción económica"],
             })[i],
         bore_mm: null, stroke_mm: null,
-        force_n: torque || null,
+        // force_n bar till 2026-10-02 vridmomentet i newtonMETER, i ett fält
+        // som heter newton. Det var ofarligt bara så länge requirements var
+        // null och dimensioneringspanelen därför aldrig ritades -- en olycka,
+        // inte en konstruktion. Vridmoment har nu ett eget fält med rätt enhet.
+        force_n: null,
+        torque_nm: torque || null,
+        rotation_deg: parseRotationFromSpecs(p.key_specs ?? {}) || null,
         why: torqueInexact
           ? pick(locale, {
               sv: `${p.name} — ${torque} Nm är det högsta vridmoment vi har i lager, men klarar INTE de begärda ${requiredTorque} Nm. Rekommendation, inte en bekräftad match — för ${requiredTorque} Nm krävs kundspecifik lösning.`,
@@ -1202,7 +1210,19 @@ async function handleOptions(
         });
     const summary = summaryBase + conflictNote;
     logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: finalOptions[0]?.sku ?? null, option_count: finalOptions.length }, true);
-    return Response.json({ summary, options: finalOptions }, { headers: CORS });
+    // Kraven följer med även här. Till 2026-10-02 returnerade vridgrenen som
+    // enda väg inget requirements-objekt alls, så en vridkund fick ingen
+    // dimensionering att läsa -- varken vridmoment eller rörelseomfång.
+    const rotationskrav = {
+      load_kg: hazards.loadKg || null,
+      required_force_n: null,
+      required_stroke_mm: null,
+      required_torque_nm: requiredTorque || null,
+      required_rotation_deg: requiredDeg || null,
+      safety_factor: LOAD_SAFETY_FACTOR,
+      pressure_bar: 6,
+    };
+    return Response.json({ summary, options: finalOptions, requirements: rotationskrav }, { headers: CORS });
   }
 
   // End-effector (gripper / vacuum) — the primary function is GRIPPING, not linear
