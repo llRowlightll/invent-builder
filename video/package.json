@@ -1,0 +1,17 @@
+{
+  "name": "maskinval-trailer",
+  "private": true,
+  "description": "Maskinvals trailer, skriven i kod och renderad med Remotion. Helt skild från webbappen.",
+  "scripts": {
+    "ljud": "node scripts/skriv-ljud.mjs",
+    "studio": "remotion studio",
+    "rendera": "npm run ljud && remotion render Trailer169 ut/maskinval-16x9.mp4 && remotion render Trailer11 ut/maskinval-1x1.mp4 && remotion render Trailer916 ut/maskinval-9x16.mp4"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.532",
+    "@remotion/google-fonts": "^4.0.532",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.532"
+  }
+}
