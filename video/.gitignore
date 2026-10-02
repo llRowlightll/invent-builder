@@ -3,3 +3,4 @@ ut/
 .remotion
 # Ljudet skrivs av scripts/skriv-ljud.mjs och genereras om av npm run rendera.
 public/ljud.wav
+public/fangst/

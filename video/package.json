@@ -10,6 +10,7 @@
   "dependencies": {
     "@remotion/cli": "4.0.532",
     "@remotion/google-fonts": "^4.0.532",
+    "puppeteer-core": "^24.43.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "remotion": "4.0.532"
