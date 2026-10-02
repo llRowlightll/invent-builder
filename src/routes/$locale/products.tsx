@@ -306,11 +306,20 @@ function ProductsPage() {
     return Array.from(m.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [items, locale]);
 
-  const filtered = useMemo(() => {
-    if (!items) return [];
-    const ql = q.toLowerCase();
+  /**
+   * Familjeprefixet ur en orderkod. "DSBC-50-100-PPSA-N3" → "dsbc".
+   * Null när texten inte ser ut som en orderkod.
+   */
+  function familjeprefix(term: string): string | null {
+    const forsta = term.split(/[-/\s]/)[0]?.trim();
+    if (!forsta || forsta.length < 2 || forsta === term) return null;
+    return /^[a-z]{2,}\d*$/i.test(forsta) ? forsta.toLowerCase() : null;
+  }
 
-    const base = items.filter((p) => {
+  const { rader: filtered, familjefall } = useMemo(() => {
+    if (!items) return { rader: [] as ProductRow[], familjefall: null as string | null };
+
+    const filtrera = (ql: string) => items.filter((p) => {
       if (brands.size && !brands.has(p.brand.slug)) return false;
       if (cats.size && !cats.has(p.category.slug)) return false;
       if (grades.size && !grades.has(gradeOf(p))) return false;
@@ -356,16 +365,34 @@ function ProductsPage() {
       return true;
     });
 
+    const ql = q.toLowerCase();
+    let base = filtrera(ql);
+    let familjefall: string | null = null;
+
+    // Katalogen lagrar FAMILJER, inte varje variant: "FESTO-DSBC" finns,
+    // "DSBC-50-100-PPSA-N3" gör det inte. En kund som klistrar in sin
+    // fullständiga orderkod -- den vanligaste sökningen från någon som redan
+    // vet vad hen vill ha -- fick därför "0 av 846" och en återvändsgränd.
+    //
+    // Faller sökningen helt tillbaka vi till familjen och säger det rakt ut.
+    // Att tyst visa något annat än det som söktes vore värre än noll träffar.
+    if (base.length === 0 && ql && !aiResult) {
+      const familj = familjeprefix(ql);
+      if (familj) {
+        const forsok = filtrera(familj);
+        if (forsok.length > 0) { base = forsok; familjefall = familj; }
+      }
+    }
+
     // When AI returned ranked SKUs, sort those to the top
     if (aiResult?.ranked_skus?.length) {
       const rankMap = new Map(aiResult.ranked_skus.map((sku, i) => [sku, i]));
-      return [...base].sort((a, b) => {
-        const ra = rankMap.get(a.sku) ?? 9999;
-        const rb = rankMap.get(b.sku) ?? 9999;
-        return ra - rb;
-      });
+      return {
+        rader: [...base].sort((a, b) => (rankMap.get(a.sku) ?? 9999) - (rankMap.get(b.sku) ?? 9999)),
+        familjefall,
+      };
     }
-    return base;
+    return { rader: base, familjefall };
   }, [items, q, brands, cats, grades, aiResult]);
 
   function toggleSet<T>(set: Set<T>, val: T, setter: (s: Set<T>) => void) {
@@ -409,6 +436,11 @@ function ProductsPage() {
           <h1 className="text-xl md:text-2xl font-semibold tracking-tight">{t("nav.products")}</h1>
           <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
             {filtered.length} {t("products.of")} {items.length} {t("products.count")}
+            {familjefall && (
+              <span className="ml-2 text-warning-deep">
+                — inga träffar på hela koden, visar familjen <strong>{familjefall.toUpperCase()}</strong>
+              </span>
+            )}
           </p>
         </div>
         <Link

@@ -116,10 +116,49 @@ function Landing() {
     });
   }, []);
 
+  /**
+   * Ser texten ut som ett artikelnummer? "DSBC-50-100-PPSA-N3", "CQ2B40-50DZ",
+   * "P1D-S045MS". Versaler och siffror blandade, ofta med bindestreck.
+   */
+  function serUtSomArtikelnummer(text: string): boolean {
+    return text.split(/\s+/).some(ord =>
+      ord.length >= 3 && /\d/.test(ord) && /[A-Za-z]/.test(ord) && /^[A-Za-z0-9/\-.]+$/.test(ord)
+    );
+  }
+
+  /**
+   * Rutan säger "Beskriv din applikation ELLER sök produkt", alltså två helt
+   * olika avsikter i ett fält. Fram till 2026-10-02 gick båda till /chat.
+   *
+   * Det var fel åt ett håll som kostar: den som redan vet vad hen vill ha är
+   * den ENDA besökaren som kan köpa idag, och hen hamnade i den LLM-väg som
+   * dels dör när dygnskvoten tar slut, dels enligt handleChat:s egen kommentar
+   * svarade på "DSBC-50-100-PPSA-N3" med två Bosch Rexroth-cylindrar och tre
+   * påhittade tekniska påståenden. Alla fyra exempelknappar under rutan är
+   * dessutom produktsökningar -- de bevisade felet varje gång någon klickade.
+   *
+   * /products?q= är ren nyckelordsfiltrering utan ett enda modellanrop (AI-läget
+   * där kräver ?ai=), så den vägen fungerar även när kvoten är slut.
+   *
+   * Regeln är medvetet trubbig och förklarlig: ett artikelnummer, eller högst
+   * fyra ord, är en produktsökning. En mening är en beskrivning.
+   */
+  function sokvagFor(text: string): "/$locale/products" | "/$locale/chat" {
+    const ord = text.trim().split(/\s+/).filter(Boolean);
+    return serUtSomArtikelnummer(text) || ord.length <= 4
+      ? "/$locale/products"
+      : "/$locale/chat";
+  }
+
+  function sok(text: string) {
+    const rent = text.trim();
+    if (!rent) return;
+    navigate({ to: sokvagFor(rent), params: { locale }, search: { q: rent } as never });
+  }
+
   function onSearch(e: React.FormEvent) {
     e.preventDefault();
-    if (!q.trim()) return;
-    navigate({ to: "/$locale/chat", params: { locale }, search: { q: q.trim() } as never });
+    sok(q);
   }
 
   return (
@@ -178,7 +217,7 @@ function Landing() {
             {["Festo DSBC cylinder", "SMC CQ2 kompakt", "Parker P1D pneumatisk", "vakuumgrepp"].map((s) => (
               <button
                 key={s}
-                onClick={() => { setQ(s); navigate({ to: "/$locale/chat", params: { locale }, search: { q: s } as never }); }}
+                onClick={() => { setQ(s); sok(s); }}
                 className="underline underline-offset-2 hover:text-primary-foreground transition"
               >
                 {s}

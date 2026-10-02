@@ -26,6 +26,7 @@ function bomCtx(over: Partial<BomCtx> = {}): BomCtx {
   return {
     primarySku: "TEST-PRIMARY",
     kravTempC: 0,   // inget temperaturkrav som standard; sätts per test
+    primarySpecs: {},
     primaryIsFamilyProd: false,
     isElectric: false,
     locale: "sv",
@@ -572,4 +573,36 @@ Deno.test("bedomLosning blockerar när en rad är ej_uppfyllt", () => {
   const dom = bedomLosning(rows);
   assertEquals(dom.bestallningsklar, false);
   assert(dom.blockerande.some(b => b.sku === "FE-CYL"), "aktuatorn ska stå bland de blockerande");
+});
+
+// Primären finns ofta INTE i `products` -- den är en slice på 30 rader per
+// kategori, vilket fetchPrimaryInfo:s egen kommentar varnar för. Slogs den upp
+// bara där fick själva cylindern "kräver verifiering" med skälet "vi har ingen
+// temperaturuppgift för artikeln", trots att uppgiften hämtats en funktion
+// tidigare och kastats bort. En blockerande rad fäller hela lösningen, så det
+// falska skälet stoppade beställningen.
+Deno.test("temperatur: primären kontrolleras mot sina egna specar när den saknas i products", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "METALWORK-HCR-50",
+    primaryBrand: "metal-work",
+    kravTempC: 90,
+    primarySpecs: { temp_range: "-20…+120", bore_mm: 50 },
+    products: [],            // primären saknas, precis som i verkligheten
+  }));
+  const primar = rows.find(r => r.sku === "METALWORK-HCR-50");
+  assert(primar, "primäraktuatorn ska finnas i listan");
+  assertEquals(primar!.verifiering, "verifierad", "120 °C täcker kravet 90 °C");
+});
+
+Deno.test("temperatur: primärens egna specar fäller den när de inte räcker", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "METALWORK-HCR-50",
+    primaryBrand: "metal-work",
+    kravTempC: 90,
+    primarySpecs: { temp_range: "-20…+80", bore_mm: 50 },
+    products: [],
+  }));
+  const primar = rows.find(r => r.sku === "METALWORK-HCR-50");
+  assertEquals(primar!.verifiering, "ej_uppfyllt");
+  assert(/80/.test(primar!.verifieringsskal ?? ""));
 });
