@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- hus -->
+    <rect x="166" y="116" width="148" height="50" rx="8" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- säte -->
+    <path d="M 214 122 L 236 141 L 214 160" fill="none" stroke="#6b7280" stroke-width="2"/>
+    <!-- kula -->
+    <circle cx="246" cy="141" r="13" fill="#9ca3af" stroke="#4b5563" stroke-width="1.5"/>
+    <!-- fjäder -->
+    <path d="M 259 141 l 8 -8 l 8 16 l 8 -16 l 8 16 l 8 -8" fill="none" stroke="#6b7280" stroke-width="2"/>
+    <!-- anslutningar -->
+    <rect x="128" y="131" width="38" height="20" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <rect x="314" y="131" width="38" height="20" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <!-- flödesriktning -->
+    <line x1="366" y1="141" x2="412" y2="141" stroke="#6b7280" stroke-width="2"/>
+    <path d="M 412 141 l -11 -6 l 0 12 z" fill="#6b7280"/>
+    <!-- spärrad riktning -->
+    <line x1="114" y1="141" x2="68" y2="141" stroke="#d1d5db" stroke-width="2"/>
+    <line x1="80" y1="130" x2="92" y2="152" stroke="#9ca3af" stroke-width="2"/>
+    <text x="240" y="218" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Backventil</text>
+  </svg>

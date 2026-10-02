@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- valve body -->
+    <rect x="160" y="130" width="160" height="60" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- ports left/right -->
+    <rect x="88" y="142" width="74" height="16" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="318" y="142" width="74" height="16" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- exhaust ports top -->
+    <rect x="196" y="104" width="16" height="28" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="268" y="104" width="16" height="28" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- solenoid on top -->
+    <rect x="182" y="72" width="56" height="34" rx="2" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <!-- solenoid windings -->
+    <line x1="190" y1="80" x2="230" y2="80" stroke="#9ca3af" stroke-width="2"/>
+    <line x1="190" y1="87" x2="230" y2="87" stroke="#9ca3af" stroke-width="2"/>
+    <line x1="190" y1="94" x2="230" y2="94" stroke="#9ca3af" stroke-width="2"/>
+    <!-- LED indicator -->
+    <circle cx="248" cy="84" r="5" fill="#22c55e" stroke="#16a34a" stroke-width="1"/>
+    <!-- DIN plug -->
+    <rect x="188" y="60" width="44" height="14" rx="2" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- spring symbol right side -->
+    <path d="M338 150 L342 148 L346 152 L350 148 L354 152 L358 148 L362 152 L366 150" fill="none" stroke="#6b7280" stroke-width="1.5"/>
+    <text x="240" y="222" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Solenoidventil</text>
+  </svg>

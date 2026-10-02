@@ -1,6 +1,11 @@
 // Flat 2D technical-style category illustrations
 
-const svgs: Record<string, string> = {
+/**
+ * Kategoriritningarna. Exporterad sedan 2026-10-02 så att
+ * scripts/skriv-ritningar.ts kan skriva ut dem som statiska filer -- se
+ * kommentaren vid getCategoryImage om varför de inte längre bäddas in.
+ */
+export const RITNINGAR: Record<string, string> = {
 
   "cylinder": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
     <rect width="480" height="280" fill="#f8f9fb"/>
@@ -559,7 +564,8 @@ const svgs: Record<string, string> = {
   </svg>`,
 };
 
-const FALLBACK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+export const FALLBACK_NYCKEL = "fallback";
+export const FALLBACK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
   <rect width="480" height="280" fill="#f8f9fb"/>
   <rect x="140" y="96" width="200" height="100" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
   <rect x="88" y="134" width="54" height="24" rx="2" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
@@ -568,8 +574,20 @@ const FALLBACK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 2
   <text x="240" y="238" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Industrikomponent</text>
 </svg>`;
 
-function toDataUrl(svg: string): string {
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+/**
+ * Sökvägen till en ritning som statisk fil.
+ *
+ * Ritningarna bäddades tidigare in som data:image/svg+xml-URI:er, en per
+ * produktkort. På /sv/products blev det 846 inbäddade kopior av 23 unika
+ * ritningar: 2,4 MB, 57 % av sidans 4,4 MB. En data-URI kan dessutom inte
+ * cachas separat, så varje sidladdning bar hela vikten igen.
+ *
+ * Som filer laddas de 23 en gång och ligger kvar i webbläsarens cache.
+ * Filerna skrivs av scripts/skriv-ritningar.ts och hålls i synk av
+ * product-images.test.ts.
+ */
+function ritningsvag(nyckel: string): string {
+  return `/ritningar/${nyckel}.svg`;
 }
 
 /**
@@ -589,11 +607,11 @@ const RITNING_ALIAS: Record<string, string> = {
 
 export function getCategoryImage(categorySlug: string, _square = false): string {
   const nyckel = RITNING_ALIAS[categorySlug] ?? categorySlug;
-  return toDataUrl(svgs[nyckel] ?? FALLBACK_SVG);
+  return ritningsvag(nyckel in RITNINGAR ? nyckel : FALLBACK_NYCKEL);
 }
 
 export function getBrandImage(_brandSlug: string): string {
-  return toDataUrl(FALLBACK_SVG);
+  return ritningsvag(FALLBACK_NYCKEL);
 }
 
 export function getProductImage(

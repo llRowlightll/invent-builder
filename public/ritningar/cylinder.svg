@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- end cap left -->
+    <rect x="90" y="100" width="28" height="80" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <!-- body -->
+    <rect x="118" y="110" width="244" height="60" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- end cap right -->
+    <rect x="362" y="100" width="28" height="80" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <!-- piston rod -->
+    <rect x="390" y="133" width="80" height="14" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- rod eye -->
+    <rect x="466" y="124" width="16" height="32" rx="2" fill="#6b7280" stroke="#4b5563" stroke-width="1.5"/>
+    <!-- tie rods -->
+    <line x1="90" y1="108" x2="390" y2="108" stroke="#6b7280" stroke-width="2"/>
+    <line x1="90" y1="172" x2="390" y2="172" stroke="#6b7280" stroke-width="2"/>
+    <!-- air ports -->
+    <rect x="152" y="100" width="12" height="12" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="316" y="100" width="12" height="12" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- mounting feet -->
+    <rect x="110" y="180" width="30" height="10" rx="1" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="340" y="180" width="30" height="10" rx="1" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- centerline -->
+    <line x1="80" y1="140" x2="400" y2="140" stroke="#9ca3af" stroke-width="1" stroke-dasharray="6 3"/>
+    <!-- label -->
+    <text x="240" y="218" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Pneumatisk cylinder</text>
+  </svg>

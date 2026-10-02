@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- kropp -->
+    <rect x="150" y="96" width="180" height="96" rx="6" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- kugg/drev -->
+    <circle cx="240" cy="144" r="34" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <circle cx="240" cy="144" r="12" fill="#9ca3af" stroke="#4b5563" stroke-width="1.5"/>
+    <!-- utgående axel -->
+    <rect x="234" y="60" width="12" height="36" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- rotationsbåge -->
+    <path d="M 296 118 A 62 62 0 0 1 296 170" fill="none" stroke="#6b7280" stroke-width="2" stroke-dasharray="5 4"/>
+    <path d="M 296 170 l -7 -9 l 13 -2 z" fill="#6b7280"/>
+    <!-- anslag -->
+    <rect x="330" y="104" width="22" height="12" rx="2" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="330" y="172" width="22" height="12" rx="2" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- portar -->
+    <rect x="132" y="112" width="18" height="12" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="132" y="164" width="18" height="12" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <text x="240" y="218" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Vridcylinder</text>
+  </svg>

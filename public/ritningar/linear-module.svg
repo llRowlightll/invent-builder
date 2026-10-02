@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- profile rail -->
+    <rect x="58" y="148" width="364" height="26" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- rail grooves -->
+    <line x1="58" y1="156" x2="422" y2="156" stroke="#d1d5db" stroke-width="2"/>
+    <line x1="58" y1="168" x2="422" y2="168" stroke="#d1d5db" stroke-width="2"/>
+    <!-- carriage -->
+    <rect x="178" y="110" width="124" height="66" rx="2" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <!-- carriage mounting holes -->
+    <circle cx="198" cy="130" r="5" fill="white" stroke="#6b7280" stroke-width="1.5"/>
+    <circle cx="282" cy="130" r="5" fill="white" stroke="#6b7280" stroke-width="1.5"/>
+    <circle cx="198" cy="158" r="5" fill="white" stroke="#6b7280" stroke-width="1.5"/>
+    <circle cx="282" cy="158" r="5" fill="white" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- ball recirculating indicators -->
+    <ellipse cx="240" cy="148" rx="50" ry="6" fill="none" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="4 2"/>
+    <!-- motor -->
+    <rect x="58" y="114" width="60" height="60" rx="2" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <circle cx="88" cy="144" r="20" fill="#e5e7eb" stroke="#6b7280" stroke-width="1.5"/>
+    <circle cx="88" cy="144" r="8" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- travel arrows -->
+    <path d="M302 120 L334 120 M327 114 L336 120 L327 126" fill="none" stroke="#6b7280" stroke-width="1.5"/>
+    <path d="M178 120 L146 120 M153 114 L144 120 L153 126" fill="none" stroke="#6b7280" stroke-width="1.5"/>
+    <text x="240" y="230" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Linjärmodul</text>
+  </svg>
