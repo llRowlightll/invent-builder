@@ -1409,6 +1409,36 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
 
     if (fallde) continue;
 
+    // FAMILJERAD MED SPECIFIKT ARTIKELNUMMER.
+    //
+    // Hittat 2026-10-02: FESTO-193986 står i katalogen som "ISO cylinder" med
+    // bore_mm = 8–63, alltså hela DSNU-serien. Men 193986 är hos Festo en
+    // DSNU-8 -- en cylinder med ÅTTA millimeters borrning. Vårt testfall
+    // behövde 63 mm, och raden visade ändå det numret. Tar en inköpare numret
+    // rakt av får hen fel cylinder.
+    //
+    // 17 artiklar i katalogen har den formen: ett riktigt Festo-nummer på en
+    // rad som egentligen är en familj. Urvalet är inte fel -- kraft och slag
+    // stämmer -- men numret är inte beställningsbart som det står.
+    //
+    // Det är precis vad kraver_konfiguration finns för, och statusen hade
+    // aldrig satts av någon kod. Den blockerar inte: att välja utförande vid
+    // order är ett normalt steg i den här branschen, och alternativmärket
+    // säger redan "Konfigurera slag vid order". Men den ska SYNAS, och den
+    // sätts efter temperaturen -- en komponent som inte tål miljön är fel
+    // oavsett vilket utförande man konfigurerar fram.
+    const arSpann = (v: unknown) => /\d\s*[–—-]\s*\d/.test(String(v ?? ""));
+    if (specar && (arSpann(specar.bore_mm) || arSpann(specar.stroke_range))) {
+      r.verifiering = "kraver_konfiguration";
+      r.verifieringsskal = pick(locale, {
+        sv: `Raden avser en produktfamilj, inte en enskild artikel — katalogen anger ett spann (${String(specar.bore_mm ?? specar.stroke_range)}). Artikelnumret ovan är familjens, inte det du beställer. Komplett typkod måste anges före order.`,
+        en: `This row refers to a product family, not a single item — the catalogue gives a range (${String(specar.bore_mm ?? specar.stroke_range)}). The article number above is the family's, not the one you order. A complete type code must be specified before ordering.`,
+        de: `Diese Zeile bezieht sich auf eine Produktfamilie, nicht auf einen Einzelartikel — der Katalog nennt einen Bereich (${String(specar.bore_mm ?? specar.stroke_range)}). Die Artikelnummer oben ist die der Familie, nicht die zu bestellende. Vor der Bestellung ist ein vollständiger Typencode anzugeben.`,
+        es: `Esta línea corresponde a una familia de productos, no a un artículo concreto — el catálogo indica un rango (${String(specar.bore_mm ?? specar.stroke_range)}). El número de artículo anterior es el de la familia, no el que se pide. Debe especificarse un código de tipo completo antes de pedir.`,
+      });
+      continue;
+    }
+
     // "Verifierad" betyder att NÅGOT prövades och höll, och skälet säger vad.
     // Prövades ingenting finns inget att intyga -- och då säger vi det, i
     // stället för att låta tystnad se ut som ett godkännande.
