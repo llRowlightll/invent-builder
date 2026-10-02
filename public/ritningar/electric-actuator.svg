@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- motor housing -->
+    <rect x="60" y="96" width="160" height="112" rx="4" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- cooling fins -->
+    <line x1="78" y1="96" x2="78" y2="208" stroke="#9ca3af" stroke-width="1.5"/>
+    <line x1="96" y1="96" x2="96" y2="208" stroke="#9ca3af" stroke-width="1.5"/>
+    <line x1="114" y1="96" x2="114" y2="208" stroke="#9ca3af" stroke-width="1.5"/>
+    <line x1="132" y1="96" x2="132" y2="208" stroke="#9ca3af" stroke-width="1.5"/>
+    <!-- shaft -->
+    <rect x="220" y="134" width="140" height="16" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- end block -->
+    <rect x="356" y="120" width="20" height="44" rx="2" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- encoder circle -->
+    <circle cx="140" cy="152" r="30" fill="none" stroke="#6b7280" stroke-width="2"/>
+    <circle cx="140" cy="152" r="14" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- lightning bolt -->
+    <path d="M136 138 L128 154 L137 154 L133 170 L148 150 L137 150 L143 138Z" fill="#f59e0b"/>
+    <!-- cable entry -->
+    <rect x="60" y="148" width="12" height="20" rx="2" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <text x="240" y="226" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Elektrisk aktuator</text>
+  </svg>

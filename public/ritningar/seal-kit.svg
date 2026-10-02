@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- O-ring 1 (large) -->
+    <ellipse cx="240" cy="170" rx="88" ry="24" fill="none" stroke="#6b7280" stroke-width="14"/>
+    <!-- O-ring 2 -->
+    <ellipse cx="240" cy="148" rx="70" ry="18" fill="none" stroke="#9ca3af" stroke-width="11"/>
+    <!-- O-ring 3 (small) -->
+    <ellipse cx="240" cy="130" rx="52" ry="13" fill="none" stroke="#6b7280" stroke-width="9"/>
+    <!-- wiper seal (flat) -->
+    <rect x="130" y="186" width="220" height="14" rx="7" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <!-- backup ring -->
+    <ellipse cx="240" cy="116" rx="38" ry="9" fill="none" stroke="#9ca3af" stroke-width="7"/>
+    <!-- cross section indicator -->
+    <line x1="328" y1="170" x2="360" y2="170" stroke="#6b7280" stroke-width="1.5"/>
+    <line x1="360" y1="170" x2="360" y2="130" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="354" y="124" width="12" height="12" rx="6" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <text x="380" y="152" font-family="Arial,sans-serif" font-size="9" fill="#6b7280">NBR/FKM</text>
+    <text x="240" y="228" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Tätningssats</text>
+  </svg>

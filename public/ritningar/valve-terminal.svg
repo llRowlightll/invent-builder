@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- manifold base -->
+    <rect x="58" y="178" width="340" height="28" rx="2" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <!-- supply ports on manifold -->
+    <rect x="78" y="192" width="10" height="16" fill="#9ca3af" stroke="#6b7280" stroke-width="1"/>
+    <rect x="118" y="192" width="10" height="16" fill="#9ca3af" stroke="#6b7280" stroke-width="1"/>
+    <rect x="226" y="192" width="10" height="16" fill="#9ca3af" stroke="#6b7280" stroke-width="1"/>
+    <rect x="336" y="192" width="10" height="16" fill="#9ca3af" stroke="#6b7280" stroke-width="1"/>
+    <!-- 4 valve stations -->
+    <rect x="68" y="114" width="54" height="66" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <rect x="136" y="114" width="54" height="66" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <rect x="204" y="114" width="54" height="66" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <rect x="272" y="114" width="54" height="66" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- solenoid tops -->
+    <rect x="72" y="96" width="46" height="20" rx="1" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="140" y="96" width="46" height="20" rx="1" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="208" y="96" width="46" height="20" rx="1" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="276" y="96" width="46" height="20" rx="1" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- LEDs -->
+    <circle cx="96" cy="106" r="4" fill="#22c55e"/>
+    <circle cx="164" cy="106" r="4" fill="#22c55e"/>
+    <circle cx="232" cy="106" r="4" fill="#9ca3af"/>
+    <circle cx="300" cy="106" r="4" fill="#22c55e"/>
+    <!-- fieldbus module -->
+    <rect x="344" y="100" width="54" height="80" rx="2" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <rect x="350" y="108" width="42" height="14" rx="1" fill="#3b82f6" stroke="#2563eb" stroke-width="1"/>
+    <text x="371" y="119" font-family="Arial,sans-serif" font-size="7" fill="white" text-anchor="middle">FIELDBUS</text>
+    <text x="240" y="232" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Ventiläterminal</text>
+  </svg>

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- gänga -->
+    <rect x="150" y="130" width="46" height="22" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <line x1="158" y1="130" x2="158" y2="152" stroke="#9ca3af" stroke-width="1.5"/>
+    <line x1="168" y1="130" x2="168" y2="152" stroke="#9ca3af" stroke-width="1.5"/>
+    <line x1="178" y1="130" x2="178" y2="152" stroke="#9ca3af" stroke-width="1.5"/>
+    <line x1="188" y1="130" x2="188" y2="152" stroke="#9ca3af" stroke-width="1.5"/>
+    <!-- nyckelgrepp -->
+    <rect x="196" y="124" width="20" height="34" fill="#9ca3af" stroke="#4b5563" stroke-width="1.5"/>
+    <!-- sintrad kropp -->
+    <rect x="216" y="114" width="114" height="54" rx="8" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- porer -->
+    <circle cx="240" cy="132" r="3" fill="#9ca3af"/><circle cx="258" cy="126" r="3" fill="#9ca3af"/>
+    <circle cx="276" cy="134" r="3" fill="#9ca3af"/><circle cx="296" cy="127" r="3" fill="#9ca3af"/>
+    <circle cx="312" cy="136" r="3" fill="#9ca3af"/><circle cx="248" cy="150" r="3" fill="#9ca3af"/>
+    <circle cx="268" cy="156" r="3" fill="#9ca3af"/><circle cx="288" cy="148" r="3" fill="#9ca3af"/>
+    <circle cx="308" cy="155" r="3" fill="#9ca3af"/>
+    <!-- utströmning -->
+    <path d="M 340 128 q 16 -6 30 -2" fill="none" stroke="#d1d5db" stroke-width="2"/>
+    <path d="M 340 142 q 20 0 36 0" fill="none" stroke="#d1d5db" stroke-width="2"/>
+    <path d="M 340 156 q 16 6 30 2" fill="none" stroke="#d1d5db" stroke-width="2"/>
+    <text x="240" y="218" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Ljuddämpare</text>
+  </svg>

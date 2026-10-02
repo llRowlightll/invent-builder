@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- motorkropp -->
+    <rect x="164" y="100" width="130" height="88" rx="4" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- kylflänsar -->
+    <g stroke="#9ca3af" stroke-width="1.5">
+      <line x1="180" y1="100" x2="180" y2="188"/><line x1="200" y1="100" x2="200" y2="188"/>
+      <line x1="220" y1="100" x2="220" y2="188"/><line x1="240" y1="100" x2="240" y2="188"/>
+      <line x1="260" y1="100" x2="260" y2="188"/><line x1="278" y1="100" x2="278" y2="188"/>
+    </g>
+    <!-- fläns -->
+    <rect x="294" y="110" width="20" height="68" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <circle cx="304" cy="120" r="4" fill="#f8f9fb" stroke="#6b7280" stroke-width="1.5"/>
+    <circle cx="304" cy="168" r="4" fill="#f8f9fb" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- axel med kil -->
+    <rect x="314" y="136" width="54" height="16" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="330" y="132" width="16" height="5" fill="#6b7280"/>
+    <!-- givare bak -->
+    <rect x="140" y="122" width="24" height="44" rx="3" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <!-- kontakt -->
+    <rect x="200" y="82" width="34" height="18" rx="3" fill="#9ca3af" stroke="#4b5563" stroke-width="1.5"/>
+    <text x="240" y="222" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Servomotor</text>
+  </svg>

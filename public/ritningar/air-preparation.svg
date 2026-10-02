@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- connecting pipe -->
+    <line x1="60" y1="130" x2="420" y2="130" stroke="#9ca3af" stroke-width="8" stroke-linecap="round"/>
+    <!-- unit 1: filter -->
+    <rect x="68" y="96" width="76" height="100" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <rect x="78" y="90" width="56" height="10" rx="1" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- filter bowl -->
+    <rect x="76" y="170" width="52" height="22" rx="1" fill="#bfdbfe" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- filter element lines -->
+    <line x1="82" y1="114" x2="82" y2="165" stroke="#9ca3af" stroke-width="1.5"/>
+    <line x1="90" y1="110" x2="90" y2="165" stroke="#9ca3af" stroke-width="1.5"/>
+    <line x1="98" y1="108" x2="98" y2="165" stroke="#9ca3af" stroke-width="1.5"/>
+    <line x1="106" y1="108" x2="106" y2="165" stroke="#9ca3af" stroke-width="1.5"/>
+    <line x1="114" y1="110" x2="114" y2="165" stroke="#9ca3af" stroke-width="1.5"/>
+    <line x1="122" y1="114" x2="122" y2="165" stroke="#9ca3af" stroke-width="1.5"/>
+    <text x="106" y="202" font-family="Arial,sans-serif" font-size="9" fill="#6b7280" text-anchor="middle">FILTER</text>
+    <!-- unit 2: regulator -->
+    <rect x="202" y="96" width="76" height="100" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <rect x="212" y="90" width="56" height="10" rx="1" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- pressure gauge -->
+    <circle cx="240" cy="150" r="22" fill="white" stroke="#6b7280" stroke-width="1.5"/>
+    <line x1="240" y1="150" x2="250" y2="134" stroke="#374151" stroke-width="2"/>
+    <line x1="222" y1="150" x2="258" y2="150" stroke="#d1d5db" stroke-width="1"/>
+    <!-- adjustment knob -->
+    <rect x="228" y="83" width="24" height="10" rx="5" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <text x="240" y="202" font-family="Arial,sans-serif" font-size="9" fill="#6b7280" text-anchor="middle">REGUL.</text>
+    <!-- unit 3: lubricator -->
+    <rect x="336" y="96" width="76" height="100" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <rect x="346" y="90" width="56" height="10" rx="1" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- oil bowl -->
+    <rect x="344" y="170" width="52" height="22" rx="1" fill="#fef3c7" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- drip tube -->
+    <line x1="374" y1="115" x2="374" y2="170" stroke="#9ca3af" stroke-width="2" stroke-dasharray="4 2"/>
+    <circle cx="374" cy="148" r="4" fill="#9ca3af"/>
+    <text x="374" y="202" font-family="Arial,sans-serif" font-size="9" fill="#6b7280" text-anchor="middle">SMÖRJ.</text>
+    <text x="240" y="234" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Luftberedning FRL</text>
+  </svg>

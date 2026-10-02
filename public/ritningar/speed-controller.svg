@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- inlet tube -->
+    <rect x="68" y="128" width="100" height="24" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- body -->
+    <rect x="168" y="108" width="144" height="64" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- outlet tube -->
+    <rect x="312" y="128" width="100" height="24" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- needle valve symbol (diagonal inside body) -->
+    <line x1="188" y1="170" x2="292" y2="108" stroke="#9ca3af" stroke-width="2"/>
+    <!-- check valve symbol -->
+    <polygon points="226,130 226,150 246,140" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <line x1="246" y1="128" x2="246" y2="152" stroke="#6b7280" stroke-width="2"/>
+    <!-- adjustment knob -->
+    <rect x="214" y="86" width="52" height="24" rx="12" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <line x1="240" y1="86" x2="240" y2="98" stroke="#6b7280" stroke-width="2"/>
+    <!-- flow arrow -->
+    <path d="M90 140 L120 140 M112 133 L122 140 L112 147" fill="none" stroke="#6b7280" stroke-width="2"/>
+    <text x="240" y="224" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Hastighetsbegränsare</text>
+  </svg>

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- generator body -->
+    <rect x="142" y="90" width="196" height="80" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- vacuum port top -->
+    <rect x="218" y="70" width="44" height="22" rx="1" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- supply/exhaust ports -->
+    <rect x="88" y="118" width="56" height="14" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="336" y="118" width="56" height="14" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- 3 suction cups -->
+    <rect x="153" y="170" width="10" height="34" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <path d="M136 204 Q158 220 174 204" fill="#e5e7eb" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="235" y="170" width="10" height="34" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <path d="M218 204 Q240 220 256 204" fill="#e5e7eb" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="317" y="170" width="10" height="34" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <path d="M300 204 Q322 220 338 204" fill="#e5e7eb" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- vacuum symbol -->
+    <circle cx="240" cy="130" r="18" fill="none" stroke="#6b7280" stroke-width="1.5"/>
+    <line x1="227" y1="117" x2="253" y2="143" stroke="#6b7280" stroke-width="1.5"/>
+    <line x1="253" y1="117" x2="227" y2="143" stroke="#6b7280" stroke-width="1.5"/>
+    <text x="240" y="234" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Vakuumsystem</text>
+  </svg>

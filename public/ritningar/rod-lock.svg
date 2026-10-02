@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- kolvstång genom bromsen -->
+    <rect x="70" y="134" width="340" height="14" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- bromshus -->
+    <rect x="188" y="100" width="104" height="82" rx="5" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- klämbackar -->
+    <rect x="206" y="118" width="68" height="16" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="206" y="148" width="68" height="16" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- klämkraft -->
+    <path d="M 240 106 l 0 10" stroke="#6b7280" stroke-width="2"/>
+    <path d="M 240 118 l -5 -7 l 10 0 z" fill="#6b7280"/>
+    <path d="M 240 176 l 0 -10" stroke="#6b7280" stroke-width="2"/>
+    <path d="M 240 164 l -5 7 l 10 0 z" fill="#6b7280"/>
+    <!-- lossningsport -->
+    <rect x="292" y="112" width="18" height="12" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <text x="240" y="218" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Stångbroms</text>
+  </svg>

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- horizontal tube left -->
+    <rect x="80" y="128" width="110" height="24" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- horizontal tube right -->
+    <rect x="290" y="128" width="110" height="24" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- vertical tube up -->
+    <rect x="228" y="64" width="24" height="100" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- hex body -->
+    <polygon points="240,106 264,119 264,146 240,159 216,146 216,119" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <!-- push-in collets -->
+    <rect x="80" y="132" width="14" height="16" rx="1" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="386" y="132" width="14" height="16" rx="1" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="232" y="64" width="16" height="14" rx="1" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- tube inserts indicator -->
+    <line x1="90" y1="140" x2="216" y2="140" stroke="#9ca3af" stroke-width="2" stroke-dasharray="5 3"/>
+    <line x1="264" y1="140" x2="390" y2="140" stroke="#9ca3af" stroke-width="2" stroke-dasharray="5 3"/>
+    <text x="240" y="222" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Push-in koppling</text>
+  </svg>

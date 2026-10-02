@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- male nipple body -->
+    <rect x="80" y="128" width="130" height="24" rx="2" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- nipple tip -->
+    <rect x="206" y="132" width="40" height="16" rx="2" fill="#d1d5db" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- female socket body -->
+    <rect x="270" y="118" width="130" height="44" rx="2" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <!-- socket opening -->
+    <rect x="270" y="126" width="20" height="28" rx="1" fill="#e5e7eb" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- locking sleeve -->
+    <rect x="256" y="124" width="20" height="32" rx="2" fill="#9ca3af" stroke="#6b7280" stroke-width="2"/>
+    <!-- separator line -->
+    <line x1="248" y1="108" x2="248" y2="172" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="4 3"/>
+    <!-- push arrows -->
+    <path d="M222 108 L238 108 M232 102 L240 108 L232 114" fill="none" stroke="#6b7280" stroke-width="1.5"/>
+    <path d="M274 108 L258 108 M264 102 L256 108 L264 114" fill="none" stroke="#6b7280" stroke-width="1.5"/>
+    <text x="240" y="222" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Snabbkoppling</text>
+  </svg>
