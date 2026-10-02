@@ -1113,6 +1113,7 @@ function DimensioningPanel({ locale, requirements, option, bordered = true }: {
  */
 const STATUSTEXT: Record<string, string> = {
   verifierad: "Verifierad",
+  inga_krav: "Inga krav att pröva",
   kraver_verifiering: "Kräver verifiering",
   kraver_konfiguration: "Kräver konfiguration",
   avvikelse: "Avvikelse",
@@ -1120,6 +1121,17 @@ const STATUSTEXT: Record<string, string> = {
   ej_godkand: "Ej godkänd",
 };
 const BLOCKERANDE_STATUS = new Set(["kraver_verifiering", "ej_uppfyllt", "ej_godkand"]);
+
+/**
+ * Tre lägen, inte två. "Inga krav att pröva" får inte vara grönt: grönt läses
+ * som ett godkännande, och ingenting har godkänts. Det får inte vara orange
+ * heller -- ingenting är fel. Neutralt är det enda ärliga.
+ */
+function statusStil(v: string): string {
+  if (BLOCKERANDE_STATUS.has(v)) return "bg-warning-surface text-warning-deep";
+  if (v === "verifierad") return "bg-success-surface text-success-deep";
+  return "bg-muted text-muted-foreground";
+}
 const statusText = (v?: string) => (v ? STATUSTEXT[v] ?? v : "");
 
 /** PDF:en byggs som HTML-sträng. Allt som stoppas in måste escapas. */
@@ -1163,7 +1175,7 @@ function exportBomPdf(bom: BomLine[], title: string, explanation: string, select
       <td style="text-align:center">${esc(l.quantity)}</td>
       <td>${esc(l.role)}</td>
       <td>${esc(l.reason)}</td>
-      <td>${l.verifiering ? `<span class="status ${blockerar ? "status-block" : "status-ok"}">${esc(statusText(l.verifiering))}</span>` : ""}${
+      <td>${l.verifiering ? `<span class="status ${blockerar ? "status-block" : l.verifiering === "verifierad" ? "status-ok" : "status-neutral"}">${esc(statusText(l.verifiering))}</span>` : ""}${
         l.verifieringsskal ? `<div class="skal">${esc(l.verifieringsskal)}</div>` : ""}</td>
     </tr>`;
   }).join("");
@@ -1194,6 +1206,7 @@ function exportBomPdf(bom: BomLine[], title: string, explanation: string, select
   .status { display:inline-block; font-size:10px; font-weight:bold; padding:1px 6px; border-radius:3px; white-space:nowrap; }
   .status-ok { background:#dcfce7; color:#14532d; }
   .status-block { background:#fed7aa; color:#7c2d12; }
+  .status-neutral { background:#f1f5f9; color:#475569; }
   .skal { font-size:10px; color:#555; margin-top:3px; }
   .dom { border:2px solid #c2410c; background:#fff7ed; padding:12px 14px; margin:16px 0; }
   .dom strong { color:#7c2d12; }
@@ -1815,11 +1828,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
                           <div className="mt-1">
                             <span
                               title={line.verifieringsskal ?? undefined}
-                              className={`inline-block rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] ${
-                                BLOCKERANDE_STATUS.has(line.verifiering)
-                                  ? "bg-warning-surface text-warning-deep"
-                                  : "bg-success-surface text-success-deep"
-                              }`}
+                              className={`inline-block rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] ${statusStil(line.verifiering)}`}
                             >
                               {statusText(line.verifiering)}
                             </span>

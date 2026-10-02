@@ -45,6 +45,7 @@ import {
   type HazardFlags,
   detectEndEffectorIntent,
   extractRequiredMaxTemp,
+  extractRequiredMinTemp,
 } from "./signals.ts";
 import {
   buildCustomSolutionOption,
@@ -1899,6 +1900,7 @@ async function handleBom(
     primarySku, primaryIsFamilyProd, isElectric, locale,
     products: atexSafeProducts, primaryBoreMm, primaryBrand, unitCount,
     kravTempC: extractRequiredMaxTemp(combinedText, answers),
+    kravTempMinC: extractRequiredMinTemp(combinedText, answers),
     primarySpecs,
   };
   const mandatoryBom = buildMandatoryBomRows(bomCtx);
