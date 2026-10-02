@@ -44,6 +44,7 @@ import {
   detectHazards,
   type HazardFlags,
   detectEndEffectorIntent,
+  endEffectorExplicitlyAsked,
   extractRequiredMaxTemp,
   extractRequiredMinTemp,
 } from "./signals.ts";
@@ -1207,8 +1208,13 @@ async function handleOptions(
   // End-effector (gripper / vacuum) — the primary function is GRIPPING, not linear
   // motion. Skip for a multi-axis line or whole-system request (those own the motion
   // axes; the end-effector is then a BOM detail, not the headline recommendation).
+  // Ett UTTALAT griporgan väger tyngre än flerkaxelvillkoret. Villkorets skäl
+  // -- att en portal äger sina rörelseaxlar och greppet då är en detalj -- är
+  // rätt när vi själva härlett greppet ur att detaljen är plan och ömtålig.
+  // Men har kunden skrivit "vakuumgrepp" är det ett angivet krav, och att
+  // tyst leverera en cylinder i stället är sämre än att leda med greppet.
   const endEffector = detectEndEffectorIntent(combinedText);
-  if (endEffector && !isMultiAxis && !isSystemScope) {
+  if (endEffector && (endEffectorExplicitlyAsked(combinedText) || (!isMultiAxis && !isSystemScope))) {
     return await handleEndEffectorOptions(endEffector, combinedText, hazards, loadKg, locale, t0);
   }
 
