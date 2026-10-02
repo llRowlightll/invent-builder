@@ -1105,11 +1105,44 @@ function DimensioningPanel({ locale, requirements, option, bordered = true }: {
   );
 }
 
+// ── Verifieringsstatus, gemensam presentation ───────────────────────────────
+/**
+ * Serverns statusvärden är stabila nycklar; det här är texten människor läser.
+ * En enda karta för tabellen, CSV:n och PDF:en, så att en rad inte kan heta tre
+ * olika saker i de tre artefakter som når samma kund.
+ */
+const STATUSTEXT: Record<string, string> = {
+  verifierad: "Verifierad",
+  kraver_verifiering: "Kräver verifiering",
+  kraver_konfiguration: "Kräver konfiguration",
+  avvikelse: "Avvikelse",
+  ej_uppfyllt: "Ej uppfyllt",
+  ej_godkand: "Ej godkänd",
+};
+const BLOCKERANDE_STATUS = new Set(["kraver_verifiering", "ej_uppfyllt", "ej_godkand"]);
+const statusText = (v?: string) => (v ? STATUSTEXT[v] ?? v : "");
+
+/** PDF:en byggs som HTML-sträng. Allt som stoppas in måste escapas. */
+function esc(v: unknown): string {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 // ── Export helpers ──────────────────────────────────────────────────────────
+//
+// Statusen följer med ut sedan 2026-10-02. Fram till dess bar varken CSV:n
+// eller PDF:en den: en stycklista där sju rader krävde verifiering och tre var
+// ej uppfyllda lämnade sajten som en ren artikellista. Det är PDF:en som
+// cirkulerar hos kundens inköp och konstruktion, alltså precis den artefakt
+// där ett utelämnat förbehåll gör mest skada. Att ha kontrollen och inte
+// skicka med den är sämre än att inte ha den.
 function exportBomCsv(bom: BomLine[], title: string) {
-  const header = "SKU,Namn,Antal,Roll,Motivering";
+  const header = "SKU,Namn,Antal,Roll,Motivering,Status,Statusskäl";
+  const cit = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const rows = bom.map(l =>
-    [l.sku, `"${(l.product?.name ?? "").replace(/"/g, '""')}"`, l.quantity, `"${l.role}"`, `"${l.reason}"`].join(",")
+    [l.sku, cit(l.product?.name ?? ""), l.quantity, cit(l.role), cit(l.reason),
+     cit(statusText(l.verifiering)), cit(l.verifieringsskal ?? "")].join(",")
   );
   const blob = new Blob([header + "\n" + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -1120,15 +1153,28 @@ function exportBomCsv(bom: BomLine[], title: string) {
   URL.revokeObjectURL(url);
 }
 
-function exportBomPdf(bom: BomLine[], title: string, explanation: string, selected: ActuatorOption) {
-  const rows = bom.map(l => `
-    <tr>
-      <td>${l.sku}</td>
-      <td>${l.product?.name ?? (l.sku === "SPECIFY" ? "<em>Specificera variant / kräver offert</em>" : "<em>Ej i katalog</em>")}</td>
-      <td style="text-align:center">${l.quantity}</td>
-      <td>${l.role}</td>
-      <td>${l.reason}</td>
-    </tr>`).join("");
+function exportBomPdf(bom: BomLine[], title: string, explanation: string, selected: ActuatorOption, dom: Dom | null) {
+  const rows = bom.map(l => {
+    const blockerar = l.verifiering ? BLOCKERANDE_STATUS.has(l.verifiering) : false;
+    return `
+    <tr${blockerar ? ' class="blockerar"' : ""}>
+      <td>${esc(l.sku)}</td>
+      <td>${l.product?.name ? esc(l.product.name) : (l.sku === "SPECIFY" ? "<em>Specificera variant / kräver offert</em>" : "<em>Ej i katalog</em>")}</td>
+      <td style="text-align:center">${esc(l.quantity)}</td>
+      <td>${esc(l.role)}</td>
+      <td>${esc(l.reason)}</td>
+      <td>${l.verifiering ? `<span class="status ${blockerar ? "status-block" : "status-ok"}">${esc(statusText(l.verifiering))}</span>` : ""}${
+        l.verifieringsskal ? `<div class="skal">${esc(l.verifieringsskal)}</div>` : ""}</td>
+    </tr>`;
+  }).join("");
+
+  const domBanner = dom && !dom.bestallningsklar ? `
+<div class="dom">
+  <strong>Denna stycklista är inte klar att beställa.</strong>
+  <ul>${dom.blockerande.map(b =>
+    `<li><strong>${esc(b.sku)}</strong> — ${esc(b.role)}: ${esc(b.skal)}</li>`).join("")}</ul>
+  <p>Kontakta Maskinval så går vi igenom alternativen tillsammans.</p>
+</div>` : "";
 
   const html = `<!DOCTYPE html>
 <html lang="sv">
@@ -1144,6 +1190,16 @@ function exportBomPdf(bom: BomLine[], title: string, explanation: string, select
   th { background:#1e2a45; color:#fff; text-align:left; padding:8px 10px; font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
   td { padding:7px 10px; border-bottom:1px solid #e5e7eb; vertical-align:top; }
   tr:nth-child(even) td { background:#f9fafb; }
+  tr.blockerar td { background:#fff7ed; }
+  .status { display:inline-block; font-size:10px; font-weight:bold; padding:1px 6px; border-radius:3px; white-space:nowrap; }
+  .status-ok { background:#dcfce7; color:#14532d; }
+  .status-block { background:#fed7aa; color:#7c2d12; }
+  .skal { font-size:10px; color:#555; margin-top:3px; }
+  .dom { border:2px solid #c2410c; background:#fff7ed; padding:12px 14px; margin:16px 0; }
+  .dom strong { color:#7c2d12; }
+  .dom ul { margin:8px 0 8px 18px; padding:0; font-size:11px; }
+  .dom li { margin-bottom:4px; }
+  .dom p { margin:0; font-size:11px; color:#7c2d12; }
   .footer { margin-top:32px; font-size:10px; color:#999; border-top:1px solid #e5e7eb; padding-top:12px; }
   @media print { body { margin: 16px; } }
 </style>
@@ -1153,10 +1209,11 @@ function exportBomPdf(bom: BomLine[], title: string, explanation: string, select
 <div class="meta">
   Genererad ${new Date().toLocaleDateString("sv-SE")} &nbsp;·&nbsp; Maskinval
 </div>
-<p style="margin-bottom:16px;font-size:12px;color:#444;">${explanation}</p>
+<p style="margin-bottom:16px;font-size:12px;color:#444;">${esc(explanation)}</p>
+${domBanner}
 <div>
-  <span class="chip">Huvudkomponent: ${selected.name}</span>
-  <span class="chip">${selected.sku}</span>
+  <span class="chip">Huvudkomponent: ${esc(selected.name)}</span>
+  <span class="chip">${esc(selected.sku)}</span>
   ${selected.bore_mm ? `<span class="chip">Kolvdiameter: ${selected.bore_mm} mm</span>` : ""}
   ${selected.stroke_mm ? `<span class="chip">Slag: ${selected.stroke_mm} mm</span>` : ""}
   ${selected.force_n ? `<span class="chip">Kraft: ${selected.force_n} N</span>` : ""}
@@ -1164,7 +1221,7 @@ function exportBomPdf(bom: BomLine[], title: string, explanation: string, select
 <table>
   <thead>
     <tr>
-      <th>SKU</th><th>Namn</th><th style="text-align:center">Antal</th><th>Roll</th><th>Motivering</th>
+      <th>SKU</th><th>Namn</th><th style="text-align:center">Antal</th><th>Roll</th><th>Motivering</th><th>Status</th>
     </tr>
   </thead>
   <tbody>${rows}</tbody>
@@ -1637,7 +1694,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
               ↓ CSV
             </button>
             <button
-              onClick={() => exportBomPdf(activeBom, title, explanation, selected)}
+              onClick={() => exportBomPdf(activeBom, title, explanation, selected, dom)}
               className="text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:opacity-90 transition"
             >
               ↓ PDF
@@ -1744,7 +1801,31 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
                       <td className="px-4 py-3 text-center">
                         <span className="inline-flex items-center justify-center size-6 rounded bg-muted text-xs font-semibold">{line.quantity}</span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">{line.role}</td>
+                      {/* Statusen sitter i rollcellen och inte i en egen kolumn: tabellen
+                          har redan sex kolumner och döljer motiveringen på mobil, och
+                          alternativraden under spänner över ett fast antal celler. Här
+                          syns den på alla bredder, bredvid den roll den gäller.
+
+                          Fram till 2026-10-02 visades statusen inte alls. Servern räknade
+                          ut den per rad, och kunden såg bara de BLOCKERANDE raderna i en
+                          banner ovanför -- ordet "verifierad" nådde aldrig skärmen. */}
+                      <td className="px-4 py-3 text-sm text-muted-foreground">
+                        <div>{line.role}</div>
+                        {line.verifiering && (
+                          <div className="mt-1">
+                            <span
+                              title={line.verifieringsskal ?? undefined}
+                              className={`inline-block rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] ${
+                                BLOCKERANDE_STATUS.has(line.verifiering)
+                                  ? "bg-warning-surface text-warning-deep"
+                                  : "bg-success-surface text-success-deep"
+                              }`}
+                            >
+                              {statusText(line.verifiering)}
+                            </span>
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">{line.reason}</td>
                     </tr>
 
