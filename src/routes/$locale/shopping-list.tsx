@@ -500,15 +500,18 @@ function ShoppingListPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                {/* Offerten är huvudvägen så länge katalogen saknar priser. En
+                    beställning går också, men knappen säger vad den innebär:
+                    priset bekräftas innan ordern läggs (granskning 2026-10-02). */}
                 <button
                   onClick={() => { setAvsikt("quote"); handleRequestQuote(); }}
-                  className="px-5 py-2.5 rounded-lg border border-info text-info text-sm font-semibold hover:bg-info/10 transition"
+                  className="px-5 py-2.5 rounded-lg bg-info text-primary-foreground text-sm font-semibold hover:opacity-90 transition shadow-sm"
                 >
-                  Begär offert
+                  {t("shoppingList.requestQuote")}
                 </button>
                 <button
                   onClick={() => { setAvsikt("order"); handleRequestQuote(); }}
-                  className="px-5 py-2.5 rounded-lg bg-info text-primary-foreground text-sm font-semibold hover:opacity-90 transition shadow-sm"
+                  className="px-5 py-2.5 rounded-lg border border-info text-info text-sm font-semibold hover:bg-info/10 transition"
                 >
                   {t("shoppingList.sendOrder")}
                 </button>

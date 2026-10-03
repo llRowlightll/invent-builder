@@ -11,6 +11,8 @@ import { getProductImage } from "@/lib/product-images";
 import { addToShoppingList } from "@/lib/cart";
 import { diversifyResults } from "@/lib/search-diversity";
 import { callAdvisor } from "@/lib/advisor-client";
+import { categoryName } from "@/lib/categories";
+import { kallor, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
 
 export const Route = createFileRoute("/$locale/chat")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -908,7 +910,7 @@ function ProductCard({
       <div className="h-28 bg-[#f8f9fb] flex items-center justify-center overflow-hidden">
         <img
           src={getProductImage(p, true)}
-          alt={p.category.name}
+          alt={categoryName(p.category.slug, locale, p.category.name)}
           className="w-full h-full object-contain"
           loading="lazy"
         />
@@ -935,13 +937,13 @@ function ProductCard({
       >
         {p.name}
       </Link>
-      <div className="mt-1 text-xs text-muted-foreground">{p.category.name}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{categoryName(p.category.slug, locale, p.category.name)}</div>
 
       {Object.keys(p.specs).length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
-          {Object.entries(p.specs).slice(0, 2).map(([k, v]) => (
+          {synligaSpecar(p.specs).slice(0, 2).map(([k, v]) => (
             <span key={k} className="text-[10px] bg-surface-alt px-1.5 py-0.5 rounded text-muted-foreground">
-              {k.replace(/_/g, " ")}: {v.value}{v.unit ? ` ${v.unit}` : ""}
+              {specEtikett(k, locale)}: {specVarde(k, v)}
             </span>
           ))}
         </div>

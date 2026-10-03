@@ -7,6 +7,7 @@ import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
 import { addToShoppingList } from "@/lib/cart";
 import { SITE, hreflangLinks } from "@/lib/site";
+import { kallor, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
 
 export const Route = createFileRoute("/$locale/compare")({
   validateSearch: z.object({ skus: z.string().optional() }),
@@ -171,7 +172,10 @@ function buildRows(group: SpecGroup, compared: ProductRow[]): Array<{ label: str
   const byLabel = new Map<string, RowDef[]>();
 
   for (const row of group.rows) {
-    const label = row.kind === "flat" ? `flat:${row.label}` : row.label;
+    // Samma etikett är samma rad, oavsett om värdet kommer ur en kolumn
+    // (ip_rating på produkten) eller en spec. Prefixet "flat:" gav två rader
+    // som båda hette "IP-klass".
+    const label = row.label;
     if (!byLabel.has(label)) byLabel.set(label, []);
     byLabel.get(label)!.push({ ...row, _label: label });
   }
@@ -189,7 +193,7 @@ function buildRows(group: SpecGroup, compared: ProductRow[]): Array<{ label: str
           if (v && v !== "—") return v;
         } else {
           const s = p.specs[def.key];
-          if (s) return `${s.value}${s.unit ? " " + s.unit : ""}`;
+          if (s) return specVarde(def.key, s);
         }
       }
       return "—";
@@ -205,7 +209,7 @@ function buildRows(group: SpecGroup, compared: ProductRow[]): Array<{ label: str
 }
 
 // Extra specs not covered by any group
-function extraRows(compared: ProductRow[], groupedKeys: Set<string>): Array<{ label: string; cells: string[]; isDifferent: boolean }> {
+function extraRows(compared: ProductRow[], groupedKeys: Set<string>, locale: string): Array<{ label: string; cells: string[]; isDifferent: boolean }> {
   const allKeys = new Set<string>();
   compared.forEach((p) => Object.keys(p.specs).forEach((k) => allKeys.add(k)));
   const result: Array<{ label: string; cells: string[]; isDifferent: boolean }> = [];
@@ -213,11 +217,11 @@ function extraRows(compared: ProductRow[], groupedKeys: Set<string>): Array<{ la
     if (groupedKeys.has(k)) return;
     const cells = compared.map((p) => {
       const s = p.specs[k];
-      return s ? `${s.value}${s.unit ? " " + s.unit : ""}` : "—";
+      return s ? specVarde(k, s) : "—";
     });
     if (cells.every((c) => c === "—")) return;
     const isDifferent = new Set(cells).size > 1;
-    result.push({ label: k.replace(/_/g, " "), cells, isDifferent });
+    result.push({ label: specEtikett(k, locale), cells, isDifferent });
   });
   return result;
 }
@@ -300,7 +304,7 @@ function ComparePage() {
     SPEC_GROUPS.forEach((g) => {
       buildRows(g, compared).forEach((r) => { if (r.isDifferent) n++; });
     });
-    extraRows(compared, GROUPED_SPEC_KEYS).forEach((r) => { if (r.isDifferent) n++; });
+    extraRows(compared, GROUPED_SPEC_KEYS, locale).forEach((r) => { if (r.isDifferent) n++; });
     return n;
   }, [compared]);
 
@@ -309,7 +313,7 @@ function ComparePage() {
     if (!compared.length) return;
     const allRows: Array<{ label: string; cells: string[] }> = [];
     SPEC_GROUPS.forEach((g) => buildRows(g, compared).forEach((r) => allRows.push(r)));
-    extraRows(compared, GROUPED_SPEC_KEYS).forEach((r) => allRows.push(r));
+    extraRows(compared, GROUPED_SPEC_KEYS, locale).forEach((r) => allRows.push(r));
 
     const header = ["Specifikation", ...compared.map((p) => `${p.brand.name} – ${p.name} (${p.sku})`)];
     const lines = [header, ...allRows.map((r) => [r.label, ...r.cells])];
@@ -567,7 +571,7 @@ function ComparePage() {
 
             {/* Extra specs */}
             {(() => {
-              const extras = extraRows(compared, GROUPED_SPEC_KEYS).filter((r) => {
+              const extras = extraRows(compared, GROUPED_SPEC_KEYS, locale).filter((r) => {
                 if (r.isDifferent) return true;
                 return showIdentical && !diffOnly;
               });
