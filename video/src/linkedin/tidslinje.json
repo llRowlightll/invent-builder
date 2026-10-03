@@ -1,0 +1,14 @@
+{
+  "fps": 30,
+  "langd": 15,
+  "bpm": 116,
+  "scener": [0.0, 2.3, 4.4, 6.6, 9.0, 11.9],
+  "skriv": [
+    { "scen": 0, "fran": 0.55, "till": 1.35, "tecken": 12 },
+    { "scen": 3, "fran": 6.95, "till": 8.45, "tecken": 105 }
+  ],
+  "tryck": 1.65,
+  "rader": [9.2, 9.95],
+  "varning": 10.35,
+  "slut": { "rad1": 11.95, "rad2": 12.3, "marke": 12.8, "fakta": 13.05 }
+}
