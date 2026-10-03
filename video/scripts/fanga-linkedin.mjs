@@ -15,7 +15,10 @@ const CHROME = new URL(
   "../node_modules/.remotion/chrome-headless-shell/mac-arm64/chrome-headless-shell-mac-arm64/chrome-headless-shell",
   import.meta.url,
 ).pathname;
-const BAS = "https://maskinval.se";
+// Adressen kan pekas om: MASKINVAL_BAS=http://localhost:5173 fångar den
+// lokala versionen (med produktionsdata) innan en ändring är driftsatt.
+const BAS = process.env.MASKINVAL_BAS ?? "https://maskinval.se";
+const KAKDOMAN = new URL(BAS).hostname;
 const UT = new URL("../public/fangst/", import.meta.url).pathname;
 mkdirSync(UT, { recursive: true });
 const vanta = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -30,7 +33,7 @@ const webblasare = await puppeteer.launch({
 });
 const sida = await webblasare.newPage();
 await sida.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 2 });
-await sida.setCookie({ name: "mv_cookie_consent", value: "necessary", domain: "maskinval.se", path: "/" });
+await sida.setCookie({ name: "mv_cookie_consent", value: "necessary", domain: KAKDOMAN, path: "/" });
 
 async function till(vag, extra = 1500) {
   await sida.goto(BAS + vag, { waitUntil: "networkidle2", timeout: 60000 });
@@ -65,6 +68,9 @@ console.log("  sok-cyl40-hel.png");
 // 3. Fyra fabrikat sida vid sida.
 await till("/sv/compare?skus=" + encodeURIComponent(JAMFOR.join(",")), 2500);
 await bild("jamfor-4");
+// Hela jämförelsen i en bild: kameran glider från produktkorten ner i datat.
+await sida.screenshot({ path: `${UT}jamfor-4-hel.png`, fullPage: true });
+console.log("  jamfor-4-hel.png");
 await sida.evaluate(() => window.scrollBy(0, 420));
 await vanta(700);
 await bild("jamfor-4-data");

@@ -15,7 +15,10 @@ const CHROME = new URL(
   "../node_modules/.remotion/chrome-headless-shell/mac-arm64/chrome-headless-shell-mac-arm64/chrome-headless-shell",
   import.meta.url,
 ).pathname;
-const BAS = "https://maskinval.se";
+// Adressen kan pekas om: MASKINVAL_BAS=http://localhost:5173 fångar den
+// lokala versionen (med produktionsdata) innan en ändring är driftsatt.
+const BAS = process.env.MASKINVAL_BAS ?? "https://maskinval.se";
+const KAKDOMAN = new URL(BAS).hostname;
 const UT = new URL("../public/fangst/", import.meta.url).pathname;
 mkdirSync(UT, { recursive: true });
 const vanta = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -30,7 +33,7 @@ await sida.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 2 });
 
 // Endast nödvändiga kakor -- samma val som en besökare gör i bannern, och
 // bannern syns då inte i filmen.
-await sida.setCookie({ name: "mv_cookie_consent", value: "necessary", domain: "maskinval.se", path: "/" });
+await sida.setCookie({ name: "mv_cookie_consent", value: "necessary", domain: KAKDOMAN, path: "/" });
 
 // Maskinbyggarens frågesteg ersätts, och BARA det. Allt annat går till den
 // riktiga tjänsten.

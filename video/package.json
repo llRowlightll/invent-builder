@@ -3,11 +3,13 @@
   "private": true,
   "description": "Maskinvals trailer, skriven i kod och renderad med Remotion. Helt skild från webbappen.",
   "scripts": {
-    "ljud": "node scripts/skriv-ljud.mjs && node scripts/skriv-ljud-sajt.mjs",
+    "ljud": "node scripts/skriv-ljud.mjs && node scripts/skriv-ljud-sajt.mjs && node scripts/skriv-ljud-linkedin.mjs",
     "fanga": "node scripts/fanga-sajten.mjs",
     "studio": "remotion studio",
     "rendera": "npm run ljud && remotion render Sajt169 ut/maskinval-sajt-16x9.mp4 && remotion render Sajt11 ut/maskinval-sajt-1x1.mp4 && remotion render Sajt916 ut/maskinval-sajt-9x16.mp4",
-    "rendera-ritning": "npm run ljud && remotion render Trailer169 ut/maskinval-16x9.mp4 && remotion render Trailer11 ut/maskinval-1x1.mp4 && remotion render Trailer916 ut/maskinval-9x16.mp4"
+    "rendera-ritning": "npm run ljud && remotion render Trailer169 ut/maskinval-16x9.mp4 && remotion render Trailer11 ut/maskinval-1x1.mp4 && remotion render Trailer916 ut/maskinval-9x16.mp4",
+    "fanga-lokalt": "MASKINVAL_BAS=http://localhost:5173 node scripts/fanga-linkedin.mjs && MASKINVAL_BAS=http://localhost:5173 node scripts/fanga-sajten.mjs",
+    "rendera-linkedin": "node scripts/skriv-ljud-linkedin.mjs && remotion render Linkedin11 ut/maskinval-linkedin-1x1.mp4 && remotion render Linkedin169 ut/maskinval-linkedin-16x9.mp4 && remotion render Linkedin916 ut/maskinval-linkedin-9x16.mp4"
   },
   "dependencies": {
     "@remotion/cli": "4.0.532",
