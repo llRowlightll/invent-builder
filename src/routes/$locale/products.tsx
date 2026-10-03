@@ -601,17 +601,20 @@ function ProductsPage() {
             return (
               <li
                 key={p.id}
-                className="group rounded-lg border border-border bg-card flex flex-col transition overflow-hidden hover:border-info"
+                className="group rounded-lg border border-border bg-card flex flex-row sm:flex-col transition overflow-hidden hover:border-info"
               >
-                <div className="relative aspect-[3/2] overflow-hidden bg-[#f8f9fb] flex items-center justify-center">
+                {/* Liggande kort på telefon: en liten ritning bredvid texten.
+                    Det stående kortet fyllde nästan hela skärmhöjden, så 842
+                    artiklar blev lika många skärmar att skrolla. */}
+                <div className="relative w-28 shrink-0 sm:w-auto aspect-[4/3] sm:aspect-[3/2] overflow-hidden bg-[#f8f9fb] flex items-center justify-center">
                   <img
                     src={getProductImage(p)}
-                    alt={p.category.name}
+                    alt={categoryName(p.category.slug, locale, p.category.name)}
                     className="w-full h-full object-contain"
                     loading="lazy"
                   />
                 </div>
-                <div className="p-4 flex flex-col flex-1">
+                <div className="p-3 sm:p-4 flex flex-col flex-1 min-w-0">
                 <div className="flex justify-between items-start gap-2">
                   <Link
                     to="/$locale/product/$sku"
