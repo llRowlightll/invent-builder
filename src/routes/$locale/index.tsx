@@ -96,7 +96,7 @@ const VAGAR = [
   { titel: "index.routeConfigTitle", brod: "index.routeConfigBody",
     cta: "index.routeConfigCta", to: "/$locale/configure", tecken: "⚙" },
   { titel: "index.routeAdvisorTitle", brod: "index.routeAdvisorBody",
-    cta: "index.routeAdvisorCta", to: "/$locale/chat", tecken: "✦" },
+    cta: "index.routeAdvisorCta", to: "/$locale/machine-builder", tecken: "✦" },
   { titel: "index.routePromiseTitle", brod: "index.routePromiseBody",
     cta: "index.routePromiseCta", to: "/$locale/shopping-list", tecken: "→" },
 ] as const;
@@ -389,9 +389,8 @@ function Landing() {
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
-                to="/$locale/advisor"
+                to="/$locale/machine-builder"
                 params={{ locale }}
-                search={{ q: undefined }}
                 className="inline-flex items-center gap-1.5 text-sm px-4 py-2.5 rounded-md bg-primary text-primary-foreground hover:opacity-90 transition"
               >
                 {t("index.startAdvisor")}

@@ -133,10 +133,14 @@ function LocaleLayout() {
     navigate({ to: `/${next}${rest || ""}` as never, replace: true });
   }
 
+  // En AI-ingång i menyn: Bygg maskin (knappen till höger). Menyn hade förut
+  // både AI-ingenjören och Rådgivaren bredvid den, plus AI-sökningen i
+  // katalogen -- fyra vägar som överlappade och höll olika kvalitet
+  // (granskning 2026-10-02). AI-ingenjören finns kvar i sidfoten och tar emot
+  // frågor från startsidans sökruta. Rådgivaren är kontaktsidan och heter så.
   const navLinks = [
     { to: "/$locale/products", label: t("nav.products") },
     { to: "/$locale/configure", label: t("nav.configurator") },
-    { to: "/$locale/chat", label: t("nav.chat") },
     { to: "/$locale/advisor", label: t("nav.advisor") },
     { to: "/$locale/guider", label: t("nav.guides") },
     { to: "/$locale/compare", label: t("nav.compare") },
