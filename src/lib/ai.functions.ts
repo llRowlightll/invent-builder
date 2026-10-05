@@ -291,9 +291,18 @@ function fallbackSearch(query: string, isSv: boolean): AiSearchResult {
   if (/festo/.test(t)) result.brand_slug = "festo";
   else if (/\bsmc\b/.test(t)) result.brand_slug = "smc";
   else if (/parker/.test(t)) result.brand_slug = "parker";
-  else if (/bosch|rexroth/.test(t)) result.brand_slug = "bosch-rexroth";
+  else if (/aventics/.test(t)) result.brand_slug = "aventics";
+  else if (/bosch|rexroth/.test(t)) {
+    // Rexroths pneumatik heter AVENTICS sedan 2014 (PRA, RTC, GPC, KPZ), och
+    // katalogen följer det sedan 2026-10-05. Rexroths elektriska produkter
+    // (EMC, CKK, IndraDrive, servomotorer) heter fortfarande Bosch Rexroth.
+    const pneumatik = /\b(pra|rtc|gpc|kpz|cylind\w*|pneumat\w*|ventil\w*|valve)\b/.test(t);
+    const el = /\b(emc|ckk|ckr|indradrive|servo\w*|ms2n|msk)\b/.test(t);
+    result.brand_slug = pneumatik && !el ? "aventics" : "bosch-rexroth";
+  }
   else if (/norgren/.test(t)) result.brand_slug = "norgren";
   else if (/camozzi/.test(t)) result.brand_slug = "camozzi";
+  else if (/metal\s?work/.test(t)) result.brand_slug = "metal-work";
 
   const bore = /(\d{2,3})\s*mm/.exec(t)?.[1];
   if (bore) result.spec_filters.push({ key: "bore_mm", min: Number(bore) - 5, max: Number(bore) + 5 });

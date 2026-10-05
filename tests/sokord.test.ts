@@ -21,3 +21,10 @@ Deno.test("en sammanhängande fråga som förut fungerade fungerar fortfarande",
   assertEquals(matcharFraga("MW-C15552-40 Metal Work ISO 15552 Cylinder Ø40", "cylinder Ø40"), true);
   assertEquals(matcharFraga("anything", ""), true);
 });
+
+Deno.test("det gamla namnet Rexroth hittar AVENTICS pneumatik", () => {
+  const PRA = "0822121008 AVENTICS PRA Ø40 250mm ISO 15552 Cylinder AVENTICS";
+  assertEquals(matcharFraga(PRA, "rexroth pra"), true);
+  assertEquals(matcharFraga(PRA, "bosch rexroth pra Ø40"), true);
+  assertEquals(matcharFraga(PRA, "rexroth pra Ø50"), false);
+});

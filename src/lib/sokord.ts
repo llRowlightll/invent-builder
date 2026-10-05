@@ -50,6 +50,10 @@ const SYNONYMER: Record<string, string[]> = {
   servomotor: ["servomotor", "servo motor"],
   servodrivare: ["servodrivare", "servo drive", "drive"],
   stångbroms: ["stångbroms", "rod lock", "clamping unit", "klämenhet"],
+  // Rexroths pneumatik heter AVENTICS sedan 2014. Inköpare har det gamla
+  // namnet i sina listor, och "Rexroth PRA" ska fortfarande hitta PRA.
+  rexroth: ["rexroth", "aventics"],
+  bosch: ["bosch", "aventics"],
 };
 
 export function matcharFraga(hostack: string, fraga: string): boolean {
