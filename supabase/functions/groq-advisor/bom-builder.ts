@@ -10,7 +10,7 @@
 // are called.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { type CatalogProduct, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
+import { type CatalogProduct, arBorrningsspann, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
 import { type HazardFlags, pick, isPneumaticByDrive, isNonArticulatingActuator, tolkaTempSpann } from "./signals.ts";
 
 export function buildCustomSolutionOption(
@@ -427,7 +427,13 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     ? perAxisStrokes.reduce((best, a, i, arr) => (a.stroke > arr[best].stroke ? i : best), 0)
     : -1;
   const primaryAxisLabel = (isMultiAxis && primaryAxisIdx >= 0) ? perAxisStrokes[primaryAxisIdx].axis.toUpperCase() : "";
-  const famNote = primaryIsFamilyProd ? pick(locale, {
+  const famStorlek = primarArFamiljespann(ctx) ? primaryBoreMm : 0;
+  const famNote = primaryIsFamilyProd && famStorlek > 0 ? pick(locale, {
+    sv: ` ⚠️ Produktfamilj — beställ i Ø${famStorlek}, minsta storlek i serien som ger den kraft som krävs. Ange komplett beställningskod (borrning + slag + varianter) vid order.`,
+    en: ` ⚠️ Product family — order it in Ø${famStorlek}, the smallest size in the series that gives the required force. Specify the full ordering code (bore + stroke + variants) when ordering.`,
+    de: ` ⚠️ Produktfamilie — in Ø${famStorlek} bestellen, die kleinste Größe der Serie, die die erforderliche Kraft liefert. Vollständigen Bestellcode (Bohrung + Hub + Varianten) bei der Bestellung angeben.`,
+    es: ` ⚠️ Familia de productos — pídalo en Ø${famStorlek}, el tamaño más pequeño de la serie que da la fuerza necesaria. Indique el código de pedido completo (diámetro + carrera + variantes) al realizar el pedido.`,
+  }) : primaryIsFamilyProd ? pick(locale, {
     sv: " ⚠️ Produktfamilj — ange komplett beställningskod (bore + stroke + varianter) vid order.",
     en: " ⚠️ Product family — specify full ordering code (bore + stroke + variants) when ordering.",
     de: " ⚠️ Produktfamilie — vollständigen Bestellcode (Bohrung + Hub + Varianten) bei der Bestellung angeben.",
@@ -591,10 +597,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   // rule as mountings: a real SKU only when its bore equals the primary's,
   // otherwise SPECIFY with the required Ø called out — never a mismatched lock.
   if (isRodLock && isPneumatic) {
-    const primary = products.find(p => p.sku === primarySku);
-    const pBore = primaryBoreMm ||
-                  firstNumAbs(primary?.key_specs?.bore_mm) ||
-                  firstNumAbs((primary?.name ?? "").match(/Ø\s?(\d+)/)?.[1]);
+    const pBore = primarBorrning(ctx);
     const boreTxt = pBore > 0 ? `Ø${pBore}` : pick(locale, { sv: "cylinderns borrning", en: "the cylinder's bore", de: "die Zylinderbohrung", es: "el diámetro del cilindro" });
     const lock = products.find(p =>
       p.category === "rod-lock" && pBore > 0 &&
@@ -983,10 +986,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   // only emit a real SKU when its bore equals the primary's; otherwise SPECIFY
   // with the required Ø called out (recommend, never force a mismatched part).
   if (isMounting || isArticulated) {
-    const primary = products.find(p => p.sku === primarySku);
-    const pBore = primaryBoreMm ||
-                  firstNumAbs(primary?.key_specs?.bore_mm) ||
-                  firstNumAbs((primary?.name ?? "").match(/Ø\s?(\d+)/)?.[1]);
+    const pBore = primarBorrning(ctx);
     const boreTxt = pBore > 0 ? `Ø${pBore}` : pick(locale, { sv: "cylinderns borrning", en: "the cylinder's bore", de: "die Zylinderbohrung", es: "el diámetro del cilindro" });
     const mounts = products.filter(p =>
       p.category === "mounting" ||
@@ -1238,6 +1238,30 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   return rows;
 }
 
+/** Om primären är en familj enligt sin borrning -- ett spann eller en lista. */
+function primarArFamiljespann(ctx: BomCtx): boolean {
+  const primary = ctx.products.find(p => p.sku === ctx.primarySku);
+  return arBorrningsspann(ctx.primarySpecs?.bore_mm) || arBorrningsspann(ctx.primarySpecs?.bore_range) ||
+    arBorrningsspann(primary?.key_specs?.bore_range);
+}
+
+/**
+ * Borrningen följdraderna -- stångbroms, fästen -- ska matcha.
+ *
+ * För en familj är det storleken motorn valt för lasten (primaryBoreMm,
+ * satt i handleBom via familjeborrning). Är den okänd blir svaret 0 och
+ * raden säger "cylinderns borrning". Den får aldrig falla tillbaka på ett tal
+ * ur spannet: firstNumAbs("8–63") är 8, och så hamnade en stångbroms i Ø8 på
+ * en last om 45 kg (hittat 2026-10-02).
+ */
+export function primarBorrning(ctx: BomCtx): number {
+  if (ctx.primaryBoreMm > 0) return ctx.primaryBoreMm;
+  if (primarArFamiljespann(ctx)) return 0;
+  const primary = ctx.products.find(p => p.sku === ctx.primarySku);
+  return firstNumAbs(primary?.key_specs?.bore_mm) ||
+    firstNumAbs((primary?.name ?? "").match(/Ø\s?(\d+)/)?.[1]);
+}
+
 export function firstNumAbs(v: unknown): number {
   const m = String(v ?? "").match(/-?\d+(?:[.,]\d+)?/);
   return m ? Math.abs(parseFloat(m[0].replace(",", "."))) : 0;
@@ -1479,14 +1503,22 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
     // säger redan "Konfigurera slag vid order". Men den ska SYNAS, och den
     // sätts efter temperaturen -- en komponent som inte tål miljön är fel
     // oavsett vilket utförande man konfigurerar fram.
+    //
+    // Borrningen läses med samma tolkning som urvalet (borrningstal), så att
+    // även listor som "12,16,20,25" räknas som familjer. Normaliserade specar
+    // har familjens max i bore_mm och själva spannet i bore_range.
     const arSpann = (v: unknown) => /\d\s*[–—-]\s*\d/.test(String(v ?? ""));
-    if (specar && (arSpann(specar.bore_mm) || arSpann(specar.stroke_range))) {
+    const borrSpann = [specar?.bore_mm, specar?.bore_range].find(arBorrningsspann);
+    if (specar && (borrSpann != null || arSpann(specar.stroke_range))) {
+      // Är raden primären och storleken vald för lasten säger vi vilken.
+      const storlek = r.sku === primarySku && borrSpann != null && ctx.primaryBoreMm > 0 ? ctx.primaryBoreMm : 0;
+      const spann = String(borrSpann ?? specar.stroke_range);
       r.verifiering = "kraver_konfiguration";
       r.verifieringsskal = pick(locale, {
-        sv: `Raden avser en produktfamilj, inte en enskild artikel — katalogen anger ett spann (${String(specar.bore_mm ?? specar.stroke_range)}). Artikelnumret ovan är familjens, inte det du beställer. Komplett typkod måste anges före order.`,
-        en: `This row refers to a product family, not a single item — the catalogue gives a range (${String(specar.bore_mm ?? specar.stroke_range)}). The article number above is the family's, not the one you order. A complete type code must be specified before ordering.`,
-        de: `Diese Zeile bezieht sich auf eine Produktfamilie, nicht auf einen Einzelartikel — der Katalog nennt einen Bereich (${String(specar.bore_mm ?? specar.stroke_range)}). Die Artikelnummer oben ist die der Familie, nicht die zu bestellende. Vor der Bestellung ist ein vollständiger Typencode anzugeben.`,
-        es: `Esta línea corresponde a una familia de productos, no a un artículo concreto — el catálogo indica un rango (${String(specar.bore_mm ?? specar.stroke_range)}). El número de artículo anterior es el de la familia, no el que se pide. Debe especificarse un código de tipo completo antes de pedir.`,
+        sv: `Raden avser en produktfamilj, inte en enskild artikel — katalogen anger ett spann (${spann}). Artikelnumret ovan är familjens, inte det du beställer.${storlek ? ` Beställ i Ø${storlek}: minsta storlek i serien som ger den kraft som krävs.` : ""} Komplett typkod måste anges före order.`,
+        en: `This row refers to a product family, not a single item — the catalogue gives a range (${spann}). The article number above is the family's, not the one you order.${storlek ? ` Order it in Ø${storlek}: the smallest size in the series that gives the required force.` : ""} A complete type code must be specified before ordering.`,
+        de: `Diese Zeile bezieht sich auf eine Produktfamilie, nicht auf einen Einzelartikel — der Katalog nennt einen Bereich (${spann}). Die Artikelnummer oben ist die der Familie, nicht die zu bestellende.${storlek ? ` In Ø${storlek} bestellen: die kleinste Größe der Serie, die die erforderliche Kraft liefert.` : ""} Vor der Bestellung ist ein vollständiger Typencode anzugeben.`,
+        es: `Esta línea corresponde a una familia de productos, no a un artículo concreto — el catálogo indica un rango (${spann}). El número de artículo anterior es el de la familia, no el que se pide.${storlek ? ` Pídalo en Ø${storlek}: el tamaño más pequeño de la serie que da la fuerza necesaria.` : ""} Debe especificarse un código de tipo completo antes de pedir.`,
       });
       continue;
     }
