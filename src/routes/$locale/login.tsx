@@ -3,6 +3,7 @@ import { useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { makeT, type Locale } from "@/lib/i18n";
+import { MailCheck } from "lucide-react";
 
 export const Route = createFileRoute("/$locale/login")({
   validateSearch: z.object({ redirect: z.string().optional() }),
@@ -81,7 +82,7 @@ function LoginPage() {
 
         {forgotSent ? (
           <div className="mt-8 rounded-xl border border-success bg-success-surface p-5 text-center space-y-2">
-            <div className="text-3xl">📬</div>
+            <MailCheck className="size-8 mx-auto text-info" aria-hidden />
             <p className="font-semibold text-foreground">
               {locale === "sv" ? "Kolla din inkorg!" : "Check your inbox!"}
             </p>

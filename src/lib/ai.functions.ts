@@ -146,8 +146,10 @@ export const aiAskKnowledge = createServerFn({ method: "POST" })
 
     // 2. Build prompt with or without context
     const systemPrompt = [
-      `You are a senior automation engineer with deep knowledge of Parker, Bosch Rexroth, Norgren, Festo, SMC, and Camozzi products.`,
-      `Answer directly and technically. No hedging, no uncertainty language — no "might", "could", "consider", "it depends" without immediate resolution.`,
+      `You are a senior automation engineer with deep knowledge of Festo, SMC, Parker, AVENTICS, Bosch Rexroth, Norgren, Metal Work and Camozzi products.`,
+      // Ändrad 2026-10-03: "No hedging, no uncertainty language" pressade fram
+      // säkra svar även där underlaget inte räckte. Rakt besked ja -- gissning nej.
+      `Answer directly and technically. When the documentation does not settle a point, say so plainly and say what must be checked against the datasheet — a clear "verify" beats a confident guess. Never claim certifications, IP ratings, materials or approvals that the context does not state.`,
       `State specific products, bore sizes, force calculations, and standards (ISO 15552, IEC 61131-3, PLd/SIL2) where relevant.`,
       `If the context contains the answer, cite the source. If not in context, answer from engineering knowledge and state this clearly.`,
       `Never invent part numbers. If a specific SKU is needed, describe the selection criteria instead.`,
@@ -184,26 +186,38 @@ export const aiAskKnowledge = createServerFn({ method: "POST" })
     };
   });
 
+/**
+ * Förklarar ett produktval utifrån underlaget -- och bara det.
+ *
+ * Ändrad 2026-10-03. Systemprompten löd tidigare "State why a product meets
+ * the requirement — bore, force, stroke, IP rating. Never say 'might be
+ * suitable'", och standardfrågan bad modellen förklara varför produkterna "är
+ * korrekt dimensionerade". Modellen beordrades alltså att intyga lämplighet,
+ * också IP-klass, och förbjöds att reservera sig. I en livsmedelsfråga kallade
+ * den en kompaktcylinder utan IP-uppgift "IP69K-klassad och klarar daglig
+ * alkaliskt skumtvätt". Reservtexten intygade dessutom alltid att
+ * "Servodriften matchar motorns märkström" -- också för ren pneumatik.
+ */
 export const aiExplain = createServerFn({ method: "POST" })
   .inputValidator((d: { context: string; question?: string; locale?: string }) => d)
   .handler(async ({ data }): Promise<{ text: string; source: "ai" | "fallback" }> => {
     const q = data.question ?? (
       data.locale === "sv"
-        ? "Förklara i 2-3 meningar varför dessa produkter är korrekt dimensionerade. Ange specifika tekniska skäl — borrstorlek, kolvkraft, slaglängd eller precision."
-        : "Explain in 2-3 sentences why these products are correctly sized. State specific technical reasons — bore size, piston force, stroke, or precision."
+        ? "Beskriv i 2–3 meningar hur produkterna förhåller sig till kraven, enbart utifrån underlaget. Säg tydligt vad underlaget inte visar och därför måste kontrolleras mot databladet."
+        : "Describe in 2–3 sentences how the products relate to the requirements, using only the context. State clearly what the context does not show and must therefore be checked against the datasheet."
     );
     const raw = await callGateway([
       {
         role: "system",
-        content: `You are a senior automation engineer. Be direct and technical. State why a product meets the requirement — bore, force, stroke, IP rating. Never say "might be suitable" or "could work". Never invent SKUs not in the context. ${langInstruction(data.locale)}`,
+        content: `You are a senior automation engineer. Be direct and technical. Use ONLY facts stated in the context. If the context does not state a property — IP rating, material, certification, food or hygiene approval, temperature range, price, lead time — do not claim it; say it must be verified against the datasheet. Never claim that a product meets a requirement unless the context shows the numbers. Never invent SKUs or properties. ${langInstruction(data.locale)}`,
       },
       { role: "user", content: `Context:\n${data.context}\n\nTask: ${q}` },
     ]);
     if (raw) return { text: raw.trim(), source: "ai" };
     const fb =
       data.locale === "sv"
-        ? "Produkterna är korrekt dimensionerade mot beräknad kolvkraft och slaglängd. Servodriften och styrenheten matchar motorns märkström och fieldbus-protokoll."
-        : "Products are correctly sized against calculated piston force and stroke requirement. The servo drive and controller match the motor's rated current and fieldbus protocol.";
+        ? "Motiveringen kunde inte hämtas just nu. Kontrollera produkternas specifikationer mot kraven innan beställning."
+        : "The explanation could not be fetched right now. Check the products' specifications against the requirements before ordering.";
     return { text: fb, source: "fallback" };
   });
 
@@ -277,9 +291,18 @@ function fallbackSearch(query: string, isSv: boolean): AiSearchResult {
   if (/festo/.test(t)) result.brand_slug = "festo";
   else if (/\bsmc\b/.test(t)) result.brand_slug = "smc";
   else if (/parker/.test(t)) result.brand_slug = "parker";
-  else if (/bosch|rexroth/.test(t)) result.brand_slug = "bosch-rexroth";
+  else if (/aventics/.test(t)) result.brand_slug = "aventics";
+  else if (/bosch|rexroth/.test(t)) {
+    // Rexroths pneumatik heter AVENTICS sedan 2014 (PRA, RTC, GPC, KPZ), och
+    // katalogen följer det sedan 2026-10-05. Rexroths elektriska produkter
+    // (EMC, CKK, IndraDrive, servomotorer) heter fortfarande Bosch Rexroth.
+    const pneumatik = /\b(pra|rtc|gpc|kpz|cylind\w*|pneumat\w*|ventil\w*|valve)\b/.test(t);
+    const el = /\b(emc|ckk|ckr|indradrive|servo\w*|ms2n|msk)\b/.test(t);
+    result.brand_slug = pneumatik && !el ? "aventics" : "bosch-rexroth";
+  }
   else if (/norgren/.test(t)) result.brand_slug = "norgren";
   else if (/camozzi/.test(t)) result.brand_slug = "camozzi";
+  else if (/metal\s?work/.test(t)) result.brand_slug = "metal-work";
 
   const bore = /(\d{2,3})\s*mm/.exec(t)?.[1];
   if (bore) result.spec_filters.push({ key: "bore_mm", min: Number(bore) - 5, max: Number(bore) + 5 });

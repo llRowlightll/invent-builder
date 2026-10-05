@@ -4,6 +4,7 @@ import { z } from "zod";
 import { makeT, type Locale } from "@/lib/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
+import { Lock } from "lucide-react";
 
 export const Route = createFileRoute("/$locale/claims")({
   validateSearch: z.object({ order: z.string().optional() }),
@@ -208,7 +209,7 @@ function ClaimsPage() {
   if (!user) {
     return (
       <div className="container-page py-20 max-w-md text-center space-y-4">
-        <div className="text-5xl">🔒</div>
+        <Lock className="size-12 mx-auto text-muted-foreground" aria-hidden />
         <h1 className="text-xl font-semibold">{t("claimsPage.loginRequired")}</h1>
         <Link
           to="/$locale/login"

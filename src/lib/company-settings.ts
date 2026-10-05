@@ -19,17 +19,37 @@ export interface CompanySettings {
   vat: string;
 }
 
-const DEFAULTS: CompanySettings = {
-  name: "Maskinval AB",
+/**
+ * Platshållare som låg i både koden och databasen fram till 2026-10-03:
+ * org.nr 556000-0000, momsnr SE556000000001, telefon +46 8 000 00 00 och
+ * "Industrivägen 1, 123 45 Stockholm". De skrevs ut på kundens offert och
+ * orderbekräftelse. Ett påhittat organisationsnummer på en offert är värre än
+ * inget alls, så de behandlas som tomma tills de riktiga är ifyllda.
+ */
+const PLATSHALLARE: Partial<Record<keyof CompanySettings, string>> = {
   org: "556000-0000",
+  vat: "SE556000000001",
+  phone: "+46 8 000 00 00",
   address: "Industrivägen 1",
   postal: "123 45 Stockholm",
+};
+
+const DEFAULTS: CompanySettings = {
+  name: "Maskinval AB",
+  org: "",
+  address: "",
+  postal: "",
   email: "info@maskinval.se",
-  phone: "+46 8 000 00 00",
+  phone: "",
   web: "maskinval.se",
   bankgiro: "",
   vat: "",
 };
+
+/** Fält som en offert behöver och som saknas -- för varningen i admin. */
+export function saknadeBolagsuppgifter(c: CompanySettings): (keyof CompanySettings)[] {
+  return (["org", "vat", "address", "postal", "phone"] as const).filter((k) => !c[k]?.trim());
+}
 
 const KEY_MAP: Record<keyof CompanySettings, string> = {
   name:      "company.name",
@@ -56,7 +76,10 @@ export async function fetchCompanySettings(): Promise<CompanySettings> {
   const result = { ...DEFAULTS };
   for (const row of data) {
     const field = Object.entries(KEY_MAP).find(([, k]) => k === row.key)?.[0] as keyof CompanySettings | undefined;
-    if (field) result[field] = row.value ?? DEFAULTS[field];
+    if (field) {
+      const varde = row.value ?? DEFAULTS[field];
+      result[field] = PLATSHALLARE[field] === varde ? "" : varde;
+    }
   }
   return result;
 }

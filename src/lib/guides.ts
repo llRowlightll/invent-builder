@@ -379,8 +379,8 @@ export const GUIDES: Guide[] = [
         h: { sv: "2. Välj borrning", en: "2. Pick the bore" },
         p: [
           {
-            sv: "Vid 6 bar ger en Ø40-cylinder ungefär 750 N — nätt och jämnt under kravet för exemplet ovan. En Ø50-cylinder (~1 180 N) ger tydligare marginal och är det vanligare valet i praktiken när lasten ligger nära en gränsdiameter.",
-            en: "At 6 bar, a Ø40 cylinder gives roughly 750 N — just under the requirement in the example above. A Ø50 cylinder (~1,180 N) gives a clearer margin and is the more common choice in practice when the load sits close to a boundary diameter.",
+            sv: "Vid 6 bar ger en Ø40-cylinder i teorin ungefär 750 N — redan det under kravet i exemplet ovan. Räkna dessutom med friktion: tätningarna tar 10–25 % av kraften. En Ø50-cylinder (~1 180 N i teorin, omkring 880–1 060 N efter friktion) klarar kravet och är rätt val här.",
+            en: "At 6 bar, a Ø40 cylinder gives roughly 750 N in theory — already below the requirement in the example above. Also allow for friction: the seals take 10–25 % of the force. A Ø50 cylinder (~1,180 N in theory, about 880–1,060 N after friction) meets the requirement and is the right choice here.",
           },
         ],
       },
@@ -388,8 +388,8 @@ export const GUIDES: Guide[] = [
         h: { sv: "3. Säkra mot tryckfall — backslagsventil eller broms", en: "3. Guard against pressure loss — check valve or brake" },
         p: [
           {
-            sv: "En olåst vertikal cylinder faller under sin egen last om trycket försvinner — vid strömavbrott, luftläckage eller service på systemet. En pilotstyrd backslagsventil (load-holding valve) monterad direkt på cylinderporten håller lasten kvar i sitt läge tills trycket medvetet släpps. Detta är i praktiken obligatoriskt för alla vertikala lyft, inte bara tunga.",
-            en: "An unlocked vertical cylinder falls under its own load if pressure is lost — on a power cut, an air leak, or system maintenance. A pilot-operated check valve (load-holding valve) mounted directly on the cylinder port holds the load in place until pressure is deliberately released. This is in practice mandatory for any vertical lift, not just heavy ones.",
+            sv: "En olåst vertikal cylinder faller under sin egen last om trycket försvinner — vid strömavbrott, luftläckage eller service på systemet. En pilotstyrd backslagsventil (load-holding valve) monterad direkt på cylinderporten håller lasten kvar tills trycket medvetet släpps, och den hör till varje vertikalt lyft. Men den är ingen säkerhetsfunktion i sig: den kan läcka över tid och ger ingen garanti för att lasten står kvar. Arbetar någon under lasten krävs dessutom en mekanisk stånglåsning som håller lasten oberoende av luften, och funktionen ska bedömas enligt ISO 13849 (PL).",
+            en: "An unlocked vertical cylinder falls under its own load if pressure is lost — on a power cut, an air leak, or system maintenance. A pilot-operated check valve (load-holding valve) mounted directly on the cylinder port holds the load until pressure is deliberately released, and it belongs on every vertical lift. But it is not a safety function on its own: it can leak over time and gives no guarantee that the load stays put. If anyone works under the load, a mechanical rod lock that holds the load independently of the air is also required, and the function must be assessed to ISO 13849 (PL).",
           },
         ],
       },
@@ -397,8 +397,8 @@ export const GUIDES: Guide[] = [
         h: { sv: "4. Elektrisk axel som alternativ", en: "4. Electric axis as an alternative" },
         p: [
           {
-            sv: "En elektrisk axel med självlåsande kulskruv kan hålla en vertikal last i valfritt läge utan ström och utan separat backslagsventil. Det är ett naturligt alternativ när lasten även kräver exakt positionering, inte bara ett fast övre och undre läge.",
-            en: "An electric axis with a self-locking ball screw can hold a vertical load at any position without power and without a separate check valve. It's a natural alternative when the load also needs precise positioning, not just a fixed top and bottom position.",
+            sv: "En elektrisk axel kan hålla en vertikal last i valfritt läge — men inte av sig själv. En kulskruv är inte självlåsande: verkningsgraden är omkring 90 %, så lasten driver skruven baklänges när motorn blir strömlös. Det krävs en motor med hållbroms. Elaxeln är ett naturligt alternativ när lasten även ska stanna i mellanlägen, inte bara i ett övre och undre läge.",
+            en: "An electric axis can hold a vertical load at any position — but not by itself. A ball screw is not self-locking: its efficiency is around 90 %, so the load back-drives the screw when the motor loses power. A motor with a holding brake is required. The electric axis is a natural alternative when the load must also stop in intermediate positions, not just at a top and bottom position.",
           },
         ],
       },
@@ -407,22 +407,22 @@ export const GUIDES: Guide[] = [
       {
         q: { sv: "Vilken cylinder klarar 40 kg vertikalt?", en: "What cylinder handles 40 kg vertically?" },
         a: {
-          sv: "Med säkerhetsfaktor 2 krävs ≈ 785 N (40 kg × 9,81 × 2). Vid 6 bar motsvarar det minst en Ø40-cylinder (~750 N), men Ø50 (~1 180 N) är det vanligare valet för tydligare marginal. Lägg alltid till en backslagsventil så att lasten inte faller vid tryckfall.",
-          en: "With a safety factor of 2, you need ≈ 785 N (40 kg × 9.81 × 2). At 6 bar that's at least a Ø40 cylinder (~750 N), but Ø50 (~1,180 N) is the more common choice for a clearer margin. Always add a check valve so the load can't fall on pressure loss.",
+          sv: "Med säkerhetsfaktor 2 krävs ≈ 785 N (40 kg × 9,81 × 2). En Ø40 ger bara ~750 N i teorin, alltså under kravet, så välj Ø50 (~1 180 N i teorin, även efter friktion över kravet). Lägg till en backslagsventil, och en mekanisk stånglåsning om någon arbetar under lasten.",
+          en: "With a safety factor of 2, you need ≈ 785 N (40 kg × 9.81 × 2). A Ø40 gives only ~750 N in theory, which is below the requirement, so choose Ø50 (~1,180 N in theory, still above the requirement after friction). Add a check valve, and a mechanical rod lock if anyone works under the load.",
         },
       },
       {
         q: { sv: "Behöver jag alltid en backslagsventil för vertikala laster?", en: "Do I always need a check valve for vertical loads?" },
         a: {
-          sv: "I praktiken ja. Utan den faller lasten okontrollerat vid tryckfall, strömavbrott eller service — oavsett hur väl tilltagen cylinderns kraft är. Detta gäller även lätta laster om de sitter ovanför personal eller känslig utrustning.",
-          en: "In practice, yes. Without one, the load falls uncontrolled on pressure loss, a power cut, or maintenance — regardless of how generously the cylinder force is sized. This applies even to light loads if they're positioned above personnel or sensitive equipment.",
+          sv: "I praktiken ja. Utan den faller lasten okontrollerat vid tryckfall, strömavbrott eller service — oavsett hur väl tilltagen cylinderns kraft är. Ovanför personal räcker den inte ensam: där krävs också en mekanisk stånglåsning, och säkerhetsfunktionen ska bedömas enligt ISO 13849.",
+          en: "In practice, yes. Without one, the load falls uncontrolled on pressure loss, a power cut, or maintenance — regardless of how generously the cylinder force is sized. Above personnel it is not enough on its own: a mechanical rod lock is also required, and the safety function must be assessed to ISO 13849.",
         },
       },
       {
         q: { sv: "Skiljer sig säkerhetsfaktorn för vertikala jämfört med horisontella laster?", en: "Does the safety factor differ for vertical vs. horizontal loads?" },
         a: {
-          sv: "Grundregeln (25–50 % marginal, eller faktor 2) gäller båda, men vertikala laster har ett extra krav: håll-funktionen vid tryckfall. Det är inte en högre siffra i själva kraftberäkningen, utan ett extra säkerhetslager (backslagsventil eller mekanisk broms) som horisontella laster oftast klarar sig utan.",
-          en: "The base rule (25–50 % margin, or a factor of 2) applies to both, but vertical loads have one extra requirement: holding on pressure loss. It's not a higher number in the force calculation itself, but an extra layer of safety (check valve or mechanical brake) that horizontal loads usually don't need.",
+          sv: "Samma grundregel gäller båda — räkna med marginal (faktor 2 är en vanlig utgångspunkt) och med tätningsfriktion — men vertikala laster har ett extra krav: håll-funktionen vid tryckfall. Det är inte en högre siffra i själva kraftberäkningen, utan ett extra säkerhetslager (backslagsventil eller mekanisk broms) som horisontella laster oftast klarar sig utan.",
+          en: "The same base rule applies to both — allow a margin (a factor of 2 is a common starting point) and seal friction — but vertical loads have one extra requirement: holding on pressure loss. It's not a higher number in the force calculation itself, but an extra layer of safety (check valve or mechanical brake) that horizontal loads usually don't need.",
         },
       },
     ],

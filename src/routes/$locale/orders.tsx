@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { makeT, type Locale } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/integrations/supabase/client";
+import { ClipboardList, FileText, Inbox, Package, Receipt, Truck } from "lucide-react";
 
 export const Route = createFileRoute("/$locale/orders")({
   head: () => ({
@@ -151,12 +152,12 @@ function OrderCard({ order, t, locale }: { order: OrderRow; t: (k: string) => st
 
         <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
           {order.estimated_delivery && (
-            <span>📦 {t("ordersPage.deliveryDate")}: <strong className="text-foreground">
+            <span><Package className="size-3.5 inline -mt-0.5 mr-1" aria-hidden />{t("ordersPage.deliveryDate")}: <strong className="text-foreground">
               {new Date(order.estimated_delivery).toLocaleDateString(locStr, { month:"short", day:"numeric" })}
             </strong></span>
           )}
           {order.tracking_number && (
-            <span>🚚 {t("ordersPage.tracking")}:{" "}
+            <span><Truck className="size-3.5 inline -mt-0.5 mr-1" aria-hidden />{t("ordersPage.tracking")}:{" "}
               <a
                 href={trackingUrl(order.carrier, order.tracking_number, locale)}
                 target="_blank"
@@ -169,7 +170,7 @@ function OrderCard({ order, t, locale }: { order: OrderRow; t: (k: string) => st
             </span>
           )}
           {order.invoice_number && (
-            <span>🧾 {t("ordersPage.invoiceNumber")}: <strong className="text-foreground">{order.invoice_number}</strong>
+            <span><Receipt className="size-3.5 inline -mt-0.5 mr-1" aria-hidden />{t("ordersPage.invoiceNumber")}: <strong className="text-foreground">{order.invoice_number}</strong>
               {order.invoice_due_date && <> · Förfaller {new Date(order.invoice_due_date).toLocaleDateString(locStr, { month:"short", day:"numeric" })}</>}
             </span>
           )}
@@ -179,7 +180,7 @@ function OrderCard({ order, t, locale }: { order: OrderRow; t: (k: string) => st
           {order.invoice_url && (
             <a href={order.invoice_url} target="_blank" rel="noreferrer"
               className="text-xs px-3 py-1.5 rounded-md border border-border hover:border-primary text-foreground hover:text-primary transition">
-              📄 {t("ordersPage.invoiceDownload")}
+              <FileText className="size-3.5 inline -mt-0.5 mr-1" aria-hidden />{t("ordersPage.invoiceDownload")}
             </a>
           )}
           <button onClick={() => setExpanded(v => !v)}
@@ -325,7 +326,7 @@ export function OrdersPage() {
       ) : tab === "orders" ? (
         orders.length === 0 ? (
           <div className="text-center py-20 border-2 border-dashed border-border rounded-xl">
-            <div className="text-4xl mb-3">📋</div>
+            <ClipboardList className="size-10 mx-auto mb-3 text-muted-foreground" aria-hidden />
             <p className="text-muted-foreground text-sm">{t("ordersPage.noOrders")}</p>
             <Link to="/$locale/machine-builder" params={{ locale }}
               className="mt-4 inline-block text-sm text-primary hover:underline">
@@ -343,7 +344,7 @@ export function OrdersPage() {
         /* RFQ tab */
         rfqs.length === 0 ? (
           <div className="text-center py-20 border-2 border-dashed border-border rounded-xl">
-            <div className="text-4xl mb-3">📥</div>
+            <Inbox className="size-10 mx-auto mb-3 text-muted-foreground" aria-hidden />
             <p className="text-muted-foreground text-sm">
               {locale === "sv" ? "Inga förfrågningar ännu." : "No requests yet."}
             </p>
@@ -392,7 +393,7 @@ export function OrdersPage() {
                       )}
                       {rfq.status === "quoted" && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-gold-surface text-gold-deep border border-gold font-semibold animate-pulse">
-                          {locale === "sv" ? "⚡ Svar krävs" : "⚡ Action required"}
+                          {locale === "sv" ? "Svar krävs" : "Action required"}
                         </span>
                       )}
                       {!rfq.quote_amount && rfq.message && (

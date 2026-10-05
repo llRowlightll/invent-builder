@@ -6,6 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCompanySettings, type CompanySettings } from "@/lib/company-settings";
+import { CheckCircle2 } from "lucide-react";
 
 export const Route = createFileRoute("/$locale/offert/$rfqId")({
   component: PublicOffertPage,
@@ -226,7 +227,7 @@ export default function PublicOffertPage() {
           {/* Accept / decline */}
           {accepted || rfq.status === "accepted" ? (
             <div className="rounded-xl border border-green-300 bg-green-50 p-6 text-center space-y-3">
-              <div className="text-2xl">✅</div>
+              <CheckCircle2 className="size-7 text-success" aria-hidden />
               <p className="font-semibold text-green-800">Beställning bekräftad</p>
               {orderId ? (
                 <>

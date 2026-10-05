@@ -5,6 +5,7 @@ import { useAuth, useIsAdmin } from "@/lib/auth-context";
 import { supabase } from "@/integrations/supabase/client";
 import { loadCatalog } from "@/lib/catalog";
 import type { ProductRow } from "@/lib/types";
+import { CheckCircle2, Factory, MessageSquare, XCircle } from "lucide-react";
 
 export const Route = createFileRoute("/$locale/rfq/$rfqId")({
   head: ({ params }) => ({
@@ -247,7 +248,7 @@ function RfqPage() {
       {/* Status timeline */}
       {isRejected ? (
         <div className="mt-6 rounded-xl border border-destructive/30 bg-destructive/5 p-5 flex items-center gap-4">
-          <span className="text-2xl">❌</span>
+          <XCircle className="size-7 text-destructive" aria-hidden />
           <div>
             <p className="font-semibold text-foreground">{t("rfqPage.statusRejected")}</p>
             <p className="text-sm text-muted-foreground mt-0.5">
@@ -297,7 +298,7 @@ function RfqPage() {
             <div className="space-y-3 mb-1">
               {statusLog.map((log) => (
                 <div key={log.id} className="flex gap-3">
-                  <span className="mt-0.5 shrink-0 text-xs">{log.triggered_by === "customer" ? "💬" : "🏭"}</span>
+                  <span className="mt-0.5 shrink-0 text-xs">{log.triggered_by === "customer" ? <MessageSquare className="size-3.5" aria-hidden /> : <Factory className="size-3.5" aria-hidden />}</span>
                   <div className="min-w-0">
                     <p className="text-foreground/90">{log.message}</p>
                     {log.estimated_next && (
@@ -344,7 +345,7 @@ function RfqPage() {
               ) : (
                 <button onClick={() => setShowAskNote(true)}
                   className="text-xs px-3 py-1.5 rounded-md border border-border hover:border-info text-muted-foreground hover:text-info transition">
-                  💬 {locale === "sv" ? "Fråga om status" : "Ask for an update"}
+                  <MessageSquare className="size-4 inline -mt-0.5 mr-1" aria-hidden />{locale === "sv" ? "Fråga om status" : "Ask for an update"}
                 </button>
               )}
             </div>
@@ -426,7 +427,7 @@ function RfqPage() {
       {/* Accepted confirmation */}
       {rfq.status === "accepted" && (
         <div className="mt-4 rounded-xl border border-success bg-success-surface p-5 flex items-center gap-4">
-          <span className="text-2xl">✅</span>
+          <CheckCircle2 className="size-7 text-success" aria-hidden />
           <div>
             <p className="font-semibold text-foreground">
               {locale === "sv" ? "Offert accepterad" : "Quote accepted"}

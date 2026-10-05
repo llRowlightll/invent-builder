@@ -12,6 +12,8 @@ import type { ProductRow } from "@/lib/types";
 import { callAdvisor } from "@/lib/advisor-client";
 import { saveBomNormalized, loadBomNormalized } from "@/lib/bom-store";
 import { usableForceN } from "@/lib/physics";
+import { Award, Camera, Lock, Package, RefreshCw, Ruler, Save, Settings } from "lucide-react";
+import { getProductImage } from "@/lib/product-images";
 
 export const Route = createFileRoute("/$locale/machine-builder")({
   head: ({ params }) => {
@@ -581,7 +583,7 @@ function DescribeStep({ t, locale, description, setDescription, onSubmit }: {
         const text = (res?.description ?? "").trim();
         if (!text) { setImgError(t("machineBuilder.imageError")); continue; }
         setThumbs(prev => [...prev, dataUrl]);
-        const block = `📷 ${t("machineBuilder.imageAnalysisLabel")}: ${text}`;
+        const block = `${t("machineBuilder.imageAnalysisLabel")}: ${text}`;
         desc = desc.trim() ? `${desc.trim()}\n\n${block}` : block;
         setDescription(desc);
       }
@@ -619,7 +621,7 @@ function DescribeStep({ t, locale, description, setDescription, onSubmit }: {
             disabled={imgBusy || thumbs.length >= 3}
             className="px-3 py-1.5 rounded-lg border border-input text-xs font-medium text-muted-foreground hover:border-info hover:text-foreground disabled:opacity-40 transition flex items-center gap-1.5"
           >
-            {imgBusy ? t("machineBuilder.analysingImage") : <>📷 {t("machineBuilder.uploadImage")}</>}
+            {imgBusy ? t("machineBuilder.analysingImage") : <><Camera className="size-4 inline -mt-0.5 mr-1" aria-hidden />{t("machineBuilder.uploadImage")}</>}
           </button>
           {thumbs.map((src, i) => (
             <span key={i} className="relative inline-block">
@@ -870,10 +872,9 @@ function OptionsStep({ t, locale, summary, options, requirements, onSelect, onBa
   const BADGE_COLORS: Record<string, string> = {
     "Bästa valet": "bg-success-surface text-success-deep",
     "Best choice": "bg-success-surface text-success-deep",
-    "Kompakt alternativ": "bg-info/10 text-info",
-    "Compact option": "bg-info/10 text-info",
-    "Budgetalternativ": "bg-gold/20 text-warning-deep",
-    "Budget option": "bg-gold/20 text-warning-deep",
+    "Alternativ": "bg-muted text-muted-foreground",
+    "Alternative": "bg-muted text-muted-foreground",
+    "Alternativa": "bg-muted text-muted-foreground",
     "Premium alternativ": "bg-purple-100 text-purple-700",
     "Premium option": "bg-purple-100 text-purple-700",
   };
@@ -910,7 +911,7 @@ function OptionsStep({ t, locale, summary, options, requirements, onSelect, onBa
                     <span className="font-semibold text-foreground group-hover:text-warning-deep transition">{opt.name}</span>
                   </div>
                   <span className="text-warning-deep text-sm font-medium shrink-0">
-                    🤝 Skicka förfrågan →
+                    Skicka förfrågan →
                   </span>
                 </div>
                 <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{opt.why}</p>
@@ -1721,7 +1722,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
                     : "border-success text-success-deep hover:bg-success-surface/50"
                 }`}
               >
-                <span>🔄</span>
+                <RefreshCw className="size-3.5" aria-hidden />
                 {ecoMode ? t("machineBuilder.altProductsClose") : t("machineBuilder.altProductsBtn")}
               </button>
             )}
@@ -1804,16 +1805,19 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
                       isSwapped ? "bg-success-surface/30" : i % 2 === 0 ? "" : "bg-muted/10"
                     }`}>
                       <td className="px-2 py-2 w-12">
-                        {line.product?.image_url ? (
+                        {/* Samma ritning som katalogen visar för produkten. Förut fick
+                            stycklistan AI-bilder eller en 📦, medan katalogen
+                            visade ritningar -- två bilder av samma artikel. */}
+                        {line.product ? (
                           <img
-                            src={line.product.image_url}
+                            src={getProductImage(line.product)}
                             alt={line.product.name}
                             className="size-10 object-contain rounded border border-border bg-white p-0.5"
                             loading="lazy"
                           />
                         ) : (
-                          <div className="size-10 rounded border border-border bg-muted flex items-center justify-center text-muted-foreground text-lg">
-                            📦
+                          <div className="size-10 rounded border border-border bg-muted flex items-center justify-center text-muted-foreground">
+                            <Package className="size-4" aria-hidden />
                           </div>
                         )}
                       </td>
@@ -1838,7 +1842,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
                                 to="/$locale/configurator/$family"
                                 params={{ locale, family: fam } as never}
                                 className="text-[10px] px-1.5 py-0.5 rounded bg-foreground text-background font-semibold hover:opacity-90 inline-flex items-center gap-1"
-                              >⚙️ {t("common.configure")}</Link>
+                              ><Settings className="size-3 inline -mt-0.5 mr-1" aria-hidden />{t("common.configure")}</Link>
                             ) : null;
                           })()}
                           {isSwapped && (
@@ -1903,10 +1907,10 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
                         );
                       };
 
-                      const TIERS: { key: keyof AltTiers; icon: string; label: string; hint: string }[] = [
-                        { key: "economic", icon: "🔄", label: t("machineBuilder.altTierEconomic"), hint: t("machineBuilder.altHintEconomic") },
-                        { key: "best",     icon: "🏆", label: t("machineBuilder.altTierBest"),     hint: t("machineBuilder.altHintBest") },
-                        { key: "compact",  icon: "📐", label: t("machineBuilder.altTierCompact"),  hint: t("machineBuilder.altHintCompact") },
+                      const TIERS: { key: keyof AltTiers; icon: React.ReactNode; label: string; hint: string }[] = [
+                        { key: "economic", icon: <RefreshCw className="size-3.5 inline -mt-0.5" aria-hidden />, label: t("machineBuilder.altTierEconomic"), hint: t("machineBuilder.altHintEconomic") },
+                        { key: "best",     icon: <Award className="size-3.5 inline -mt-0.5" aria-hidden />, label: t("machineBuilder.altTierBest"),     hint: t("machineBuilder.altHintBest") },
+                        { key: "compact",  icon: <Ruler className="size-3.5 inline -mt-0.5" aria-hidden />, label: t("machineBuilder.altTierCompact"),  hint: t("machineBuilder.altHintCompact") },
                       ];
 
                       return (
@@ -2065,13 +2069,13 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
               onClick={() => setShowSaveModal(true)}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-primary text-primary text-sm font-medium hover:bg-primary hover:text-primary-foreground transition"
             >
-              💾 {t("projects.saveBtn")}
+              <Save className="size-4 inline -mt-0.5 mr-1" aria-hidden />{t("projects.saveBtn")}
             </button>
           )
         ) : (
           <Link to="/$locale/login" params={{ locale } as never}
             className="text-xs text-muted-foreground hover:text-info">
-            🔒 {t("projects.notLoggedIn")}
+            <Lock className="size-4 inline -mt-0.5 mr-1" aria-hidden />{t("projects.notLoggedIn")}
           </Link>
         )}
       </div>
@@ -2218,11 +2222,11 @@ const NODE_META: Record<NodeType, { label: string; color: string; fill: string; 
   actuator: { label: "Aktuator",        color: "#0284c7", fill: "#dbeafe", icon: "⇒" },
   sensor:   { label: "Sensor",          color: "#16a34a", fill: "#dcfce7", icon: "◈" },
   fitting:  { label: "Anslutning/Slang",color: "#94a3b8", fill: "#f8fafc", icon: "⊕" },
-  drive:    { label: "Servostyrning",   color: "#7c3aed", fill: "#f5f3ff", icon: "⚡" },
-  psu:      { label: "Nätaggregat",     color: "#d97706", fill: "#fef9c3", icon: "⚡" },
+  drive:    { label: "Servostyrning",   color: "#7c3aed", fill: "#f5f3ff", icon: "⟲" },
+  psu:      { label: "Nätaggregat",     color: "#d97706", fill: "#fef9c3", icon: "⏚" },
   cable:    { label: "Kabel",           color: "#94a3b8", fill: "#f8fafc", icon: "∿" },
   mount:    { label: "Fäste/Montering", color: "#78716c", fill: "#fafaf9", icon: "⬡" },
-  gripper:  { label: "Gripper",         color: "#0891b2", fill: "#e0f9ff", icon: "✋" },
+  gripper:  { label: "Gripper",         color: "#0891b2", fill: "#e0f9ff", icon: "⋔" },
   vacuum:   { label: "Vakuumsystem",    color: "#7e22ce", fill: "#faf5ff", icon: "○" },
   other:    { label: "Tillbehör",       color: "#94a3b8", fill: "#f8fafc", icon: "·" },
 };
