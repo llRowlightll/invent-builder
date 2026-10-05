@@ -10,6 +10,7 @@ import {
   type ScoringCtx,
   normalizeKeySpecs,
   isFamilyProduct,
+  erbjuderBorrning,
   parseStrokeFromSpecs,
   isBallScrewProduct,
   isBeltDrivenProduct,
@@ -1336,7 +1337,7 @@ async function handleOptions(
   const kodBore = codeReading.resolved.find(r => r.boreMm !== null)?.boreMm ?? 0;
   const explicitBoreMm = hazards.explicitBoreMm > 0 ? hazards.explicitBoreMm : kodBore;
   const exactBoreSet = explicitBoreMm > 0
-    ? boreFiltered.filter(p => parseFloat(String(p.key_specs?.bore_mm ?? "0")) === explicitBoreMm)
+    ? boreFiltered.filter(p => erbjuderBorrning(p, explicitBoreMm))
     : [];
   const boreScoped0 = exactBoreSet.length > 0 ? exactBoreSet : boreFiltered;
   // "standard pneumatisk cylinder" explicitly requested → a plain profile/rod
@@ -1383,7 +1384,7 @@ async function handleOptions(
   // ── v40/v51: Server-side product selection ───────────────────────
   // rankActuators() tiers candidates so a configurable family NEVER outranks a
   // concrete-stroke product that meets the requirement (regression-tested).
-  const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, requiredForceN, isHighPrecision, isHighSpeed, isVertical: isVerticalLoad, isWashdown: needsCorrosionResistant, isAtex, preferredBrands: detectRequestedBrands(combinedText) };
+  const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, requiredForceN, isHighPrecision, isHighSpeed, isVertical: isVerticalLoad, isWashdown: needsCorrosionResistant, isAtex, preferredBrands: detectRequestedBrands(combinedText), explicitBoreMm, isFood: hazards.isFoodGrade };
   const topProducts = rankActuators(catalogProducts, scoringCtx).slice(0, 3);
 
   // Build server-side option objects (correct data, LLM fills in text)
