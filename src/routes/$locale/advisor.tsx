@@ -9,6 +9,7 @@ import { SITE, hreflangLinks } from "@/lib/site";
 import { fetchCompanySettings, type CompanySettings } from "@/lib/company-settings";
 import { analyzeDocument, type ComponentIdentification } from "@/lib/document-ai";
 import { categoryName } from "@/lib/categories";
+import { Camera, Mail } from "lucide-react";
 
 /**
  * Användningsfall som är dubbletter av ett annat i use_case_map. De kom in i en
@@ -248,7 +249,7 @@ function AdvisorPage() {
         </div>
         {co?.email && (
           <a href={`mailto:${co.email}`} className="hidden sm:flex items-center gap-1.5 text-xs text-info font-medium hover:underline shrink-0">
-            👷 {co.email} →
+            <Mail className="size-4 inline -mt-0.5 mr-1" aria-hidden />{co.email} →
           </a>
         )}
       </div>
@@ -374,7 +375,7 @@ function AdvisorPage() {
                 >
                   {imageAnalyzing
                     ? <><span className="size-3 rounded-full border border-info/40 border-t-info animate-spin" /> {isSv ? "Analyserar bild…" : "Analysing image…"}</>
-                    : <>📷 {isSv ? "Bifoga bild på komponent (AI identifierar)" : "Attach component image (AI identifies)"}</>}
+                    : <><Camera className="size-4 inline -mt-0.5 mr-1" aria-hidden />{isSv ? "Bifoga bild på komponent (AI identifierar)" : "Attach component image (AI identifies)"}</>}
                 </button>
                 {imagePreview && (
                   <div className="mt-2 flex items-start gap-3">

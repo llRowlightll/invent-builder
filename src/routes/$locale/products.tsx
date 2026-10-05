@@ -12,6 +12,7 @@ import { SITE, hreflangLinks } from "@/lib/site";
 import { categoryName } from "@/lib/categories";
 import { kallor, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
 import { matcharFraga } from "@/lib/sokord";
+import { FileText } from "lucide-react";
 
 type FilterKey = "brands" | "cats" | "grades";
 
@@ -699,7 +700,7 @@ function ProductsPage() {
                 search={{ q: undefined }}
                 className="inline-flex items-center gap-1.5 text-xs px-4 py-2 rounded-md border border-border hover:border-info hover:text-info transition"
               >
-                📋 {t("productPage.requestQuote")}
+                <FileText className="size-4 inline -mt-0.5 mr-1" aria-hidden />{t("productPage.requestQuote")}
               </Link>
             </li>
           )}

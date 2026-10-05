@@ -6,6 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCompanySettings, type CompanySettings } from "@/lib/company-settings";
+import { Printer } from "lucide-react";
 
 export const Route = createFileRoute("/$locale/oc/$orderId")({
   component: PublicOCPage,
@@ -109,7 +110,7 @@ export default function PublicOCPage() {
             onClick={() => window.print()}
             className="px-4 py-1.5 text-sm rounded-md bg-info text-primary-foreground hover:opacity-90 transition"
           >
-            🖨 Spara / Skriv ut PDF
+            <Printer className="size-4 inline -mt-0.5 mr-1.5" aria-hidden />Spara / Skriv ut PDF
           </button>
         </div>
       </div>

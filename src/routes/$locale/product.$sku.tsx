@@ -10,6 +10,7 @@ import { addToShoppingList } from "@/lib/cart";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { categoryName } from "@/lib/categories";
 import { kallor, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
+import { FileText, Settings } from "lucide-react";
 
 
 export const Route = createFileRoute("/$locale/product/$sku")({
@@ -261,7 +262,7 @@ function ProductDetail() {
               params={{ locale, family: configSlug }}
               className="flex items-center justify-center gap-2 w-full text-center mt-2 px-3 py-2 rounded-md bg-foreground text-background text-sm font-semibold hover:opacity-90 transition"
             >
-              <span>⚙️</span> {t("common.configure")}
+              <Settings className="size-4" aria-hidden /> {t("common.configure")}
             </Link>
           )}
           <Link
@@ -289,7 +290,7 @@ function ProductDetail() {
               }}
               className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-md border border-border text-sm text-foreground hover:border-info hover:text-info transition"
             >
-              <span>📋</span> {t("productPage.requestQuote")}
+              <FileText className="size-4" aria-hidden /> {t("productPage.requestQuote")}
             </button>
 
             {/* AI shortcut */}

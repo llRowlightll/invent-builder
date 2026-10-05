@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { loadCatalog } from "@/lib/catalog";
 import { supabase } from "@/integrations/supabase/client";
 import type { ProductRow } from "@/lib/types";
+import { CheckSquare, Paperclip, Search, ShoppingCart } from "lucide-react";
 import {
   SHOPPING_LIST_KEY,
   SHOPPING_LIST_COUNT_KEY,
@@ -293,7 +294,7 @@ function ShoppingListPage() {
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-xl">🛒</span>
+          <ShoppingCart className="size-5" aria-hidden />
           <h1 className="text-2xl font-semibold tracking-tight">{t("shoppingList.title")}</h1>
         </div>
         <p className="text-sm text-muted-foreground">{t("shoppingList.subtitle")}</p>
@@ -302,7 +303,7 @@ function ShoppingListPage() {
       {/* Search / add products */}
       <div className="relative" ref={searchRef}>
         <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-info/30 transition">
-          <span className="text-muted-foreground">🔍</span>
+          <Search className="size-4 text-muted-foreground" aria-hidden />
           <input
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             placeholder={t("shoppingList.searchPlaceholder")}
@@ -345,7 +346,7 @@ function ShoppingListPage() {
       <div className="mt-5">
         {items.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center">
-            <div className="text-4xl mb-3">🛒</div>
+            <ShoppingCart className="size-10 mx-auto mb-3 text-muted-foreground" aria-hidden />
             <p className="text-sm text-muted-foreground">{t("shoppingList.empty")}</p>
             <Link
               to="/$locale/products"
@@ -475,7 +476,7 @@ function ShoppingListPage() {
             {/* Compare hint */}
             {items.length >= 2 && (
               <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground px-1">
-                <span>☑</span>
+                <CheckSquare className="size-4" aria-hidden />
                 <span>{t("shoppingList.compareHint")}</span>
                 {compareSelected.size >= 2 && (
                   <span className="ml-auto text-info font-medium">{compareSelected.size} {t("shoppingList.selected")}</span>
@@ -639,7 +640,7 @@ function ShoppingListPage() {
                 >
                   {poReading
                     ? <><span className="size-3 rounded-full border-2 border-info/30 border-t-info animate-spin" /> {locale === "sv" ? "Läser PO…" : "Reading PO…"}</>
-                    : <><span>📎</span> {locale === "sv" ? "Ladda upp PO — fyller i fälten automatiskt" : "Upload PO — auto-fills fields"}</>
+                    : <><Paperclip className="size-4" aria-hidden /> {locale === "sv" ? "Ladda upp PO — fyller i fälten automatiskt" : "Upload PO — auto-fills fields"}</>
                   }
                 </button>
                 {poReadError && <p className="text-xs text-destructive mb-3">{poReadError}</p>}

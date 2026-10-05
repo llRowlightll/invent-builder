@@ -43,7 +43,7 @@ function makeSpecGroups(t: ReturnType<typeof makeT>): SpecGroup[] {
   return [
     {
       label: t("comparePage.group_logistics"),
-      icon: "📦",
+      icon: "",
       rows: [
         { kind: "flat", label: t("comparePage.label_brand"),        get: (p) => p.brand.name },
         { kind: "flat", label: t("comparePage.label_category"),     get: (p) => p.category.name },
@@ -61,7 +61,7 @@ function makeSpecGroups(t: ReturnType<typeof makeT>): SpecGroup[] {
     },
     {
       label: t("comparePage.group_dimensions"),
-      icon: "📐",
+      icon: "",
       rows: [
         { kind: "spec", label: t("comparePage.label_bore"),        key: "bore_mm" },
         { kind: "spec", label: t("comparePage.label_bore"),        key: "bore_diameter_mm" },
@@ -88,7 +88,7 @@ function makeSpecGroups(t: ReturnType<typeof makeT>): SpecGroup[] {
     },
     {
       label: t("comparePage.group_performance"),
-      icon: "⚡",
+      icon: "",
       rows: [
         { kind: "spec", label: t("comparePage.label_max_pressure"), key: "max_pressure" },
         { kind: "spec", label: t("comparePage.label_max_pressure"), key: "max_pressure_bar" },
@@ -107,7 +107,7 @@ function makeSpecGroups(t: ReturnType<typeof makeT>): SpecGroup[] {
     },
     {
       label: t("comparePage.group_valve"),
-      icon: "🔧",
+      icon: "",
       rows: [
         { kind: "spec", label: t("comparePage.label_valve_fn"),     key: "function" },
         { kind: "spec", label: t("comparePage.label_valve_std"),    key: "valve_standard" },
@@ -127,7 +127,7 @@ function makeSpecGroups(t: ReturnType<typeof makeT>): SpecGroup[] {
     },
     {
       label: t("comparePage.group_environment"),
-      icon: "🛡️",
+      icon: "",
       rows: [
         { kind: "flat", label: t("comparePage.label_ip_rating"),   get: (p) => p.ip_rating ?? "—" },
         { kind: "spec", label: t("comparePage.label_ip_rating"),   key: "ip_rating" },
@@ -138,7 +138,7 @@ function makeSpecGroups(t: ReturnType<typeof makeT>): SpecGroup[] {
     },
     {
       label: t("comparePage.group_construction"),
-      icon: "🔩",
+      icon: "",
       rows: [
         { kind: "spec", label: t("comparePage.label_standard"),      key: "standard" },
         { kind: "spec", label: t("comparePage.label_mode_of_op"),  key: "mode_of_operation" },
@@ -154,7 +154,7 @@ function makeSpecGroups(t: ReturnType<typeof makeT>): SpecGroup[] {
     },
     {
       label: t("comparePage.group_electrical"),
-      icon: "📡",
+      icon: "",
       rows: [
         { kind: "flat", label: t("comparePage.label_voltage"),    get: (p) => p.voltage ?? "—" },
         { kind: "flat", label: t("comparePage.label_fieldbus"),   get: (p) => p.fieldbus ?? "—" },
@@ -576,7 +576,7 @@ function ComparePage() {
                 return showIdentical && !diffOnly;
               });
               if (!extras.length) return null;
-              return <GroupSection label="Övriga specifikationer" icon="📋" rows={extras} cols={cols} diffOnly={diffOnly} />;
+              return <GroupSection label="Övriga specifikationer" icon="" rows={extras} cols={cols} diffOnly={diffOnly} />;
             })()}
 
             {/* Bottom border */}
@@ -610,7 +610,7 @@ function GroupSection({
         style={{ gridTemplateColumns: `13rem repeat(${cols}, 1fr)` }}
       >
         <div className="px-4 py-2 col-span-full flex items-center gap-2">
-          <span className="text-base leading-none">{icon}</span>
+          {icon && <span className="text-base leading-none">{icon}</span>}
           <span className="text-xs font-semibold text-foreground">{label}</span>
         </div>
       </div>

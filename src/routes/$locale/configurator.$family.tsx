@@ -13,6 +13,7 @@ import { paramLabel, valueLabel } from "@/lib/catalog/labels-sv";
 import { addToShoppingList } from "@/lib/cart";
 import { valjSerieprodukt } from "@/lib/catalog/series-product";
 import { SITE, hreflangLinks } from "@/lib/site";
+import { FileText } from "lucide-react";
 
 // Types
 interface Family {
@@ -719,7 +720,7 @@ function ConfiguratorPage() {
               <ul className="space-y-1.5">
                 {docs.map((d) => (
                   <li key={d.source_file} className="text-xs text-muted-foreground leading-snug">
-                    <span className="text-muted-foreground mr-1.5">📄</span>
+                    <FileText className="size-3.5 inline -mt-0.5 mr-1.5 text-muted-foreground" aria-hidden />
                     {d.doc_title ?? d.source_file}
                   </li>
                 ))}

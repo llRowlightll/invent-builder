@@ -150,7 +150,7 @@ function ConfigureIndexPage() {
                   : "bg-white text-muted-foreground border-border hover:border-blue-400"
               }`}
             >
-              {meta.icon} {meta.label} ({count})
+              {meta.label} ({count})
             </button>
           );
         })}
@@ -173,7 +173,7 @@ function ConfigureIndexPage() {
               <span
                 className={`inline-block text-xs font-medium px-2 py-0.5 rounded border mb-3 ${meta.color}`}
               >
-                {meta.icon} {meta.label}
+                {meta.label}
               </span>
 
               {/* Family name & title */}

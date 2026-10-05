@@ -4,12 +4,16 @@ import { makeT, type Locale } from "@/lib/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { loadCatalog } from "@/lib/catalog";
 import type { ProductRow } from "@/lib/types";
+// Bakgrunden visar en märkeslös linjäraktuator. Fram till 2026-10-05 stod en
+// Siemens-drivenhet med två synliga logotyper bredvid den -- ett fabrikat
+// Maskinval inte säljer. Bilden är beskuren så att bara aktuatorn är kvar.
 import heroImg from "@/assets/hero-industrial.jpg";
 import featureImg from "@/assets/feature-component.jpg";
 import { getProductImage, getCategoryImage } from "@/lib/product-images";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { EditableText } from "@/components/EditableText";
 import { categoryName } from "@/lib/categories";
+import { FileText, Users } from "lucide-react";
 
 export const Route = createFileRoute("/$locale/")({
   head: ({ params }) => {
@@ -60,7 +64,7 @@ type Brand = { slug: string; name: string };
 
 const CAT_ICONS: Record<string, string> = {
   cylinder: "⇔",
-  "electric-actuator": "⚡",
+  "electric-actuator": "ϟ",
   "valve-terminal": "▦",
   valve: "◉",
   gripper: "✦",
@@ -430,14 +434,14 @@ function Landing() {
               </div>
             </div>
             <div className="flex flex-col items-center gap-3">
-              <div className="size-12 rounded-full bg-success-surface/60 flex items-center justify-center text-2xl">👷</div>
+              <div className="size-12 rounded-full bg-success-surface/60 flex items-center justify-center"><Users className="size-5 text-success-deep" aria-hidden /></div>
               <div>
                 <div className="font-semibold text-sm text-foreground">{t("index.how2Title")}</div>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t("index.how2Body")}</p>
               </div>
             </div>
             <div className="flex flex-col items-center gap-3">
-              <div className="size-12 rounded-full bg-gold/10 flex items-center justify-center text-2xl">📋</div>
+              <div className="size-12 rounded-full bg-gold/10 flex items-center justify-center"><FileText className="size-5 text-warning-deep" aria-hidden /></div>
               <div>
                 <div className="font-semibold text-sm text-foreground">{t("index.how3Title")}</div>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t("index.how3Body")}</p>
