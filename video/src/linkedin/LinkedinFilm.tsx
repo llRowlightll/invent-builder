@@ -42,7 +42,7 @@ interface Scen {
   etikett: string;
   rubrik: string;
   rubrik2?: { text: string; fran: number };
-  sudda?: Rect;             // Siemens-logotyperna i startsidans bakgrundsfoto
+  sudda?: Rect;             // ett område som suddas (användes för Siemens-logotyperna före 2026-10-05)
   skriv?: { ruta: Rect; tecken: number; fran: number; till: number };
   tryck?: { ruta: Rect; t: number };
   rader?: { fran: number; till: number; forsta: number };
@@ -56,7 +56,6 @@ const SCENER: Scen[] = [
     fil: "hem-skrivet.png", bildH: 1080, minY: 64,
     fran: [370, 175, 1120, 500], till: [374, 380, 1112, 500],
     etikett: "01 · Sök", rubrik: "Ett sök. Åtta fabrikat.",
-    sudda: [1075, 128, 1360, 200],
     skriv: { ruta: [393, 440, 486, 464], tecken: 12, fran: T.skriv[0].fran, till: T.skriv[0].till },
     tryck: { ruta: [986, 429, 1052, 473], t: T.tryck },
   },
