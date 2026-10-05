@@ -7,7 +7,7 @@ import {
   theoreticalForceN, usableForceN, requiredForceN,
   SEAL_EFFICIENCY, LOAD_SAFETY_FACTOR,
   isMultiFunctionSystem, needsMultiAxis, needsVacuumGrip, needsValveTerminal,
-  needsAtex, needsAtexDust, needsVerticalLoad, needsHighTemp, needsLowTemp,
+  needsAtex, needsAtexDust, needsVerticalLoad, needsHighTemp, needsLowTemp, utanIpProvvillkor,
   isHydraulicApplication, needsVeryHighForce, needsOxygenClean, needsHighCycle,
   needsHighSpeed, needsSilSafety, needsOutdoor, needsPharmaGmp, needsBatteryDryroom,
   needsRodLock, needsGuidance, needsWashdown, needsEndPositionDetection, needsArticulatedMount,
@@ -693,4 +693,28 @@ Deno.test("parseRotationFromSpecs läser katalogens former", () => {
   assertEquals(parseRotationFromSpecs({ rotation_angle: "90, 180, 270" }), 270);
   assertEquals(parseRotationFromSpecs({ torque: "12" }), 0, "fel nyckel ska inte ge en vinkel");
   assertEquals(parseRotationFromSpecs({}), 0);
+});
+
+
+// ── IP-kodens provvillkor är inget temperaturkrav (hittat 2026-10-02) ─────────
+// Maskinbyggarens svarsalternativ "IP69K (högtryckstvätt/kemikalier, 100 bar,
+// 80°C)" fogades in i kravtexten, och alla alternativ fick nackdelen
+// "applikationen kräver >80 °C" i ett fall med daglig skumtvätt.
+Deno.test("needsHighTemp: IP69K-etikettens 80°C är provvillkor, inte miljö", () => {
+  const svar = "Skjuter kartonger, daglig skumtvätt. IP69K (högtryckstvätt/kemikalier, 100 bar, 80°C) Stål 316L";
+  assertEquals(needsHighTemp(svar), false);
+  assertEquals(extractRequiredMaxTemp(svar, {}), 0);
+  // Samma text utan IP-koden är fortfarande ett krav -- men först över 80.
+  assertEquals(needsHighTemp("Ugnsmiljö 90 °C"), true);
+  assert(needsHighTemp("Rengöring med hetvatten 85 °C"), "85 °C är över gränsen");
+});
+
+Deno.test("needsHighTemp: exakt 80 °C är inom standardtätningarnas område", () => {
+  assertEquals(needsHighTemp("Omgivning upp till 80 °C"), false);
+  assertEquals(needsHighTemp("Omgivning upp till 81 °C"), true);
+});
+
+Deno.test("utanIpProvvillkor: tar bara parentesen efter en IP-kod", () => {
+  assertEquals(utanIpProvvillkor("IP69K (100 bar, 80°C) och 90 °C i ugnen"), "IP69K  och 90 °C i ugnen");
+  assertEquals(utanIpProvvillkor("Lucka (max 90 °C)"), "Lucka (max 90 °C)");
 });
