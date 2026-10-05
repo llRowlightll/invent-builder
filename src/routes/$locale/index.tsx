@@ -13,7 +13,7 @@ import { getProductImage, getCategoryImage } from "@/lib/product-images";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { EditableText } from "@/components/EditableText";
 import { categoryName } from "@/lib/categories";
-import { FileText, Users } from "lucide-react";
+import { ArrowRight, FileText, Settings, Sparkles, Users } from "lucide-react";
 
 export const Route = createFileRoute("/$locale/")({
   head: ({ params }) => {
@@ -97,11 +97,11 @@ function antalText(mall: string, antal: number | null): string {
  */
 const VAGAR = [
   { titel: "index.routeConfigTitle", brod: "index.routeConfigBody",
-    cta: "index.routeConfigCta", to: "/$locale/configure", tecken: "⚙" },
+    cta: "index.routeConfigCta", to: "/$locale/configure", Ikon: Settings },
   { titel: "index.routeAdvisorTitle", brod: "index.routeAdvisorBody",
-    cta: "index.routeAdvisorCta", to: "/$locale/machine-builder", tecken: "✦" },
+    cta: "index.routeAdvisorCta", to: "/$locale/machine-builder", Ikon: Sparkles },
   { titel: "index.routePromiseTitle", brod: "index.routePromiseBody",
-    cta: "index.routePromiseCta", to: "/$locale/shopping-list", tecken: "→" },
+    cta: "index.routePromiseCta", to: "/$locale/shopping-list", Ikon: ArrowRight },
 ] as const;
 
 function Landing() {
@@ -249,8 +249,9 @@ function Landing() {
                 params={{ locale }}
                 className="group border border-primary-foreground/15 px-5 py-4 bg-primary-foreground/5 backdrop-blur-sm transition hover:bg-primary-foreground/10 hover:border-primary-foreground/30 md:hover:-translate-y-0.5"
               >
-                <div className="flex items-baseline gap-2">
-                  <span className="text-sm" style={{ color: "var(--gold)" }}>{v.tecken}</span>
+                <div className="flex items-center gap-2">
+                  {/* ⚙ var ett emojitecken: iPhone ritade färgemojin och struntade i guldet. */}
+                  <v.Ikon className="size-3.5 shrink-0" style={{ color: "var(--gold)" }} aria-hidden />
                   <span className="text-[15px] font-semibold text-primary-foreground">{t(v.titel)}</span>
                 </div>
                 <p className="mt-1.5 text-[13px] leading-relaxed text-primary-foreground/60">{t(v.brod)}</p>
