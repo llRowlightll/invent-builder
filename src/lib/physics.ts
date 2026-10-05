@@ -218,7 +218,9 @@ export function computePhysics(dims: PhysicsDimensions): PhysicsResult {
 
   // ─── 6. ENVIRONMENT ────────────────────────────────────────────────────────
   if (dims.environment === "food_grade") {
-    result.warnings.push("Food-grade miljö: välj cylinder med H1-smörjmedel och rostfritt stål (t.ex. SMC CM2 rostfri serie).");
+    // Nämnde förut "SMC CM2 rostfri serie" som exempel. CM2 är en standardcylinder,
+    // ingen tvättserie -- och inget i katalogen styrker exemplet. Kraven räcker.
+    result.warnings.push("Livsmedelsmiljö: välj ett utförande för tvätt – rostfritt, livsmedelsgodkänt fett (NSF H1) och tätningar som tål rengöringsmedlen. Kontrollera det i databladet.");
   }
   if (dims.environment === "atex") {
     result.warnings.push("ATEX-klassad miljö: produkten måste ha Ex-certifiering (ATEX/UKEX).");

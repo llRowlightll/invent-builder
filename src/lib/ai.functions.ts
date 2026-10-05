@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { PhysicsDimensions } from "./physics";
+import { avslutaKlipptSvar } from "./chattsvar";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 // llama-3.3-70b-versatile decommissioned by Groq 2026-08-16. Moved to openai/gpt-oss-120b
@@ -82,6 +83,22 @@ function fallbackExtract(text: string): ExtractedReqs {
 }
 
 async function callGateway(messages: { role: string; content: string }[], maxTokens = 1024): Promise<string | null> {
+  return (await callGatewaySvar(messages, maxTokens))?.text ?? null;
+}
+
+/**
+ * Som callGateway, men säger också om svaret klipptes.
+ *
+ * gpt-oss tänker innan det svarar, och tänkandet räknas mot max_tokens. Med
+ * 1024 token och normal tankemöda tog tänkandet runt 700: kunskapssvaret om
+ * högtryckstvätt 2026-10-05 slutade mitt i "ISO 155". Lägre tankemöda och
+ * större budget för långa svar, och ett klippt svar märks.
+ */
+async function callGatewaySvar(
+  messages: { role: string; content: string }[],
+  maxTokens = 1024,
+  reasoningEffort?: "low" | "medium" | "high",
+): Promise<{ text: string; klippt: boolean } | null> {
   const key = process.env.GROQ_API_KEY;
   if (!key) {
     console.error("GROQ_API_KEY not set");
@@ -96,6 +113,7 @@ async function callGateway(messages: { role: string; content: string }[], maxTok
         messages,
         temperature: 0.2,
         max_tokens: maxTokens,
+        ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
       }),
     });
     if (!res.ok) {
@@ -103,7 +121,12 @@ async function callGateway(messages: { role: string; content: string }[], maxTok
       return null;
     }
     const data = await res.json();
-    return data?.choices?.[0]?.message?.content ?? null;
+    const val = data?.choices?.[0];
+    const text = val?.message?.content;
+    if (typeof text !== "string") return null;
+    const klippt = val?.finish_reason === "length";
+    if (klippt) console.warn("Groq-svaret klipptes vid max_tokens", maxTokens);
+    return { text, klippt };
   } catch (e) {
     console.error("Groq call failed", e);
     return null;
@@ -154,6 +177,8 @@ export const aiAskKnowledge = createServerFn({ method: "POST" })
       `If the context contains the answer, cite the source. If not in context, answer from engineering knowledge and state this clearly.`,
       `Never invent part numbers. If a specific SKU is needed, describe the selection criteria instead.`,
       `Use conversation history to understand follow-up questions and references to previous answers.`,
+      // Chattbubblan visar ren text, **fetstil** och rader -- inga tabeller.
+      `Format for a chat bubble: short paragraphs and bullet lines starting with "•". **Bold** is fine. No tables, no HTML, no # headings. Aim for at most about 200 words.`,
       langInstruction(data.locale),
     ].join(" ");
 
@@ -164,17 +189,19 @@ export const aiAskKnowledge = createServerFn({ method: "POST" })
     // Include up to 6 previous messages for context
     const history = (data.history ?? []).slice(-6);
 
-    const raw = await callGateway([
+    const svar = await callGatewaySvar([
       { role: "system", content: systemPrompt },
       ...history,
       { role: "user", content: userPrompt },
-    ]);
+    ], 2000, "low");
 
-    if (raw) {
+    if (svar) {
       // Extract source files mentioned
       const sourceMatches = context.match(/\[Source: [^\]]+\]/g) ?? [];
       const sources = [...new Set(sourceMatches.map((s) => s.replace(/\[Source: |\]/g, "")))];
-      return { answer: raw.trim(), sources, source: "ai" };
+      // Hellre ett kortare svar som slutar på en hel rad än ett som slutar mitt i ett ord.
+      const answer = svar.klippt ? avslutaKlipptSvar(svar.text, isSv) : svar.text.trim();
+      return { answer, sources, source: "ai" };
     }
 
     return {
