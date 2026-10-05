@@ -13,6 +13,7 @@ import { paramLabel, valueLabel } from "@/lib/catalog/labels-sv";
 import { addToShoppingList } from "@/lib/cart";
 import { valjSerieprodukt } from "@/lib/catalog/series-product";
 import { SITE, hreflangLinks } from "@/lib/site";
+import { FileText } from "lucide-react";
 
 // Types
 interface Family {
@@ -36,6 +37,20 @@ interface ParamValue {
   description: string;
   sort_order: number;
 }
+/**
+ * Enheten för en numerisk parameter, ur nyckelns namn.
+ *
+ * Fältet skrev alltid "mm". Det stämmer för slag och förlängningar, men
+ * DSBC:s kolvhastighet (speed_ms, 0–3 m/s) blev "0–3 mm", och antalet
+ * ventilplatser i elva ventilterminaler fick också "mm" (granskning
+ * 2026-10-02). Tabellen har ingen enhetskolumn, men nycklarna bär enheten.
+ */
+function enhetFor(nyckel: string): string {
+  if (/_ms$/.test(nyckel)) return "m/s";
+  if (nyckel === "stations") return "";
+  return "mm";
+}
+
 interface Param {
   id: string;
   param_key: string;
@@ -506,9 +521,9 @@ function ConfiguratorPage() {
                     }
                     className="w-36 border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
-                  <span className="text-sm text-muted-foreground">mm</span>
+                  <span className="text-sm text-muted-foreground">{enhetFor(param.param_key)}</span>
                   <span className="text-xs text-muted-foreground">
-                    ({lo}–{hi} mm)
+                    ({lo}–{hi}{enhetFor(param.param_key) ? ` ${enhetFor(param.param_key)}` : ""})
                   </span>
                 </div>
                 );
@@ -705,7 +720,7 @@ function ConfiguratorPage() {
               <ul className="space-y-1.5">
                 {docs.map((d) => (
                   <li key={d.source_file} className="text-xs text-muted-foreground leading-snug">
-                    <span className="text-muted-foreground mr-1.5">📄</span>
+                    <FileText className="size-3.5 inline -mt-0.5 mr-1.5 text-muted-foreground" aria-hidden />
                     {d.doc_title ?? d.source_file}
                   </li>
                 ))}

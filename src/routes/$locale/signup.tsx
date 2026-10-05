@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { makeT, type Locale } from "@/lib/i18n";
+import { Globe, MailCheck } from "lucide-react";
 
 // ─── Swedish org number validation ───────────────────────────────────────────
 function formatOrgInput(raw: string): string {
@@ -233,7 +234,7 @@ function SignupPage() {
   if (info) {
     return (
       <div className="container-page py-16 max-w-md text-center space-y-5">
-        <div className="text-5xl">📬</div>
+        <MailCheck className="size-12 mx-auto text-info" aria-hidden />
         <h1 className="text-2xl font-semibold">{t("signupPage.checkEmailTitle")}</h1>
         <p className="text-sm text-muted-foreground">{info}</p>
         <p className="text-xs text-muted-foreground">
@@ -396,7 +397,7 @@ function SignupPage() {
             {/* Foreign company info banner */}
             {country !== "SE" && (
               <div className="flex items-start gap-3 rounded-lg border border-info/30 bg-info/5 px-4 py-3.5 text-sm">
-                <span className="text-base mt-0.5">🌍</span>
+                <Globe className="size-4 mt-0.5" aria-hidden />
                 <div className="space-y-1">
                   <p className="font-medium text-foreground">Utländskt företag</p>
                   <p className="text-muted-foreground leading-relaxed">

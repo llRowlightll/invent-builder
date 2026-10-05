@@ -4,6 +4,7 @@ import { makeT, type Locale } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/integrations/supabase/client";
 import { addToShoppingList } from "@/lib/cart";
+import { FileText, Ruler } from "lucide-react";
 
 export const Route = createFileRoute("/$locale/projects")({
   head: () => ({
@@ -163,7 +164,7 @@ function ProjectsPage() {
         </div>
       ) : projects.length === 0 ? (
         <div className="text-center py-20 border-2 border-dashed border-border rounded-xl">
-          <div className="text-4xl mb-3">📐</div>
+          <Ruler className="size-10 mx-auto mb-3 text-muted-foreground" aria-hidden />
           <p className="text-muted-foreground text-sm">{t("projects.empty")}</p>
           <Link to="/$locale/machine-builder" params={{ locale }}
             className="mt-4 inline-block text-sm text-primary hover:underline">
@@ -266,7 +267,7 @@ function ProjectsPage() {
                             onClick={() => addAllToOffert(lines)}
                             className="text-xs px-3 py-1.5 rounded-md bg-info text-primary-foreground hover:opacity-90 transition font-medium"
                           >
-                            📋 Lägg till alla i offert
+                            <FileText className="size-4 inline -mt-0.5 mr-1" aria-hidden />Lägg till alla i offert
                           </button>
                           <Link
                             to="/$locale/products"

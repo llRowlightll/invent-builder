@@ -362,7 +362,7 @@ function AssemblyPage() {
       {/* Service kit callout */}
       {serviceItems.length > 0 && (
         <div className="mt-6 rounded-lg border border-orange-500/20 bg-orange-500/5 p-4">
-          <div className="text-sm font-semibold text-foreground mb-2">⚡ Recommended service items</div>
+          <div className="text-sm font-semibold text-foreground mb-2">Recommended service items</div>
           <div className="flex flex-wrap gap-2">
             {serviceItems.filter((p) => p.is_orderable).map((p) => (
               <div key={p.id} className="flex items-center gap-2 rounded border border-border bg-card px-3 py-2 text-xs">

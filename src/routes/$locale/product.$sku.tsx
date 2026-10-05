@@ -8,16 +8,10 @@ import { getProductImage } from "@/lib/product-images";
 import { ArticleNumber } from "@/components/ArticleNumber";
 import { addToShoppingList } from "@/lib/cart";
 import { SITE, hreflangLinks } from "@/lib/site";
+import { categoryName } from "@/lib/categories";
+import { kallor, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
+import { FileText, Settings } from "lucide-react";
 
-const UNIT_SUFFIXES = ["mm", "cm", "m", "kg", "g", "bar", "kpa", "mpa", "n", "nm", "w", "kw", "v", "a", "hz", "rpm", "ms", "s", "min", "deg", "pct", "l", "ml", "lmin"];
-function formatSpecKey(key: string): string {
-  const parts = key.toLowerCase().replace(/_+/g, "_").split("_");
-  const last = parts[parts.length - 1];
-  const isUnit = UNIT_SUFFIXES.includes(last);
-  const labelParts = isUnit ? parts.slice(0, -1) : parts;
-  const label = labelParts.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-  return isUnit ? `${label} (${last})` : label;
-}
 
 export const Route = createFileRoute("/$locale/product/$sku")({
   head: ({ params, loaderData }) => {
@@ -38,8 +32,8 @@ export const Route = createFileRoute("/$locale/product/$sku")({
       title = `${displayName} (${sku}) — ${titleSuffix}`;
       ogTitle = `${displayName} | Maskinval`;
       desc = isSv
-        ? `${displayName} (${sku}) — ${product.category.name}. Jämför specifikationer, leveranstid och beställ direkt via Maskinval.`
-        : `${displayName} (${sku}) — ${product.category.name}. Compare specs, lead time and order via Maskinval.`;
+        ? `${displayName} (${sku}) — ${categoryName(product.category.slug, locale, product.category.name)}. Jämför specifikationer, leveranstid och beställ direkt via Maskinval.`
+        : `${displayName} (${sku}) — ${categoryName(product.category.slug, locale, product.category.name)}. Compare specs, lead time and order via Maskinval.`;
     } else {
       title = `${sku} — ${titleSuffix}`;
       ogTitle = `${sku} | Maskinval`;
@@ -144,12 +138,27 @@ function ProductDetail() {
       // fabrikat och alla sex därför blev samma märke.
       const { data: sim } = await supabase.rpc("get_similar_products", {
         p_sku: product.sku,
-        p_limit: 6,
+        p_limit: 24,
       });
       const bySku = new Map(cat.map((p) => [p.sku, p]));
+      // Kopplingar och slangar har ingen borrning; deras storlek är gänga och
+      // slangdimension. Utan den kontrollen visade en G1/4-koppling för Ø10-
+      // slang sex "jämförbara" kopplingar, varav fem i andra storlekar
+      // (granskning 2026-10-02). Där produkten har måtten krävs samma mått;
+      // de som återstår har då en verklig grund och märks efter den.
+      const MATT = ["thread", "tube_od_mm"] as const;
+      const normalt = (v: unknown) => String(v ?? "").toLowerCase().replace(/\s|mm$|^g(?=\d)/g, "");
+      const egnaMatt = MATT.filter((k) => product.specs[k]?.value);
+      const traffar = (sim ?? [])
+        .map((r) => ({ p: bySku.get(r.sku), basis: r.match_basis as string }))
+        .filter((x): x is { p: ProductRow; basis: string } => !!x.p)
+        .filter((x) => x.basis.startsWith("bore") || egnaMatt.length === 0 ||
+          egnaMatt.every((k) => normalt(x.p.specs[k]?.value) === normalt(product.specs[k]?.value)))
+        .map((x) => (!x.basis.startsWith("bore") && egnaMatt.length > 0 ? { ...x, basis: "dimension" } : x))
+        .slice(0, 6);
       // Serverns ordning är rangordningen; behåll den i stället för katalogens.
-      setAlternatives((sim ?? []).map((r) => bySku.get(r.sku)).filter((p): p is ProductRow => !!p));
-      setAltBasis(Object.fromEntries((sim ?? []).map((r) => [r.sku, r.match_basis])));
+      setAlternatives(traffar.map((x) => x.p));
+      setAltBasis(Object.fromEntries(traffar.map((x) => [x.p.sku, x.basis])));
       // Show a "Configure" button when this product's family has a configurator.
       const fam = product.family?.toLowerCase().trim();
       if (fam) {
@@ -173,7 +182,7 @@ function ProductDetail() {
     "@type": "BreadcrumbList",
     itemListElement: [
       { "@type": "ListItem", position: 1, name: "Maskinval", item: `${SITE}/${locale}` },
-      { "@type": "ListItem", position: 2, name: product.category.name, item: `${SITE}/${locale}/products?category=${product.category.slug}` },
+      { "@type": "ListItem", position: 2, name: categoryName(product.category.slug, locale, product.category.name), item: `${SITE}/${locale}/products?category=${product.category.slug}` },
       { "@type": "ListItem", position: 3, name: product.name, item: canonicalUrl },
     ],
   };
@@ -182,9 +191,9 @@ function ProductDetail() {
     "@type": "Product",
     name: product.name,
     sku: product.sku,
-    description: product.description ?? `${product.name} — ${product.brand.name} ${product.category.name}`,
+    description: product.description ?? `${product.name} — ${product.brand.name} ${categoryName(product.category.slug, locale, product.category.name)}`,
     brand: { "@type": "Brand", name: product.brand.name },
-    category: product.category.name,
+    category: categoryName(product.category.slug, locale, product.category.name),
     url: canonicalUrl,
     image: productImageUrl?.startsWith("http") ? productImageUrl : `${SITE}${productImageUrl}`,
     // No `offers` property: Product.offers is optional per schema.org, and Google
@@ -195,10 +204,10 @@ function ProductDetail() {
     // `offers: { "@type": "Offer", price, priceCurrency: "SEK", ... }` block here
     // once real public pricing exists (see docs/LAUNCH.md pricing import).
     ...(Object.keys(product.specs).length > 0 && {
-      additionalProperty: Object.entries(product.specs).map(([k, v]) => ({
+      additionalProperty: synligaSpecar(product.specs).map(([k, v]) => ({
         "@type": "PropertyValue",
-        name: formatSpecKey(k),
-        value: `${v.value}${v.unit ? " " + v.unit : ""}`,
+        name: specEtikett(k, locale),
+        value: specVarde(k, v),
       })),
     }),
   };
@@ -216,7 +225,7 @@ function ProductDetail() {
           <div className="rounded-xl overflow-hidden border border-border mb-5 aspect-[16/7] bg-[#f8f9fb] flex items-center justify-center">
             <img
               src={getProductImage(product)}
-              alt={product.category.name}
+              alt={categoryName(product.category.slug, locale, product.category.name)}
               className="w-full h-full object-contain"
             />
           </div>
@@ -228,7 +237,7 @@ function ProductDetail() {
           {product.description && <p className="mt-4 text-sm text-foreground/80 leading-relaxed">{product.description}</p>}
         </div>
         <aside className="rounded-lg border border-border bg-surface-alt p-4 space-y-3 text-sm">
-          <Row k={t("productPage.category")} v={product.category.name} />
+          <Row k={t("productPage.category")} v={categoryName(product.category.slug, locale, product.category.name)} />
           {product.ip_rating && <Row k="IP" v={product.ip_rating} />}
           {product.fieldbus && <Row k={t("productPage.fieldbus")} v={product.fieldbus} />}
           {product.voltage && <Row k={t("productPage.voltage")} v={product.voltage} />}
@@ -253,7 +262,7 @@ function ProductDetail() {
               params={{ locale, family: configSlug }}
               className="flex items-center justify-center gap-2 w-full text-center mt-2 px-3 py-2 rounded-md bg-foreground text-background text-sm font-semibold hover:opacity-90 transition"
             >
-              <span>⚙️</span> {t("common.configure")}
+              <Settings className="size-4" aria-hidden /> {t("common.configure")}
             </Link>
           )}
           <Link
@@ -281,7 +290,7 @@ function ProductDetail() {
               }}
               className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-md border border-border text-sm text-foreground hover:border-info hover:text-info transition"
             >
-              <span>📋</span> {t("productPage.requestQuote")}
+              <FileText className="size-4" aria-hidden /> {t("productPage.requestQuote")}
             </button>
 
             {/* AI shortcut */}
@@ -316,14 +325,20 @@ function ProductDetail() {
           </h2>
           <table className="mt-3 w-full text-sm border border-border rounded-md overflow-hidden">
             <tbody>
-              {Object.entries(product.specs).map(([k, v]) => (
+              {synligaSpecar(product.specs).map(([k, v]) => (
                 <tr key={k} className="border-b border-border last:border-0 odd:bg-surface-alt/50">
-                  <td className="p-3 text-muted-foreground w-1/2">{formatSpecKey(k)}</td>
-                  <td className="p-3 font-medium">{v.value}{v.unit ? ` ${v.unit}` : ""}</td>
+                  <td className="p-3 text-muted-foreground w-1/2">{specEtikett(k, locale)}</td>
+                  <td className="p-3 font-medium">{specVarde(k, v)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {/* Källan för ett värde är ingen egenskap -- den hör hemma som not. */}
+          {kallor(product.specs, locale).map((kl) => (
+            <p key={kl.egenskap} className="mt-2 text-xs text-muted-foreground">
+              {isSv ? "Källa" : "Source"}, {kl.egenskap.toLowerCase()}: {kl.text}
+            </p>
+          ))}
         </section>
       )}
 
@@ -342,7 +357,7 @@ function ProductDetail() {
         <section className="mt-10">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              {t("nav.compare")} — {product.category.name}
+              {t("nav.compare")} — {categoryName(product.category.slug, locale, product.category.name)}
             </h2>
             <Link
               to="/$locale/compare"
@@ -364,7 +379,9 @@ function ProductDetail() {
                         ? (isSv ? "Samma borrning och slaglängd" : "Same bore and stroke")
                         : altBasis[r.sku] === "bore"
                           ? (isSv ? "Samma borrning" : "Same bore")
-                          : (isSv ? "Samma produkttyp — jämför specifikationerna" : "Same product type — compare specs")}
+                          : altBasis[r.sku] === "dimension"
+                            ? (isSv ? "Samma gänga och slangdimension" : "Same thread and tube size")
+                            : (isSv ? "Samma produkttyp — jämför specifikationerna" : "Same product type — compare specs")}
                     </div>
                   )}
                 </div>

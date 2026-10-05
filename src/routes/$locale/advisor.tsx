@@ -8,6 +8,24 @@ import type { ProductRow } from "@/lib/types";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { fetchCompanySettings, type CompanySettings } from "@/lib/company-settings";
 import { analyzeDocument, type ComponentIdentification } from "@/lib/document-ai";
+import { categoryName } from "@/lib/categories";
+import { Camera, Mail } from "lucide-react";
+
+/**
+ * Användningsfall som är dubbletter av ett annat i use_case_map. De kom in i en
+ * andra omgång och gav rullistan par som "Exakt positionering" och "Precis
+ * positionering utan tillgång till tryckluft" (granskning 2026-10-02). Raderna
+ * ligger kvar i tabellen; de visas bara inte. Ta bort en slug härifrån om
+ * dubbletten görs om till ett eget fall.
+ */
+const DUBBLETTER = new Set([
+  "frl-station",          // = frl
+  "kompakt-montering",    // = compact
+  "exakt-positionering",  // = slide-table
+  "energibesparing",      // = electric-replacement
+  "parallel-grepp",       // = parallel
+  "radial-grepp",         // = 3-finger
+]);
 
 export const Route = createFileRoute("/$locale/advisor")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -109,7 +127,7 @@ function AdvisorPage() {
 
   const grouped = useMemo(() => {
     const m = new Map<string, UseCase[]>();
-    useCases.forEach((u) => {
+    useCases.filter((u) => !DUBBLETTER.has(u.use_case_slug)).forEach((u) => {
       const arr = m.get(u.category_slug) ?? [];
       arr.push(u);
       m.set(u.category_slug, arr);
@@ -231,7 +249,7 @@ function AdvisorPage() {
         </div>
         {co?.email && (
           <a href={`mailto:${co.email}`} className="hidden sm:flex items-center gap-1.5 text-xs text-info font-medium hover:underline shrink-0">
-            👷 {co.email} →
+            <Mail className="size-4 inline -mt-0.5 mr-1" aria-hidden />{co.email} →
           </a>
         )}
       </div>
@@ -246,10 +264,10 @@ function AdvisorPage() {
         >
           <option value="">{t("advisorPage2.chooseUseCase")}</option>
           {Array.from(grouped.entries()).map(([cat, list]) => (
-            <optgroup key={cat} label={cat.toUpperCase()}>
+            <optgroup key={cat} label={categoryName(cat, locale, cat)}>
               {list.map((u) => (
                 <option key={u.use_case_slug} value={`${u.category_slug}::${u.use_case_slug}`}>
-                  {u.title_en}
+                  {isSv ? u.title_sv : u.title_en}
                 </option>
               ))}
             </optgroup>
@@ -262,9 +280,9 @@ function AdvisorPage() {
         <div className="mt-8 space-y-4">
           {/* Use case description */}
           <div className="rounded-xl border border-border bg-card p-5">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">{current.title_en}</p>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">{isSv ? current.title_sv : current.title_en}</p>
             <p className="text-sm text-foreground/80">
-              {current.description_en ?? current.description_sv}
+              {(isSv ? current.description_sv : current.description_en) ?? current.description_sv}
             </p>
           </div>
 
@@ -322,7 +340,7 @@ function AdvisorPage() {
           <div className="pt-4 border-t border-border">
             <div className="font-semibold text-sm">{t("advisorPage2.stillNeedHelp")}</div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              En riktig ingenjör eller teknisk säljare läser ditt meddelande och återkommer personligen — vanligtvis samma arbetsdag.
+              En riktig ingenjör eller teknisk säljare läser ditt meddelande och återkommer personligen inom 1–2 arbetsdagar.
             </p>
           </div>
 
@@ -333,8 +351,8 @@ function AdvisorPage() {
               <div className="font-semibold text-foreground">{t("advisorPage2.sent")}</div>
               <p className="text-sm text-muted-foreground">
                 {isSv
-                  ? "En av våra ingenjörer återkommer till dig personligen — vanligtvis inom samma arbetsdag."
-                  : "One of our engineers will get back to you personally — usually the same business day."}
+                  ? "En av våra ingenjörer återkommer till dig personligen inom 1–2 arbetsdagar."
+                  : "One of our engineers will get back to you personally within 1–2 business days."}
               </p>
               {sentRfqRef && (
                 <p className="text-xs text-muted-foreground font-mono mt-1">
@@ -357,7 +375,7 @@ function AdvisorPage() {
                 >
                   {imageAnalyzing
                     ? <><span className="size-3 rounded-full border border-info/40 border-t-info animate-spin" /> {isSv ? "Analyserar bild…" : "Analysing image…"}</>
-                    : <>📷 {isSv ? "Bifoga bild på komponent (AI identifierar)" : "Attach component image (AI identifies)"}</>}
+                    : <><Camera className="size-4 inline -mt-0.5 mr-1" aria-hidden />{isSv ? "Bifoga bild på komponent (AI identifierar)" : "Attach component image (AI identifies)"}</>}
                 </button>
                 {imagePreview && (
                   <div className="mt-2 flex items-start gap-3">

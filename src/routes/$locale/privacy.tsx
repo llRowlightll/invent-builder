@@ -22,7 +22,7 @@ function PrivacyPage() {
       </Link>
 
       <h1 className="mt-6 text-3xl font-semibold tracking-tight text-foreground">Integritetspolicy</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Senast uppdaterad: 19 maj 2026</p>
+      <p className="mt-2 text-sm text-muted-foreground">Senast uppdaterad: 3 oktober 2026</p>
 
       <div className="mt-8 prose prose-sm prose-invert max-w-none space-y-8 text-sm text-foreground/80 leading-relaxed">
 
@@ -44,6 +44,8 @@ function PrivacyPage() {
             <li><strong className="text-foreground">Offertförfrågningar (RFQ):</strong> företagsnamn, kontaktuppgifter, produktval</li>
             <li><strong className="text-foreground">Användningsdata:</strong> inloggningsloggar, IP-adress, webbläsartyp</li>
             <li><strong className="text-foreground">Kommunikation:</strong> meddelanden du skickar via AI-chatten eller kontaktformulär</li>
+            <li><strong className="text-foreground">Maskinbeskrivningar:</strong> det du skriver i maskinbyggaren och dina svar på följdfrågorna. Är du inloggad sparas beskrivning, svar och stycklista som ett projekt i ditt konto.</li>
+            <li><strong className="text-foreground">Bilder och dokument:</strong> bilder på komponenter och dokument (t.ex. inköpsordrar) som du laddar upp för att få dem tolkade</li>
           </ul>
         </Section>
 
@@ -86,7 +88,8 @@ function PrivacyPage() {
           <ul className="mt-2 space-y-1 list-disc list-inside text-foreground/70">
             <li><strong className="text-foreground">Supabase Inc.</strong> — databasinfrastruktur (USA, Standard Contractual Clauses)</li>
             <li><strong className="text-foreground">Cloudflare Inc.</strong> — hosting och CDN (USA, Standard Contractual Clauses)</li>
-            <li><strong className="text-foreground">Groq Inc.</strong> — AI-bearbetning av chat-frågor (USA, Standard Contractual Clauses)</li>
+            <li><strong className="text-foreground">Groq Inc.</strong> — AI-bearbetning av frågor i AI-ingenjören, maskinbyggaren och katalogsökningen (USA, Standard Contractual Clauses)</li>
+            <li><strong className="text-foreground">Anthropic PBC</strong> — AI-tolkning av uppladdade bilder och dokument (USA)</li>
             <li><strong className="text-foreground">PostNord AB</strong> — fraktbokning (Sverige)</li>
           </ul>
           <p className="mt-2">

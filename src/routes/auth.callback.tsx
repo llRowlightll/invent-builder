@@ -7,6 +7,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getCookie, detectBrowserLocale } from "@/lib/i18n";
+import { KeyRound } from "lucide-react";
 
 export const Route = createFileRoute("/auth/callback")({
   component: AuthCallback,
@@ -124,7 +125,7 @@ function AuthCallback() {
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <div className="max-w-sm w-full space-y-5">
           <div className="text-center">
-            <div className="text-4xl mb-3">🔑</div>
+            <KeyRound className="size-10 mx-auto mb-3 text-muted-foreground" aria-hidden />
             <h1 className="text-xl font-semibold">Välj nytt lösenord</h1>
             <p className="text-sm text-muted-foreground mt-1">Ange ditt nya lösenord nedan.</p>
           </div>

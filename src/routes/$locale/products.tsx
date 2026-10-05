@@ -10,6 +10,9 @@ import { getProductImage } from "@/lib/product-images";
 import { addToShoppingList } from "@/lib/cart";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { categoryName } from "@/lib/categories";
+import { kallor, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
+import { matcharFraga } from "@/lib/sokord";
+import { FileText } from "lucide-react";
 
 type FilterKey = "brands" | "cats" | "grades";
 
@@ -205,8 +208,8 @@ const CATEGORY_SEO: Record<string, { sv: string; en: string }> = {
     en: "Check valves that pass airflow in one direction and block the reverse — for pressure holding, emergency-drop prevention and safe exhaust. Festo H/HA, SMC AK, Camozzi.",
   },
   "seal-kit": {
-    sv: "Tätningssatser och reservdelar för renovering av pneumatiska cylindrar — O-ringar samt kolv- och stångtätningar matchade mot cylinderns borr och serie. Förläng livslängden istället för att byta hela cylindern. Festo DARP, SMC.",
-    en: "Seal kits and spare parts for reconditioning pneumatic cylinders — O-rings plus piston and rod seals matched to the cylinder bore and series. Extend service life instead of replacing the whole cylinder. Festo DARP, SMC.",
+    sv: "Tätningssatser och reservdelar för renovering av pneumatiska cylindrar — O-ringar samt kolv- och stångtätningar matchade mot cylinderns borr och serie. Förläng livslängden i stället för att byta hela cylindern.",
+    en: "Seal kits and spare parts for reconditioning pneumatic cylinders — O-rings plus piston and rod seals matched to the cylinder bore and series. Extend service life instead of replacing the whole cylinder.",
   },
   "rod-lock": {
     sv: "Stångbromsar och låsenheter som mekaniskt låser cylinderns kolvstång i läge vid tryckbortfall — för säkerhet vid vertikala laster och nödstopp. Monteras på cylinderns framgavel. Festo, SMC.",
@@ -347,19 +350,19 @@ function ProductsPage() {
         : [];
 
       if (searchTerms.length > 0 && !aiResult?.category_slug && !aiResult?.brand_slug) {
-        const haystack = [p.sku, p.name, p.brand.name, p.category.name, p.description ?? ""]
-          .join(" ")
-          .toLowerCase();
-        const matches = searchTerms.some((term) => haystack.includes(term.toLowerCase()));
+        const haystack = [p.sku, p.name, p.brand.name, p.category.name, categoryName(p.category.slug, "sv", p.category.name), p.description ?? ""]
+          .join(" ");
+        // Varje ord ska finnas (med svenska synonymer) -- se sokord.ts.
+        const matches = searchTerms.some((term) => matcharFraga(haystack, term));
         if (!matches) return false;
       }
 
-      // Manual text search (non-AI mode)
+      // Manual text search (non-AI mode). Varje ord ska finnas, och svenska
+      // fackord matchar katalogens engelska namn -- se sokord.ts.
       if (!aiResult && ql) {
-        const haystack = [p.sku, p.name, p.brand.name, p.category.name, p.description ?? ""]
-          .join(" ")
-          .toLowerCase();
-        if (!haystack.includes(ql)) return false;
+        const haystack = [p.sku, p.name, p.brand.name, p.category.name, categoryName(p.category.slug, "sv", p.category.name), p.description ?? ""]
+          .join(" ");
+        if (!matcharFraga(haystack, ql)) return false;
       }
 
       return true;
@@ -599,17 +602,20 @@ function ProductsPage() {
             return (
               <li
                 key={p.id}
-                className="group rounded-lg border border-border bg-card flex flex-col transition overflow-hidden hover:border-info"
+                className="group rounded-lg border border-border bg-card flex flex-row sm:flex-col transition overflow-hidden hover:border-info"
               >
-                <div className="relative aspect-[3/2] overflow-hidden bg-[#f8f9fb] flex items-center justify-center">
+                {/* Liggande kort på telefon: en liten ritning bredvid texten.
+                    Det stående kortet fyllde nästan hela skärmhöjden, så 842
+                    artiklar blev lika många skärmar att skrolla. */}
+                <div className="relative w-28 shrink-0 sm:w-auto aspect-[4/3] sm:aspect-[3/2] overflow-hidden bg-[#f8f9fb] flex items-center justify-center">
                   <img
                     src={getProductImage(p)}
-                    alt={p.category.name}
+                    alt={categoryName(p.category.slug, locale, p.category.name)}
                     className="w-full h-full object-contain"
                     loading="lazy"
                   />
                 </div>
-                <div className="p-4 flex flex-col flex-1">
+                <div className="p-3 sm:p-4 flex flex-col flex-1 min-w-0">
                 <div className="flex justify-between items-start gap-2">
                   <Link
                     to="/$locale/product/$sku"
@@ -629,12 +635,12 @@ function ProductsPage() {
                 {/* Key specs preview */}
                 {Object.keys(p.specs).length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1">
-                    {Object.entries(p.specs).slice(0, 3).map(([k, v]) => (
+                    {synligaSpecar(p.specs).slice(0, 3).map(([k, v]) => (
                       <span
                         key={k}
                         className="text-[10px] bg-surface-alt px-1.5 py-0.5 rounded text-muted-foreground"
                       >
-                        {k.replace(/_/g, " ")}: {v.value}{v.unit ? ` ${v.unit}` : ""}
+                        {specEtikett(k, locale)}: {specVarde(k, v)}
                       </span>
                     ))}
                   </div>
@@ -694,7 +700,7 @@ function ProductsPage() {
                 search={{ q: undefined }}
                 className="inline-flex items-center gap-1.5 text-xs px-4 py-2 rounded-md border border-border hover:border-info hover:text-info transition"
               >
-                📋 {t("productPage.requestQuote")}
+                <FileText className="size-4 inline -mt-0.5 mr-1" aria-hidden />{t("productPage.requestQuote")}
               </Link>
             </li>
           )}

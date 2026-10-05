@@ -6,6 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   fetchCompanySettings,
+  saknadeBolagsuppgifter,
   saveCompanySetting,
   type CompanySettings,
 } from "@/lib/company-settings";
@@ -95,6 +96,14 @@ export default function AdminSettingsPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Dessa uppgifter visas i rubriken på alla dokument (offerter, orderbekräftelser, fakturor).
         </p>
+        {form && saknadeBolagsuppgifter(form).length > 0 && (
+          <div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            Bolagsuppgifterna är inte ifyllda: {saknadeBolagsuppgifter(form).map((k) => ({
+              org: "organisationsnummer", vat: "momsregistreringsnummer", address: "adress", postal: "postnummer och ort", phone: "telefon",
+            } as Record<string, string>)[k] ?? k).join(", ")}. Kundens offert och orderbekräftelse visar dem tomma tills de är ifyllda.
+            (Fram till 2026-10-03 låg platshållare här, t.ex. org.nr 556000-0000, och de skrevs ut på dokumenten.)
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleSave} className="space-y-4">

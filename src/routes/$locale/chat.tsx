@@ -11,6 +11,9 @@ import { getProductImage } from "@/lib/product-images";
 import { addToShoppingList } from "@/lib/cart";
 import { diversifyResults } from "@/lib/search-diversity";
 import { callAdvisor } from "@/lib/advisor-client";
+import { categoryName } from "@/lib/categories";
+import { kallor, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
+import { Camera, FileText } from "lucide-react";
 
 export const Route = createFileRoute("/$locale/chat")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -314,9 +317,9 @@ function ChatPage() {
       if (physics.isSystem) {
         // Pick & place — return each subsystem separately
         const systemDef = [
-          { label: isSv ? "🔵 Linjäraxel (horisontell rörelse)" : "🔵 Linear axis (horizontal)", cats: ["cylinder", "rodless", "electric-actuator", "linear"] },
-          { label: isSv ? "🟡 Vertikal axel / lyftcylinder" : "🟡 Vertical axis / lift cylinder", cats: ["cylinder", "compact"] },
-          { label: isSv ? "🟢 Gripklo (end effector)" : "🟢 Gripper (end effector)", cats: ["gripper"] },
+          { label: isSv ? "Linjäraxel (horisontell rörelse)" : "Linear axis (horizontal)", cats: ["cylinder", "rodless", "electric-actuator", "linear"] },
+          { label: isSv ? "Vertikal axel / lyftcylinder" : "Vertical axis / lift cylinder", cats: ["cylinder", "compact"] },
+          { label: isSv ? "Gripklo (end effector)" : "Gripper (end effector)", cats: ["gripper"] },
         ];
 
         for (const sys of systemDef) {
@@ -579,7 +582,7 @@ function ChatPage() {
                 : "border-border text-muted-foreground hover:border-info hover:text-info"
             } disabled:opacity-40`}
           >
-            📷
+            <Camera className="size-4" aria-hidden />
           </button>
           <input
             ref={inputRef}
@@ -706,7 +709,7 @@ function ChatPage() {
                           <div className="mt-2 pt-2 border-t border-border/50 flex flex-wrap gap-1">
                             {m.sources.map((s, si) => (
                               <span key={si} className="text-[10px] px-1.5 py-0.5 rounded bg-info/10 text-info/80 font-mono">
-                                📄 {s}
+                                <FileText className="size-3 inline -mt-0.5 mr-0.5" aria-hidden />{s}
                               </span>
                             ))}
                           </div>
@@ -908,7 +911,7 @@ function ProductCard({
       <div className="h-28 bg-[#f8f9fb] flex items-center justify-center overflow-hidden">
         <img
           src={getProductImage(p, true)}
-          alt={p.category.name}
+          alt={categoryName(p.category.slug, locale, p.category.name)}
           className="w-full h-full object-contain"
           loading="lazy"
         />
@@ -935,13 +938,13 @@ function ProductCard({
       >
         {p.name}
       </Link>
-      <div className="mt-1 text-xs text-muted-foreground">{p.category.name}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{categoryName(p.category.slug, locale, p.category.name)}</div>
 
       {Object.keys(p.specs).length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
-          {Object.entries(p.specs).slice(0, 2).map(([k, v]) => (
+          {synligaSpecar(p.specs).slice(0, 2).map(([k, v]) => (
             <span key={k} className="text-[10px] bg-surface-alt px-1.5 py-0.5 rounded text-muted-foreground">
-              {k.replace(/_/g, " ")}: {v.value}{v.unit ? ` ${v.unit}` : ""}
+              {specEtikett(k, locale)}: {specVarde(k, v)}
             </span>
           ))}
         </div>
