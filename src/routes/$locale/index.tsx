@@ -26,7 +26,6 @@ export const Route = createFileRoute("/$locale/")({
         { name: "description", content: t("index.metaDescription") },
         { property: "og:title", content: `${t("common.appName")} — ${t("index.ogTitleSuffix")}` },
         { property: "og:description", content: t("index.ogDescription") },
-        { property: "og:image", content: `${SITE}/og-image.svg` },
         { property: "og:url", content: canonical },
       ],
       links: [

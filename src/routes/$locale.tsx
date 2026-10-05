@@ -13,6 +13,7 @@ import { useEditMode } from "@/lib/edit-mode-context";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { ShoppingCart } from "lucide-react";
+import { delningsbildMeta } from "@/lib/site";
 
 export const Route = createFileRoute("/$locale")({
   parseParams: (params) => {
@@ -34,6 +35,7 @@ export const Route = createFileRoute("/$locale")({
         ...Object.values(karta)
           .filter((l) => l !== denna)
           .map((l) => ({ property: "og:locale:alternate", content: l })),
+        ...delningsbildMeta(params.locale as string),
       ],
     };
   },
