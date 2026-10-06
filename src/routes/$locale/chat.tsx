@@ -6,6 +6,8 @@ import { loadCatalog } from "@/lib/catalog";
 import { aiSearchProducts, aiAskKnowledge, aiExtractDimensions, aiVisionChat, type AiSearchResult, type ChatMessage } from "@/lib/ai.functions";
 import { fileToBase64 } from "@/lib/document-ai";
 import { computePhysics } from "@/lib/physics";
+import { arKunskapsfraga } from "@/lib/fragetyp";
+import { tillBubbeltext } from "@/lib/chattsvar";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
 import { addToShoppingList } from "@/lib/cart";
@@ -101,22 +103,6 @@ function generateFollowups(aiResult: AiSearchResult, isSv: boolean): string[] {
   return chips.slice(0, 2);
 }
 
-// Detect if query is a product-search or a general knowledge question
-function isKnowledgeQuestion(q: string): boolean {
-  const t = q.toLowerCase();
-  // General tech questions — not a direct product search
-  const knowledgeSignals = [
-    /hur\s+(fungerar|monterar|installerar|kopplar|väljer|dimensionerar)/,
-    /vad\s+(är|betyder|innebär|skiljer)/,
-    /skillnad\s+mellan/,
-    /how\s+(does|do|to|is)/,
-    /what\s+(is|are|does)/,
-    /explain|describe|difference|installation|maintenance|service|seal|pressure|temperature|specification|data ?sheet|technical/,
-    /specifikation|montering|underhåll|tätning|tryck|temperatur|datablad|teknisk/,
-  ];
-  return knowledgeSignals.some((r) => r.test(t));
-}
-
 const EXAMPLE_QUERIES: Record<string, string[]> = {
   sv: [
     "Jag behöver en cylinder som lyfter 30 kg med 150mm slag",
@@ -155,7 +141,7 @@ const EXAMPLE_QUERIES: Record<string, string[]> = {
 function renderChatText(text: string) {
   return (
     <span className="whitespace-pre-line leading-relaxed">
-      {text.split("\n").map((line, i) => {
+      {tillBubbeltext(text).split("\n").map((line, i) => {
         // Bold: **text**
         const parts = line.split(/(\*\*[^*]+\*\*)/g);
         const rendered = parts.map((p, j) =>
@@ -229,7 +215,7 @@ function ChatPage() {
 
     try {
       // ── 1. Knowledge Q&A (non-product questions) ────────────────────────
-      if (isKnowledgeQuestion(q)) {
+      if (arKunskapsfraga(q)) {
         const result = await askKnowledge({ data: { question: q, locale, history } });
         setMsgs((m) => [...m, { role: "assistant", text: result.answer, sources: result.sources }]);
         setBusy(false);
@@ -248,7 +234,7 @@ function ChatPage() {
         const reasoningText = [
           isSv ? "**Teknisk analys:**" : "**Engineering analysis:**",
           ...physics.reasoning.map((r) => `• ${r}`),
-          ...(physics.warnings.map((w) => `⚠️ ${w}`)),
+          ...(physics.warnings.map((w) => `${isSv ? "Obs" : "Note"}: ${w}`)),
         ].join("\n");
         setMsgs((m) => [...m, { role: "assistant", text: reasoningText }]);
       }
