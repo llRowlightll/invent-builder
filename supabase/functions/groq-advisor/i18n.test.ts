@@ -74,3 +74,13 @@ Deno.test("inga kategorinamn är kvar på fel språk", async () => {
     );
   }
 });
+
+Deno.test("språkreglerna: svenska fackord för sv, inga emojier för alla", async () => {
+  const { sprakregler } = await import("./signals.ts");
+  const sv = sprakregler("sv");
+  for (const ord of ["kolonn", "dubbelaktuell", "Dichtung", "grepp", "No emojis"]) {
+    if (!sv.includes(ord)) throw new Error(`saknar ${ord}`);
+  }
+  if (sprakregler("en").includes("kolonn")) throw new Error("svenska regler i engelsk prompt");
+  if (!sprakregler("de").includes("No emojis")) throw new Error("emojiregeln saknas för de");
+});

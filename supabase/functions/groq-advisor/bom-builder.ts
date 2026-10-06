@@ -34,16 +34,16 @@ export function buildCustomSolutionOption(
   // Washdown + vertical + food = most demanding scenario — give two explicit architectural paths
   if (isWashdown && isVerticalLoad && isFoodGrade) {
     whyLines.push(pick(locale, {
-      sv: `⚙️ Rekommenderade arkitekturval för slakteri/IP69K-miljö:\n` +
+      sv: `Rekommenderade arkitekturval för slakteri/IP69K-miljö:\n` +
         `▸ ALT A – Pneumatisk rostfri cylinder (316L): SMC HY-serien (IP69K, NSF-H1-smörjning, EHEDG-hygienisk design) eller Parker P1S Stainless Washdown Cylinder. Komplettera med pneumatisk stångbroms (rod lock) för säker hållning vid strömavbrott.\n` +
         `▸ ALT B – Kapslad el-cylinder IP69K: Bosch Rexroth EMC-HD-XC (IP69K rostfritt, PROFINET-nativ) eller Parker ETH-serie Washdown. Kräver integrerad motorbroms + säkerhetsventil för SIL 2/PLd.`,
-      en: `⚙️ Recommended architectural paths for slaughterhouse/IP69K:\n` +
+      en: `Recommended architectural paths for slaughterhouse/IP69K:\n` +
         `▸ ALT A – Stainless pneumatic cylinder (316L): SMC HY-Series (IP69K, NSF-H1 lube, EHEDG hygienic design) or Parker P1S Stainless Washdown. Add pneumatic rod lock for safe holding on power loss.\n` +
         `▸ ALT B – Enclosed IP69K electric cylinder: Bosch Rexroth EMC-HD-XC (IP69K stainless, native PROFINET) or Parker ETH Washdown series. Requires integrated motor brake + safety valve for SIL 2/PLd.`,
-      de: `⚙️ Empfohlene Architekturansätze für Schlachthof-/IP69K-Umgebung:\n` +
+      de: `Empfohlene Architekturansätze für Schlachthof-/IP69K-Umgebung:\n` +
         `▸ VARIANTE A – Pneumatischer Edelstahlzylinder (316L): SMC HY-Serie (IP69K, NSF-H1-Schmierung, EHEDG-hygienisches Design) oder Parker P1S Stainless Washdown Cylinder. Ergänzen mit pneumatischer Kolbenstangenbremse (Rod Lock) für sicheres Halten bei Stromausfall.\n` +
         `▸ VARIANTE B – Gekapselter Elektrozylinder IP69K: Bosch Rexroth EMC-HD-XC (IP69K Edelstahl, natives PROFINET) oder Parker ETH-Serie Washdown. Erfordert integrierte Motorbremse + Sicherheitsventil für SIL 2/PLd.`,
-      es: `⚙️ Rutas de arquitectura recomendadas para entorno de matadero/IP69K:\n` +
+      es: `Rutas de arquitectura recomendadas para entorno de matadero/IP69K:\n` +
         `▸ OPCIÓN A – Cilindro neumático de acero inoxidable (316L): serie SMC HY (IP69K, lubricación NSF-H1, diseño higiénico EHEDG) o Parker P1S Stainless Washdown. Añadir bloqueo de vástago neumático (rod lock) para sujeción segura ante fallo de alimentación.\n` +
         `▸ OPCIÓN B – Cilindro eléctrico encapsulado IP69K: Bosch Rexroth EMC-HD-XC (IP69K inoxidable, PROFINET nativo) o serie Parker ETH Washdown. Requiere freno de motor integrado + válvula de seguridad para SIL 2/PLd.`,
     }));
@@ -65,26 +65,26 @@ export function buildCustomSolutionOption(
 
   if (isVerticalLoad && isSilSafety) {
     whyLines.push(pick(locale, {
-      sv: `⚠️ Vertikal last + säkerhetsfunktion: Mekanisk stångbroms (t.ex. SMC MHF2 rod lock) eller integrerad motorbroms OBLIGATORISK. Säkerhetsventil SIL 2-certifierad krävs per ISO 13849 PLd.`,
-      en: `⚠️ Vertical load + safety function: Mechanical rod lock (e.g. SMC MHF2) or integrated motor brake MANDATORY. SIL 2-certified safety valve required per ISO 13849 PLd.`,
-      de: `⚠️ Vertikale Last + Sicherheitsfunktion: Mechanische Kolbenstangenbremse (z. B. SMC MHF2 Rod Lock) oder integrierte Motorbremse ZWINGEND ERFORDERLICH. SIL 2-zertifiziertes Sicherheitsventil gemäß ISO 13849 PLd erforderlich.`,
-      es: `⚠️ Carga vertical + función de seguridad: Bloqueo de vástago mecánico (p. ej. SMC MHF2 rod lock) o freno de motor integrado OBLIGATORIO. Se requiere válvula de seguridad certificada SIL 2 según ISO 13849 PLd.`,
+      sv: `Vertikal last + säkerhetsfunktion: Mekanisk stångbroms (t.ex. SMC MHF2 rod lock) eller integrerad motorbroms OBLIGATORISK. Säkerhetsventil SIL 2-certifierad krävs per ISO 13849 PLd.`,
+      en: `Vertical load + safety function: Mechanical rod lock (e.g. SMC MHF2) or integrated motor brake MANDATORY. SIL 2-certified safety valve required per ISO 13849 PLd.`,
+      de: `Vertikale Last + Sicherheitsfunktion: Mechanische Kolbenstangenbremse (z. B. SMC MHF2 Rod Lock) oder integrierte Motorbremse ZWINGEND ERFORDERLICH. SIL 2-zertifiziertes Sicherheitsventil gemäß ISO 13849 PLd erforderlich.`,
+      es: `Carga vertical + función de seguridad: Bloqueo de vástago mecánico (p. ej. SMC MHF2 rod lock) o freno de motor integrado OBLIGATORIO. Se requiere válvula de seguridad certificada SIL 2 según ISO 13849 PLd.`,
     }));
   } else if (isVerticalLoad) {
     whyLines.push(pick(locale, {
-      sv: `⚠️ Vertikal rörelse: Pilotmanövrerad backslagsventil eller stångbroms OBLIGATORISK för att förhindra fall vid lufttrycksfall.`,
-      en: `⚠️ Vertical movement: Pilot-operated check valve or rod lock MANDATORY to prevent drop on air loss.`,
-      de: `⚠️ Vertikale Bewegung: Pilotgesteuertes Rückschlagventil oder Kolbenstangenbremse ZWINGEND ERFORDERLICH, um ein Absinken bei Luftdruckverlust zu verhindern.`,
-      es: `⚠️ Movimiento vertical: Válvula antirretorno pilotada o bloqueo de vástago OBLIGATORIO para evitar la caída ante pérdida de presión de aire.`,
+      sv: `Vertikal rörelse: Pilotmanövrerad backslagsventil eller stångbroms OBLIGATORISK för att förhindra fall vid lufttrycksfall.`,
+      en: `Vertical movement: Pilot-operated check valve or rod lock MANDATORY to prevent drop on air loss.`,
+      de: `Vertikale Bewegung: Pilotgesteuertes Rückschlagventil oder Kolbenstangenbremse ZWINGEND ERFORDERLICH, um ein Absinken bei Luftdruckverlust zu verhindern.`,
+      es: `Movimiento vertical: Válvula antirretorno pilotada o bloqueo de vástago OBLIGATORIO para evitar la caída ante pérdida de presión de aire.`,
     }));
   }
 
   if (isBatteryDryroom) {
     whyLines.push(pick(locale, {
-      sv: `⛔ Dryroom Cu/Zn/Ni-fritt: SMC 25-serien (Cu/Zn/Ni-fri, PFPE-smörjd). Begär materialdeklerationsintyg.`,
-      en: `⛔ Dryroom Cu/Zn/Ni-free: SMC 25-Series (Cu/Zn/Ni-free, PFPE-lubricated). Request material declaration.`,
-      de: `⛔ Trockenraum Cu/Zn/Ni-frei: SMC 25-Serie (Cu/Zn/Ni-frei, PFPE-geschmiert). Materialdeklaration anfordern.`,
-      es: `⛔ Sala seca sin Cu/Zn/Ni: serie SMC 25 (sin Cu/Zn/Ni, lubricado con PFPE). Solicitar certificado de declaración de materiales.`,
+      sv: `Dryroom Cu/Zn/Ni-fritt: SMC 25-serien (Cu/Zn/Ni-fri, PFPE-smörjd). Begär materialdeklerationsintyg.`,
+      en: `Dryroom Cu/Zn/Ni-free: SMC 25-Series (Cu/Zn/Ni-free, PFPE-lubricated). Request material declaration.`,
+      de: `Trockenraum Cu/Zn/Ni-frei: SMC 25-Serie (Cu/Zn/Ni-frei, PFPE-geschmiert). Materialdeklaration anfordern.`,
+      es: `Sala seca sin Cu/Zn/Ni: serie SMC 25 (sin Cu/Zn/Ni, lubricado con PFPE). Solicitar certificado de declaración de materiales.`,
     }));
   }
 
@@ -279,7 +279,7 @@ export interface BomCtx extends HazardFlags {
  * visningstext ("Primär aktuator" / "Primary actuator") och därför inte går
  * att resonera kring i kod -- topologin nedan skulle bytt betydelse med språk.
  *
- * "warning" är ingen komponent utan en annotation (⚠️/⛔-rader). Den får
+ * "warning" är ingen komponent utan en annotation (varnings- och kravrader). Den får
  * aldrig kopplingar och ska aldrig ritas som en nod.
  */
 export type BomKind =
@@ -426,7 +426,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   // sensors, fittings, mounts) does; shared infrastructure that consolidates
   // across stations by design (a valve terminal's own unit count, a central
   // FRL, the valve-terminal case's centralized silencer) and pure warning/
-  // requirement rows (⚠️/⛔ rows with no purchasable quantity) do not -- see
+  // requirement rows (rows with no purchasable quantity) do not -- see
   // each row below for which case it is.
   const uc = unitCount > 0 ? unitCount : 1;
   const rows: BomRow[] = [];
@@ -440,15 +440,15 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   const primaryAxisLabel = (isMultiAxis && primaryAxisIdx >= 0) ? perAxisStrokes[primaryAxisIdx].axis.toUpperCase() : "";
   const famStorlek = primarArFamiljespann(ctx) ? primaryBoreMm : 0;
   const famNote = primaryIsFamilyProd && famStorlek > 0 ? pick(locale, {
-    sv: ` ⚠️ Produktfamilj — beställ i Ø${famStorlek}, minsta storlek i serien som ger den kraft som krävs. Ange komplett beställningskod (borrning + slag + varianter) vid order.`,
-    en: ` ⚠️ Product family — order it in Ø${famStorlek}, the smallest size in the series that gives the required force. Specify the full ordering code (bore + stroke + variants) when ordering.`,
-    de: ` ⚠️ Produktfamilie — in Ø${famStorlek} bestellen, die kleinste Größe der Serie, die die erforderliche Kraft liefert. Vollständigen Bestellcode (Bohrung + Hub + Varianten) bei der Bestellung angeben.`,
-    es: ` ⚠️ Familia de productos — pídalo en Ø${famStorlek}, el tamaño más pequeño de la serie que da la fuerza necesaria. Indique el código de pedido completo (diámetro + carrera + variantes) al realizar el pedido.`,
+    sv: ` Produktfamilj — beställ i Ø${famStorlek}, minsta storlek i serien som ger den kraft som krävs. Ange komplett beställningskod (borrning + slag + varianter) vid order.`,
+    en: ` Product family — order it in Ø${famStorlek}, the smallest size in the series that gives the required force. Specify the full ordering code (bore + stroke + variants) when ordering.`,
+    de: ` Produktfamilie — in Ø${famStorlek} bestellen, die kleinste Größe der Serie, die die erforderliche Kraft liefert. Vollständigen Bestellcode (Bohrung + Hub + Varianten) bei der Bestellung angeben.`,
+    es: ` Familia de productos — pídalo en Ø${famStorlek}, el tamaño más pequeño de la serie que da la fuerza necesaria. Indique el código de pedido completo (diámetro + carrera + variantes) al realizar el pedido.`,
   }) : primaryIsFamilyProd ? pick(locale, {
-    sv: " ⚠️ Produktfamilj — ange komplett beställningskod (bore + stroke + varianter) vid order.",
-    en: " ⚠️ Product family — specify full ordering code (bore + stroke + variants) when ordering.",
-    de: " ⚠️ Produktfamilie — vollständigen Bestellcode (Bohrung + Hub + Varianten) bei der Bestellung angeben.",
-    es: " ⚠️ Familia de productos — indique el código de pedido completo (diámetro + carrera + variantes) al realizar el pedido.",
+    sv: " Produktfamilj — ange komplett beställningskod (bore + stroke + varianter) vid order.",
+    en: " Product family — specify full ordering code (bore + stroke + variants) when ordering.",
+    de: " Produktfamilie — vollständigen Bestellcode (Bohrung + Hub + Varianten) bei der Bestellung angeben.",
+    es: " Familia de productos — indique el código de pedido completo (diámetro + carrera + variantes) al realizar el pedido.",
   }) : "";
   rows.push({
     sku: primarySku, quantity: uc,
@@ -918,10 +918,10 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
         // Rather than presenting that pick as an unqualified "MANDATORY" match
         // the way every other row does, say so plainly.
         ? pick(locale, {
-            sv: " ⚠️ Vi har ingen IP69K-klassad ändlägesgivare i lager — vald givare kan behöva bytas mot en washdown-tålig variant, begär offert.",
-            en: " ⚠️ We don't stock an IP69K-rated end-position sensor — the selected one may need swapping for a washdown-rated variant, request a quote.",
-            de: " ⚠️ Wir führen keinen IP69K-klassifizierten Endlagensensor — der ausgewählte Sensor muss ggf. gegen eine waschdown-taugliche Variante ausgetauscht werden, bitte Angebot anfordern.",
-            es: " ⚠️ No tenemos en stock un sensor de fin de carrera con clasificación IP69K — puede que el seleccionado deba sustituirse por una variante apta para washdown, solicite una oferta.",
+            sv: " Vi har ingen IP69K-klassad ändlägesgivare i lager — vald givare kan behöva bytas mot en washdown-tålig variant, begär offert.",
+            en: " We don't stock an IP69K-rated end-position sensor — the selected one may need swapping for a washdown-rated variant, request a quote.",
+            de: " Wir führen keinen IP69K-klassifizierten Endlagensensor — der ausgewählte Sensor muss ggf. gegen eine waschdown-taugliche Variante ausgetauscht werden, bitte Angebot anfordern.",
+            es: " No tenemos en stock un sensor de fin de carrera con clasificación IP69K — puede que el seleccionado deba sustituirse por una variante apta para washdown, solicite una oferta.",
           })
         : ""),
     });
@@ -1109,7 +1109,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     rows.push({
       sku: "SPECIFY", quantity: 1,
       kind: "warning",
-      role: pick(locale, { sv: "⚠️ Washdown IP69K — korrosionsbeständigt material", en: "⚠️ Washdown IP69K — corrosion-resistant materials", de: "⚠️ Washdown IP69K — korrosionsbeständiges Material", es: "⚠️ Washdown IP69K — material resistente a la corrosión" }),
+      role: pick(locale, { sv: "Washdown IP69K — korrosionsbeständigt material", en: "Washdown IP69K — corrosion-resistant materials", de: "Washdown IP69K — korrosionsbeständiges Material", es: "Washdown IP69K — material resistente a la corrosión" }),
       reason: pick(locale, {
         sv: "KRAV IP69K: Cylinder, ventil och givare måste ha IP69K-klassning och korrosionsbeständigt material (316L rostfritt stål eller ytbehandlad aluminium). Specificera variant -H1 (food-grade smörjning) vid livsmedelsproduktion.",
         en: "REQUIRED IP69K: Cylinder, valve and sensor must be IP69K-rated with corrosion-resistant materials (316L stainless or coated aluminium). Specify -H1 variant (food-grade lubrication) for food production.",
@@ -1124,7 +1124,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     rows.push({
       sku: "SPECIFY", quantity: 1,
       kind: "warning",
-      role: pick(locale, { sv: "⚠️ Tätningsmaterial — hög temperatur >80°C", en: "⚠️ Sealing material — high temperature >80°C", de: "⚠️ Dichtungsmaterial — hohe Temperatur >80 °C", es: "⚠️ Material de sellado — alta temperatura >80 °C" }),
+      role: pick(locale, { sv: "Tätningsmaterial — hög temperatur >80°C", en: "Sealing material — high temperature >80°C", de: "Dichtungsmaterial — hohe Temperatur >80 °C", es: "Material de sellado — alta temperatura >80 °C" }),
       reason: pick(locale, {
         sv: "KRAV: PTFE- eller FKM-tätningar obligatoriska vid >80°C — standard-NBR-tätningar degraderar och läcker. Beställ cylinder med high-temp tätningssats eller PTFE-variant.",
         en: "MANDATORY: PTFE or FKM seals required above 80°C — standard NBR seals degrade and leak. Order cylinder with high-temp seal kit or PTFE variant.",
@@ -1139,7 +1139,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     rows.push({
       sku: "SPECIFY", quantity: 1,
       kind: "warning",
-      role: pick(locale, { sv: "⚠️ Säkerhetscertifierad magnetventil SIL/PLd", en: "⚠️ Safety-certified solenoid valve SIL/PLd", de: "⚠️ Sicherheitszertifiziertes Magnetventil SIL/PLd", es: "⚠️ Electroválvula certificada de seguridad SIL/PLd" }),
+      role: pick(locale, { sv: "Säkerhetscertifierad magnetventil SIL/PLd", en: "Safety-certified solenoid valve SIL/PLd", de: "Sicherheitszertifiziertes Magnetventil SIL/PLd", es: "Electroválvula certificada de seguridad SIL/PLd" }),
       reason: pick(locale, {
         sv: "KRAV SIL 2 / PLd (ISO 13849): säkerhetscertifierad magnetventil med redundant styrsignal och diagnosfunktion krävs (t.ex. Festo VOFD-DT, SMC VFS). Standard-ventil är EJ tillräcklig.",
         en: "REQUIRED SIL 2 / PLd (ISO 13849): safety-certified solenoid valve with redundant control and diagnostic function (e.g. Festo VOFD-DT, SMC VFS). Standard valve is NOT sufficient.",
@@ -1154,7 +1154,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     rows.push({
       sku: "SPECIFY", quantity: 1,
       kind: "warning",
-      role: pick(locale, { sv: "⚠️ Varning: utanför pneumatisk katalog", en: "⚠️ Warning: outside pneumatic catalog", de: "⚠️ Warnung: außerhalb des pneumatischen Katalogs", es: "⚠️ Aviso: fuera del catálogo neumático" }),
+      role: pick(locale, { sv: "Varning: utanför pneumatisk katalog", en: "Warning: outside pneumatic catalog", de: "Warnung: außerhalb des pneumatischen Katalogs", es: "Aviso: fuera del catálogo neumático" }),
       reason: pick(locale, {
         sv: "UTANFÖR KATALOG: Hydrauliska cylindrar och kraft >5 kN hanteras ej av pneumatisk katalog. Kontakta hydraulikspecialist (Parker, Bosch Rexroth, Enerpac). Pneumatisk katalog täcker max ~2 kN vid 6 bar.",
         en: "OUT OF SCOPE: Hydraulic cylinders and force >5 kN are outside the pneumatic catalog. Contact hydraulic specialist (Parker, Bosch Rexroth, Enerpac). Pneumatic catalog covers max ~2 kN at 6 bar.",
@@ -1178,7 +1178,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     rows.push({
       sku: "SPECIFY", quantity: 1,
       kind: "warning",
-      role: pick(locale, { sv: "⛔ Dryroom-krav: Cu/Zn/Ni-fritt", en: "⛔ Dryroom requirement: Cu/Zn/Ni-free", de: "⛔ Trockenraum-Anforderung: Cu/Zn/Ni-frei", es: "⛔ Requisito de sala seca: sin Cu/Zn/Ni" }),
+      role: pick(locale, { sv: "Dryroom-krav: Cu/Zn/Ni-fritt", en: "Dryroom requirement: Cu/Zn/Ni-free", de: "Trockenraum-Anforderung: Cu/Zn/Ni-frei", es: "Requisito de sala seca: sin Cu/Zn/Ni" }),
       reason: pick(locale, {
         sv: "OBLIGATORISKT för torrumsmiljö (batteritillverkning): koppar (Cu), zink (Zn) och nickel (Ni) förbjudet i alla vätta/rörliga delar. Standardkulskruvar, zinkbelagda styrningar och de flesta fetter är EJ tillåtna. Begär materialdeklarationsintyg — SMC 25-serien (Cu/Zn/Ni-fri, PFPE-smörjd) är ett känt alternativ.",
         en: "MANDATORY for dryroom environments (battery manufacturing): copper (Cu), zinc (Zn) and nickel (Ni) are forbidden in any wetted or moving part. Standard ball screws, zinc-coated guides and most greases are NOT allowed. Request a material declaration — SMC 25-Series (Cu/Zn/Ni-free, PFPE-lubricated) is a known option.",
@@ -1235,7 +1235,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     rows.push({
       sku: "SPECIFY", quantity: 1,
       kind: "warning",
-      role: pick(locale, { sv: "⚠️ ATEX: alla komponenter zon-certifierade + jordade", en: "⚠️ ATEX: all components zone-certified + grounded", de: "⚠️ ATEX: alle Komponenten zonenzertifiziert + geerdet", es: "⚠️ ATEX: todos los componentes certificados para la zona + conectados a tierra" }),
+      role: pick(locale, { sv: "ATEX: alla komponenter zon-certifierade + jordade", en: "ATEX: all components zone-certified + grounded", de: "ATEX: alle Komponenten zonenzertifiziert + geerdet", es: "ATEX: todos los componentes certificados para la zona + conectados a tierra" }),
       reason: pick(locale, {
         sv: "KRAV ATEX/IECEx: cylinder, givare, ventil och tillbehör måste vara märkta för aktuell zon/gasgrupp/temperaturklass. Inga standard-24V-givare utan ATEX-godkännande. Verifiera ekvipotential jordning och dokumentera enligt direktiv 2014/34/EU.",
         en: "ATEX/IECEx REQUIREMENT: cylinder, sensors, valve and accessories must be marked for the zone/gas group/temperature class. No standard 24 V sensors without ATEX approval. Verify equipotential grounding and document per Directive 2014/34/EU.",
