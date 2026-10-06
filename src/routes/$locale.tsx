@@ -14,6 +14,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { ShoppingCart } from "lucide-react";
 import { delningsbildMeta } from "@/lib/site";
+import { besoksKalla, logga } from "@/lib/matning";
 
 export const Route = createFileRoute("/$locale")({
   parseParams: (params) => {
@@ -80,6 +81,13 @@ function LocaleLayout() {
   const [cookieConsent, setCookieConsent] = useState<string | null | undefined>(undefined);
   const langRef = useRef<HTMLDivElement>(null);
   const listCount = useShoppingListCount();
+
+  // Egen mätning: varifrån besöket kom (LinkedIn, Google, direkt). En gång per
+  // sidladdning; navigering inom sajten laddar inte om layouten.
+  useEffect(() => {
+    const kalla = besoksKalla();
+    if (kalla.fran !== "intern") logga("besok", kalla);
+  }, []);
 
   // GA4: inject script when user accepts all cookies
   useEffect(() => {

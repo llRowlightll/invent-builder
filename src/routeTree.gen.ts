@@ -52,6 +52,7 @@ import { Route as LocaleGuiderSlugRouteImport } from './routes/$locale/guider.$s
 import { Route as LocaleConfiguratorFamilyRouteImport } from './routes/$locale/configurator.$family'
 import { Route as LocaleBomBomIdRouteImport } from './routes/$locale/bom.$bomId'
 import { Route as LocaleAssemblySlugRouteImport } from './routes/$locale/assembly.$slug'
+import { Route as LocaleAdminStatistikRouteImport } from './routes/$locale/admin.statistik'
 import { Route as LocaleAdminSettingsRouteImport } from './routes/$locale/admin.settings'
 import { Route as LocaleAdminRfqRouteImport } from './routes/$locale/admin.rfq'
 import { Route as LocaleAdminProductsRouteImport } from './routes/$locale/admin.products'
@@ -289,6 +290,11 @@ const LocaleAssemblySlugRoute = LocaleAssemblySlugRouteImport.update({
   path: '/assembly/$slug',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocaleAdminStatistikRoute = LocaleAdminStatistikRouteImport.update({
+  id: '/statistik',
+  path: '/statistik',
+  getParentRoute: () => LocaleAdminRoute,
+} as any)
 const LocaleAdminSettingsRoute = LocaleAdminSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -442,6 +448,7 @@ export interface FileRoutesByFullPath {
   '/$locale/admin/products': typeof LocaleAdminProductsRoute
   '/$locale/admin/rfq': typeof LocaleAdminRfqRoute
   '/$locale/admin/settings': typeof LocaleAdminSettingsRoute
+  '/$locale/admin/statistik': typeof LocaleAdminStatistikRoute
   '/$locale/assembly/$slug': typeof LocaleAssemblySlugRoute
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
   '/$locale/configurator/$family': typeof LocaleConfiguratorFamilyRoute
@@ -504,6 +511,7 @@ export interface FileRoutesByTo {
   '/$locale/admin/products': typeof LocaleAdminProductsRoute
   '/$locale/admin/rfq': typeof LocaleAdminRfqRoute
   '/$locale/admin/settings': typeof LocaleAdminSettingsRoute
+  '/$locale/admin/statistik': typeof LocaleAdminStatistikRoute
   '/$locale/assembly/$slug': typeof LocaleAssemblySlugRoute
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
   '/$locale/configurator/$family': typeof LocaleConfiguratorFamilyRoute
@@ -570,6 +578,7 @@ export interface FileRoutesById {
   '/$locale/admin/products': typeof LocaleAdminProductsRoute
   '/$locale/admin/rfq': typeof LocaleAdminRfqRoute
   '/$locale/admin/settings': typeof LocaleAdminSettingsRoute
+  '/$locale/admin/statistik': typeof LocaleAdminStatistikRoute
   '/$locale/assembly/$slug': typeof LocaleAssemblySlugRoute
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
   '/$locale/configurator/$family': typeof LocaleConfiguratorFamilyRoute
@@ -637,6 +646,7 @@ export interface FileRouteTypes {
     | '/$locale/admin/products'
     | '/$locale/admin/rfq'
     | '/$locale/admin/settings'
+    | '/$locale/admin/statistik'
     | '/$locale/assembly/$slug'
     | '/$locale/bom/$bomId'
     | '/$locale/configurator/$family'
@@ -699,6 +709,7 @@ export interface FileRouteTypes {
     | '/$locale/admin/products'
     | '/$locale/admin/rfq'
     | '/$locale/admin/settings'
+    | '/$locale/admin/statistik'
     | '/$locale/assembly/$slug'
     | '/$locale/bom/$bomId'
     | '/$locale/configurator/$family'
@@ -764,6 +775,7 @@ export interface FileRouteTypes {
     | '/$locale/admin/products'
     | '/$locale/admin/rfq'
     | '/$locale/admin/settings'
+    | '/$locale/admin/statistik'
     | '/$locale/assembly/$slug'
     | '/$locale/bom/$bomId'
     | '/$locale/configurator/$family'
@@ -1091,6 +1103,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAssemblySlugRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/admin/statistik': {
+      id: '/$locale/admin/statistik'
+      path: '/statistik'
+      fullPath: '/$locale/admin/statistik'
+      preLoaderRoute: typeof LocaleAdminStatistikRouteImport
+      parentRoute: typeof LocaleAdminRoute
+    }
     '/$locale/admin/settings': {
       id: '/$locale/admin/settings'
       path: '/settings'
@@ -1251,6 +1270,7 @@ interface LocaleAdminRouteChildren {
   LocaleAdminProductsRoute: typeof LocaleAdminProductsRoute
   LocaleAdminRfqRoute: typeof LocaleAdminRfqRoute
   LocaleAdminSettingsRoute: typeof LocaleAdminSettingsRoute
+  LocaleAdminStatistikRoute: typeof LocaleAdminStatistikRoute
   LocaleAdminOffertRfqIdRoute: typeof LocaleAdminOffertRfqIdRoute
   LocaleAdminOrderbekraftelseOrderIdRoute: typeof LocaleAdminOrderbekraftelseOrderIdRoute
 }
@@ -1272,6 +1292,7 @@ const LocaleAdminRouteChildren: LocaleAdminRouteChildren = {
   LocaleAdminProductsRoute: LocaleAdminProductsRoute,
   LocaleAdminRfqRoute: LocaleAdminRfqRoute,
   LocaleAdminSettingsRoute: LocaleAdminSettingsRoute,
+  LocaleAdminStatistikRoute: LocaleAdminStatistikRoute,
   LocaleAdminOffertRfqIdRoute: LocaleAdminOffertRfqIdRoute,
   LocaleAdminOrderbekraftelseOrderIdRoute:
     LocaleAdminOrderbekraftelseOrderIdRoute,

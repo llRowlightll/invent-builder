@@ -5,6 +5,7 @@ import { makeT, type Locale } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import { loadCatalog } from "@/lib/catalog";
 import { supabase } from "@/integrations/supabase/client";
+import { logga } from "@/lib/matning";
 import type { ProductRow } from "@/lib/types";
 import { CheckSquare, Paperclip, Search, ShoppingCart } from "lucide-react";
 import {
@@ -247,6 +248,7 @@ function ShoppingListPage() {
       });
 
       if (rfqErr || !newRfqId) throw rfqErr ?? new Error("No id returned");
+      logga("offert", { typ: avsikt, rader: items.length });
 
       // rfq-notify re-reads the rest from the rfq_id row it's given — see that
       // function's own header comment for why it doesn't trust a client payload.

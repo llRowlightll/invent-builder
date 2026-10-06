@@ -38,6 +38,7 @@ const STATUS_META: Record<string, { label: string; dot: string }> = {
 
 const ADMIN_LINKS = [
   { to: "/$locale/admin/dashboard", label: "Översikt", icon: "◈" },
+  { to: "/$locale/admin/statistik", label: "Statistik", icon: "📈" },
   { to: "/$locale/admin/rfq",       label: "RFQ / Order", icon: "📋" },
   { to: "/$locale/admin/products",  label: "Produkter", icon: "📦" },
   { to: "/$locale/admin/pricing",   label: "Prissättning", icon: "💰" },
