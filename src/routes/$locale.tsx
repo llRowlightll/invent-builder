@@ -477,6 +477,7 @@ function LocaleLayout() {
         <div className="container-page mt-6 pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-muted-foreground">
           <span>© {new Date().getFullYear()} {t("common.appName")} — {t("footer.copyright")}</span>
           <div className="flex flex-wrap gap-4 justify-center sm:justify-end">
+            <Link to="/$locale/om-oss" params={{ locale }} className="hover:text-info transition">{t("footer.about")}</Link>
             <Link to="/$locale/privacy" params={{ locale }} className="hover:text-info transition">{t("footer.privacy")}</Link>
             <Link to="/$locale/terms" params={{ locale }} className="hover:text-info transition">{t("footer.terms")}</Link>
             {user && <Link to="/$locale/claims" params={{ locale }} className="hover:text-info transition">{t("claimsPage.title")}</Link>}

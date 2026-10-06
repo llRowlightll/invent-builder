@@ -27,6 +27,7 @@ import { Route as LocaleProfileRouteImport } from './routes/$locale/profile'
 import { Route as LocaleProductsRouteImport } from './routes/$locale/products'
 import { Route as LocalePrivacyRouteImport } from './routes/$locale/privacy'
 import { Route as LocaleOrdersRouteImport } from './routes/$locale/orders'
+import { Route as LocaleOmOssRouteImport } from './routes/$locale/om-oss'
 import { Route as LocaleNewRouteImport } from './routes/$locale/new'
 import { Route as LocaleMachineBuilderRouteImport } from './routes/$locale/machine-builder'
 import { Route as LocaleLoginRouteImport } from './routes/$locale/login'
@@ -162,6 +163,11 @@ const LocalePrivacyRoute = LocalePrivacyRouteImport.update({
 const LocaleOrdersRoute = LocaleOrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleOmOssRoute = LocaleOmOssRouteImport.update({
+  id: '/om-oss',
+  path: '/om-oss',
   getParentRoute: () => LocaleRoute,
 } as any)
 const LocaleNewRoute = LocaleNewRouteImport.update({
@@ -417,6 +423,7 @@ export interface FileRoutesByFullPath {
   '/$locale/login': typeof LocaleLoginRoute
   '/$locale/machine-builder': typeof LocaleMachineBuilderRoute
   '/$locale/new': typeof LocaleNewRoute
+  '/$locale/om-oss': typeof LocaleOmOssRoute
   '/$locale/orders': typeof LocaleOrdersRoute
   '/$locale/privacy': typeof LocalePrivacyRoute
   '/$locale/products': typeof LocaleProductsRoute
@@ -480,6 +487,7 @@ export interface FileRoutesByTo {
   '/$locale/login': typeof LocaleLoginRoute
   '/$locale/machine-builder': typeof LocaleMachineBuilderRoute
   '/$locale/new': typeof LocaleNewRoute
+  '/$locale/om-oss': typeof LocaleOmOssRoute
   '/$locale/orders': typeof LocaleOrdersRoute
   '/$locale/privacy': typeof LocalePrivacyRoute
   '/$locale/products': typeof LocaleProductsRoute
@@ -547,6 +555,7 @@ export interface FileRoutesById {
   '/$locale/login': typeof LocaleLoginRoute
   '/$locale/machine-builder': typeof LocaleMachineBuilderRoute
   '/$locale/new': typeof LocaleNewRoute
+  '/$locale/om-oss': typeof LocaleOmOssRoute
   '/$locale/orders': typeof LocaleOrdersRoute
   '/$locale/privacy': typeof LocalePrivacyRoute
   '/$locale/products': typeof LocaleProductsRoute
@@ -615,6 +624,7 @@ export interface FileRouteTypes {
     | '/$locale/login'
     | '/$locale/machine-builder'
     | '/$locale/new'
+    | '/$locale/om-oss'
     | '/$locale/orders'
     | '/$locale/privacy'
     | '/$locale/products'
@@ -678,6 +688,7 @@ export interface FileRouteTypes {
     | '/$locale/login'
     | '/$locale/machine-builder'
     | '/$locale/new'
+    | '/$locale/om-oss'
     | '/$locale/orders'
     | '/$locale/privacy'
     | '/$locale/products'
@@ -744,6 +755,7 @@ export interface FileRouteTypes {
     | '/$locale/login'
     | '/$locale/machine-builder'
     | '/$locale/new'
+    | '/$locale/om-oss'
     | '/$locale/orders'
     | '/$locale/privacy'
     | '/$locale/products'
@@ -926,6 +938,13 @@ declare module '@tanstack/react-router' {
       path: '/orders'
       fullPath: '/$locale/orders'
       preLoaderRoute: typeof LocaleOrdersRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/om-oss': {
+      id: '/$locale/om-oss'
+      path: '/om-oss'
+      fullPath: '/$locale/om-oss'
+      preLoaderRoute: typeof LocaleOmOssRouteImport
       parentRoute: typeof LocaleRoute
     }
     '/$locale/new': {
@@ -1347,6 +1366,7 @@ interface LocaleRouteChildren {
   LocaleLoginRoute: typeof LocaleLoginRoute
   LocaleMachineBuilderRoute: typeof LocaleMachineBuilderRoute
   LocaleNewRoute: typeof LocaleNewRoute
+  LocaleOmOssRoute: typeof LocaleOmOssRoute
   LocaleOrdersRoute: typeof LocaleOrdersRoute
   LocalePrivacyRoute: typeof LocalePrivacyRoute
   LocaleProductsRoute: typeof LocaleProductsRoute
@@ -1385,6 +1405,7 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleLoginRoute: LocaleLoginRoute,
   LocaleMachineBuilderRoute: LocaleMachineBuilderRoute,
   LocaleNewRoute: LocaleNewRoute,
+  LocaleOmOssRoute: LocaleOmOssRoute,
   LocaleOrdersRoute: LocaleOrdersRoute,
   LocalePrivacyRoute: LocalePrivacyRoute,
   LocaleProductsRoute: LocaleProductsRoute,
