@@ -20,6 +20,7 @@ import { Route as LocaleTalkRouteImport } from './routes/$locale/talk'
 import { Route as LocaleSignupRouteImport } from './routes/$locale/signup'
 import { Route as LocaleShoppingListRouteImport } from './routes/$locale/shopping-list'
 import { Route as LocaleSettingsRouteImport } from './routes/$locale/settings'
+import { Route as LocaleReplaceRouteImport } from './routes/$locale/replace'
 import { Route as LocaleProjectsRouteImport } from './routes/$locale/projects'
 import { Route as LocaleProjectRouteImport } from './routes/$locale/project'
 import { Route as LocaleProfileRouteImport } from './routes/$locale/profile'
@@ -125,6 +126,11 @@ const LocaleShoppingListRoute = LocaleShoppingListRouteImport.update({
 const LocaleSettingsRoute = LocaleSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => LocaleRoute,
+} as any)
+const LocaleReplaceRoute = LocaleReplaceRouteImport.update({
+  id: '/replace',
+  path: '/replace',
   getParentRoute: () => LocaleRoute,
 } as any)
 const LocaleProjectsRoute = LocaleProjectsRouteImport.update({
@@ -411,6 +417,7 @@ export interface FileRoutesByFullPath {
   '/$locale/profile': typeof LocaleProfileRoute
   '/$locale/project': typeof LocaleProjectRoute
   '/$locale/projects': typeof LocaleProjectsRoute
+  '/$locale/replace': typeof LocaleReplaceRoute
   '/$locale/settings': typeof LocaleSettingsRoute
   '/$locale/shopping-list': typeof LocaleShoppingListRoute
   '/$locale/signup': typeof LocaleSignupRoute
@@ -472,6 +479,7 @@ export interface FileRoutesByTo {
   '/$locale/profile': typeof LocaleProfileRoute
   '/$locale/project': typeof LocaleProjectRoute
   '/$locale/projects': typeof LocaleProjectsRoute
+  '/$locale/replace': typeof LocaleReplaceRoute
   '/$locale/settings': typeof LocaleSettingsRoute
   '/$locale/shopping-list': typeof LocaleShoppingListRoute
   '/$locale/signup': typeof LocaleSignupRoute
@@ -537,6 +545,7 @@ export interface FileRoutesById {
   '/$locale/profile': typeof LocaleProfileRoute
   '/$locale/project': typeof LocaleProjectRoute
   '/$locale/projects': typeof LocaleProjectsRoute
+  '/$locale/replace': typeof LocaleReplaceRoute
   '/$locale/settings': typeof LocaleSettingsRoute
   '/$locale/shopping-list': typeof LocaleShoppingListRoute
   '/$locale/signup': typeof LocaleSignupRoute
@@ -603,6 +612,7 @@ export interface FileRouteTypes {
     | '/$locale/profile'
     | '/$locale/project'
     | '/$locale/projects'
+    | '/$locale/replace'
     | '/$locale/settings'
     | '/$locale/shopping-list'
     | '/$locale/signup'
@@ -664,6 +674,7 @@ export interface FileRouteTypes {
     | '/$locale/profile'
     | '/$locale/project'
     | '/$locale/projects'
+    | '/$locale/replace'
     | '/$locale/settings'
     | '/$locale/shopping-list'
     | '/$locale/signup'
@@ -728,6 +739,7 @@ export interface FileRouteTypes {
     | '/$locale/profile'
     | '/$locale/project'
     | '/$locale/projects'
+    | '/$locale/replace'
     | '/$locale/settings'
     | '/$locale/shopping-list'
     | '/$locale/signup'
@@ -853,6 +865,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/$locale/settings'
       preLoaderRoute: typeof LocaleSettingsRouteImport
+      parentRoute: typeof LocaleRoute
+    }
+    '/$locale/replace': {
+      id: '/$locale/replace'
+      path: '/replace'
+      fullPath: '/$locale/replace'
+      preLoaderRoute: typeof LocaleReplaceRouteImport
       parentRoute: typeof LocaleRoute
     }
     '/$locale/projects': {
@@ -1313,6 +1332,7 @@ interface LocaleRouteChildren {
   LocaleProfileRoute: typeof LocaleProfileRoute
   LocaleProjectRoute: typeof LocaleProjectRoute
   LocaleProjectsRoute: typeof LocaleProjectsRoute
+  LocaleReplaceRoute: typeof LocaleReplaceRoute
   LocaleSettingsRoute: typeof LocaleSettingsRoute
   LocaleShoppingListRoute: typeof LocaleShoppingListRoute
   LocaleSignupRoute: typeof LocaleSignupRoute
@@ -1350,6 +1370,7 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleProfileRoute: LocaleProfileRoute,
   LocaleProjectRoute: LocaleProjectRoute,
   LocaleProjectsRoute: LocaleProjectsRoute,
+  LocaleReplaceRoute: LocaleReplaceRoute,
   LocaleSettingsRoute: LocaleSettingsRoute,
   LocaleShoppingListRoute: LocaleShoppingListRoute,
   LocaleSignupRoute: LocaleSignupRoute,

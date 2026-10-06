@@ -552,3 +552,50 @@ export const aiVisionChat = createServerFn({ method: "POST" })
       };
     }
   });
+
+/**
+ * Läser typskylten på ett foto -- tillverkare och koder, bara det som står där.
+ *
+ * Ersättningsflödet (/replace) slår sedan upp koden mot katalogen och
+ * orderkodsläsaren. Modellen ska alltså inte identifiera produkten eller
+ * föreslå något; en gissad kod som ser rimlig ut är värre än ingen kod.
+ */
+export const aiLasTypskylt = createServerFn({ method: "POST" })
+  .inputValidator((d: { imageBase64: string; mimeType: string }) => d)
+  .handler(async ({ data }): Promise<{ koder: string[]; tillverkare: string | null; fel: string | null }> => {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return { koder: [], tillverkare: null, fel: "no_key" };
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5",
+          max_tokens: 300,
+          system: "You read nameplates and labels on industrial components. Report only text that is actually printed and legible. Never guess, complete or correct a code.",
+          messages: [{
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: data.mimeType, data: data.imageBase64 } },
+              { type: "text", text: 'Read the nameplate. Return ONLY JSON: {"manufacturer": string or null, "codes": [part numbers and type codes exactly as printed, most specific first]}. If nothing is legible, return {"manufacturer": null, "codes": []}.' },
+            ],
+          }],
+        }),
+      });
+      if (!res.ok) {
+        console.error("aiLasTypskylt:", res.status, await res.text());
+        return { koder: [], tillverkare: null, fel: "api_error" };
+      }
+      const svar = await res.json() as { content?: Array<{ text?: string }> };
+      const text = svar.content?.[0]?.text ?? "";
+      const json = /\{[\s\S]*\}/.exec(text)?.[0];
+      const tolkat = json ? JSON.parse(json) as { manufacturer?: unknown; codes?: unknown } : {};
+      const koder = Array.isArray(tolkat.codes)
+        ? tolkat.codes.filter((c): c is string => typeof c === "string" && c.trim().length >= 3).map((c) => c.trim()).slice(0, 5)
+        : [];
+      return { koder, tillverkare: typeof tolkat.manufacturer === "string" ? tolkat.manufacturer : null, fel: null };
+    } catch (err) {
+      console.error("aiLasTypskylt:", err);
+      return { koder: [], tillverkare: null, fel: "parse_error" };
+    }
+  });
