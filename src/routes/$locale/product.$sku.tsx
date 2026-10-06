@@ -9,7 +9,7 @@ import { ArticleNumber } from "@/components/ArticleNumber";
 import { addToShoppingList } from "@/lib/cart";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { categoryName } from "@/lib/categories";
-import { kallor, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
+import { beskrivning, kallor, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
 import { ExternalLink, FileText, Settings } from "lucide-react";
 import { tillverkarlank } from "@/lib/tillverkarlank";
 
@@ -65,14 +65,14 @@ export const Route = createFileRoute("/$locale/product/$sku")({
     const { data, error } = await supabase
       .from("products")
       .select(
-        "id,sku,name,description,family,lead_time_days,availability,ip_rating,fieldbus,voltage,image_url,weight_kg,length_mm,width_mm,height_mm,brand:brands(slug,name),category:categories(slug,name),product_specs(key,value,unit)",
+        "id,sku,name,description,description_en,family,lead_time_days,availability,ip_rating,fieldbus,voltage,image_url,weight_kg,length_mm,width_mm,height_mm,brand:brands(slug,name),category:categories(slug,name),product_specs(key,value,unit)",
       )
       .eq("sku", params.sku)
       .eq("status", "active")
       .maybeSingle();
     if (error || !data) return { product: null };
     const d = data as unknown as {
-      id: string; sku: string; name: string; description: string | null; family: string | null;
+      id: string; sku: string; name: string; description: string | null; description_en: string | null; family: string | null;
       lead_time_days: number | null; availability: string | null; ip_rating: string | null;
       fieldbus: string | null; voltage: string | null; image_url: string | null;
       weight_kg: number | null; length_mm: number | null; width_mm: number | null; height_mm: number | null;
@@ -83,7 +83,7 @@ export const Route = createFileRoute("/$locale/product/$sku")({
     const specs: ProductRow["specs"] = {};
     for (const s of d.product_specs ?? []) specs[s.key] = { value: s.value, unit: s.unit };
     const product: ProductRow = {
-      id: d.id, sku: d.sku, name: d.name, description: d.description, family: d.family,
+      id: d.id, sku: d.sku, name: d.name, description: d.description, description_en: d.description_en, family: d.family,
       brand: d.brand ?? { slug: "", name: "" },
       category: d.category ?? { slug: "", name: "" },
       lead_time_days: d.lead_time_days, availability: d.availability,
@@ -191,7 +191,7 @@ function ProductDetail() {
     "@type": "Product",
     name: product.name,
     sku: product.sku,
-    description: product.description ?? `${product.name} — ${product.brand.name} ${categoryName(product.category.slug, locale, product.category.name)}`,
+    description: beskrivning(product, locale) ?? `${product.name} — ${product.brand.name} ${categoryName(product.category.slug, locale, product.category.name)}`,
     brand: { "@type": "Brand", name: product.brand.name },
     category: categoryName(product.category.slug, locale, product.category.name),
     url: canonicalUrl,
@@ -234,7 +234,7 @@ function ProductDetail() {
           <div className="mt-2.5">
             <ArticleNumber value={product.sku} copyable />
           </div>
-          {product.description && <p className="mt-4 text-sm text-foreground/80 leading-relaxed">{product.description}</p>}
+          {beskrivning(product, locale) && <p className="mt-4 text-sm text-foreground/80 leading-relaxed">{beskrivning(product, locale)}</p>}
         </div>
         <aside className="rounded-lg border border-border bg-surface-alt p-4 space-y-3 text-sm">
           <Row k={t("productPage.category")} v={categoryName(product.category.slug, locale, product.category.name)} />

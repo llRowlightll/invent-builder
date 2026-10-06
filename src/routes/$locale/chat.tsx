@@ -341,7 +341,7 @@ function ChatPage() {
           if (catMatches.length === 0 && aiResult.keywords?.length) {
             catMatches = catalog.filter((p) => {
               if (!physicsFilter(p, catSlug)) return false;
-              const hay = [p.sku, p.name, p.brand.name, p.description ?? ""].join(" ").toLowerCase();
+              const hay = [p.sku, p.name, p.brand.name, p.description ?? "", p.description_en ?? ""].join(" ").toLowerCase();
               return aiResult.keywords.some((kw) => hay.includes(kw.toLowerCase()));
             });
           }

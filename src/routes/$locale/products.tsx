@@ -10,7 +10,7 @@ import { getProductImage } from "@/lib/product-images";
 import { addToShoppingList } from "@/lib/cart";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { categoryName } from "@/lib/categories";
-import { kallor, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
+import { beskrivning, kallor, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
 import { matcharFraga } from "@/lib/sokord";
 import { logga } from "@/lib/matning";
 import { FileText } from "lucide-react";
@@ -352,7 +352,7 @@ function ProductsPage() {
         : [];
 
       if (searchTerms.length > 0 && !aiResult?.category_slug && !aiResult?.brand_slug) {
-        const haystack = [p.sku, p.name, p.brand.name, p.category.name, categoryName(p.category.slug, "sv", p.category.name), p.description ?? ""]
+        const haystack = [p.sku, p.name, p.brand.name, p.category.name, categoryName(p.category.slug, "sv", p.category.name), p.description ?? "", p.description_en ?? ""]
           .join(" ");
         // Varje ord ska finnas (med svenska synonymer) -- se sokord.ts.
         const matches = searchTerms.some((term) => matcharFraga(haystack, term));
@@ -362,7 +362,7 @@ function ProductsPage() {
       // Manual text search (non-AI mode). Varje ord ska finnas, och svenska
       // fackord matchar katalogens engelska namn -- se sokord.ts.
       if (!aiResult && ql) {
-        const haystack = [p.sku, p.name, p.brand.name, p.category.name, categoryName(p.category.slug, "sv", p.category.name), p.description ?? ""]
+        const haystack = [p.sku, p.name, p.brand.name, p.category.name, categoryName(p.category.slug, "sv", p.category.name), p.description ?? "", p.description_en ?? ""]
           .join(" ");
         if (!matcharFraga(haystack, ql)) return false;
       }
@@ -648,8 +648,8 @@ function ProductsPage() {
                   </div>
                 )}
 
-                {p.description && (
-                  <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{p.description}</p>
+                {beskrivning(p, locale) && (
+                  <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{beskrivning(p, locale)}</p>
                 )}
 
                 <div className="mt-3 font-mono text-[11px] text-muted-foreground">{p.sku}</div>
