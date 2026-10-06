@@ -527,10 +527,11 @@ export const aiVisionChat = createServerFn({ method: "POST" })
       if (!res.ok) {
         const errText = await res.text();
         console.error("Anthropic vision error:", errText);
+        const felkod = `api_${res.status}:${anthropicFeltyp(errText)}`;
         return {
           text: isSv ? "Bildanalys misslyckades. Försök igen." : "Image analysis failed. Please try again.",
           searchQuery: null,
-          error: "api_error",
+          error: felkod,
         };
       }
 
@@ -591,8 +592,12 @@ export const aiLasTypskylt = createServerFn({ method: "POST" })
         }),
       });
       if (!res.ok) {
-        console.error("aiLasTypskylt:", res.status, await res.text());
-        return { koder: [], tillverkare: null, fel: "api_error" };
+        // Statuskod och feltyp tillbaka till webbläsaren: inga hemligheter, men
+        // utan dem går ett fel hos Anthropic (nyckel, saldo, modell) inte att
+        // skilja från ett fel i koden utan Cloudflares loggar.
+        const kropp = await res.text();
+        console.error("aiLasTypskylt:", res.status, kropp);
+        return { koder: [], tillverkare: null, fel: `api_${res.status}:${anthropicFeltyp(kropp)}` };
       }
       const svar = await res.json() as { content?: Array<{ text?: string }> };
       const text = svar.content?.[0]?.text ?? "";
@@ -607,3 +612,13 @@ export const aiLasTypskylt = createServerFn({ method: "POST" })
       return { koder: [], tillverkare: null, fel: "parse_error" };
     }
   });
+
+/** Anthropics feltyp och meddelande, kortat: "invalid_request_error: Your credit balance is too low…". */
+function anthropicFeltyp(kropp: string): string {
+  try {
+    const e = (JSON.parse(kropp) as { error?: { type?: string; message?: string } }).error;
+    return `${e?.type ?? "okänt"}: ${(e?.message ?? "").slice(0, 120)}`;
+  } catch {
+    return "okänt svar";
+  }
+}
