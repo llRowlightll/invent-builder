@@ -26,6 +26,8 @@ interface Props {
    * markerbart som vanlig text.
    */
   copyable?: boolean;
+  /** Sidans språk. Knapptexten är svensk på /sv och engelsk annars. */
+  locale?: string;
   className?: string;
 }
 
@@ -34,9 +36,11 @@ export function ArticleNumber({
   variant = "default",
   replacedBy,
   copyable = false,
+  locale = "sv",
   className,
 }: Props) {
   const [kopierad, setKopierad] = useState(false);
+  const sv = locale === "sv";
 
   async function kopiera() {
     try {
@@ -79,16 +83,16 @@ export function ArticleNumber({
             onClick={kopiera}
             /* Statusen skrivs ut i TEXT och inte bara som en ikonändring, så
                den läses av en skärmläsare och inte bara av ett öga. */
-            aria-label={kopierad ? "Kopierat" : `Kopiera ${value}`}
+            aria-label={kopierad ? (sv ? "Kopierat" : "Copied") : `${sv ? "Kopiera" : "Copy"} ${value}`}
             className="rounded-sm border border-input px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-info transition hover:bg-info/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info"
           >
-            {kopierad ? "Kopierat" : "Kopiera"}
+            {kopierad ? (sv ? "Kopierat" : "Copied") : (sv ? "Kopiera" : "Copy")}
           </button>
         )}
       </span>
       {utgatt && replacedBy && (
         <span className="tabular text-[13px] text-muted-foreground">
-          ersätts av {replacedBy}
+          {sv ? "ersätts av" : "replaced by"} {replacedBy}
         </span>
       )}
     </span>
