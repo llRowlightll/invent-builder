@@ -34,3 +34,25 @@ export function rensaPositionsPros(pros: string[], pneumatisk: boolean): string[
  */
 export const LANGRE_SLAG_PRO =
   /l[äåa]ng\w*\s+slag|\bslag\w*.{0,30}(l[äa]ngre|extra|mer\b|över|större|exceed)|(stroke|\bhub\b|carrera).{0,30}(l[äa]ngre|extra|mer\b|över|exceed|longer|more\b|l[äa]nger|mayor|superior)|long(er)?\s+stroke/i;
+
+/**
+ * En SERIE beställs i det slag som krävs. Dess maxslag är varken en fördel
+ * eller en nackdel.
+ *
+ * Hittat i drift 2026-10-06 (livsmedelsfall, Ø32, 100 mm): tre serier fick
+ * rätt not -- "exakt slaglängd (100 mm) väljs vid beställning" -- och ändå
+ * "Slag 300 mm överstiger kravet" som grön bock, "Slag 300 mm är längre än
+ * nödvändigt" som nackdel och "Slag 500 mm" som fördel. Modellen läste
+ * seriens maxslag som radens slag. Stryk det som handlar om maxslaget.
+ */
+export function rensaSerieslag(
+  pros: string[],
+  cons: string[],
+  maxSlagMm: number,
+): { pros: string[]; cons: string[] } {
+  const omMaxslaget = maxSlagMm > 0
+    ? new RegExp(`(slag|stroke|\\bhub\\b|carrera)\\w*\\D{0,12}${maxSlagMm}\\s*mm`, "i")
+    : null;
+  const stryk = (t: string) => LANGRE_SLAG_PRO.test(t) || (omMaxslaget?.test(t) ?? false);
+  return { pros: pros.filter((t) => !stryk(t)), cons: cons.filter((t) => !stryk(t)) };
+}
