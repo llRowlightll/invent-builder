@@ -40,6 +40,14 @@ export interface Kandidat {
   maxSlagMm: number | null;
 }
 
+/**
+ * Specialutföranden byggs ofta på en ISO-cylinder men byts inte rakt mot en:
+ * en styrd enhet har styrstänger och ett annat fotavtryck. Prövat
+ * 2026-10-06: DSBC Ø32×100 gav AVENTICS GPC-BV "Guide Cylinder" (ISO 6431)
+ * som motsvarighet -- och den trängde undan PRA Ø32×100, den riktiga.
+ */
+const SPECIALUTFORANDE = /guide|guided|styrd|rodless|kolvstångslös|slide|släd|tandem|end lock|ändlägeslås|multi.?position/i;
+
 const STANDARDBORRNINGAR = [2.5, 4, 6, 8, 10, 12, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 320];
 const FAMILJEPREFIX = /^(FESTO|SMC|PARKER|NORGREN|CAMOZZI|METAL[-_]WORK|MW|BOSCH|BR)-/i;
 
@@ -137,10 +145,13 @@ export function identifiera(kod: string, katalog: ProductRow[], familjer: Family
  */
 export function motsvarigheter(id: Identifiering, katalog: ProductRow[], max = 8): Kandidat[] {
   if (!id.standard || !id.borrningMm) return [];
+  // En vanlig cylinder ersätts med en vanlig cylinder; ett specialutförande bara med samma sort.
+  const special = SPECIALUTFORANDE.test(`${id.produkt?.name ?? ""} ${id.familj ?? ""}`);
   const ut: Kandidat[] = [];
   for (const p of katalog) {
     if (p.id === id.produkt?.id) continue;
     if (p.category.slug !== "cylinder" || standardAv(p) !== id.standard) continue;
+    if (SPECIALUTFORANDE.test(p.name) !== special) continue;
     if (!borrningar(p).includes(id.borrningMm)) continue;
     const slag = maxSlag(p);
     if (arSerie(p)) {
@@ -161,4 +172,16 @@ export function motsvarigheter(id: Identifiering, katalog: ProductRow[], max = 8
     // En rad per fabrikat och typ räcker för en jämförelse.
     .filter((k, i, alla) => alla.findIndex((x) => x.produkt.brand.slug === k.produkt.brand.slug && x.typ === k.typ) === i)
     .slice(0, max);
+}
+
+/**
+ * Säger två specvärden samma sak? Talen avgör när det finns tal: "-20 to +80 °C"
+ * och "-20–80 °C" är samma temperatur, "10 bar" och "10" samma tryck. Annars
+ * jämförs texten utan hänsyn till skiftläge.
+ */
+export function sammaVarde(a: string, b: string): boolean {
+  const talen = (s: string) => s.replace(/(\d)\s*-\s*(\d)/g, "$1–$2").match(/-?\d+(?:[.,]\d+)?/g)?.map((x) => Number(x.replace(",", "."))).join("|");
+  const ta = talen(a), tb = talen(b);
+  if (ta && tb) return ta === tb;
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
 }

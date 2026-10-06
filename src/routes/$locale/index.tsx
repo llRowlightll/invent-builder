@@ -13,7 +13,7 @@ import { getProductImage, getCategoryImage } from "@/lib/product-images";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { EditableText } from "@/components/EditableText";
 import { categoryName } from "@/lib/categories";
-import { ArrowRight, FileText, Settings, Sparkles, Users } from "lucide-react";
+import { ArrowRight, FileText, RefreshCw, Settings, Sparkles, Users } from "lucide-react";
 
 export const Route = createFileRoute("/$locale/")({
   head: ({ params }) => {
@@ -96,6 +96,9 @@ function antalText(mall: string, antal: number | null): string {
  * Det här är i stället det som faktiskt är vårt, och som faktiskt är sant.
  */
 const VAGAR = [
+  // Den vanligaste frågan på en fabrik: "den här gick sönder, vad köper jag?"
+  { titel: "index.routeReplaceTitle", brod: "index.routeReplaceBody",
+    cta: "index.routeReplaceCta", to: "/$locale/replace", Ikon: RefreshCw },
   { titel: "index.routeConfigTitle", brod: "index.routeConfigBody",
     cta: "index.routeConfigCta", to: "/$locale/configure", Ikon: Settings },
   { titel: "index.routeAdvisorTitle", brod: "index.routeAdvisorBody",
@@ -240,8 +243,8 @@ function Landing() {
             ))}
           </div>
 
-          {/* Tre vägar in */}
-          <div className="mt-12 grid sm:grid-cols-3 gap-4 max-w-4xl rorelse-in rorelse-steg-3">
+          {/* Vägar in */}
+          <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl rorelse-in rorelse-steg-3">
             {VAGAR.map((v) => (
               <Link
                 key={v.to}

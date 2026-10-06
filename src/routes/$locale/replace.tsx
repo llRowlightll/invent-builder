@@ -12,7 +12,7 @@ import { addToShoppingList } from "@/lib/cart";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { specEtikett, specVarde } from "@/lib/spec-format";
 import { ArticleNumber } from "@/components/ArticleNumber";
-import { identifiera, motsvarigheter, type Identifiering, type Kandidat } from "@/lib/ersattning";
+import { identifiera, motsvarigheter, sammaVarde, type Identifiering, type Kandidat } from "@/lib/ersattning";
 import type { FamilyBrief } from "../../../supabase/functions/groq-advisor/order-code.ts";
 
 type Text = {
@@ -342,7 +342,9 @@ function Rad({ p, kandidat, etikett, locale, original, x, lagd, onLagg }: {
       {JAMFOR.map((k) => {
         const v = varde(p, k);
         // Markera det som skiljer sig från originalet, när vi vet vad originalet har.
-        const skiljer = original && k !== "stroke_mm" && v !== "–" && varde(original, k) !== "–" && v !== varde(original, k);
+        // Slaget väljs vid beställning och standarden är densamma för alla rader.
+        const vo = original ? varde(original, k) : "–";
+        const skiljer = original && k !== "stroke_mm" && k !== "standard" && v !== "–" && vo !== "–" && !sammaVarde(v, vo);
         return <td key={k} className={`px-3 py-2 align-top ${skiljer ? "text-warning-deep font-medium" : ""}`}>{v}</td>;
       })}
       <td className="px-3 py-2 align-top text-right">

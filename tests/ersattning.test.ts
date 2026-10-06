@@ -1,7 +1,7 @@
 /// <reference lib="deno.ns" />
 // Körs med: deno test tests/ersattning.test.ts
 import { assertEquals } from "jsr:@std/assert@^1";
-import { borrningar, hittaArtikel, identifiera, maxSlag, motsvarigheter } from "../src/lib/ersattning.ts";
+import { borrningar, hittaArtikel, identifiera, maxSlag, motsvarigheter, sammaVarde } from "../src/lib/ersattning.ts";
 import type { ProductRow } from "../src/lib/types.ts";
 
 const rad = (sku: string, name: string, brand: string, family: string | null, specs: Record<string, string>, kategori = "cylinder"): ProductRow => ({
@@ -24,6 +24,8 @@ const KATALOG: ProductRow[] = [
   rad("FESTO-193986", "ISO cylinder", "Festo", "DSNU", { bore_mm: "8", standard: "ISO 6432", stroke_mm: "500 mm" }),
   rad("63M2A050A0100", "Serie 63 Ø50", "Camozzi", "Serie 63", { bore_mm: "50", standard: "ISO 15552", stroke_mm: "100 mm" }),
   rad("FE-GRLA-14-QS-8-D", "GRLA-1/4-QS-8 avgasstrypare", "Festo", "GRLA", {}, "flow-control"),
+  // Styrd enhet på en ISO 6431-cylinder: samma standard, men ingen rak ersättare.
+  rad("0822064003", "AVENTICS GPC-BV Ø32 100mm Guide Cylinder", "AVENTICS", "GPC-BV", { bore_mm: "32", standard: "ISO 6431", stroke_mm: "100 mm" }),
 ];
 const FAMILJER = [
   { slug: "dsbc", name: "DSBC", bores: [32, 40, 50, 63, 80, 100, 125], strokeMin: 1, strokeMax: 2800 },
@@ -69,4 +71,18 @@ Deno.test("utan standard eller igenkänd kod: inga motsvarigheter, ingen gissnin
 Deno.test("borrningar och slag läses som katalogen skriver dem", () => {
   assertEquals(borrningar(KATALOG[5]), [20, 25, 32, 40]);
   assertEquals(maxSlag(KATALOG[5]), 300);
+});
+
+Deno.test("en styrd cylinder är ingen motsvarighet till en vanlig ISO-cylinder", () => {
+  const m = motsvarigheter(identifiera("DSBC-32-100-PPVA-N3", KATALOG, FAMILJER), KATALOG).map((k) => k.produkt.sku);
+  assertEquals(m.includes("0822064003"), false);
+  assertEquals(m[0], "0822120004"); // PRA Ø32×100 i stället
+});
+
+Deno.test("skillnader: formatering räknas inte, olika tal gör det", () => {
+  assertEquals(sammaVarde("-20 to +80 °C", "-20–80 °C"), true);
+  assertEquals(sammaVarde("-20…+80 °C", "-20-80"), true);
+  assertEquals(sammaVarde("10 bar", "10"), true);
+  assertEquals(sammaVarde("-10–60 °C", "-20–80 °C"), false);
+  assertEquals(sammaVarde("Magnetic piston", "magnetic piston"), true);
 });
