@@ -71,6 +71,8 @@ const ETIKETT: Record<string, [sv: string, en: string]> = {
   filter_grade: ["Filtergrad", "Filter grade"],
   gripper_type: ["Gripdonstyp", "Gripper type"],
   jaw_stroke_per_side: ["Käftslag per sida", "Jaw stroke per side"],
+  jaw_opening_angle: ["Öppningsvinkel", "Jaw opening angle"],
+  max_opening_angle: ["Största öppningsvinkel", "Max. opening angle"],
   guide_type: ["Styrning", "Guide type"],
   guide: ["Styrning", "Guide"],
   slide_type: ["Slidtyp", "Slide type"],

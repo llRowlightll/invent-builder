@@ -232,7 +232,7 @@ function ProductDetail() {
           <BrandBadge slug={product.brand.slug} name={product.brand.name} />
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{product.name}</h1>
           <div className="mt-2.5">
-            <ArticleNumber value={product.sku} copyable />
+            <ArticleNumber value={product.sku} copyable locale={locale} />
           </div>
           {beskrivning(product, locale) && <p className="mt-4 text-sm text-foreground/80 leading-relaxed">{beskrivning(product, locale)}</p>}
         </div>
