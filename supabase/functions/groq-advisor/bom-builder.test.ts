@@ -10,6 +10,8 @@ import {
   deriveSubsystems,
   findAxisActuator,
   bedomLosning,
+  arStyrventil52,
+  findCatalogProductByType,
 } from "./bom-builder.ts";
 import { type CatalogProduct, normalizeKeySpecs } from "./scoring.ts";
 
@@ -804,4 +806,28 @@ Deno.test("enskild artikel: stångbromsen följer artikelns egen borrning som f�
     products: [prod("0822040200", "cylinder", "bosch-rexroth", { bore_mm: "40 mm", stroke_mm: "200 mm" })],
   }));
   assert(/Ø40/.test(rows.find(r => r.kind === "rod_lock")!.reason));
+});
+
+
+// ── Ventilraden ska vara en 5/2-vägs styrventil ─────────────────────────────
+// Hittat 2026-10-06: raden tog den första produkten i kategorin "valve". I
+// drift var det en 5/2-ventil av en slump; nästa i kön var en vakuumejektor.
+const namngiven = (sku: string, name: string, specs: Record<string, unknown> = {}): CatalogProduct =>
+  ({ ...prod(sku, "valve", "festo", specs), name });
+
+Deno.test("ventilraden väljer en 5/2-ventil, inte spole, ejektor eller kulventil", () => {
+  const pool = [
+    namngiven("FE-VADMI-95-AP", "VADMI-95 vakumejektor M5"),
+    namngiven("FESTO-4526", "Festo MSFG-12 magnetspole 12 V DC"),
+    namngiven("FESTO-4745214", "Festo VZBE kulventil G1/4"),
+    namngiven("FE-VZWE-1-M22C-G18-135", "VZWE-1 2/2-ventil G1/8"),
+    namngiven("FE-VUVG-L10-M52-MT-M5", "VUVG-L10 5/2 monostabil M5"),
+  ];
+  assertEquals(findCatalogProductByType("valve", pool)?.sku, "FE-VUVG-L10-M52-MT-M5");
+  assertEquals(arStyrventil52(namngiven("FESTO-533378", "Festo VMPA1 ventil", { function: "5/2 monostabil" })), true);
+});
+
+Deno.test("utan 5/2-ventil i poolen blir raden SPECIFY, inte fel komponent", () => {
+  const pool = [namngiven("FE-VADMI-95-AP", "VADMI-95 vakumejektor M5"), namngiven("FESTO-4526", "Festo MSFG-12 magnetspole 12 V DC")];
+  assertEquals(findCatalogProductByType("valve", pool), null);
 });
