@@ -12,51 +12,75 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # ── 0. Rör pushen AI-koden? ────────────────────────────────────────────────
+  # Sviten och evalen nedan anropar Groq med SAMMA konto som sajten. 2026-10-06
+  # körde de på varje push -- tio ihopslagningar på en dag tömde dygnskvoten
+  # (retry-after 4258 s), och sajtens AI-chatt var nere för besökare i 1,5 h.
+  # Båda anropar bara den driftsatta motorn (supabase/functions) och testar
+  # aldrig frontendkoden. De behövs alltså bara när motorn eller skripten
+  # ändras. Manuell körning testar alltid.
+  andringar:
+    runs-on: ubuntu-latest
+    outputs:
+      ai: ${{ steps.filter.outputs.ai }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          FORE: ${{ github.event.before }}
+        run: |
+          if [[ "${{ github.event_name }}" != "push" || -z "$FORE" || "$FORE" =~ ^0+$ ]] || ! git cat-file -e "$FORE^{commit}" 2>/dev/null; then
+            echo "ai=true" >> "$GITHUB_OUTPUT"; echo "ingen jämförelsepunkt -- AI-testerna körs"; exit 0
+          fi
+          AI_KOD='^(supabase/functions/|scripts/(test-advisor\.sh|eval-auto\.py)$|\.github/workflows/deploy\.yml$)'
+          traffar=$(git diff --name-only "$FORE" "$GITHUB_SHA" | grep -E "$AI_KOD" || true)
+          if [[ -n "$traffar" ]]; then
+            echo "ai=true" >> "$GITHUB_OUTPUT"; echo "motorn eller testerna ändrades:"; echo "$traffar"
+          else
+            echo "ai=false" >> "$GITHUB_OUTPUT"; echo "motorn ändrades inte -- sviten och evalen hoppas över"
+          fi
+
   # ── 1. BOM regression suite (29 tests) ─────────────────────────────────────
   regression:
+    needs: andringar
+    if: needs.andringar.outputs.ai == 'true'
     runs-on: ubuntu-latest
-    # 12 räckte för sviten ensam; väntan på edge-deploy nedan kan ta upp till
-    # sex minuter till (deno-testerna körs före deployen där).
-    timeout-minutes: 20
+    # Edge-deployen (deno-test, deploy, svit) tar runt tio minuter.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
 
-      - name: Wait for this commit's edge function to be deployed
-        # Båda flödena startar på samma push. När pushen ändrar funktionen OCH
-        # sviten körde den här sviten mot den GAMLA funktionen: 2026-09-22 föll
-        # T42/T43 rött här klockan 07:20, en minut innan edge-deploy.yml hade
-        # lagt ut funktionen de var skrivna för. Vänta tills edge-deploys
-        # deploysteg för samma SHA är klart, om det finns ett sådant flöde.
+      - name: Engine tests -- edge-deploy's suite, or our own run
+        # edge-deploy.yml kör SAMMA svit (scripts/test-advisor.sh) direkt efter
+        # att den lagt ut funktionen. Att köra den här igen dubblade Groq-
+        # anropen för varje motorändring. Finns ett edge-deploy för den här
+        # SHA:n väntar vi in det och ärver dess resultat; annars (bara evalen
+        # eller det här flödet ändrades, eller manuell körning) körs sviten här.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for i in $(seq 1 30); do
+          run_id=""
+          for i in 1 2 3; do
             run_id=$(gh run list --workflow edge-deploy.yml --commit "$GITHUB_SHA" --json databaseId --jq '.[0].databaseId // empty')
-            if [[ -z "$run_id" ]]; then
-              # Flödet registreras några sekunder efter pushen; ge det tre chanser.
-              if [[ $i -ge 3 ]]; then echo "inget edge-deploy för $GITHUB_SHA -- funktionen ändrades inte"; break; fi
-              sleep 10; continue
-            fi
-            # Matchar stegnamnet löst: det hette "Deploy groq-advisor to Supabase"
-            # tills dbe5235 döpte om det till "Deploy all edge functions to
-            # Supabase". Med exakt namn hittades inget steg, svaret blev alltid
-            # "pending" och varje driftsättning väntade hela tio minuter.
-            st=$(gh run view "$run_id" --json jobs --jq '[.jobs[].steps[] | select(.name | test("^Deploy .*to Supabase$"))][0] | (.conclusion // .status // "pending")')
-            case "$st" in
-              success) echo "edge-deploy $run_id: funktionen är utlagd"; break;;
-              failure|cancelled|skipped) echo "edge-deploy $run_id: deploysteget gav $st -- sviten körs mot funktionen som ligger ute"; break;;
-              *) echo "väntar på edge-deploy $run_id ($st)…"; sleep 20;;
-            esac
+            [[ -n "$run_id" ]] && break
+            sleep 10   # flödet registreras några sekunder efter pushen
           done
-
-      - name: Run BOM regression suite (29 tests)
-        run: |
-          chmod +x scripts/test-advisor.sh
-          ./scripts/test-advisor.sh
+          if [[ -n "$run_id" ]]; then
+            echo "edge-deploy $run_id kör sviten -- väntar in resultatet"
+            gh run watch "$run_id" --exit-status --interval 20 > /dev/null
+            echo "edge-deploy $run_id: grönt"
+          else
+            echo "inget edge-deploy för $GITHUB_SHA -- sviten körs här"
+            chmod +x scripts/test-advisor.sh
+            ./scripts/test-advisor.sh
+          fi
 
   # ── 2. Options accuracy eval (10 random physical scenarios) ─────────────────
   eval-accuracy:
-    needs: regression   # serialize the two LLM-heavy jobs (avoid concurrent Groq load)
+    needs: [andringar, regression]   # serialize the two LLM-heavy jobs (avoid concurrent Groq load)
+    if: needs.andringar.outputs.ai == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -66,8 +90,14 @@ jobs:
         # seed = CI run number → different scenarios every run, but reproducible per run
 
   # ── 3. Build & deploy frontend only when both test jobs are green ────────────
+  # Överhoppade tester (ingen AI-kod ändrad) stoppar inte driftsättningen;
+  # ett fallerat eller avbrutet test gör det fortfarande.
   deploy:
-    needs: [regression, eval-accuracy]
+    needs: [andringar, regression, eval-accuracy]
+    if: >-
+      always() && needs.andringar.result == 'success' &&
+      (needs.regression.result == 'success' || needs.regression.result == 'skipped') &&
+      (needs['eval-accuracy'].result == 'success' || needs['eval-accuracy'].result == 'skipped')
     runs-on: ubuntu-latest
     name: Build & Deploy
     steps:
