@@ -14,6 +14,7 @@ import { saveBomNormalized, loadBomNormalized } from "@/lib/bom-store";
 import { usableForceN } from "@/lib/physics";
 import { Award, Camera, Lock, Package, RefreshCw, Ruler, Save, Settings } from "lucide-react";
 import { getProductImage } from "@/lib/product-images";
+import { logga } from "@/lib/matning";
 
 export const Route = createFileRoute("/$locale/machine-builder")({
   head: ({ params }) => {
@@ -365,6 +366,7 @@ function MachineBuilderPage() {
       const data = await advisorCall({ action: "bom", description, answers, primarySku: opt.sku, locale });
       const enriched = enrichWithCatalog<BomLine>(data.bom ?? []);
       setBom(enriched);
+      logga("stycklista", { rader: enriched.length, primar: opt.sku });
       setConnections(data.connections ?? []);
       // Äldre driftsatta versioner av funktionen svarar utan dom. Då är null
       // rätt: ingen banner alls är ärligare än ett påhittat "klar".

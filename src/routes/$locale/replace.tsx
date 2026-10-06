@@ -13,6 +13,7 @@ import { SITE, hreflangLinks } from "@/lib/site";
 import { specEtikett, specVarde } from "@/lib/spec-format";
 import { ArticleNumber } from "@/components/ArticleNumber";
 import { identifiera, motsvarigheter, sammaVarde, type Identifiering, type Kandidat } from "@/lib/ersattning";
+import { logga } from "@/lib/matning";
 import type { FamilyBrief } from "../../../supabase/functions/groq-advisor/order-code.ts";
 
 type Text = {
@@ -170,6 +171,12 @@ function ErsattSida() {
     [kodISok, katalog, familjer],
   );
   const kandidater: Kandidat[] = useMemo(() => (id && katalog ? motsvarigheter(id, katalog) : []), [id, katalog]);
+
+  // En gång per sökning, när katalogen har hunnit laddas.
+  useEffect(() => {
+    if (!id) return;
+    logga("ersatt", { kod: id.kod.slice(0, 60), igenkand: !!(id.produkt || id.familj), motsvarigheter: kandidater.length });
+  }, [id, kandidater.length]);
 
   function sok(kod: string) {
     const ren = kod.trim();

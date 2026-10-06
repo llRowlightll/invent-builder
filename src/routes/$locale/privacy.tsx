@@ -142,6 +142,14 @@ function PrivacyPage() {
             Analytiska cookies laddas <strong className="text-foreground">enbart</strong> om du väljer "Acceptera alla".
             Du kan ändra ditt val när som helst via "Cookie-inställningar" i sidfoten.
           </p>
+          <p className="mt-3">
+            <strong className="text-foreground">Anonym användningsstatistik, utan cookies.</strong> För att förbättra
+            tjänsten registrerar vi varifrån ett besök kommer (till exempel linkedin.com eller en kampanjtagg), sökord,
+            de första 120 tecknen i frågor till AI-ingenjören, koder i ersättningssökningen och att en stycklista eller
+            offertförfrågan har skickats. Vi sparar ingen IP-adress, inget användar-id och inget som kopplar händelsen
+            till en person, och ingenting lagras i din webbläsare. Rättslig grund: berättigat intresse (art. 6.1 f).
+            Händelserna raderas efter 13 månader. Skriv inte personuppgifter i sökfält eller frågor.
+          </p>
         </Section>
 
         <Section title="8. Säkerhet">

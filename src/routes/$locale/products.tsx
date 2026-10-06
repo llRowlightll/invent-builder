@@ -12,6 +12,7 @@ import { SITE, hreflangLinks } from "@/lib/site";
 import { categoryName } from "@/lib/categories";
 import { kallor, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
 import { matcharFraga } from "@/lib/sokord";
+import { logga } from "@/lib/matning";
 import { FileText } from "lucide-react";
 
 type FilterKey = "brands" | "cats" | "grades";
@@ -272,6 +273,7 @@ function ProductsPage() {
     try {
       const result = await aiSearch({ data: { query, locale } });
       setAiResult(result);
+      logga("sok", { q: query.trim().slice(0, 80), kategori: result.category_slug ?? null });
       // Apply AI filters to manual filter state
       if (result.category_slug) setCats(new Set([result.category_slug]));
       if (result.brand_slug) setBrands(new Set([result.brand_slug]));

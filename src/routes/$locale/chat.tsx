@@ -7,6 +7,7 @@ import { aiSearchProducts, aiAskKnowledge, aiExtractDimensions, aiVisionChat, ty
 import { fileToBase64 } from "@/lib/document-ai";
 import { computePhysics } from "@/lib/physics";
 import { arKunskapsfraga } from "@/lib/fragetyp";
+import { logga } from "@/lib/matning";
 import { tillBubbeltext } from "@/lib/chattsvar";
 import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
@@ -212,6 +213,7 @@ function ChatPage() {
     const history = buildHistory(msgs);
     setMsgs((m) => [...m, { role: "user", text: q }]);
     setBusy(true);
+    logga("ai_fraga", { fraga: q.trim().slice(0, 120), vag: arKunskapsfraga(q) ? "kunskap" : "motor" });
 
     try {
       // ── 1. Knowledge Q&A (non-product questions) ────────────────────────
