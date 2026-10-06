@@ -133,3 +133,12 @@ export function kallor(specs: Record<string, Spec>, locale: string): { egenskap:
 }
 
 export type { Sprak };
+
+/**
+ * Beskrivningen på sidans språk. description är svensk; där en engelsk
+ * originaltext fanns sparas den i description_en (2026-10-06) och visas på
+ * de andra språken.
+ */
+export function beskrivning(p: { description: string | null; description_en?: string | null }, locale: string): string | null {
+  return locale !== "sv" && p.description_en ? p.description_en : p.description;
+}

@@ -6,6 +6,8 @@ export interface ProductRow {
   sku: string;
   name: string;
   description: string | null;
+  /** Engelska originaltexten när description är översatt till svenska. */
+  description_en?: string | null;
   family: string | null;
   brand: { slug: string; name: string };
   category: { slug: string; name: string };
