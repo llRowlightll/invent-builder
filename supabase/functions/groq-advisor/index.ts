@@ -732,10 +732,10 @@ async function handleEndEffectorOptions(
   // than silently staying quiet about a stated requirement we can't confirm.
   const esdCaveat = hazards.isEsdSafe
     ? pick(locale, {
-        sv: " ESD-säkerhet: vi har inga ESD-/antistatiska specifikationer i katalogen för att verifiera detta — begär offert med ESD-krav specificerat.",
-        en: " ESD safety: we have no ESD/antistatic specs in the catalog to verify this — request a quote with the ESD requirement specified.",
-        de: " ESD-Sicherheit: wir haben keine ESD-/antistatischen Spezifikationen im Katalog, um dies zu verifizieren — Angebot mit angegebener ESD-Anforderung anfordern.",
-        es: " Seguridad ESD: no tenemos especificaciones ESD/antiestáticas en el catálogo para verificarlo — solicite una oferta especificando el requisito ESD.",
+        sv: " ⚠️ ESD-säkerhet: vi har inga ESD-/antistatiska specifikationer i katalogen för att verifiera detta — begär offert med ESD-krav specificerat.",
+        en: " ⚠️ ESD safety: we have no ESD/antistatic specs in the catalog to verify this — request a quote with the ESD requirement specified.",
+        de: " ⚠️ ESD-Sicherheit: wir haben keine ESD-/antistatischen Spezifikationen im Katalog, um dies zu verifizieren — Angebot mit angegebener ESD-Anforderung anfordern.",
+        es: " ⚠️ Seguridad ESD: no tenemos especificaciones ESD/antiestáticas en el catálogo para verificarlo — solicite una oferta especificando el requisito ESD.",
       })
     : "";
 
@@ -1034,7 +1034,7 @@ async function handleOptions(
     // pick(locale, ...) inside detectConflicts), so they append uniformly
     // regardless of which locale string below they land in.
     const conflictNote = hazards.conflicts.length
-      ? " " + hazards.conflicts.join(" ")
+      ? " " + hazards.conflicts.map(c => "⚠️ " + c).join(" ")
       : "";
     const summary = pick(locale, {
       sv: `Det här är en stötdämpar-applikation — en cylinder bromsar inte en rullande massa, det gör en stötdämpare.${eNote} Välj storlek (M8–M20) efter dämparens energikapacitet per slag (se datablad).${conflictNote}`,
@@ -1189,7 +1189,7 @@ async function handleOptions(
     // it's appended uniformly across all three outcomes below rather than
     // only the plain-success case.
     const conflictNote = hazards.conflicts.length
-      ? " " + hazards.conflicts.join(" ")
+      ? " " + hazards.conflicts.map(c => "⚠️ " + c).join(" ")
       : "";
     const summaryBase = isAtexZone
       ? pick(locale, {
@@ -1470,13 +1470,13 @@ async function handleOptions(
     isAtex ? "ATEX Zone 1/2" : "",
     isAtexDust ? "ATEX Zone 20/21/22 (damm)" : "",
     isHighSpeed ? `Hög hastighet ${(speedMs*1000).toFixed(0)} mm/s` : "",
-    isOxygenClean ? "Syrgasmiljö — endast oljefria komponenter, ingen standard smord pneumatik" : "",
-    isPharmaGmp ? "GMP/FDA-krav — 316L/PTFE/EPDM, ej standardaluminium" : "",
-    isBatteryDryroom ? "Torrumsmiljö (batteri) — absolut Cu/Zn/Ni-förbud" : "",
-    isSilSafety ? "SIL/PL säkerhetsfunktion — certifierad ventil krävs" : "",
-    isHydraulic || isVeryHighForce ? "Hydraulik/mycket hög kraft — utanför pneumatisk katalog" : "",
-    isHighTemp ? "Hög temperatur >80°C — PTFE/FKM-tätning krävs" : "",
-    isLowTemp ? "Låg temperatur — kontrollera tätningsmaterial" : "",
+    isOxygenClean ? "⛔ Syrgasmiljö — endast oljefria komponenter, ingen standard smord pneumatik" : "",
+    isPharmaGmp ? "⚠️ GMP/FDA-krav — 316L/PTFE/EPDM, ej standardaluminium" : "",
+    isBatteryDryroom ? "⛔ Torrumsmiljö (batteri) — absolut Cu/Zn/Ni-förbud" : "",
+    isSilSafety ? "⚠️ SIL/PL säkerhetsfunktion — certifierad ventil krävs" : "",
+    isHydraulic || isVeryHighForce ? "⚠️ Hydraulik/mycket hög kraft — utanför pneumatisk katalog" : "",
+    isHighTemp ? "⚠️ Hög temperatur >80°C — PTFE/FKM-tätning krävs" : "",
+    isLowTemp ? "⚠️ Låg temperatur — kontrollera tätningsmaterial" : "",
     isOutdoor ? "Utomhus/marin miljö — korrosionsbeständighet" : "",
     isHighCycle ? "Kontinuerlig drift/högfrekvent — dimensionera för livslängd" : "",
   ].filter(Boolean).join(" | ");
@@ -1636,10 +1636,10 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
         es: ` Pídalo en Ø${famB} — el tamaño más pequeño de la serie que da la fuerza necesaria.`,
       }) : "";
       const note = pick(locale, {
-        sv: `Produktfamilj/serie — exakt slaglängd${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} väljs vid beställning${actualMax > 0 ? `; serien täcker upp till ${actualMax} mm` : ""}.`,
-        en: `Product family/series — exact stroke${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} is selected at order${actualMax > 0 ? `; the series covers up to ${actualMax} mm` : ""}.`,
-        de: `Produktfamilie/-serie — die genaue Hublänge${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} wird bei der Bestellung ausgewählt${actualMax > 0 ? `; die Serie deckt bis zu ${actualMax} mm ab` : ""}.`,
-        es: `Familia/serie de productos — la carrera exacta${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} se selecciona al realizar el pedido${actualMax > 0 ? `; la serie cubre hasta ${actualMax} mm` : ""}.`,
+        sv: `🔧 Produktfamilj/serie — exakt slaglängd${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} väljs vid beställning${actualMax > 0 ? `; serien täcker upp till ${actualMax} mm` : ""}.`,
+        en: `🔧 Product family/series — exact stroke${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} is selected at order${actualMax > 0 ? `; the series covers up to ${actualMax} mm` : ""}.`,
+        de: `🔧 Produktfamilie/-serie — die genaue Hublänge${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} wird bei der Bestellung ausgewählt${actualMax > 0 ? `; die Serie deckt bis zu ${actualMax} mm ab` : ""}.`,
+        es: `🔧 Familia/serie de productos — la carrera exacta${maxRequiredStroke > 0 ? ` (${maxRequiredStroke} mm)` : ""} se selecciona al realizar el pedido${actualMax > 0 ? `; la serie cubre hasta ${actualMax} mm` : ""}.`,
       });
       opt.why = `${note}${storlek} ${opt.why ?? ""}`.trim();
       // The LLM writes cons from the raw stroke_mm spec (the family's max, e.g.
@@ -1661,10 +1661,10 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     if (maxRequiredStroke > 0 && actualMax > 0 && actualMax < maxRequiredStroke) {
       opt.badge = closestCatalogBadge;
       opt.why = `${opt.why} ` + pick(locale, {
-        sv: `Max slaglängd ${actualMax} mm — krav ${maxRequiredStroke} mm.`,
-        en: `Max stroke ${actualMax} mm — requirement ${maxRequiredStroke} mm.`,
-        de: `Max. Hub ${actualMax} mm — Anforderung ${maxRequiredStroke} mm.`,
-        es: `Carrera máx. ${actualMax} mm — requisito ${maxRequiredStroke} mm.`,
+        sv: `⚠️ Max slaglängd ${actualMax} mm — krav ${maxRequiredStroke} mm.`,
+        en: `⚠️ Max stroke ${actualMax} mm — requirement ${maxRequiredStroke} mm.`,
+        de: `⚠️ Max. Hub ${actualMax} mm — Anforderung ${maxRequiredStroke} mm.`,
+        es: `⚠️ Carrera máx. ${actualMax} mm — requisito ${maxRequiredStroke} mm.`,
       });
     }
     // ÖVERSKJUTANDE SLAGLÄNGD ÄR EN AVVIKELSE, INTE EN FÖRDEL.
@@ -1693,10 +1693,10 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     if (isWashdown && !isWashdownProduct(cat)) {
       opt.badge = closestCatalogBadge;
       opt.why = `${opt.why} ` + pick(locale, {
-        sv: `Standardprodukt — verifiera korrosionsskydd för washdown-miljö.`,
-        en: `Standard product — verify corrosion protection for washdown environment.`,
-        de: `Standardprodukt — Korrosionsschutz für Washdown-Umgebung prüfen.`,
-        es: `Producto estándar — verifique la protección contra corrosión para entorno washdown.`,
+        sv: `⚠️ Standardprodukt — verifiera korrosionsskydd för washdown-miljö.`,
+        en: `⚠️ Standard product — verify corrosion protection for washdown environment.`,
+        de: `⚠️ Standardprodukt — Korrosionsschutz für Washdown-Umgebung prüfen.`,
+        es: `⚠️ Producto estándar — verifique la protección contra corrosión para entorno washdown.`,
       });
     }
     if (isHighPrecision && !isAllowedForHighPrecision(cat)) {
@@ -1704,10 +1704,10 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
         ? pick(locale, { sv: "pneumatisk cylinder", en: "pneumatic cylinder", de: "Pneumatikzylinder", es: "cilindro neumático" })
         : pick(locale, { sv: "kuggremsdrift", en: "belt drive", de: "Zahnriemenantrieb", es: "accionamiento por correa" });
       const crit = pick(locale, {
-        sv: `KRITISKT FEL: ${ft} kan INTE uppnå ±${precisionMm} mm. Krävs: kulskruvsaxel.`,
-        en: `CRITICAL FAILURE: ${ft} CANNOT achieve ±${precisionMm} mm. Required: ball-screw axis.`,
-        de: `KRITISCHER FEHLER: ${ft} kann ±${precisionMm} mm NICHT erreichen. Erforderlich: Kugelumlaufspindelachse.`,
-        es: `FALLO CRÍTICO: ${ft} NO puede alcanzar ±${precisionMm} mm. Requerido: eje de husillo de bolas.`,
+        sv: `⛔ KRITISKT FEL: ${ft} kan INTE uppnå ±${precisionMm} mm. Krävs: kulskruvsaxel.`,
+        en: `⛔ CRITICAL FAILURE: ${ft} CANNOT achieve ±${precisionMm} mm. Required: ball-screw axis.`,
+        de: `⛔ KRITISCHER FEHLER: ${ft} kann ±${precisionMm} mm NICHT erreichen. Erforderlich: Kugelumlaufspindelachse.`,
+        es: `⛔ FALLO CRÍTICO: ${ft} NO puede alcanzar ±${precisionMm} mm. Requerido: eje de husillo de bolas.`,
       });
       opt.badge = closestCatalogBadge;
       opt.why = crit + " " + opt.why;
@@ -1715,19 +1715,19 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     }
     if (isHighSpeed && isBallScrewProduct(cat)) {
       const warn = pick(locale, {
-        sv: `Kulskruvsaxel vid ${(speedMs*1000).toFixed(0)} mm/s — risk för vibration och slitage. Överväg kuggremsdrift (EGSC/ELGC-TB).`,
-        en: `Ball-screw at ${(speedMs*1000).toFixed(0)} mm/s — vibration and wear risk. Consider belt drive (EGSC/ELGC-TB).`,
-        de: `Kugelumlaufspindelachse bei ${(speedMs*1000).toFixed(0)} mm/s — Vibrations- und Verschleißrisiko. Zahnriemenantrieb erwägen (EGSC/ELGC-TB).`,
-        es: `Eje de husillo de bolas a ${(speedMs*1000).toFixed(0)} mm/s — riesgo de vibración y desgaste. Considere un accionamiento por correa (EGSC/ELGC-TB).`,
+        sv: `⚠️ Kulskruvsaxel vid ${(speedMs*1000).toFixed(0)} mm/s — risk för vibration och slitage. Överväg kuggremsdrift (EGSC/ELGC-TB).`,
+        en: `⚠️ Ball-screw at ${(speedMs*1000).toFixed(0)} mm/s — vibration and wear risk. Consider belt drive (EGSC/ELGC-TB).`,
+        de: `⚠️ Kugelumlaufspindelachse bei ${(speedMs*1000).toFixed(0)} mm/s — Vibrations- und Verschleißrisiko. Zahnriemenantrieb erwägen (EGSC/ELGC-TB).`,
+        es: `⚠️ Eje de husillo de bolas a ${(speedMs*1000).toFixed(0)} mm/s — riesgo de vibración y desgaste. Considere un accionamiento por correa (EGSC/ELGC-TB).`,
       });
       opt.cons = [...((opt.cons as string[]) ?? []), warn];
     }
     if (isBatteryDryroom) {
       const warn = pick(locale, {
-        sv: `Dryroom: Verifiera Cu/Zn/Ni-frihet i alla rörliga delar. Begär materialcertifikat.`,
-        en: `Dryroom: Verify Cu/Zn/Ni-free in all moving parts. Request material certificate.`,
-        de: `Trockenraum: Cu/Zn/Ni-Freiheit in allen beweglichen Teilen prüfen. Materialzertifikat anfordern.`,
-        es: `Sala seca: verifique la ausencia de Cu/Zn/Ni en todas las piezas móviles. Solicite el certificado de materiales.`,
+        sv: `⚠️ Dryroom: Verifiera Cu/Zn/Ni-frihet i alla rörliga delar. Begär materialcertifikat.`,
+        en: `⚠️ Dryroom: Verify Cu/Zn/Ni-free in all moving parts. Request material certificate.`,
+        de: `⚠️ Trockenraum: Cu/Zn/Ni-Freiheit in allen beweglichen Teilen prüfen. Materialzertifikat anfordern.`,
+        es: `⚠️ Sala seca: verifique la ausencia de Cu/Zn/Ni en todas las piezas móviles. Solicite el certificado de materiales.`,
       });
       opt.cons = [...((opt.cons as string[]) ?? []), warn];
     }
@@ -1738,10 +1738,10 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     // the bare SKU as listed is not itself ATEX-certified.
     if ((isAtex || isAtexDust) && isAtexCapableProduct(cat)) {
       const warn = pick(locale, {
-        sv: `Standard-SKU — beställ uttryckligen ATEX-varianten (ej samma som baskoden) och begär ATEX/IECEx-intyg för er zon före köp.`,
-        en: `Standard SKU — explicitly order the ATEX variant (not the same as the base part number) and request the ATEX/IECEx certificate for your zone before purchase.`,
-        de: `Standard-SKU — ausdrücklich die ATEX-Variante bestellen (nicht identisch mit der Basisartikelnummer) und vor dem Kauf das ATEX/IECEx-Zertifikat für Ihre Zone anfordern.`,
-        es: `SKU estándar — pida explícitamente la variante ATEX (no es la misma que el número de pieza base) y solicite el certificado ATEX/IECEx para su zona antes de comprar.`,
+        sv: `⛔ Standard-SKU — beställ uttryckligen ATEX-varianten (ej samma som baskoden) och begär ATEX/IECEx-intyg för er zon före köp.`,
+        en: `⛔ Standard SKU — explicitly order the ATEX variant (not the same as the base part number) and request the ATEX/IECEx certificate for your zone before purchase.`,
+        de: `⛔ Standard-SKU — ausdrücklich die ATEX-Variante bestellen (nicht identisch mit der Basisartikelnummer) und vor dem Kauf das ATEX/IECEx-Zertifikat für Ihre Zone anfordern.`,
+        es: `⛔ SKU estándar — pida explícitamente la variante ATEX (no es la misma que el número de pieza base) y solicite el certificado ATEX/IECEx para su zona antes de comprar.`,
       });
       opt.cons = [...((opt.cons as string[]) ?? []), warn];
     }
@@ -1750,10 +1750,10 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
       if (tMax > 0 && tMax < requiredTemp) {
         opt.badge = closestCatalogBadge;
         opt.why = pick(locale, {
-          sv: `Temp ${tMax}°C < krav ${requiredTemp}°C. `,
-          en: `Temp ${tMax}°C < requirement ${requiredTemp}°C. `,
-          de: `Temp. ${tMax} °C < Anforderung ${requiredTemp} °C. `,
-          es: `Temp. ${tMax} °C < requisito ${requiredTemp} °C. `,
+          sv: `⛔ Temp ${tMax}°C < krav ${requiredTemp}°C. `,
+          en: `⛔ Temp ${tMax}°C < requirement ${requiredTemp}°C. `,
+          de: `⛔ Temp. ${tMax} °C < Anforderung ${requiredTemp} °C. `,
+          es: `⛔ Temp. ${tMax} °C < requisito ${requiredTemp} °C. `,
         }) + opt.why;
       }
     }
@@ -1812,10 +1812,10 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
 
   const finalSummary = optConflicts.length
     ? `${summary} ` + pick(locale, {
-        sv: `Kravkonflikter att notera: ${optConflicts.join(" | ")}`,
-        en: `Requirement conflicts to note: ${optConflicts.join(" | ")}`,
-        de: `Zu beachtende Anforderungskonflikte: ${optConflicts.join(" | ")}`,
-        es: `Conflictos de requisitos a tener en cuenta: ${optConflicts.join(" | ")}`,
+        sv: `⚠️ Kravkonflikter att notera: ${optConflicts.join(" | ")}`,
+        en: `⚠️ Requirement conflicts to note: ${optConflicts.join(" | ")}`,
+        de: `⚠️ Zu beachtende Anforderungskonflikte: ${optConflicts.join(" | ")}`,
+        es: `⚠️ Conflictos de requisitos a tener en cuenta: ${optConflicts.join(" | ")}`,
       })
     : summary;
 
@@ -1848,10 +1848,10 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
   if (optRateLimited) {
     logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: true, top_sku: topProducts[0]?.sku ?? null, option_count: finalOptions.length }, false, "rate_limited");
     const degradedNote = pick(locale, {
-      sv: "AI-motiveringen är inte tillgänglig just nu. Komponenterna nedan är valda av våra egna beräkningar utifrån dina krav, och specifikationerna är hämtade ur katalogen — men den skrivna motiveringen saknas. Försök igen om en stund för den fullständiga analysen.",
-      en: "The AI rationale is unavailable right now. The components below were selected by our own calculations from your requirements, and the specifications come from the catalogue — but the written justification is missing. Try again shortly for the full analysis.",
-      de: "Die KI-Begründung ist derzeit nicht verfügbar. Die Komponenten unten wurden von unseren eigenen Berechnungen anhand Ihrer Anforderungen ausgewählt, und die Spezifikationen stammen aus dem Katalog — die schriftliche Begründung fehlt jedoch. Versuchen Sie es in Kürze erneut.",
-      es: "La justificación de la IA no está disponible ahora mismo. Los componentes siguientes fueron seleccionados por nuestros propios cálculos a partir de sus requisitos, y las especificaciones proceden del catálogo — pero falta la justificación escrita. Inténtelo de nuevo en breve.",
+      sv: "⚠️ AI-motiveringen är inte tillgänglig just nu. Komponenterna nedan är valda av våra egna beräkningar utifrån dina krav, och specifikationerna är hämtade ur katalogen — men den skrivna motiveringen saknas. Försök igen om en stund för den fullständiga analysen.",
+      en: "⚠️ The AI rationale is unavailable right now. The components below were selected by our own calculations from your requirements, and the specifications come from the catalogue — but the written justification is missing. Try again shortly for the full analysis.",
+      de: "⚠️ Die KI-Begründung ist derzeit nicht verfügbar. Die Komponenten unten wurden von unseren eigenen Berechnungen anhand Ihrer Anforderungen ausgewählt, und die Spezifikationen stammen aus dem Katalog — die schriftliche Begründung fehlt jedoch. Versuchen Sie es in Kürze erneut.",
+      es: "⚠️ La justificación de la IA no está disponible ahora mismo. Los componentes siguientes fueron seleccionados por nuestros propios cálculos a partir de sus requisitos, y las especificaciones proceden del catálogo — pero falta la justificación escrita. Inténtelo de nuevo en breve.",
     });
     return Response.json({
       summary: `${degradedNote}\n\n${finalSummary}`,
@@ -2045,18 +2045,18 @@ async function handleBom(
     .join(", ");
 
   const specialConstraints = [
-    hazards.isAtex    ? (isSv ? "ATEX Zone 1/2 — inga elektriska komponenter." : "ATEX Zone 1/2 — no electric components.") : "",
-    hazards.isAtexDust ? (isSv ? "ATEX Zone 20/21/22 damm." : "ATEX Zone 20/21/22 dust.") : "",
-    hazards.isHighPrecision ? (isSv ? `Precision ±${hazards.precisionMm}mm — kulskruv obligatorisk.` : `Precision ±${hazards.precisionMm}mm — ball screw mandatory.`) : "",
-    hazards.isWashdown ? (isSv ? "Washdown IP69K." : "Washdown IP69K.") : "",
-    hazards.isPharmaGmp ? (isSv ? "GMP/FDA — 316L, PTFE, EPDM." : "GMP/FDA — 316L, PTFE, EPDM.") : "",
-    hazards.isBatteryDryroom ? (isSv ? "Dryroom — absolut Cu/Zn/Ni-förbud." : "Dryroom — Cu/Zn/Ni ban.") : "",
-    hazards.isHydraulic || hazards.isVeryHighForce ? (isSv ? "Hydraulik/hög kraft — utanför pneumatisk katalog." : "Hydraulic/high force — outside pneumatic catalog.") : "",
-    hazards.isHighTemp ? (isSv ? "Hög temp >80°C — PTFE/FKM-tätning krävs." : "High temp >80°C — PTFE/FKM seals required.") : "",
-    hazards.isOxygenClean ? (isSv ? "Syrgasmiljö — oljefria komponenter." : "Oxygen atmosphere — oil-free only.") : "",
-    hazards.isSilSafety ? (isSv ? "SIL/PL säkerhetsfunktion — certifierad ventil krävs." : "SIL/PL safety function — certified valve required.") : "",
-    hazards.dynamics ? (isSv ? `Rörelse-uppskattning: ~${hazards.dynamics.accel.toFixed(1)} m/s², ~${Math.round(hazards.dynamics.forceN)} N topp — säg uttryckligen att servo/motor måste dimensioneras för detta.` : `Motion estimate: ~${hazards.dynamics.accel.toFixed(1)} m/s², ~${Math.round(hazards.dynamics.forceN)} N peak — state explicitly the servo/motor must be sized for this.`) : "",
-    hazards.conflicts.length ? (isSv ? `Kravkonflikter att nämna: ${hazards.conflicts.join(" | ")}` : `Requirement conflicts to mention: ${hazards.conflicts.join(" | ")}`) : "",
+    hazards.isAtex    ? (isSv ? "⛔ ATEX Zone 1/2 — inga elektriska komponenter." : "⛔ ATEX Zone 1/2 — no electric components.") : "",
+    hazards.isAtexDust ? (isSv ? "⛔ ATEX Zone 20/21/22 damm." : "⛔ ATEX Zone 20/21/22 dust.") : "",
+    hazards.isHighPrecision ? (isSv ? `⛔ Precision ±${hazards.precisionMm}mm — kulskruv obligatorisk.` : `⛔ Precision ±${hazards.precisionMm}mm — ball screw mandatory.`) : "",
+    hazards.isWashdown ? (isSv ? "⚠️ Washdown IP69K." : "⚠️ Washdown IP69K.") : "",
+    hazards.isPharmaGmp ? (isSv ? "⚠️ GMP/FDA — 316L, PTFE, EPDM." : "⚠️ GMP/FDA — 316L, PTFE, EPDM.") : "",
+    hazards.isBatteryDryroom ? (isSv ? "⛔ Dryroom — absolut Cu/Zn/Ni-förbud." : "⛔ Dryroom — Cu/Zn/Ni ban.") : "",
+    hazards.isHydraulic || hazards.isVeryHighForce ? (isSv ? "⚠️ Hydraulik/hög kraft — utanför pneumatisk katalog." : "⚠️ Hydraulic/high force — outside pneumatic catalog.") : "",
+    hazards.isHighTemp ? (isSv ? "⚠️ Hög temp >80°C — PTFE/FKM-tätning krävs." : "⚠️ High temp >80°C — PTFE/FKM seals required.") : "",
+    hazards.isOxygenClean ? (isSv ? "⛔ Syrgasmiljö — oljefria komponenter." : "⛔ Oxygen atmosphere — oil-free only.") : "",
+    hazards.isSilSafety ? (isSv ? "⚠️ SIL/PL säkerhetsfunktion — certifierad ventil krävs." : "⚠️ SIL/PL safety function — certified valve required.") : "",
+    hazards.dynamics ? (isSv ? `📐 Rörelse-uppskattning: ~${hazards.dynamics.accel.toFixed(1)} m/s², ~${Math.round(hazards.dynamics.forceN)} N topp — säg uttryckligen att servo/motor måste dimensioneras för detta.` : `📐 Motion estimate: ~${hazards.dynamics.accel.toFixed(1)} m/s², ~${Math.round(hazards.dynamics.forceN)} N peak — state explicitly the servo/motor must be sized for this.`) : "",
+    hazards.conflicts.length ? (isSv ? `⚠️ Kravkonflikter att nämna: ${hazards.conflicts.join(" | ")}` : `⚠️ Requirement conflicts to mention: ${hazards.conflicts.join(" | ")}`) : "",
   ].filter(Boolean).join(" ");
 
   // LLM only writes title + explanation — no extras, no SKU selection
@@ -2123,18 +2123,18 @@ JSON: { "title": "...", "explanation": "..." }`;
   // "complete" while ignoring the physics and the requirement conflicts.
   const engNotes: string[] = [];
   if (hazards.dynamics) engNotes.push(pick(locale, {
-    sv: `Dimensionering (första-ordningens uppskattning): för ${hazards.cycleTimeS} s cykeltid, ${hazards.requiredStrokeMm} mm slag och ${hazards.loadKg} kg → topphastighet ~${hazards.dynamics.vPeak.toFixed(2)} m/s, acceleration ~${hazards.dynamics.accel.toFixed(1)} m/s², toppkraft ~${Math.round(hazards.dynamics.forceN)} N${hazards.isVerticalLoad ? " (inkl. gravitation)" : ""}. Verifiera vald axel/motor mot kraft, varvtal och kontinuerlig last — detta ersätter inte en full servoberäkning.`,
-    en: `Sizing (first-order estimate): for a ${hazards.cycleTimeS} s cycle, ${hazards.requiredStrokeMm} mm stroke and ${hazards.loadKg} kg → peak velocity ~${hazards.dynamics.vPeak.toFixed(2)} m/s, acceleration ~${hazards.dynamics.accel.toFixed(1)} m/s², peak force ~${Math.round(hazards.dynamics.forceN)} N${hazards.isVerticalLoad ? " (incl. gravity)" : ""}. Verify the chosen axis/motor for force, rpm and continuous load — this does not replace a full servo calculation.`,
-    de: `Dimensionierung (Schätzung erster Ordnung): für ${hazards.cycleTimeS} s Zykluszeit, ${hazards.requiredStrokeMm} mm Hub und ${hazards.loadKg} kg → Spitzengeschwindigkeit ~${hazards.dynamics.vPeak.toFixed(2)} m/s, Beschleunigung ~${hazards.dynamics.accel.toFixed(1)} m/s², Spitzenkraft ~${Math.round(hazards.dynamics.forceN)} N${hazards.isVerticalLoad ? " (inkl. Schwerkraft)" : ""}. Gewählte Achse/Motor gegen Kraft, Drehzahl und Dauerlast prüfen — dies ersetzt keine vollständige Servoberechnung.`,
-    es: `Dimensionamiento (estimación de primer orden): para un tiempo de ciclo de ${hazards.cycleTimeS} s, ${hazards.requiredStrokeMm} mm de carrera y ${hazards.loadKg} kg → velocidad máxima ~${hazards.dynamics.vPeak.toFixed(2)} m/s, aceleración ~${hazards.dynamics.accel.toFixed(1)} m/s², fuerza máxima ~${Math.round(hazards.dynamics.forceN)} N${hazards.isVerticalLoad ? " (incl. gravedad)" : ""}. Verifique el eje/motor elegido frente a la fuerza, las RPM y la carga continua — esto no sustituye un cálculo servo completo.`,
+    sv: `📐 Dimensionering (första-ordningens uppskattning): för ${hazards.cycleTimeS} s cykeltid, ${hazards.requiredStrokeMm} mm slag och ${hazards.loadKg} kg → topphastighet ~${hazards.dynamics.vPeak.toFixed(2)} m/s, acceleration ~${hazards.dynamics.accel.toFixed(1)} m/s², toppkraft ~${Math.round(hazards.dynamics.forceN)} N${hazards.isVerticalLoad ? " (inkl. gravitation)" : ""}. Verifiera vald axel/motor mot kraft, varvtal och kontinuerlig last — detta ersätter inte en full servoberäkning.`,
+    en: `📐 Sizing (first-order estimate): for a ${hazards.cycleTimeS} s cycle, ${hazards.requiredStrokeMm} mm stroke and ${hazards.loadKg} kg → peak velocity ~${hazards.dynamics.vPeak.toFixed(2)} m/s, acceleration ~${hazards.dynamics.accel.toFixed(1)} m/s², peak force ~${Math.round(hazards.dynamics.forceN)} N${hazards.isVerticalLoad ? " (incl. gravity)" : ""}. Verify the chosen axis/motor for force, rpm and continuous load — this does not replace a full servo calculation.`,
+    de: `📐 Dimensionierung (Schätzung erster Ordnung): für ${hazards.cycleTimeS} s Zykluszeit, ${hazards.requiredStrokeMm} mm Hub und ${hazards.loadKg} kg → Spitzengeschwindigkeit ~${hazards.dynamics.vPeak.toFixed(2)} m/s, Beschleunigung ~${hazards.dynamics.accel.toFixed(1)} m/s², Spitzenkraft ~${Math.round(hazards.dynamics.forceN)} N${hazards.isVerticalLoad ? " (inkl. Schwerkraft)" : ""}. Gewählte Achse/Motor gegen Kraft, Drehzahl und Dauerlast prüfen — dies ersetzt keine vollständige Servoberechnung.`,
+    es: `📐 Dimensionamiento (estimación de primer orden): para un tiempo de ciclo de ${hazards.cycleTimeS} s, ${hazards.requiredStrokeMm} mm de carrera y ${hazards.loadKg} kg → velocidad máxima ~${hazards.dynamics.vPeak.toFixed(2)} m/s, aceleración ~${hazards.dynamics.accel.toFixed(1)} m/s², fuerza máxima ~${Math.round(hazards.dynamics.forceN)} N${hazards.isVerticalLoad ? " (incl. gravedad)" : ""}. Verifique el eje/motor elegido frente a la fuerza, las RPM y la carga continua — esto no sustituye un cálculo servo completo.`,
   }));
   if (forceShortfall) engNotes.push(pick(locale, {
-    sv: `Kraftvarning: beräknad toppkraft ~${forceShortfall.needN} N överstiger vald aktuators märkkraft ~${forceShortfall.ratedN} N. Välj kraftigare axel / större borrning, sänk last/acceleration eller öka cykeltiden.`,
-    en: `Force warning: computed peak force ~${forceShortfall.needN} N exceeds the chosen actuator's rated force ~${forceShortfall.ratedN} N. Pick a stronger axis / larger bore, reduce load/acceleration, or increase the cycle time.`,
-    de: `Kraftwarnung: die berechnete Spitzenkraft ~${forceShortfall.needN} N übersteigt die Nennkraft ~${forceShortfall.ratedN} N des gewählten Aktuators. Stärkere Achse/größere Bohrung wählen, Last/Beschleunigung reduzieren oder die Zykluszeit erhöhen.`,
-    es: `Aviso de fuerza: la fuerza máxima calculada ~${forceShortfall.needN} N supera la fuerza nominal ~${forceShortfall.ratedN} N del actuador elegido. Elija un eje más fuerte / un diámetro mayor, reduzca la carga/aceleración o aumente el tiempo de ciclo.`,
+    sv: `⛔ Kraftvarning: beräknad toppkraft ~${forceShortfall.needN} N överstiger vald aktuators märkkraft ~${forceShortfall.ratedN} N. Välj kraftigare axel / större borrning, sänk last/acceleration eller öka cykeltiden.`,
+    en: `⛔ Force warning: computed peak force ~${forceShortfall.needN} N exceeds the chosen actuator's rated force ~${forceShortfall.ratedN} N. Pick a stronger axis / larger bore, reduce load/acceleration, or increase the cycle time.`,
+    de: `⛔ Kraftwarnung: die berechnete Spitzenkraft ~${forceShortfall.needN} N übersteigt die Nennkraft ~${forceShortfall.ratedN} N des gewählten Aktuators. Stärkere Achse/größere Bohrung wählen, Last/Beschleunigung reduzieren oder die Zykluszeit erhöhen.`,
+    es: `⛔ Aviso de fuerza: la fuerza máxima calculada ~${forceShortfall.needN} N supera la fuerza nominal ~${forceShortfall.ratedN} N del actuador elegido. Elija un eje más fuerte / un diámetro mayor, reduzca la carga/aceleración o aumente el tiempo de ciclo.`,
   }));
-  for (const c of hazards.conflicts) engNotes.push(c);
+  for (const c of hazards.conflicts) engNotes.push("⚠️ " + c);
   if (engNotes.length) explanation += "\n\n" + engNotes.join("\n\n");
 
   // ── Extra validation pipeline (4 layers) ────────────────────────────────────
@@ -2238,7 +2238,7 @@ async function handleChat(
         : "";
       return Response.json({
         reply:
-          "AI-svaret är inte tillgängligt just nu (dagens modellkvot är förbrukad). " +
+          "⚠️ AI-svaret är inte tillgängligt just nu (dagens modellkvot är förbrukad). " +
           "Försök igen om en stund." +
           (facts ? `\n\nDet här kunde vi ändå slå upp åt dig:\n${facts}` : "") + okand,
         degraded: "llm_unavailable",
