@@ -1,7 +1,7 @@
 /// <reference lib="deno.ns" />
 // Körs med: deno test tests/chattsvar.test.ts
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@^1";
-import { avslutaKlipptSvar, tillBubbeltext } from "../src/lib/chattsvar.ts";
+import { avslutaKlipptSvar, skiljKallrad, tillBubbeltext } from "../src/lib/chattsvar.ts";
 
 // Det klippta kunskapssvaret från drift 2026-10-05, förkortat.
 const DRIFT = [
@@ -40,4 +40,35 @@ Deno.test("utan radbrytning kapas svaret vid sista hela meningen", () => {
     avslutaKlipptSvar("PTFE tål det mesta. EPDM tål ånga men inte mi", true),
     "PTFE tål det mesta.\n\n(Svaret kortades. Ställ en smalare fråga för mer detaljer.)",
   );
+});
+
+const KANDIDATER = [
+  "SMC — smc-cp96-om_cp96n_om0197qen.pdf",
+  "SMC — smc-CQ2-om_cq2x_om0002m-en.pdf",
+];
+
+Deno.test("källraden tas bort och bara använda källor visas", () => {
+  const r = skiljKallrad("PTFE tål tvätt.\nSOURCES: smc-CQ2-om_cq2x_om0002m-en.pdf", KANDIDATER);
+  assertEquals(r.svar, "PTFE tål tvätt.");
+  assertEquals(r.kallor, ["SMC — smc-CQ2-om_cq2x_om0002m-en.pdf"]);
+});
+
+Deno.test("SOURCES: none betyder att inga källor visas", () => {
+  // Fallet från drift: reservdelskit är inget svar på en fråga om tvätt.
+  const r = skiljKallrad("Vår dokumentation täcker inte det.\n\n**SOURCES:** none", KANDIDATER);
+  assertEquals(r.svar, "Vår dokumentation täcker inte det.");
+  assertEquals(r.kallor, []);
+});
+
+Deno.test("utan källrad visas källorna som förut", () => {
+  const r = skiljKallrad("Ett svar utan källrad.", KANDIDATER);
+  assertEquals(r.svar, "Ett svar utan källrad.");
+  assertEquals(r.kallor, KANDIDATER);
+});
+
+Deno.test("källraden på svenska tolkas likadant", () => {
+  const r = skiljKallrad("Svar.\nKällor: smc-cp96-om_cp96n_om0197qen.pdf", KANDIDATER);
+  assertEquals(r.svar, "Svar.");
+  assertEquals(r.kallor, ["SMC — smc-cp96-om_cp96n_om0197qen.pdf"]);
+  assertEquals(skiljKallrad("Svar.\nKÄLLOR: inga", KANDIDATER).kallor, []);
 });

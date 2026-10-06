@@ -47,3 +47,28 @@ export function avslutaKlipptSvar(text: string, sv: boolean): string {
     ? "\n\n(Svaret kortades. Ställ en smalare fråga för mer detaljer.)"
     : "\n\n(The answer was cut short. Ask a narrower question for more detail.)");
 }
+
+/**
+ * Modellen avslutar med "SOURCES: fil1, fil2" eller "SOURCES: none" (på
+ * svenska ibland "KÄLLOR:"). Raden
+ * tas bort ur svaret, och bara de källor modellen säger att den använde
+ * visas.
+ *
+ * Hittat i drift 2026-10-06: "Vilken tätning klarar högtryckstvätt?" fick
+ * ett svar om SMC:s inre dämpningstätning ur ett reservdelskit -- och sex
+ * SMC-manualer listade som källor, fast ingen av dem handlar om tvätt.
+ * Saknas raden (klippt svar, äldre modell) visas källorna som förut.
+ */
+export function skiljKallrad(svar: string, kandidater: string[]): { svar: string; kallor: string[] } {
+  const m = /\n?[ \t]*(?:\*\*)?(?:SOURCES|K[ÄA]LLOR):(?:\*\*)?[ \t]*([^\n]*)[ \t]*$/i.exec(svar.trimEnd());
+  if (!m) return { svar, kallor: kandidater };
+  const text = svar.trimEnd().slice(0, m.index).trimEnd();
+  const angivna = m[1].trim();
+  if (!angivna || /^(none|inga|-|–)$/i.test(angivna)) return { svar: text, kallor: [] };
+  // Kandidaterna ser ut som "SMC — fil.pdf"; modellen anger oftast bara filnamnet.
+  const kallor = kandidater.filter((k) => {
+    const fil = k.split(" — ").pop() ?? k;
+    return angivna.includes(fil) || angivna.includes(k);
+  });
+  return { svar: text, kallor };
+}

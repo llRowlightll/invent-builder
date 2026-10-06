@@ -29,6 +29,7 @@ import {
 import { LANGRE_SLAG_PRO, rensaSerieslag, rensaPositionsPros } from "./prosavakt.ts";
 import {
   langName,
+  sprakregler,
   pick,
   balancedSlice,
   sortByStrokeMatch,
@@ -637,7 +638,7 @@ async function handleQuestions(description: string, locale: string): Promise<Res
     await fetchFamilyFacts(qReading.resolved.map((r) => r.familySlug)),
   );
 
-  const system = `You are a senior automation engineer helping a customer who is very likely NOT an automation engineer. Generate 4-6 precise technical questions. All text in ${lang}.\n\nRULES:\n${contextRules}${codeNote ? "\n\n" + codeNote : ""}\n\nJSON:\n{ "summary": "one precise sentence in ${lang}", "questions": [ { "id": "snake_case", "label": "question in ${lang}", "hint": "plain-language explanation of the term and how to decide — see PLAIN-LANGUAGE HINTS rule", "type": "choice", "options": ["opt1","opt2"] } ] }\ntype = 'choice' (with options) or 'number' (with unit).${pdfCtx ? "\n\nDocs:\n" + pdfCtx : ""}`;
+  const system = `You are a senior automation engineer helping a customer who is very likely NOT an automation engineer. Generate 4-6 precise technical questions. All text in ${lang}.${sprakregler(locale)}\n\nRULES:\n${contextRules}${codeNote ? "\n\n" + codeNote : ""}\n\nJSON:\n{ "summary": "one precise sentence in ${lang}", "questions": [ { "id": "snake_case", "label": "question in ${lang}", "hint": "plain-language explanation of the term and how to decide — see PLAIN-LANGUAGE HINTS rule", "type": "choice", "options": ["opt1","opt2"] } ] }\ntype = 'choice' (with options) or 'number' (with unit).${pdfCtx ? "\n\nDocs:\n" + pdfCtx : ""}`;
 
   try {
     const raw = await callGroq([
@@ -1553,7 +1554,7 @@ async function handleOptions(
     codeReading, locale,
     await fetchFamilyFacts(codeReading.resolved.map((r) => r.familySlug)),
   );
-  const optSystem = `You are a senior automation engineer. Write product descriptions for 3 pre-selected products. All text in ${lang}.
+  const optSystem = `You are a senior automation engineer. Write product descriptions for 3 pre-selected products. All text in ${lang}.${sprakregler(locale)}
 
 MANDATORY RULES:
 1. Use EXACTLY these SKUs: ${topProducts.map(p => p.sku).join(", ")} — do NOT change them
@@ -2059,7 +2060,7 @@ async function handleBom(
   ].filter(Boolean).join(" ");
 
   // LLM only writes title + explanation — no extras, no SKU selection
-  const bomSystem = `You are a senior automation engineer writing a BOM summary. All text in ${lang}.
+  const bomSystem = `You are a senior automation engineer writing a BOM summary. All text in ${lang}.${sprakregler(locale)}
 
 BOM rows (already complete — do NOT modify):
 ${skeletonStr}

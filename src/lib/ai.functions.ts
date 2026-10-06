@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { PhysicsDimensions } from "./physics";
-import { avslutaKlipptSvar } from "./chattsvar";
+import { avslutaKlipptSvar, skiljKallrad } from "./chattsvar";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 // llama-3.3-70b-versatile decommissioned by Groq 2026-08-16. Moved to openai/gpt-oss-120b
@@ -175,10 +175,16 @@ export const aiAskKnowledge = createServerFn({ method: "POST" })
       `Answer directly and technically. When the documentation does not settle a point, say so plainly and say what must be checked against the datasheet — a clear "verify" beats a confident guess. Never claim certifications, IP ratings, materials or approvals that the context does not state.`,
       `State specific products, bore sizes, force calculations, and standards (ISO 15552, IEC 61131-3, PLd/SIL2) where relevant.`,
       `If the context contains the answer, cite the source. If not in context, answer from engineering knowledge and state this clearly.`,
+      // Ändrad 2026-10-06: "Vilken tätning klarar högtryckstvätt?" besvarades
+      // med SMC:s inre dämpningstätning ur ett reservdelskit och "30–40 bar
+      // för standard-CP/CQ" (de är klassade för 10 bar). Sökningen hittade
+      // reservdelslistor på ordet "seal", och modellen tvingade in dem.
+      `The documentation context comes from a keyword search and may be off-topic. First judge whether it actually answers the question. Spare-part lists, seal kits, ordering tables and dimension drawings do not answer questions about environment, washdown, materials or approvals. If the context does not answer the question, say in one sentence that our documentation does not cover it, then give general engineering guidance clearly marked as general, and say what to verify. Never state a pressure, temperature or other rating unless the context states it for that product.`,
       `Never invent part numbers. If a specific SKU is needed, describe the selection criteria instead.`,
       `Use conversation history to understand follow-up questions and references to previous answers.`,
       // Chattbubblan visar ren text, **fetstil** och rader -- inga tabeller.
       `Format for a chat bubble: short paragraphs and bullet lines starting with "•". **Bold** is fine. No tables, no HTML, no # headings. Aim for at most about 200 words.`,
+      `End with one last line "SOURCES: <file names you actually used, comma-separated>" or "SOURCES: none".`,
       langInstruction(data.locale),
     ].join(" ");
 
@@ -199,9 +205,11 @@ export const aiAskKnowledge = createServerFn({ method: "POST" })
       // Extract source files mentioned
       const sourceMatches = context.match(/\[Source: [^\]]+\]/g) ?? [];
       const sources = [...new Set(sourceMatches.map((s) => s.replace(/\[Source: |\]/g, "")))];
+      // Bara de källor modellen säger att den använde (se skiljKallrad).
+      const delat = skiljKallrad(svar.text.trim(), sources);
       // Hellre ett kortare svar som slutar på en hel rad än ett som slutar mitt i ett ord.
-      const answer = svar.klippt ? avslutaKlipptSvar(svar.text, isSv) : svar.text.trim();
-      return { answer, sources, source: "ai" };
+      const answer = svar.klippt ? avslutaKlipptSvar(delat.svar, isSv) : delat.svar;
+      return { answer, sources: delat.kallor, source: "ai" };
     }
 
     return {

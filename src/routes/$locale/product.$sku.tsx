@@ -10,7 +10,8 @@ import { addToShoppingList } from "@/lib/cart";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { categoryName } from "@/lib/categories";
 import { kallor, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
-import { FileText, Settings } from "lucide-react";
+import { ExternalLink, FileText, Settings } from "lucide-react";
+import { tillverkarlank } from "@/lib/tillverkarlank";
 
 
 export const Route = createFileRoute("/$locale/product/$sku")({
@@ -272,6 +273,20 @@ function ProductDetail() {
           >
             {t("common.compare")}
           </Link>
+          {/* Tillverkarens CAD och datablad -- bara fabrikat med provat länkmönster. */}
+          {(() => {
+            const lank = tillverkarlank(product, locale);
+            return lank ? (
+              <a
+                href={lank.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full text-center mt-2 px-3 py-2 rounded-md border border-border text-sm text-foreground hover:border-info hover:text-info transition"
+              >
+                <ExternalLink className="size-4" aria-hidden /> {lank.text}
+              </a>
+            ) : null;
+          })()}
 
           <div className="border-t border-border pt-3 mt-1 space-y-2">
             {/* Availability */}

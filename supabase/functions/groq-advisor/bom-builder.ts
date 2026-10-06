@@ -140,6 +140,13 @@ export function buildCustomSolutionOption(
  * v40: Find the best catalog product of a given component type.
  * Returns null if no catalog match exists — caller should use SPECIFY.
  */
+/** En 5/2-vägs styrventil -- inte en spole, ejektor, kul- eller vinkelsätesventil. */
+export function arStyrventil52(p: CatalogProduct): boolean {
+  const text = `${p.name} ${p.sku} ${String(p.key_specs?.function ?? "")} ${String(p.key_specs?.valve_function ?? "")}`;
+  return /\b5\/2\b/.test(text) &&
+    !/spole|\bcoil\b|ejekt|ejector|vakuum|vacuum|kulventil|ball valve|vinkels|angle seat/i.test(p.name);
+}
+
 export function findCatalogProductByType(
   type: "valve" | "frl" | "check-valve" | "shock-absorber" | "sensor" | "valve-terminal" | "fitting" | "cable" | "mounting" | "servo-motor" | "servo-drive" | "silencer" | "flow-control" | "tubing",
   products: CatalogProduct[]
@@ -158,6 +165,13 @@ export function findCatalogProductByType(
   const ordered = [...products].sort(
     (a, b) => (BRAND_PREFIX.test(a.sku) ? 0 : 1) - (BRAND_PREFIX.test(b.sku) ? 0 : 1)
   );
+  // Stycklistans ventilrad är en 5/2-vägs styrventil. Kategorin "valve" rymmer
+  // också magnetspolar, vakuumejektorer, kul- och vinkelsätesventiler och
+  // 2/2-ventiler för media. Förut togs den första produkten i kategorin: i
+  // drift 2026-10-06 råkade det vara en 5/2-ventil (MFH-5-1/8-S), men nästa
+  // i kön var en vakuumejektor (VADMI-95). Finns ingen 5/2-ventil blir raden
+  // SPECIFY -- en ärlig lucka i stället för fel komponent.
+  if (type === "valve") return ordered.find(arStyrventil52) ?? null;
   // Exact category match wins (branded-first) so a loose name regex for one type
   // can't grab a product from another category — e.g. a "silencer" (ljuddämpare)
   // must never satisfy a "shock-absorber" (stötdämpare) lookup via "dämpare".
@@ -166,9 +180,6 @@ export function findCatalogProductByType(
   for (const p of ordered) {
     const nameSkuLower = (p.name + " " + p.sku).toLowerCase();
     switch (type) {
-      case "valve":
-        if (p.category === "valve" || /\bsolenoid\b|\b5\/2\b|\b4\/2\b|\bmagnetventil\b|\bdirektional/i.test(p.name)) return p;
-        break;
       case "check-valve":
         if (p.category === "check-valve" || /backslagsventil|check.valve|pilot.operated.check|sperrventil|non.return/i.test(nameSkuLower)) return p;
         break;
