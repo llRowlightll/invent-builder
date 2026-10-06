@@ -42,6 +42,13 @@ export interface ScoringCtx {
   // push out the only product that actually fits (unlike e.g. isAtex, which
   // hard-excludes). Absent/empty = no preference, scoring unaffected.
   preferredBrands?: string[];
+  // Borrningen kunden skrev (Ø32) eller som en orderkod gav, 0 = ingen. En
+  // familj poängsätts i den storlek den skulle beställas i -- inte i spannets
+  // max, som normalizeKeySpecs lägger i bore_mm för urvalet.
+  explicitBoreMm?: number;
+  // Livsmedel: en rad med uttryckligt stöd i datan (FDA, NSF H1, EHEDG,
+  // hygienisk konstruktion) ska gå före en som bara är korrosionsbeständig.
+  isFood?: boolean;
 }
 
 /** Catalog categories whose products ARE primary linear/rotary actuators.
@@ -91,8 +98,18 @@ export function normalizeKeySpecs(raw: Record<string, unknown>): Record<string, 
   }
   // Strip " mm" suffix so parseFloat works cleanly downstream
   if (typeof out.stroke_mm === "string") {
-    const n = parseFloat(out.stroke_mm);
-    if (!isNaN(n)) out.stroke_mm = n + " mm";
+    // Ett spann i stroke_mm ("25–300 mm (standard); tillverkas 5–1000 mm")
+    // lästes av parseFloat som 25: SMC-CM2 räknades som för kort för 100 mm.
+    // Första ledet är standardspannet; dess max räknas, som för stroke_range.
+    const huvud = out.stroke_mm.split(/[;(]/)[0];
+    const spann = huvud.match(/(\d+(?:[.,]\d+)?)\s*[–—-]\s*(\d+(?:[.,]\d+)?)/);
+    if (spann) {
+      out.stroke_mm = parseFloat(spann[2].replace(",", ".")) + " mm";
+      out.is_family = true;
+    } else {
+      const n = parseFloat(out.stroke_mm);
+      if (!isNaN(n)) out.stroke_mm = n + " mm";
+    }
   }
 
   // ── Bore ──────────────────────────────────────────────────────────────────
@@ -192,6 +209,35 @@ export function familjeborrning(spann: unknown, minBoreMm: number): number {
   return storlekar.find((d) => d >= minBoreMm) ?? 0;
 }
 
+/**
+ * Kan raden beställas i borrningen d? En rad med fast borrning: bara om den
+ * är just d. En familj: om spannet har den storleken.
+ *
+ * Hittat 2026-10-05: urvalet för en uttryckligen angiven borrning jämförde
+ * bore_mm, som för en familj är spannets MAX (DSBF "32–125" → 125). Varje
+ * familj som kan beställas i Ø32 föll bort, och i en livsmedelsfråga om Ø32
+ * blev en enda rad kvar -- en vanlig ISO-cylinder.
+ */
+export function erbjuderBorrning(p: CatalogProduct, d: number): boolean {
+  if (!(d > 0)) return false;
+  const spann = [p.key_specs?.bore_range, p.key_specs?.bore_mm].find(arBorrningsspann);
+  if (spann != null) return familjeborrning(spann, d) === d;
+  return parseFloat(String(p.key_specs?.bore_mm ?? "0")) === d;
+}
+
+/** Borrningen en familj skulle beställas i för kravet, annars radens egen. */
+function poangBorrning(p: CatalogProduct, kravMm: number): number {
+  const spann = [p.key_specs?.bore_range, p.key_specs?.bore_mm].find(arBorrningsspann);
+  const bestall = spann != null && kravMm > 0 ? familjeborrning(spann, kravMm) : 0;
+  return bestall > 0 ? bestall : parseFloat(String(p.key_specs?.bore_mm ?? "0"));
+}
+
+/** Uttryckligt stöd för livsmedel i radens data -- inte bara "rostfri". */
+export function harLivsmedelsstod(p: CatalogProduct): boolean {
+  const t = `${p.name} ${JSON.stringify(p.key_specs ?? {})}`.toLowerCase();
+  return /\bfda\b|nsf[\s-]?h1|ehedg|hygien|clean[\s-]?design|food|livsmedel/.test(t);
+}
+
 /** Teoretisk kraft vid 6 bar för en borrning, avrundad -- samma tal som
  *  normalizeKeySpecs räknar fram när katalogen saknar en kraftuppgift. */
 export function kraftVid6Bar(boreMm: number): number {
@@ -202,7 +248,11 @@ export function kraftVid6Bar(boreMm: number): number {
 export function isFamilyProduct(p: CatalogProduct): boolean {
   if (p.key_specs?.is_family) return true;
   // SKU pattern: FESTO-*, SMC-*, PARKER-*, NORGREN-* (family placeholders)
-  if (/^(FESTO|SMC|PARKER|NORGREN|CAMOZZI|METAL[-_]WORK|BOSCH)-/i.test(p.sku)) return true;
+  // MW-* tillkom 2026-10-05. Metal Works rader är storleksrader ("ISO 15552
+  // HCR Ø32") med seriens maxslag som värde -- ingen av dem har ett slag i
+  // namnet. Som konkret artikel blev MW-HCR-32 "Bästa valet" i en
+  // livsmedelsfråga, med "500 mm mot 100 mm, begränsa rörelsen mekaniskt".
+  if (/^(FESTO|SMC|PARKER|NORGREN|CAMOZZI|METAL[-_]WORK|MW|BOSCH)-/i.test(p.sku)) return true;
   return false;
 }
 
@@ -350,7 +400,10 @@ export function scoreProduct(p: CatalogProduct, ctx: ScoringCtx): number {
   // ── Stroke fit (±30 points) ───────────────────────────────────────
   if (ctx.requiredStroke > 0 && maxStroke > 0) {
     if (maxStroke >= ctx.requiredStroke) {
-      const overshoot = (maxStroke - ctx.requiredStroke) / ctx.requiredStroke;
+      // En familj beställs i det slag som krävs; dess maxslag är ingen
+      // överdimensionering. Tieringen i rankActuators håller den ändå under
+      // en konkret artikel som klarar kravet.
+      const overshoot = isFamilyProduct(p) ? 0 : (maxStroke - ctx.requiredStroke) / ctx.requiredStroke;
       score += Math.max(0, 25 - overshoot * 50); // 25 at 0% overshoot, 0 at 50%+
     } else {
       score -= 30; // below requirement
@@ -377,10 +430,13 @@ export function scoreProduct(p: CatalogProduct, ctx: ScoringCtx): number {
     if (isWashdownProduct(p)) score += 15;
     else if (maxStroke > 0)   score -= 20;
   }
+  // IP67 räcker för isWashdownProduct, men i en livsmedelsfråga ska en rad
+  // med FDA-tätningar och NSF H1-fett gå före en som bara tål korrosion.
+  if (ctx.isFood && harLivsmedelsstod(p)) score += 10;
 
   // ── Bore adequacy (±40 points) — HARD physical requirement ──────
   if (ctx.minBoreMm > 0) {
-    const boreMm = parseFloat(String(p.key_specs?.bore_mm ?? "0"));
+    const boreMm = poangBorrning(p, Math.max(ctx.minBoreMm, ctx.explicitBoreMm ?? 0));
     if (boreMm > 0) {
       if (boreMm >= ctx.minBoreMm) {
         // Prefer closest adequate bore (avoid wildly oversized)
@@ -413,7 +469,7 @@ export function scoreProduct(p: CatalogProduct, ctx: ScoringCtx): number {
     // bore" can become "Bästa valet" for a dosing nozzle (chemical-line test).
     // Mild preference peaking at Ø40 — typical unspecified applications live in
     // Ø20–63 — weak enough that any real signal (washdown, stroke) overrides it.
-    const boreMm = parseFloat(String(p.key_specs?.bore_mm ?? "0"));
+    const boreMm = poangBorrning(p, (ctx.explicitBoreMm ?? 0) > 0 ? ctx.explicitBoreMm! : 40);
     if (boreMm > 0) score += Math.max(0, 10 - Math.abs(boreMm - 40) * 0.15);
   }
 
