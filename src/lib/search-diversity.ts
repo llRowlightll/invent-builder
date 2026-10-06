@@ -21,7 +21,8 @@ function scoreProduct(
 ): number {
   let score = 0;
   const nameUpper = (p.name + " " + p.sku).toLowerCase();
-  const descLower = (p.description ?? "").toLowerCase();
+  // Båda språken: description är svensk, AI-sökningens nyckelord ofta engelska.
+  const descLower = `${p.description ?? ""} ${p.description_en ?? ""}`.toLowerCase();
 
   // Keyword hits in name (strong signal)
   for (const kw of aiResult.keywords ?? []) {
