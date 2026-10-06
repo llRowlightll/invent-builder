@@ -143,6 +143,7 @@ function LocaleLayout() {
   // frågor från startsidans sökruta. Rådgivaren är kontaktsidan och heter så.
   const navLinks = [
     { to: "/$locale/products", label: t("nav.products") },
+    { to: "/$locale/replace", label: t("nav.replace") },
     { to: "/$locale/configure", label: t("nav.configurator") },
     { to: "/$locale/advisor", label: t("nav.advisor") },
     { to: "/$locale/guider", label: t("nav.guides") },
@@ -173,7 +174,7 @@ function LocaleLayout() {
           </Link>
 
           {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-1 text-sm text-primary-foreground/75 ml-2">
+          <nav className="hidden lg:flex items-center gap-1 text-sm text-primary-foreground/75 ml-2">
             {navLinks.map((l) => (
               <Link
                 key={l.to}
@@ -305,7 +306,7 @@ function LocaleLayout() {
 
             {/* Mobile hamburger */}
             <button
-              className="md:hidden p-2 rounded-md hover:bg-primary-foreground/10"
+              className="lg:hidden p-2 rounded-md hover:bg-primary-foreground/10"
               onClick={() => setMenuOpen((o) => !o)}
               aria-label={t("nav.menu")}
             >
@@ -318,7 +319,7 @@ function LocaleLayout() {
 
         {/* Mobile menu */}
         {menuOpen && (
-          <div className="md:hidden border-t border-primary-foreground/15 bg-primary px-4 py-3 space-y-1">
+          <div className="lg:hidden border-t border-primary-foreground/15 bg-primary px-4 py-3 space-y-1">
             {navLinks.map((l) => (
               <Link
                 key={l.to}
