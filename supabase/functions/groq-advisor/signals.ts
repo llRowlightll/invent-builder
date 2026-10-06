@@ -22,6 +22,18 @@ export function langName(locale: string): string {
   return LLM_LANG_NAME[locale] ?? LLM_LANG_NAME.en;
 }
 
+/**
+ * Svenska fackord i modellens text. Hittat i drift 2026-10-06: "Kolonnen
+ * är dubbelverkande", "Dubbelaktuell konstruktion", "Dichtung" mitt i en
+ * svensk mening, "SMC-greppet GR-S-010" (fett) och engelska "Force 483 N".
+ * Emojierna står kvar: ägaren vill ha dem, de gör texten lättare att läsa.
+ */
+export function sprakregler(locale: string): string {
+  return locale === "sv"
+    ? ` Swedish terminology: write "cylinder" (never "kolonn"), "dubbelverkande"/"enkelverkande" (never "dubbelaktuell"), "tätning" (never "Dichtung"), "kraft" (not "force"), "slaglängd" (not "stroke"), "kolvdiameter" or "borrning" (not "bore"), "fett" or "smörjmedel" (never "grepp").`
+    : "";
+}
+
 // Found 2026-08-21: task tracked as "translate the remaining ~75 hardcoded
 // isSv ? svenska : English strings" (BOM role/reason text, option pros/cons,
 // badges) — everything the langName() fix above doesn't reach because it's
