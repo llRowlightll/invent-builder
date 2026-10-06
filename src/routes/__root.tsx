@@ -13,7 +13,7 @@ import appCss from "../styles.css?url";
 import { AuthProvider } from "@/lib/auth-context";
 import { EditModeProvider } from "@/lib/edit-mode-context";
 import { isLocale, DEFAULT_LOCALE } from "@/lib/i18n";
-import { SITE } from "@/lib/site";
+import { SITE, delningsbildMeta } from "@/lib/site";
 
 function NotFoundComponent() {
   return (
@@ -75,18 +75,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Maskinval — Industrial automation, pneumatics & electric actuators" },
-      { name: "description", content: "Find the right pneumatic cylinder, electric actuator, valve or gripper — Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work, Camozzi. AI search, comparison and complete BOM in seconds." },
+      { name: "description", content: "Find the right pneumatic cylinder, electric actuator, valve or gripper — Festo, SMC, Parker, AVENTICS, Bosch Rexroth, Norgren, Metal Work, Camozzi. AI search, comparison and complete BOM in seconds." },
       { property: "og:site_name", content: "Maskinval" },
       { property: "og:title", content: "Maskinval — Industrial automation" },
-      { property: "og:description", content: "Search across Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work and Camozzi. AI-driven component selector with BOM and RFQ." },
+      { property: "og:description", content: "Search across Festo, SMC, Parker, AVENTICS, Bosch Rexroth, Norgren, Metal Work and Camozzi. AI-driven component selector with BOM and RFQ." },
       { property: "og:type", content: "website" },
       // og:locale sätts av $locale-rutten, som vet vilket språk sidan är på.
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Maskinval — Industrial automation" },
-      { name: "twitter:description", content: "AI search for pneumatics and automation. Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work, Camozzi." },
       { name: "theme-color", content: "#1F3864" },
-      { property: "og:image", content: `${SITE}/og-image.svg` },
-      { name: "twitter:image", content: `${SITE}/og-image.svg` },
+      // X faller tillbaka på og:title, og:description och og:image. Egna
+      // twitter:-taggar här skrev engelsk text även på svenska sidor.
+      ...delningsbildMeta("sv"),
     ],
     links: [
       // Gränssnittet går på systemets eget typsnitt. IBM Plex Mono laddas bara

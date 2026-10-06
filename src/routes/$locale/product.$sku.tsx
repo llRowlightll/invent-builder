@@ -32,14 +32,14 @@ export const Route = createFileRoute("/$locale/product/$sku")({
       title = `${displayName} (${sku}) — ${titleSuffix}`;
       ogTitle = `${displayName} | Maskinval`;
       desc = isSv
-        ? `${displayName} (${sku}) — ${categoryName(product.category.slug, locale, product.category.name)}. Jämför specifikationer, leveranstid och beställ direkt via Maskinval.`
-        : `${displayName} (${sku}) — ${categoryName(product.category.slug, locale, product.category.name)}. Compare specs, lead time and order via Maskinval.`;
+        ? `${displayName} (${sku}) — ${categoryName(product.category.slug, locale, product.category.name)}. Jämför specifikationer och begär offert via Maskinval.`
+        : `${displayName} (${sku}) — ${categoryName(product.category.slug, locale, product.category.name)}. Compare specs and request a quote via Maskinval.`;
     } else {
       title = `${sku} — ${titleSuffix}`;
       ogTitle = `${sku} | Maskinval`;
       desc = isSv
-        ? `${sku} — Köp industriell automationskomponent. Jämför specifikationer, leveranstid och beställ direkt via Maskinval.`
-        : `${sku} — Industrial automation component. Compare specs, lead time and order via Maskinval.`;
+        ? `${sku} — industriell automationskomponent. Jämför specifikationer och begär offert via Maskinval.`
+        : `${sku} — Industrial automation component. Compare specs and request a quote via Maskinval.`;
     }
     return {
       meta: [
@@ -49,7 +49,6 @@ export const Route = createFileRoute("/$locale/product/$sku")({
         { property: "og:type", content: "product" },
         { property: "og:url", content: canonical },
         { property: "og:description", content: desc },
-        { property: "og:image", content: `${SITE}/og-image.svg` },
       ],
       links: [
         { rel: "canonical", href: canonical },
