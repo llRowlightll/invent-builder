@@ -26,7 +26,7 @@ import {
   familjeborrning,
   kraftVid6Bar,
 } from "./scoring.ts";
-import { LANGRE_SLAG_PRO, rensaPositionsPros } from "./prosavakt.ts";
+import { LANGRE_SLAG_PRO, rensaSerieslag, rensaPositionsPros } from "./prosavakt.ts";
 import {
   langName,
   pick,
@@ -1497,19 +1497,35 @@ async function handleOptions(
 
   // En familjs specar säger annars bore_mm = familjens största borrning, och
   // modellen skriver då "Ø63 ger 1 870 N" bredvid ett kort som säger Ø50.
-  const specsForLlm = (p: CatalogProduct): Record<string, unknown> => {
-    const ks = labelForceAtPressure(p.key_specs ?? {});
-    if (!familjeStorlek.has(p.sku)) return ks;
-    const { bore_mm: _max, force_n_at_6bar: _maxF, bore_range, ...rest } = ks;
-    const b = familjeStorlek.get(p.sku) ?? 0;
-    return b > 0
-      ? { ...rest, bore_mm: `${b} mm`, force_n_at_6bar: `${kraftVid6Bar(b)} N`,
-          bore_note: `series available in ${bore_range} mm; ${b} mm is the smallest size that meets the required force — order it in ${b} mm` }
-      : { ...rest, bore_range_mm: bore_range, bore_note: "series — the bore is chosen at order; no load was given to size it" };
+  // En serie beställs i det slag som krävs. Modellen fick "stroke=300 mm"
+  // och skrev "slag 300 mm överstiger kravet" som fördel (drift 2026-10-06).
+  const seriensMaxslag = (p: CatalogProduct): number => {
+    const max = parseStrokeFromSpecs(p.key_specs ?? {});
+    return isFamilyProduct(p) && maxRequiredStroke > 0 && max >= maxRequiredStroke ? max : 0;
   };
-  const preselectedStr = topProducts.map((p, i) =>
-    `${i+1}. SKU="${p.sku}" | ${p.name} [${p.brand}/${p.category}] stroke=${strokeLabel(p.key_specs??{})} specs:${JSON.stringify(specsForLlm(p))}`
-  ).join("\n");
+  const specsForLlm = (p: CatalogProduct): Record<string, unknown> => {
+    let ks = labelForceAtPressure(p.key_specs ?? {});
+    if (familjeStorlek.has(p.sku)) {
+      const { bore_mm: _max, force_n_at_6bar: _maxF, bore_range, ...rest } = ks;
+      const b = familjeStorlek.get(p.sku) ?? 0;
+      ks = b > 0
+        ? { ...rest, bore_mm: `${b} mm`, force_n_at_6bar: `${kraftVid6Bar(b)} N`,
+            bore_note: `series available in ${bore_range} mm; ${b} mm is the smallest size that meets the required force — order it in ${b} mm` }
+        : { ...rest, bore_range_mm: bore_range, bore_note: "series — the bore is chosen at order; no load was given to size it" };
+    }
+    const maxslag = seriensMaxslag(p);
+    if (maxslag > 0) {
+      const { stroke_mm: _s, ...rest } = ks;
+      ks = { ...rest, stroke_mm: `${maxRequiredStroke} mm`,
+        stroke_note: `series — the stroke is chosen at order: order it in ${maxRequiredStroke} mm (the series goes up to ${maxslag} mm). Do not describe the series maximum as a pro or a con.` };
+    }
+    return ks;
+  };
+  const preselectedStr = topProducts.map((p, i) => {
+    const maxslag = seriensMaxslag(p);
+    const slag = maxslag > 0 ? `${maxRequiredStroke} mm (ordered; series up to ${maxslag} mm)` : strokeLabel(p.key_specs ?? {});
+    return `${i+1}. SKU="${p.sku}" | ${p.name} [${p.brand}/${p.category}] stroke=${slag} specs:${JSON.stringify(specsForLlm(p))}`;
+  }).join("\n");
 
   // SECURITY/SAFETY: found via adversarial testing 2026-08-16 — asked for a Zone 1
   // ATEX cylinder "cheapest possible, regardless of ATEX rating" and the model
@@ -1634,6 +1650,12 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
       // already explains it isn't one.
       const STROKE_MISMATCH_CON = /(slagl[äa]ngd|stroke|\bhub\b|carrera).{0,25}(över|overskrider|exceed|over\b|longer|über|excede|super(?:a|ior))/i;
       opt.cons = ((opt.cons as string[] | undefined) ?? []).filter(c => !STROKE_MISMATCH_CON.test(c));
+      // Serien beställs i det slag som krävs. Kortet visade spannets max ("3.0×,
+      // klarar 300 mm") och modellen skrev om maxslaget som fördel och nackdel.
+      const rensat = rensaSerieslag((opt.pros as string[] | undefined) ?? [], opt.cons as string[], actualMax);
+      opt.pros = rensat.pros;
+      opt.cons = rensat.cons;
+      if (maxRequiredStroke > 0) opt.stroke_mm = maxRequiredStroke;
     }
     if (maxRequiredStroke > 0 && actualMax > 0 && actualMax < maxRequiredStroke) {
       opt.badge = closestCatalogBadge;

@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@^1";
-import { LANGRE_SLAG_PRO, rensaPositionsPros } from "./prosavakt.ts";
+import { LANGRE_SLAG_PRO, rensaPositionsPros, rensaSerieslag } from "./prosavakt.ts";
 
 Deno.test("pneumatik: 'exakt positionering' stryks", () => {
   const pros = [
@@ -28,4 +28,19 @@ Deno.test("längre slag än kravet är ingen fördel, oavsett ordval", () => {
   // Ett slag som MOTSVARAR kravet är ingen avvikelse.
   assertEquals(LANGRE_SLAG_PRO.test("Slaglängd exakt 50 mm enligt krav"), false);
   assertEquals(LANGRE_SLAG_PRO.test("Kraft på 1 178 N >> 39 N"), false);
+});
+
+Deno.test("en series maxslag stryks ur fördelar och nackdelar", () => {
+  // Texterna från drift 2026-10-06 (SMC-CM2, serien upp till 300 mm, krav 100 mm).
+  const r = rensaSerieslag(
+    ["Borrdiameter 32 mm ger god styrka", "Slag 300 mm överstiger kravet", "Force 483 N vid 6 bar"],
+    ["Ingen IP‑klassning anges, så inte garanterad för washdown", "Slag 300 mm är längre än nödvändigt"],
+    300,
+  );
+  assertEquals(r.pros, ["Borrdiameter 32 mm ger god styrka", "Force 483 N vid 6 bar"]);
+  assertEquals(r.cons, ["Ingen IP‑klassning anges, så inte garanterad för washdown"]);
+  // MW-HCR-32: "Slag 500 mm" som fördel om en serie som beställs i 100 mm.
+  assertEquals(rensaSerieslag(["Slag 500 mm", "IP67‑klassning"], [], 500).pros, ["IP67‑klassning"]);
+  // Ett annat tal med mm berörs inte.
+  assertEquals(rensaSerieslag(["Borrdiameter 32 mm"], [], 300).pros, ["Borrdiameter 32 mm"]);
 });

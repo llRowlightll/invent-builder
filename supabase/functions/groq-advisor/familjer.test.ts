@@ -101,3 +101,37 @@ Deno.test("familjens maxslag är ingen överdimensionering", () => {
   const PRA500 = rad("0822120009", "AVENTICS PRA Ø32 500mm ISO 15552 Cylinder", "aventics", { bore_mm: "32", stroke_mm: "500 mm" });
   assert(scoreProduct(PRA500, c) < scoreProduct(PRA32, c));
 });
+
+// ── Produktionens form ──────────────────────────────────────────────────────
+// Raderna nedan är exakt vad fetch_products_for_advisor('cylinder') gav i
+// drift 2026-10-06, inklusive dubbla enheter ("2000 mm mm"). Utan material
+// och special_features i vitlistan såg livsmedelsbonusen bara namnet, och
+// DSBF hamnade sist. Se migrationen 20261006100000_radgivaren_ser_material.sql.
+const fran = (sku: string, name: string, brand: string, ks: Record<string, unknown>): CatalogProduct =>
+  ({ sku, name, category: "cylinder", brand, key_specs: normalizeKeySpecs(ks) });
+const DSBF_DRIFT = {
+  bore_mm: "32–125 mm", standard: "ISO 15552", stroke_mm: "2000 mm mm", temp_range: "-20–80 °C",
+  max_pressure: "10 bar", mode_of_operation: "Double-acting", piston_force_6bar_N: "483–7363 N",
+};
+const HCR32_DRIFT = fran("MW-HCR-32", "Metal Work ISO 15552 HCR Ø32", "metal-work", {
+  bore_mm: "32 mm", standard: "ISO 15552 ", ip_rating: "IP67 ", stroke_mm: "500 mm mm",
+  temp_range: "-20 to +80 °C", operating_pressure: "1–10 bar",
+});
+
+Deno.test("drift: utan materialet i vitlistan ser motorn inget livsmedelsstöd", () => {
+  assertEquals(harLivsmedelsstod(fran("FESTO-DSBF", DSBF.name, "festo", DSBF_DRIFT)), false);
+});
+
+Deno.test("drift: med material och särdrag i vitlistan går DSBF först", () => {
+  const dsbf = fran("FESTO-DSBF", DSBF.name, "festo", {
+    ...DSBF_DRIFT,
+    material: "Stainless steel body; FDA seals; NSF-H1 lube",
+    special_features: "Easy-clean design; Through piston rod option; ATEX variant",
+  });
+  assert(harLivsmedelsstod(dsbf));
+  const rankad = rankActuators([HCR32_DRIFT, dsbf], ctx({ requiredStroke: 100, isWashdown: true, isFood: true, explicitBoreMm: 32 }));
+  assertEquals(rankad[0].sku, "FESTO-DSBF");
+  // Dubbla enheter tål tolkningen.
+  assertEquals(parseStrokeFromSpecs(dsbf.key_specs), 2000);
+  assert(erbjuderBorrning(dsbf, 32));
+});
