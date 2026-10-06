@@ -14,6 +14,8 @@ export type Handelse = "besok" | "sok" | "ai_fraga" | "stycklista" | "offert" | 
 export function logga(typ: Handelse, data: Record<string, string | number | boolean | null> = {}) {
   try {
     if (typeof window === "undefined") return;
+    // Dev-servern skriver mot samma databas; provbesök hör inte hemma i statistiken.
+    if (/^(localhost|127\.0\.0\.1|\[::1\])$|\.localhost$|\.test$/.test(window.location.hostname)) return;
     const sida = window.location.pathname;
     const sprak = sida.split("/")[1] || null;
     void supabase.rpc("logga_handelse" as never, { p_typ: typ, p_sida: sida, p_sprak: sprak, p_data: data } as never)
