@@ -9,7 +9,7 @@ import { ArticleNumber } from "@/components/ArticleNumber";
 import { addToShoppingList } from "@/lib/cart";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { categoryName } from "@/lib/categories";
-import { beskrivning, kallor, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
+import { beskrivning, kallor, produktnamn, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
 import { ExternalLink, FileText, Settings } from "lucide-react";
 import { tillverkarlank } from "@/lib/tillverkarlank";
 
@@ -27,9 +27,10 @@ export const Route = createFileRoute("/$locale/product/$sku")({
     if (product) {
       // Catalog names already lead with the brand (e.g. "Festo DSBC ISO-cylinder
       // 50x200") — a naive `${brand} ${name}` prefix would duplicate it.
-      const displayName = product.name.toLowerCase().startsWith(product.brand.name.toLowerCase())
-        ? product.name
-        : `${product.brand.name} ${product.name}`;
+      const namn = produktnamn(product, locale);
+      const displayName = namn.toLowerCase().startsWith(product.brand.name.toLowerCase())
+        ? namn
+        : `${product.brand.name} ${namn}`;
       title = `${displayName} (${sku}) — ${titleSuffix}`;
       ogTitle = `${displayName} | Maskinval`;
       desc = isSv
@@ -65,14 +66,14 @@ export const Route = createFileRoute("/$locale/product/$sku")({
     const { data, error } = await supabase
       .from("products")
       .select(
-        "id,sku,name,description,description_en,family,lead_time_days,availability,ip_rating,fieldbus,voltage,image_url,weight_kg,length_mm,width_mm,height_mm,brand:brands(slug,name),category:categories(slug,name),product_specs(key,value,unit)",
+        "id,sku,name,name_en,description,description_en,family,lead_time_days,availability,ip_rating,fieldbus,voltage,image_url,weight_kg,length_mm,width_mm,height_mm,brand:brands(slug,name),category:categories(slug,name),product_specs(key,value,unit)",
       )
       .eq("sku", params.sku)
       .eq("status", "active")
       .maybeSingle();
     if (error || !data) return { product: null };
     const d = data as unknown as {
-      id: string; sku: string; name: string; description: string | null; description_en: string | null; family: string | null;
+      id: string; sku: string; name: string; name_en: string | null; description: string | null; description_en: string | null; family: string | null;
       lead_time_days: number | null; availability: string | null; ip_rating: string | null;
       fieldbus: string | null; voltage: string | null; image_url: string | null;
       weight_kg: number | null; length_mm: number | null; width_mm: number | null; height_mm: number | null;
@@ -83,7 +84,7 @@ export const Route = createFileRoute("/$locale/product/$sku")({
     const specs: ProductRow["specs"] = {};
     for (const s of d.product_specs ?? []) specs[s.key] = { value: s.value, unit: s.unit };
     const product: ProductRow = {
-      id: d.id, sku: d.sku, name: d.name, description: d.description, description_en: d.description_en, family: d.family,
+      id: d.id, sku: d.sku, name: d.name, name_en: d.name_en, description: d.description, description_en: d.description_en, family: d.family,
       brand: d.brand ?? { slug: "", name: "" },
       category: d.category ?? { slug: "", name: "" },
       lead_time_days: d.lead_time_days, availability: d.availability,
@@ -183,15 +184,15 @@ function ProductDetail() {
     itemListElement: [
       { "@type": "ListItem", position: 1, name: "Maskinval", item: `${SITE}/${locale}` },
       { "@type": "ListItem", position: 2, name: categoryName(product.category.slug, locale, product.category.name), item: `${SITE}/${locale}/products?category=${product.category.slug}` },
-      { "@type": "ListItem", position: 3, name: product.name, item: canonicalUrl },
+      { "@type": "ListItem", position: 3, name: produktnamn(product, locale), item: canonicalUrl },
     ],
   };
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
-    name: product.name,
+    name: produktnamn(product, locale),
     sku: product.sku,
-    description: beskrivning(product, locale) ?? `${product.name} — ${product.brand.name} ${categoryName(product.category.slug, locale, product.category.name)}`,
+    description: beskrivning(product, locale) ?? `${produktnamn(product, locale)} — ${product.brand.name} ${categoryName(product.category.slug, locale, product.category.name)}`,
     brand: { "@type": "Brand", name: product.brand.name },
     category: categoryName(product.category.slug, locale, product.category.name),
     url: canonicalUrl,
@@ -230,7 +231,7 @@ function ProductDetail() {
             />
           </div>
           <BrandBadge slug={product.brand.slug} name={product.brand.name} />
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{product.name}</h1>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{produktnamn(product, locale)}</h1>
           <div className="mt-2.5">
             <ArticleNumber value={product.sku} copyable locale={locale} />
           </div>
@@ -244,7 +245,7 @@ function ProductDetail() {
           <button
             type="button"
             onClick={() => {
-              addToShoppingList({ id: product.id, sku: product.sku, name: product.name });
+              addToShoppingList({ id: product.id, sku: product.sku, name: produktnamn(product, locale) });
               setAddedToCart(true);
               setTimeout(() => setAddedToCart(false), 2000);
             }}
@@ -299,7 +300,7 @@ function ProductDetail() {
             <button
               type="button"
               onClick={() => {
-                addToShoppingList({ id: product.id, sku: product.sku, name: product.name });
+                addToShoppingList({ id: product.id, sku: product.sku, name: produktnamn(product, locale) });
                 navigate({ to: "/$locale/shopping-list", params: { locale } });
               }}
               className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-md border border-border text-sm text-foreground hover:border-info hover:text-info transition"
@@ -428,7 +429,7 @@ function ProductMini({ p, locale, as: El = "li" }: { p: ProductRow; locale: stri
     <El className="rounded-md border border-border bg-card p-3 hover:border-info">
       <Link to="/$locale/product/$sku" params={{ locale, sku: p.sku } as never} className="block">
         <div className="text-xs text-muted-foreground">{p.brand.name}</div>
-        <div className="font-medium text-foreground text-sm mt-0.5 line-clamp-2">{p.name}</div>
+        <div className="font-medium text-foreground text-sm mt-0.5 line-clamp-2">{produktnamn(p, locale)}</div>
         <div className="mt-1"><ArticleNumber value={p.sku} variant="compact" /></div>
       </Link>
     </El>

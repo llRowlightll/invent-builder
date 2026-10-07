@@ -7,7 +7,7 @@ import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
 import { addToShoppingList } from "@/lib/cart";
 import { SITE, hreflangLinks } from "@/lib/site";
-import { kallor, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
+import { kallor, produktnamn, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
 
 export const Route = createFileRoute("/$locale/compare")({
   validateSearch: z.object({ skus: z.string().optional() }),
@@ -292,7 +292,7 @@ function ComparePage() {
   }
 
   function quickAdd(p: ProductRow) {
-    addToShoppingList({ id: p.id, sku: p.sku, name: p.name });
+    addToShoppingList({ id: p.id, sku: p.sku, name: produktnamn(p, locale) });
     setAddedSku(p.sku);
     setTimeout(() => setAddedSku(null), 1800);
   }
@@ -459,7 +459,7 @@ function ComparePage() {
                 >
                   <img src={getProductImage(p)} alt="" className="size-7 object-contain shrink-0 opacity-80" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-xs font-medium truncate">{p.name}</div>
+                    <div className="text-xs font-medium truncate">{produktnamn(p, locale)}</div>
                     <div className="text-[10px] font-mono text-muted-foreground">{p.sku}</div>
                   </div>
                   <span className={`size-4 rounded border flex items-center justify-center shrink-0 ${
@@ -514,9 +514,9 @@ function ComparePage() {
                       ×
                     </button>
                     <div className="h-24 flex items-center justify-center mb-3">
-                      <img src={getProductImage(p)} alt={p.name} className="h-20 object-contain" />
+                      <img src={getProductImage(p)} alt={produktnamn(p, locale)} className="h-20 object-contain" />
                     </div>
-                    <div className="text-xs font-semibold text-foreground leading-snug mb-1">{p.name}</div>
+                    <div className="text-xs font-semibold text-foreground leading-snug mb-1">{produktnamn(p, locale)}</div>
                     <div className="text-[11px] font-mono text-muted-foreground mb-1">{p.sku}</div>
                     <div className="flex-1" />
                     <button

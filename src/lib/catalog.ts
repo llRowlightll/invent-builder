@@ -40,7 +40,7 @@ export async function loadCatalog(): Promise<ProductRow[]> {
         // the browser. Admin pricing reads them separately as an authenticated
         // admin. The DB also REVOKEs these columns from the anon role.
         .select(
-          "id,sku,name,description,description_en,family,lead_time_days,availability,ip_rating,fieldbus,voltage,image_url,weight_kg,length_mm,width_mm,height_mm,brand:brands(slug,name),category:categories(slug,name)",
+          "id,sku,name,name_en,description,description_en,family,lead_time_days,availability,ip_rating,fieldbus,voltage,image_url,weight_kg,length_mm,width_mm,height_mm,brand:brands(slug,name),category:categories(slug,name)",
         )
         .eq("status", "active")
         .order("id")

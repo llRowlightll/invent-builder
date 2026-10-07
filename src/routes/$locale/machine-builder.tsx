@@ -6,6 +6,7 @@ const Machine3DScene = lazy(() =>
 );
 import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
+import { produktnamn } from "@/lib/spec-format";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import type { ProductRow } from "@/lib/types";
@@ -15,6 +16,9 @@ import { usableForceN } from "@/lib/physics";
 import { Award, Camera, Lock, Package, RefreshCw, Ruler, Save, Settings } from "lucide-react";
 import { getProductImage } from "@/lib/product-images";
 import { logga } from "@/lib/matning";
+
+/** Namnet på sidans språk för rader som kan sakna katalogprodukt. */
+const visatNamn = (p: ProductRow | null | undefined, locale: string) => (p ? produktnamn(p, locale) : undefined);
 
 export const Route = createFileRoute("/$locale/machine-builder")({
   head: ({ params }) => {
@@ -1813,7 +1817,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
                         {line.product ? (
                           <img
                             src={getProductImage(line.product)}
-                            alt={line.product.name}
+                            alt={produktnamn(line.product, locale)}
                             className="size-10 object-contain rounded border border-border bg-white p-0.5"
                             loading="lazy"
                           />
@@ -1836,7 +1840,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
                       </td>
                       <td className="px-4 py-3 text-sm text-foreground">
                         <div className="flex items-center gap-2 flex-wrap">
-                          {line.product?.name ?? <span className="text-muted-foreground italic">{line.sku === "SPECIFY" ? t("machineBuilder.specifyVariant") : t("machineBuilder.notInCatalog")}</span>}
+                          {visatNamn(line.product, locale) ?? <span className="text-muted-foreground italic">{line.sku === "SPECIFY" ? t("machineBuilder.specifyVariant") : t("machineBuilder.notInCatalog")}</span>}
                           {(() => {
                             const fam = line.product?.family?.toLowerCase().trim();
                             return fam && configFamilies.has(fam) ? (
@@ -1901,7 +1905,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
                             }`}
                           >
                             <span className="text-muted-foreground text-[10px]">{alt.brand.name}</span>
-                            <span className="font-medium truncate max-w-[140px]">{alt.name.split(" ").slice(0,4).join(" ")}</span>
+                            <span className="font-medium truncate max-w-[140px]">{produktnamn(alt, locale).split(" ").slice(0,4).join(" ")}</span>
                             {bore && <span className="font-mono text-[10px] text-muted-foreground">⌀{bore}</span>}
                             {stroke && <span className="font-mono text-[10px] text-muted-foreground">{stroke}mm</span>}
                             {isChosen && <span className="text-info">✓</span>}
@@ -2264,7 +2268,7 @@ function BomSystemView({ bom, connections, selected, locale }: {
     accessory:     { egen: "Hör till",    omvänd: "Tillbehör" },
     requires:      { egen: "Kräver",      omvänd: "Krävs av" },
   };
-  const namn = (i: number) => bom[i]?.product?.name ?? bom[i]?.role ?? bom[i]?.sku ?? "";
+  const namn = (i: number) => visatNamn(bom[i]?.product, locale) ?? bom[i]?.role ?? bom[i]?.sku ?? "";
   const kopplingarFör = (idx: number) => connections.flatMap(c => {
     const t = RELATION_TEXT[c.relation];
     if (!t) return [];
@@ -2322,6 +2326,7 @@ function BomSystemView({ bom, connections, selected, locale }: {
             active={active}
             setActive={setActive}
             isElectric={isElectric}
+            locale={locale}
           />
         </div>
       )}
@@ -2363,7 +2368,7 @@ function BomSystemView({ bom, connections, selected, locale }: {
 
       {view === "cards" && (
         <div className="p-4">
-          <ComponentCards classified={classified} active={active} setActive={setActive} />
+          <ComponentCards classified={classified} active={active} setActive={setActive} locale={locale} />
         </div>
       )}
 
@@ -2375,7 +2380,7 @@ function BomSystemView({ bom, connections, selected, locale }: {
             {active + 1}
           </span>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold">{bom[active].product?.name ?? bom[active].sku}</div>
+            <div className="text-sm font-semibold">{visatNamn(bom[active].product, locale) ?? bom[active].sku}</div>
             <div className="text-xs text-muted-foreground font-mono">{bom[active].sku} · {bom[active].role}</div>
             {kopplingarFör(active).length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-1">
@@ -2395,7 +2400,8 @@ function BomSystemView({ bom, connections, selected, locale }: {
 }
 
 // ── Pipeline SVG Diagram ────────────────────────────────────────────────────
-function SystemDiagram({ pipelineItems, sideItems, active, setActive, isElectric }: {
+function SystemDiagram({ pipelineItems, sideItems, active, setActive, isElectric, locale }: {
+  locale: string;
   pipelineItems: { type: NodeType; lines: { idx: number; sku: string; role: string; quantity: number; product?: ProductRow | null; nodeType: NodeType }[] }[];
   sideItems: { idx: number; sku: string; role: string; quantity: number; product?: ProductRow | null; nodeType: NodeType }[];
   active: number | null;
@@ -2501,7 +2507,7 @@ function SystemDiagram({ pipelineItems, sideItems, active, setActive, isElectric
                 WebkitLineClamp: 2,
                 WebkitBoxOrient: "vertical",
               } as React.CSSProperties}>
-                {firstLine.product?.name ?? firstLine.sku}
+                {visatNamn(firstLine.product, locale) ?? firstLine.sku}
               </div>
             </foreignObject>
             {/* Multiple items badge */}
@@ -2563,7 +2569,7 @@ function SystemDiagram({ pipelineItems, sideItems, active, setActive, isElectric
                 fontFamily: "system-ui, sans-serif", fontWeight: 600,
                 overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
               }}>
-                {item.product?.name ?? item.sku}
+                {visatNamn(item.product, locale) ?? item.sku}
               </div>
             </foreignObject>
           </g>
@@ -2574,7 +2580,8 @@ function SystemDiagram({ pipelineItems, sideItems, active, setActive, isElectric
 }
 
 // ── Component Cards ─────────────────────────────────────────────────────────
-function ComponentCards({ classified, active, setActive }: {
+function ComponentCards({ classified, active, setActive, locale }: {
+  locale: string;
   classified: { idx: number; sku: string; role: string; quantity: number; reason: string; product?: ProductRow | null; nodeType: NodeType }[];
   active: number | null;
   setActive: (i: number | null) => void;
@@ -2613,7 +2620,7 @@ function ComponentCards({ classified, active, setActive }: {
 
             {/* Name */}
             <div className="text-xs font-semibold leading-tight line-clamp-2 text-foreground">
-              {item.product?.name ?? item.sku}
+              {visatNamn(item.product, locale) ?? item.sku}
             </div>
             <div className="mt-1 text-[10px] font-mono text-muted-foreground">{item.sku}</div>
 

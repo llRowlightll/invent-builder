@@ -4,6 +4,7 @@ import { makeT, type Locale } from "@/lib/i18n";
 import { useAuth, useIsAdmin } from "@/lib/auth-context";
 import { supabase } from "@/integrations/supabase/client";
 import { loadCatalog } from "@/lib/catalog";
+import { produktnamn } from "@/lib/spec-format";
 import type { ProductRow } from "@/lib/types";
 import { CheckCircle2, Factory, MessageSquare, XCircle } from "lucide-react";
 
@@ -493,7 +494,7 @@ function RfqPage() {
                           params={{ locale, sku: product.sku }}
                           className="font-medium hover:text-info"
                         >
-                          {product.name}
+                          {produktnamn(product, locale)}
                         </Link>
                       ) : (
                         <span className="text-muted-foreground font-mono text-xs">{item.product_id?.slice(0, 8)}</span>

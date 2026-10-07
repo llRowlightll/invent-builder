@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { makeT, type Locale } from "@/lib/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { loadCatalog } from "@/lib/catalog";
+import { produktnamn } from "@/lib/spec-format";
 import type { ProductRow } from "@/lib/types";
 // Bakgrunden visar en märkeslös linjäraktuator. Fram till 2026-10-05 stod en
 // Siemens-drivenhet med två synliga logotyper bredvid den -- ett fabrikat
@@ -297,7 +298,7 @@ function Landing() {
                 </div>
                 <div className="p-4 flex flex-col flex-1">
                   <div className="text-[10px] uppercase tracking-wider text-info font-medium">{p.brand.name}</div>
-                  <div className="mt-1.5 font-medium text-foreground group-hover:text-info line-clamp-2 transition">{p.name}</div>
+                  <div className="mt-1.5 font-medium text-foreground group-hover:text-info line-clamp-2 transition">{produktnamn(p, locale)}</div>
                   <div className="mt-1 text-xs text-muted-foreground">{categoryName(p.category.slug, locale, p.category.name)}</div>
                   <div className="mt-auto pt-3 border-t border-border mt-3 flex items-center justify-between">
                     <span className="text-[10px] text-muted-foreground">

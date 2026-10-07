@@ -10,7 +10,7 @@ import { getProductImage } from "@/lib/product-images";
 import { addToShoppingList } from "@/lib/cart";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { categoryName } from "@/lib/categories";
-import { beskrivning, kallor, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
+import { beskrivning, kallor, produktnamn, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
 import { matcharFraga } from "@/lib/sokord";
 import { logga } from "@/lib/matning";
 import { FileText } from "lucide-react";
@@ -254,7 +254,7 @@ function ProductsPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   function quickAddToList(p: ProductRow) {
-    addToShoppingList({ id: p.id, sku: p.sku, name: p.name });
+    addToShoppingList({ id: p.id, sku: p.sku, name: produktnamn(p, locale) });
     setAddedSku(p.sku);
     setTimeout(() => setAddedSku(null), 1800);
   }
@@ -352,7 +352,7 @@ function ProductsPage() {
         : [];
 
       if (searchTerms.length > 0 && !aiResult?.category_slug && !aiResult?.brand_slug) {
-        const haystack = [p.sku, p.name, p.brand.name, p.category.name, categoryName(p.category.slug, "sv", p.category.name), p.description ?? "", p.description_en ?? ""]
+        const haystack = [p.sku, p.name, p.name_en ?? "", p.brand.name, p.category.name, categoryName(p.category.slug, "sv", p.category.name), p.description ?? "", p.description_en ?? ""]
           .join(" ");
         // Varje ord ska finnas (med svenska synonymer) -- se sokord.ts.
         const matches = searchTerms.some((term) => matcharFraga(haystack, term));
@@ -362,7 +362,7 @@ function ProductsPage() {
       // Manual text search (non-AI mode). Varje ord ska finnas, och svenska
       // fackord matchar katalogens engelska namn -- se sokord.ts.
       if (!aiResult && ql) {
-        const haystack = [p.sku, p.name, p.brand.name, p.category.name, categoryName(p.category.slug, "sv", p.category.name), p.description ?? "", p.description_en ?? ""]
+        const haystack = [p.sku, p.name, p.name_en ?? "", p.brand.name, p.category.name, categoryName(p.category.slug, "sv", p.category.name), p.description ?? "", p.description_en ?? ""]
           .join(" ");
         if (!matcharFraga(haystack, ql)) return false;
       }
@@ -624,7 +624,7 @@ function ProductsPage() {
                     params={{ locale, sku: p.sku }}
                     className="font-medium text-foreground hover:text-info line-clamp-2 transition"
                   >
-                    {p.name}
+                    {produktnamn(p, locale)}
                   </Link>
                 </div>
 

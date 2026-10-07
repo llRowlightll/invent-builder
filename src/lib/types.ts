@@ -5,6 +5,8 @@ export interface ProductRow {
   id: string;
   sku: string;
   name: string;
+  /** Engelskt namn där name är svenskt; visas via produktnamn(). */
+  name_en?: string | null;
   description: string | null;
   /** Engelska originaltexten när description är översatt till svenska. */
   description_en?: string | null;

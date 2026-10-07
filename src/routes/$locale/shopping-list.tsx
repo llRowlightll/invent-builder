@@ -4,6 +4,7 @@ import { analyzeDocument, type PoExtraction } from "@/lib/document-ai";
 import { makeT, type Locale } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import { loadCatalog } from "@/lib/catalog";
+import { produktnamn } from "@/lib/spec-format";
 import { supabase } from "@/integrations/supabase/client";
 import { logga } from "@/lib/matning";
 import type { ProductRow } from "@/lib/types";
@@ -131,6 +132,7 @@ function ShoppingListPage() {
       .filter(
         (p) =>
           p.name.toLowerCase().includes(q) ||
+          (p.name_en ?? "").toLowerCase().includes(q) ||
           p.sku.toLowerCase().includes(q) ||
           (p.description ?? "").toLowerCase().includes(q),
       )
@@ -146,7 +148,7 @@ function ShoppingListPage() {
   );
 
   function addProduct(p: ProductRow) {
-    setItems((prev) => mergeCartItem(prev, { product_id: p.id, sku: p.sku, name: p.name, qty: 1 }));
+    setItems((prev) => mergeCartItem(prev, { product_id: p.id, sku: p.sku, name: produktnamn(p, locale), qty: 1 }));
     setQuery("");
     setShowResults(false);
   }
@@ -332,7 +334,7 @@ function ShoppingListPage() {
                 className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-surface-alt text-left transition group"
               >
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate group-hover:text-info transition">{p.name}</div>
+                  <div className="text-sm font-medium truncate group-hover:text-info transition">{produktnamn(p, locale)}</div>
                   <div className="font-mono text-[10px] text-muted-foreground mt-0.5">{p.sku} · {p.brand.name}</div>
                 </div>
                 <span className="text-xs text-info opacity-0 group-hover:opacity-100 transition shrink-0 font-medium">
