@@ -100,6 +100,73 @@ const CATEGORY_NAMES: Record<string, Record<string, string>> = {
     de: "Dichtsatz",
     es: "Kit de juntas",
   },
+  // Kategorier som bara fanns i databasen, med svenskt namn på alla språk.
+  "tubing": {
+    sv: "Slang/Rör",
+    en: "Tubing",
+    de: "Schläuche",
+    es: "Tubos",
+  },
+  "flow-control": {
+    sv: "Flödesreglering",
+    en: "Flow Control",
+    de: "Durchflussregelung",
+    es: "Control de caudal",
+  },
+  "frl": {
+    sv: "FRL-enhet",
+    en: "Air Preparation (FRL)",
+    de: "Druckluftaufbereitung",
+    es: "Tratamiento de aire (FRL)",
+  },
+  "mounting": {
+    sv: "Fäste/Montering",
+    en: "Mounting",
+    de: "Befestigung",
+    es: "Fijación",
+  },
+  "silencer": {
+    sv: "Ljuddämpare",
+    en: "Silencer",
+    de: "Schalldämpfer",
+    es: "Silenciador",
+  },
+  "servo-drive": {
+    sv: "Servodrivare",
+    en: "Servo Drive",
+    de: "Servoregler",
+    es: "Servoaccionamiento",
+  },
+  "servo-motor": {
+    sv: "Servomotor",
+    en: "Servo Motor",
+    de: "Servomotor",
+    es: "Servomotor",
+  },
+  "shock-absorber": {
+    sv: "Stötdämpare",
+    en: "Shock Absorber",
+    de: "Stoßdämpfer",
+    es: "Amortiguador",
+  },
+  "check-valve": {
+    sv: "Backslagsventil",
+    en: "Check Valve",
+    de: "Rückschlagventil",
+    es: "Válvula antirretorno",
+  },
+  "cable": {
+    sv: "Kabel/Kontakt",
+    en: "Cable/Connector",
+    de: "Kabel/Steckverbinder",
+    es: "Cable/Conector",
+  },
+  "controller": {
+    sv: "Styrsystem",
+    en: "Controller",
+    de: "Steuerung",
+    es: "Controlador",
+  },
 };
 
 export function categoryName(slug: string, locale: string, fallback?: string): string {

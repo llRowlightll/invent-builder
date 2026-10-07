@@ -112,9 +112,11 @@ export const Route = createFileRoute("/$locale/products")({
     const canonical = `${SITE}/${locale}/products`;
     return {
       meta: [
-        { title: `Produktkatalog — Pneumatik & automation | ${t("common.appName")}` },
-        { name: "description", content: "Komplett katalog: pneumatiska cylindrar, elektriska aktuatorer, ventiler, grippers, vakuumsystem och mer. Festo, SMC, Parker, Bosch Rexroth, Norgren, Camozzi. Filtrera, jämför och beställ." },
-        { property: "og:title", content: `Produktkatalog — ${t("common.appName")}` },
+        { title: sv ? `Produktkatalog — Pneumatik & automation | ${t("common.appName")}` : `Product catalogue — Pneumatics & automation | ${t("common.appName")}` },
+        { name: "description", content: sv
+          ? "Komplett katalog: pneumatiska cylindrar, elektriska aktuatorer, ventiler, gripdon, vakuum och mer från Festo, SMC, Parker, AVENTICS, Bosch Rexroth, Norgren, Metal Work och Camozzi. Filtrera, jämför och beställ."
+          : "Complete catalogue: pneumatic cylinders, electric actuators, valves, grippers, vacuum and more from Festo, SMC, Parker, AVENTICS, Bosch Rexroth, Norgren, Metal Work and Camozzi. Filter, compare and order." },
+        { property: "og:title", content: sv ? `Produktkatalog — ${t("common.appName")}` : `Product catalogue — ${t("common.appName")}` },
         { property: "og:url", content: canonical },
       ],
       links: [
