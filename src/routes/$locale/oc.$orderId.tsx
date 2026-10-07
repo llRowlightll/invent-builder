@@ -5,7 +5,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchCompanySettings, type CompanySettings } from "@/lib/company-settings";
+import { fetchCompanySettings, visningsnamn, type CompanySettings } from "@/lib/company-settings";
 import { Printer } from "lucide-react";
 
 export const Route = createFileRoute("/$locale/oc/$orderId")({
@@ -123,7 +123,7 @@ export default function PublicOCPage() {
           <div className="flex items-start justify-between mb-10">
             <div>
               <div className="text-2xl font-bold tracking-tight" style={{ fontFamily: "system-ui, sans-serif" }}>
-                {co.name}
+                {visningsnamn(co)}
               </div>
               <div className="text-xs text-muted-foreground mt-1 space-y-0.5" style={{ fontFamily: "system-ui, sans-serif" }}>
                 <div>{co.address}{co.postal ? `, ${co.postal}` : ""}</div>
@@ -216,7 +216,7 @@ export default function PublicOCPage() {
           {/* Footer / signature */}
           <div className="border-t border-border pt-6 flex justify-between text-xs text-muted-foreground" style={{ fontFamily: "system-ui, sans-serif" }}>
             <div>
-              <div className="font-semibold text-foreground mb-1">{co.name}</div>
+              <div className="font-semibold text-foreground mb-1">{visningsnamn(co)}</div>
               {co.email && <div>{co.email}</div>}
               {co.phone && <div>{co.phone}</div>}
               {co.web && <div>{co.web}</div>}

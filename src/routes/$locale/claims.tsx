@@ -20,11 +20,13 @@ export const Route = createFileRoute("/$locale/claims")({
   component: ClaimsPage,
 });
 
-// Reklamationspolicy: 6 månader från orderdatum, ordervärde minst 2000 kr.
-// Kontrollen är informativ, inte en hård spärr — supporten kan alltid göra
-// undantag, men kunden ska se direkt om ärendet troligen ligger utanför.
-const CLAIM_WINDOW_MONTHS = 6;
-const CLAIM_MIN_VALUE_SEK = 2000;
+// Reklamationstiden i allmänna villkoren (avsnitt 6, version 1.1): dolda fel
+// senast 12 månader efter leverans, eller tillverkarens garantitid om den är
+// längre. Kontrollen är informativ, inte en hård spärr -- supporten kan alltid
+// göra undantag, men kunden ska se direkt om ärendet troligen ligger utanför.
+// Den tidigare gränsen på 2000 kr i ordervärde stod aldrig i villkoren och togs
+// bort 2026-10-07: ett fel är ett fel oavsett ordervärde.
+const CLAIM_WINDOW_MONTHS = 12;
 
 type OrderItem = { sku: string; name: string; qty: number };
 type OrderForClaim = {
@@ -40,11 +42,9 @@ function orderRef(id: string) {
   return `#${id.slice(0, 8).toUpperCase()}`;
 }
 
-function claimEligibility(order: OrderForClaim): { eligible: boolean; reason: "age" | "value" | null } {
+function claimEligibility(order: OrderForClaim): { eligible: boolean; reason: "age" | null } {
   const ageMonths = (Date.now() - new Date(order.created_at).getTime()) / (1000 * 60 * 60 * 24 * 30.44);
-  const value = order.total_inc_vat ?? order.total_ex_vat ?? 0;
   if (ageMonths > CLAIM_WINDOW_MONTHS) return { eligible: false, reason: "age" };
-  if (value < CLAIM_MIN_VALUE_SEK) return { eligible: false, reason: "value" };
   return { eligible: true, reason: null };
 }
 
@@ -341,13 +341,9 @@ function ClaimsPage() {
 
             {selectedOrder && eligibility && !eligibility.eligible && (
               <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
-                {eligibility.reason === "age"
-                  ? (locale === "sv"
-                      ? `⚠️ Den här ordern lades för mer än ${CLAIM_WINDOW_MONTHS} månader sedan — vår reklamationstid är ${CLAIM_WINDOW_MONTHS} månader. Vi går ändå igenom ärendet, men det kan falla utanför policyn.`
-                      : `⚠️ This order was placed more than ${CLAIM_WINDOW_MONTHS} months ago — our claims window is ${CLAIM_WINDOW_MONTHS} months. We'll still review it, but it may fall outside policy.`)
-                  : (locale === "sv"
-                      ? `⚠️ Ordervärdet är under ${CLAIM_MIN_VALUE_SEK.toLocaleString("sv-SE")} kr, vår gräns för reklamation. Vi går ändå igenom ärendet, men det kan falla utanför policyn.`
-                      : `⚠️ This order's value is under ${CLAIM_MIN_VALUE_SEK.toLocaleString("en-US")} kr, our claims threshold. We'll still review it, but it may fall outside policy.`)}
+                {locale === "sv"
+                  ? `⚠️ Den här ordern lades för mer än ${CLAIM_WINDOW_MONTHS} månader sedan. Reklamationstiden i våra villkor är ${CLAIM_WINDOW_MONTHS} månader från leverans, eller tillverkarens garantitid om den är längre. Vi går ändå igenom ärendet.`
+                  : `⚠️ This order was placed more than ${CLAIM_WINDOW_MONTHS} months ago. The claims period in our terms is ${CLAIM_WINDOW_MONTHS} months from delivery, or the manufacturer's warranty period if longer. We'll still review it.`}
               </div>
             )}
 

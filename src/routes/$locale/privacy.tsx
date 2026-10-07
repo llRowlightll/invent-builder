@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { makeT, type Locale } from "@/lib/i18n";
+import { fetchCompanySettings, visningsnamn, type CompanySettings } from "@/lib/company-settings";
 
 export const Route = createFileRoute("/$locale/privacy")({
   head: () => ({
@@ -14,6 +16,10 @@ export const Route = createFileRoute("/$locale/privacy")({
 function PrivacyPage() {
   const { locale } = Route.useParams();
   const t = makeT(locale as Locale);
+  const [bolag, setBolag] = useState<CompanySettings | null>(null);
+  useEffect(() => { fetchCompanySettings().then(setBolag).catch(() => setBolag(null)); }, []);
+  // Den personuppgiftsansvarige med organisationsnummer först när bolaget är registrerat.
+  const ansvarig = bolag?.org?.trim() ? `${visningsnamn(bolag)} (org.nr ${bolag.org})` : "Maskinval";
 
   return (
     <div className="container-page py-12 max-w-3xl">
@@ -22,13 +28,13 @@ function PrivacyPage() {
       </Link>
 
       <h1 className="mt-6 text-3xl font-semibold tracking-tight text-foreground">Integritetspolicy</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Senast uppdaterad: 3 oktober 2026</p>
+      <p className="mt-2 text-sm text-muted-foreground">Senast uppdaterad: 7 oktober 2026</p>
 
       <div className="mt-8 prose prose-sm prose-invert max-w-none space-y-8 text-sm text-foreground/80 leading-relaxed">
 
         <Section title="1. Personuppgiftsansvarig">
           <p>
-            Maskinval AB ("Maskinval", "vi", "oss") är personuppgiftsansvarig för behandlingen av dina personuppgifter.
+            {ansvarig} ("vi", "oss") är personuppgiftsansvarig för behandlingen av dina personuppgifter.
             Vi behandlar personuppgifter i enlighet med EU:s dataskyddsförordning (GDPR, 2016/679) samt tillämplig
             svensk lagstiftning.
           </p>
