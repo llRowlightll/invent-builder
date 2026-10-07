@@ -35,7 +35,7 @@ const PLATSHALLARE: Partial<Record<keyof CompanySettings, string>> = {
 };
 
 const DEFAULTS: CompanySettings = {
-  name: "Maskinval AB",
+  name: "Maskinval",
   org: "",
   address: "",
   postal: "",
@@ -45,6 +45,18 @@ const DEFAULTS: CompanySettings = {
   bankgiro: "",
   vat: "",
 };
+
+/**
+ * Namnet som får stå på sidor och dokument. "AB" förutsätter ett registrerat
+ * aktiebolag, så utan organisationsnummer skrivs bara varumärket ut -- kunden
+ * ska aldrig se ett bolag som inte finns (databasen har "Maskinval AB" sedan
+ * starten, före registreringen).
+ */
+export function visningsnamn(c: Pick<CompanySettings, "name" | "org"> | null | undefined): string {
+  const namn = (c?.name ?? "").trim() || "Maskinval";
+  if (c?.org?.trim()) return namn;
+  return namn.replace(/\s+AB$/i, "").trim() || "Maskinval";
+}
 
 /** Fält som en offert behöver och som saknas -- för varningen i admin. */
 export function saknadeBolagsuppgifter(c: CompanySettings): (keyof CompanySettings)[] {

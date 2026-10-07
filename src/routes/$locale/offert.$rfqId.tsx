@@ -5,7 +5,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchCompanySettings, type CompanySettings } from "@/lib/company-settings";
+import { fetchCompanySettings, visningsnamn, type CompanySettings } from "@/lib/company-settings";
 import { CheckCircle2 } from "lucide-react";
 
 export const Route = createFileRoute("/$locale/offert/$rfqId")({
@@ -134,7 +134,7 @@ export default function PublicOffertPage() {
     </div>
   );
 
-  const co = company ?? { name: "Maskinval AB", org: "", address: "", postal: "", email: "info@maskinval.se", phone: "", web: "", bankgiro: "", vat: "" };
+  const co = company ?? { name: "Maskinval", org: "", address: "", postal: "", email: "info@maskinval.se", phone: "", web: "", bankgiro: "", vat: "" };
   const today = new Date(rfq.created_at).toLocaleDateString("sv-SE");
   const alreadyAnswered = rfq.status === "accepted" || rfq.status === "rejected" || accepted || declined;
 
@@ -146,7 +146,7 @@ export default function PublicOffertPage() {
           {/* Header */}
           <div className="flex items-start justify-between mb-10">
             <div>
-              <div className="text-2xl font-bold" style={{ fontFamily: "system-ui, sans-serif" }}>{co.name}</div>
+              <div className="text-2xl font-bold" style={{ fontFamily: "system-ui, sans-serif" }}>{visningsnamn(co)}</div>
               <div className="text-xs text-muted-foreground mt-1 space-y-0.5" style={{ fontFamily: "system-ui, sans-serif" }}>
                 {(co.address || co.postal) && <div>{co.address}{co.postal ? `, ${co.postal}` : ""}</div>}
                 <div>{co.email}{co.email && co.phone ? " · " : ""}{co.phone}</div>

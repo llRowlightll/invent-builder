@@ -505,7 +505,7 @@ function SignupPage() {
                 <Link to="/$locale/terms" params={{ locale }} target="_blank" className="text-info hover:underline">
                   allmänna villkoren
                 </Link>
-                . Maskinval AB behandlar dina uppgifter enligt GDPR.
+                . Maskinval behandlar dina uppgifter enligt GDPR.
               </span>
             </label>
 

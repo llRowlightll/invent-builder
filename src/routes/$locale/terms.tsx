@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { makeT, type Locale } from "@/lib/i18n";
+import { fetchCompanySettings, visningsnamn, type CompanySettings } from "@/lib/company-settings";
 
 export const Route = createFileRoute("/$locale/terms")({
   head: () => ({
@@ -14,6 +16,10 @@ export const Route = createFileRoute("/$locale/terms")({
 function TermsPage() {
   const { locale } = Route.useParams();
   const t = makeT(locale as Locale);
+  const [bolag, setBolag] = useState<CompanySettings | null>(null);
+  useEffect(() => { fetchCompanySettings().then(setBolag).catch(() => setBolag(null)); }, []);
+  // Bolagsnamnet med organisationsnummer först när bolaget är registrerat.
+  const leverantor = bolag?.org?.trim() ? `${visningsnamn(bolag)} (org.nr ${bolag.org})` : "Maskinval";
 
   return (
     <div className="container-page py-12 max-w-3xl">
@@ -22,14 +28,14 @@ function TermsPage() {
       </Link>
 
       <h1 className="mt-6 text-3xl font-semibold tracking-tight text-foreground">Allmänna villkor</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Senast uppdaterad: 19 maj 2026 · Version 1.0</p>
+      <p className="mt-2 text-sm text-muted-foreground">Senast uppdaterad: 7 oktober 2026 · Version 1.1</p>
 
       <div className="mt-8 space-y-8 text-sm text-foreground/80 leading-relaxed">
 
         <Section title="1. Om tjänsten">
           <p>
             Maskinval är en B2B-plattform för industriella automationskomponenter. Tjänsten tillhandahålls
-            av Maskinval AB och riktar sig uteslutande till företag och yrkesverksamma
+            av {leverantor} och riktar sig uteslutande till företag och yrkesverksamma
             (ej konsumenter). Genom att använda tjänsten accepterar du dessa villkor.
           </p>
         </Section>
@@ -77,12 +83,21 @@ function TermsPage() {
           </ul>
         </Section>
 
-        <Section title="6. Reklamationer och returer">
+        <Section title="6. Reklamationer, garanti och returer">
           <p>
-            Reklamation ska ske inom <strong className="text-foreground">8 dagar</strong> från mottagandet
-            av gods. Felaktiga eller skadade varor byts ut eller krediteras efter godkännande.
-            Returer accepteras endast efter skriftligt godkännande från Maskinval. Returkostnad
-            bärs av köparen om inte felet är på Maskinvals sida.
+            Synliga fel och transportskador ska reklameras inom <strong className="text-foreground">8 dagar</strong> från
+            mottagandet av godset. Dolda fel ska reklameras inom skälig tid efter att felet upptäckts eller borde
+            ha upptäckts, dock senast <strong className="text-foreground">12 månader</strong> efter leverans, eller
+            inom tillverkarens garantitid om den är längre.
+          </p>
+          <p className="mt-2">
+            Produkterna omfattas av tillverkarens garanti enligt tillverkarens villkor. Maskinval tar emot
+            reklamationer och garantianspråk och driver dem mot tillverkaren eller leverantören.
+          </p>
+          <p className="mt-2">
+            Fel som omfattas avhjälps genom utbyte eller kreditering efter godkännande. Returer accepteras
+            endast efter skriftligt godkännande från Maskinval. Returkostnaden bärs av köparen om inte felet
+            ligger hos Maskinval, tillverkaren eller leverantören.
           </p>
         </Section>
 
@@ -103,7 +118,8 @@ function TermsPage() {
           <p>
             Maskinvals ansvar är begränsat till ordervärdet för den aktuella affären. Vi ansvarar inte
             för indirekta skador, utebliven vinst, produktionsbortfall eller följdskador.
-            Maskinval lämnar inga garantier utöver vad som följer av tvingande lag.
+            Utöver tillverkarens garanti (avsnitt 6) lämnar Maskinval inga garantier, utom där tvingande
+            lag säger annat.
           </p>
         </Section>
 
