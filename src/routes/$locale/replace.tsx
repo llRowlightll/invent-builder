@@ -10,7 +10,7 @@ import { aiLasTypskylt } from "@/lib/ai.functions";
 import type { ProductRow } from "@/lib/types";
 import { addToShoppingList } from "@/lib/cart";
 import { SITE, hreflangLinks } from "@/lib/site";
-import { specEtikett, specVarde } from "@/lib/spec-format";
+import { produktnamn, specEtikett, specVarde } from "@/lib/spec-format";
 import { ArticleNumber } from "@/components/ArticleNumber";
 import { identifiera, motsvarigheter, sammaVarde, type Identifiering, type Kandidat } from "@/lib/ersattning";
 import { logga } from "@/lib/matning";
@@ -199,7 +199,7 @@ function ErsattSida() {
   }
 
   function lagg(p: ProductRow) {
-    addToShoppingList({ id: p.id, sku: p.sku, name: p.name });
+    addToShoppingList({ id: p.id, sku: p.sku, name: produktnamn(p, locale) });
     setLagd(p.sku);
     setTimeout(() => setLagd(null), 1800);
   }
@@ -262,7 +262,7 @@ function ErsattSida() {
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <span className="text-sm font-medium text-success-deep">{x.finns}:</span>
                   <Link to="/$locale/product/$sku" params={{ locale, sku: id.produkt.sku }} className="text-sm text-info hover:underline">
-                    {id.produkt.name}
+                    {produktnamn(id.produkt, locale)}
                   </Link>
                   <ArticleNumber value={id.produkt.sku} variant="compact" />
                   <button type="button" onClick={() => lagg(id.produkt!)} className="text-xs font-medium text-muted-foreground hover:text-info">
@@ -343,7 +343,7 @@ function Rad({ p, kandidat, etikett, locale, original, x, lagd, onLagg }: {
         {etikett && <div className="text-[11px] text-muted-foreground">{etikett}</div>}
       </td>
       <td className="px-3 py-2 align-top">
-        <Link to="/$locale/product/$sku" params={{ locale, sku: p.sku }} className="text-info hover:underline">{p.name}</Link>
+        <Link to="/$locale/product/$sku" params={{ locale, sku: p.sku }} className="text-info hover:underline">{produktnamn(p, locale)}</Link>
         <div className="mt-0.5"><ArticleNumber value={p.sku} variant="compact" /></div>
       </td>
       {JAMFOR.map((k) => {

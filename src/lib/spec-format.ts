@@ -171,3 +171,13 @@ export type { Sprak };
 export function beskrivning(p: { description: string | null; description_en?: string | null }, locale: string): string | null {
   return locale !== "sv" && p.description_en ? p.description_en : p.description;
 }
+
+/**
+ * Produktnamnet på sidans språk, på samma sätt som beskrivning(). `name` är
+ * katalognamnet som motorn och sökningen matchar på -- ofta svenskt, ibland
+ * engelskt. Där det är svenskt finns en engelsk version i name_en
+ * (2026-10-07), som visas på de andra språken.
+ */
+export function produktnamn(p: { name: string; name_en?: string | null }, locale: string): string {
+  return locale !== "sv" && p.name_en ? p.name_en : p.name;
+}

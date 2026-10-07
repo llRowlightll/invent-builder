@@ -20,7 +20,7 @@ function scoreProduct(
   strokeMin?: number
 ): number {
   let score = 0;
-  const nameUpper = (p.name + " " + p.sku).toLowerCase();
+  const nameUpper = `${p.name} ${p.name_en ?? ""} ${p.sku}`.toLowerCase();
   // Båda språken: description är svensk, AI-sökningens nyckelord ofta engelska.
   const descLower = `${p.description ?? ""} ${p.description_en ?? ""}`.toLowerCase();
 

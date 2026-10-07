@@ -146,12 +146,12 @@ export function identifiera(kod: string, katalog: ProductRow[], familjer: Family
 export function motsvarigheter(id: Identifiering, katalog: ProductRow[], max = 8): Kandidat[] {
   if (!id.standard || !id.borrningMm) return [];
   // En vanlig cylinder ersätts med en vanlig cylinder; ett specialutförande bara med samma sort.
-  const special = SPECIALUTFORANDE.test(`${id.produkt?.name ?? ""} ${id.familj ?? ""}`);
+  const special = SPECIALUTFORANDE.test(`${id.produkt?.name ?? ""} ${id.produkt?.name_en ?? ""} ${id.familj ?? ""}`);
   const ut: Kandidat[] = [];
   for (const p of katalog) {
     if (p.id === id.produkt?.id) continue;
     if (p.category.slug !== "cylinder" || standardAv(p) !== id.standard) continue;
-    if (SPECIALUTFORANDE.test(p.name) !== special) continue;
+    if (SPECIALUTFORANDE.test(`${p.name} ${p.name_en ?? ""}`) !== special) continue;
     if (!borrningar(p).includes(id.borrningMm)) continue;
     const slag = maxSlag(p);
     if (arSerie(p)) {

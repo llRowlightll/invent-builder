@@ -15,7 +15,7 @@ import { addToShoppingList } from "@/lib/cart";
 import { diversifyResults } from "@/lib/search-diversity";
 import { callAdvisor } from "@/lib/advisor-client";
 import { categoryName } from "@/lib/categories";
-import { kallor, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
+import { kallor, produktnamn, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
 import { Camera, FileText } from "lucide-react";
 
 export const Route = createFileRoute("/$locale/chat")({
@@ -341,7 +341,7 @@ function ChatPage() {
           if (catMatches.length === 0 && aiResult.keywords?.length) {
             catMatches = catalog.filter((p) => {
               if (!physicsFilter(p, catSlug)) return false;
-              const hay = [p.sku, p.name, p.brand.name, p.description ?? "", p.description_en ?? ""].join(" ").toLowerCase();
+              const hay = [p.sku, p.name, p.name_en ?? "", p.brand.name, p.description ?? "", p.description_en ?? ""].join(" ").toLowerCase();
               return aiResult.keywords.some((kw) => hay.includes(kw.toLowerCase()));
             });
           }
@@ -479,7 +479,7 @@ function ChatPage() {
         if (aiResult.ranked_skus?.length || aiResult.keywords?.length) {
           let found = catalog.filter((p) =>
             aiResult.ranked_skus?.includes(p.sku) ||
-            aiResult.keywords?.some((k) => p.name.toLowerCase().includes(k.toLowerCase()) || p.sku.toLowerCase().includes(k.toLowerCase()))
+            aiResult.keywords?.some((k) => `${p.name} ${p.name_en ?? ""}`.toLowerCase().includes(k.toLowerCase()) || p.sku.toLowerCase().includes(k.toLowerCase()))
           ).slice(0, 6);
           if (found.length) {
             setMsgs((m) => [...m, {
@@ -850,7 +850,7 @@ function AddAllButton({ products, locale }: { products: ProductRow[]; locale: st
   const [added, setAdded] = useState(false);
   const isSv = locale === "sv";
   function handleAddAll() {
-    products.forEach((p) => addToShoppingList({ id: p.id, sku: p.sku, name: p.name }));
+    products.forEach((p) => addToShoppingList({ id: p.id, sku: p.sku, name: produktnamn(p, locale) }));
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   }
@@ -885,7 +885,7 @@ function ProductCard({
   const [added, setAdded] = useState(false);
 
   function handleAddToCart() {
-    addToShoppingList({ id: p.id, sku: p.sku, name: p.name });
+    addToShoppingList({ id: p.id, sku: p.sku, name: produktnamn(p, locale) });
     setAdded(true);
     setTimeout(() => setAdded(false), 1800);
   }
@@ -924,7 +924,7 @@ function ProductCard({
         params={{ locale, sku: p.sku } as never}
         className="mt-1 font-medium text-sm text-foreground hover:text-info line-clamp-2 transition"
       >
-        {p.name}
+        {produktnamn(p, locale)}
       </Link>
       <div className="mt-1 text-xs text-muted-foreground">{categoryName(p.category.slug, locale, p.category.name)}</div>
 
