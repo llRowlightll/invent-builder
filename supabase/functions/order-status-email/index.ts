@@ -195,7 +195,7 @@ function buildEmail(p: Payload): { subject: string; html: string } {
     const fmtMoney2 = (n: number) => n.toLocaleString("sv-SE", { style: "currency", currency: p.currency || "SEK", maximumFractionDigits: 0 });
     extra = `
     <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:16px 20px;margin:20px 0;">
-      <p style="margin:0 0 4px;font-size:12px;color:#0369a1;font-weight:600;">OFFERTBELOPP (exkl. moms)</p>
+      <p style="margin:0 0 4px;font-size:12px;color:#0369a1;font-weight:600;">OFFERTBELOPP (inkl. moms och frakt)</p>
       <p style="margin:0 0 12px;font-size:28px;font-weight:700;color:#0c4a6e;">${fmtMoney2(p.quote_amount)}</p>
       <p style="margin:0;font-size:12px;color:#0369a1;">
         Offerten är giltig i 30 dagar. Svara på detta mejl för att acceptera eller ställa frågor.

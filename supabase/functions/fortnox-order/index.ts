@@ -129,6 +129,9 @@ function mapSkuToFortnox(sku: string): string {
   return sku.replace(/\s+/g, "-").slice(0, 50);
 }
 
+/** Fraktraden till Fortnox: frakten är ett belopp på ordern, ingen orderrad. */
+const FRAKTARTIKEL = "FRAKT";
+
 async function ensureFortnoxArticle(token: string, sku: string, description: string) {
   const fnSku = mapSkuToFortnox(sku);
   const checkRes = await fetch(
@@ -144,7 +147,8 @@ async function ensureFortnoxArticle(token: string, sku: string, description: str
       Article: {
         ArticleNumber: fnSku,
         Description: description.slice(0, 100),
-        Type: "STOCK",
+        // Frakt är en tjänst, inget lagerförs.
+        Type: sku === FRAKTARTIKEL ? "SERVICE" : "STOCK",
         Unit: "ST",
       },
     }),
@@ -226,8 +230,8 @@ Deno.serve(async (req) => {
   // rfq_id tas fortfarande emot och slås upp till sin order, så den gamla
   // knappen i admin fortsätter fungera.
   const { data: order } = order_id
-    ? await supabase.from("orders").select("id, order_number, customer_name, customer_company, customer_org_nr, po_number, rfq_id").eq("id", order_id).maybeSingle()
-    : await supabase.from("orders").select("id, order_number, customer_name, customer_company, customer_org_nr, po_number, rfq_id").eq("rfq_id", rfq_id).maybeSingle();
+    ? await supabase.from("orders").select("id, order_number, customer_name, customer_company, customer_org_nr, po_number, rfq_id, freight_ex_vat").eq("id", order_id).maybeSingle()
+    : await supabase.from("orders").select("id, order_number, customer_name, customer_company, customer_org_nr, po_number, rfq_id, freight_ex_vat").eq("rfq_id", rfq_id).maybeSingle();
 
   if (!order) {
     return new Response(
@@ -258,6 +262,9 @@ Deno.serve(async (req) => {
     description: (row.name as string) ?? "",
     pris: (row.unit_price_ex_vat as number | null) ?? null,
   }));
+  // Frakten (villkoren avsnitt 3) som egen fakturarad.
+  const frakt = Number((order as { freight_ex_vat?: number | null }).freight_ex_vat ?? 0);
+  if (frakt > 0) items.push({ sku: FRAKTARTIKEL, qty: 1, description: "Frakt", pris: frakt });
 
   try {
     const referens = `Maskinval ${order.order_number ?? order.id}` +

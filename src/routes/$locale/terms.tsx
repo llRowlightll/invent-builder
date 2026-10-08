@@ -13,6 +13,9 @@ import { OFFERT_GILTIG_DAGAR, VILLKOR_DATUM, VILLKOR_VERSION } from "@/lib/villk
  * vid uppsåt och grov vårdslöshet, force majeure, varumärken, att ändringar
  * inte rör bekräftade order, och språkklausul. Villkoren hänvisas nu till där
  * avtalet ingås: beställningssteget, offerten och orderbekräftelsen.
+ *
+ * Version 1.3 (2026-10-08, samma dag): frakt tillkommer (beslut att ta betalt
+ * för frakt). Den sätts i offertverktyget och på orderbekräftelsen.
  */
 export const Route = createFileRoute("/$locale/terms")({
   head: ({ params }) => {
@@ -63,7 +66,7 @@ function avsnitt(sv: boolean, leverantor: string): Avsnitt[] {
       "Priser på plattformen är **indikativa** och exklusive moms om inget annat anges. En offertförfrågan (RFQ) utgör inte ett bindande anbud.",
       `En offert från Maskinval gäller i **${dagar} dagar** från offertdatum om inget annat anges i offerten. Avtal uppstår när kunden accepterar en giltig offert, eller när Maskinval skriftligen har bekräftat en beställning (orderbekräftelse).`,
       "Priset i en accepterad offert eller i en orderbekräftelse gäller för den ordern. Dessförinnan kan priser ändras utan föregående avisering till följd av valutakurser, leverantörspriser eller marknadssituation. Vi förbehåller oss rätten att korrigera uppenbara fel i pris eller artikel.",
-      "Frakt och andra tillägg framgår av offerten eller orderbekräftelsen.",
+      "Frakt tillkommer och anges i offerten eller orderbekräftelsen.",
     ] },
     { titel: "4. Leverans och ledtider", stycken: [
       "Angivna ledtider är uppskattningar baserade på leverantörsinformation och är inte garanterade. Maskinval ansvarar inte för förseningar orsakade av leverantörer, tullformaliteter, transportstörningar eller force majeure-händelser (avsnitt 9).",
@@ -119,7 +122,7 @@ function avsnitt(sv: boolean, leverantor: string): Avsnitt[] {
       "Prices on the platform are **indicative** and exclude VAT unless otherwise stated. A request for quotation (RFQ) is not a binding offer.",
       `A quote from Maskinval is valid for **${dagar} days** from the quote date unless otherwise stated in the quote. An agreement is formed when the customer accepts a valid quote, or when Maskinval has confirmed an order in writing (order confirmation).`,
       "The price in an accepted quote or in an order confirmation applies to that order. Before then, prices may change without prior notice due to exchange rates, supplier prices or market conditions. We reserve the right to correct obvious errors in price or item.",
-      "Freight and other charges are stated in the quote or the order confirmation.",
+      "Freight is charged in addition and is stated in the quote or the order confirmation.",
     ] },
     { titel: "4. Delivery and lead times", stycken: [
       "Stated lead times are estimates based on supplier information and are not guaranteed. Maskinval is not liable for delays caused by suppliers, customs formalities, transport disruptions or force majeure events (section 9).",

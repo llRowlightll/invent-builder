@@ -1403,6 +1403,7 @@ export type Database = {
           delivered_at: string | null
           estimated_delivery: string | null
           fortnox_invoice_id: string | null
+          freight_ex_vat: number | null
           id: string
           idempotency_key: string | null
           internal_notes: string | null
@@ -1438,6 +1439,7 @@ export type Database = {
           delivered_at?: string | null
           estimated_delivery?: string | null
           fortnox_invoice_id?: string | null
+          freight_ex_vat?: number | null
           id?: string
           idempotency_key?: string | null
           internal_notes?: string | null
@@ -1473,6 +1475,7 @@ export type Database = {
           delivered_at?: string | null
           estimated_delivery?: string | null
           fortnox_invoice_id?: string | null
+          freight_ex_vat?: number | null
           id?: string
           idempotency_key?: string | null
           internal_notes?: string | null
@@ -2108,6 +2111,7 @@ export type Database = {
           fortnox_order_id: string | null
           hubspot_contact_id: string | null
           hubspot_deal_id: string | null
+          freight_ex_vat: number | null
           id: string
           integration_error: string | null
           integration_synced_at: string | null
@@ -2146,6 +2150,7 @@ export type Database = {
           fortnox_order_id?: string | null
           hubspot_contact_id?: string | null
           hubspot_deal_id?: string | null
+          freight_ex_vat?: number | null
           id?: string
           integration_error?: string | null
           integration_synced_at?: string | null
@@ -2184,6 +2189,7 @@ export type Database = {
           fortnox_order_id?: string | null
           hubspot_contact_id?: string | null
           hubspot_deal_id?: string | null
+          freight_ex_vat?: number | null
           id?: string
           integration_error?: string | null
           integration_synced_at?: string | null

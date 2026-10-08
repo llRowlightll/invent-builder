@@ -391,7 +391,7 @@ function RfqPage() {
       {rfq.status === "quoted" && rfq.quote_amount && (
         <div className="mt-4 rounded-xl border border-quoted bg-quoted-surface p-5">
           <p className="text-xs uppercase tracking-wider text-quoted-deep font-semibold mb-1">
-            {locale === "sv" ? "Offertbelopp (exkl. moms)" : "Quoted price (excl. VAT)"}
+            {locale === "sv" ? "Offertbelopp (inkl. moms och frakt)" : "Quoted price (incl. VAT and freight)"}
           </p>
           <p className="text-3xl font-bold text-foreground">
             {rfq.quote_amount.toLocaleString(locale === "sv" ? "sv-SE" : locale, {
