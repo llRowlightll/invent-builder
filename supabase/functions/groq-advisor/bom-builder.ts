@@ -31,28 +31,35 @@ export function buildCustomSolutionOption(
     }));
   }
 
-  // Washdown + vertical + food = most demanding scenario — give two explicit architectural paths
+  // Washdown + vertical + food = most demanding scenario — give two explicit architectural paths.
+  // Produktuppgifterna kontrollerade mot tillverkarna 2026-10-08. Tidigare stod
+  // här SMC HY "IP69K/316L" (har aluminiumhus och är enligt SMC inte avsedd för
+  // livsmedelszonen), Rexroth "EMC-HD-XC" (ingen sådan IP69K-variant belagd) och
+  // Parker ETH "Washdown" (IP54/IP65). Belagt: Parker P1S är en rostfri
+  // ISO-rundcylinder med fluorgummitätningar och H1-fett men utan angiven
+  // IP-klass; SMC HF2A-LEY har IP69K-kapsling (kablar IP67), 5–40 °C, får inte
+  // ha direkt livsmedelskontakt och låset är inget säkerhetslås.
   if (isWashdown && isVerticalLoad && isFoodGrade) {
     whyLines.push(pick(locale, {
       sv: `⚙️ Rekommenderade arkitekturval för slakteri/IP69K-miljö:\n` +
-        `▸ ALT A – Pneumatisk rostfri cylinder (316L): SMC HY-serien (IP69K, NSF-H1-smörjning, EHEDG-hygienisk design) eller Parker P1S Stainless Washdown Cylinder. Komplettera med pneumatisk stångbroms (rod lock) för säker hållning vid strömavbrott.\n` +
-        `▸ ALT B – Kapslad el-cylinder IP69K: Bosch Rexroth EMC-HD-XC (IP69K rostfritt, PROFINET-nativ) eller Parker ETH-serie Washdown. Kräver integrerad motorbroms och en säkerhetsfunktion med den nivå riskbedömningen ger.`,
+        `▸ ALT A – Pneumatisk rostfri cylinder: t.ex. Parker P1S (rostfri ISO-rundcylinder, yttre tätningar i fluorgummi, livsmedelsgodkänt H1-fett). Parker anger ingen IP-klass — kontrollera att den tål er högtryckstvätt. Komplettera med pneumatisk stångbroms (rod lock) för säker hållning vid tryckfall.\n` +
+        `▸ ALT B – Kapslad el-cylinder IP69K: t.ex. SMC HF2A-LEY (IP69K-kapsling, metalldelar i rostfritt 304, livsmedelsgodkänt fett, drifttemperatur 5–40 °C; inte för direkt livsmedelskontakt). Kablar (IP67), drivenhet och ventilationsslang är inte IP69K och måste skyddas. Kräver motorbroms och en säkerhetsfunktion med den nivå riskbedömningen ger — SMC:s lås får inte användas som säkerhetslås.`,
       en: `⚙️ Recommended architectural paths for slaughterhouse/IP69K:\n` +
-        `▸ ALT A – Stainless pneumatic cylinder (316L): SMC HY-Series (IP69K, NSF-H1 lube, EHEDG hygienic design) or Parker P1S Stainless Washdown. Add pneumatic rod lock for safe holding on power loss.\n` +
-        `▸ ALT B – Enclosed IP69K electric cylinder: Bosch Rexroth EMC-HD-XC (IP69K stainless, native PROFINET) or Parker ETH Washdown series. Requires an integrated motor brake and a safety function at the level the risk assessment sets.`,
+        `▸ ALT A – Stainless pneumatic cylinder: e.g. Parker P1S (stainless ISO round cylinder, fluororubber outer seals, H1 food-grade grease). Parker states no IP rating — check that it withstands your high-pressure washdown. Add a pneumatic rod lock for safe holding on pressure loss.\n` +
+        `▸ ALT B – Enclosed IP69K electric cylinder: e.g. SMC HF2A-LEY (IP69K enclosure, stainless 304 metal parts, food-grade grease, operating temperature 5–40 °C; not for direct food contact). Cables (IP67), driver and breathing tube are not IP69K and must be protected. Requires a motor brake and a safety function at the level the risk assessment sets — SMC states its lock must not be used as a safety lock.`,
       de: `⚙️ Empfohlene Architekturansätze für Schlachthof-/IP69K-Umgebung:\n` +
-        `▸ VARIANTE A – Pneumatischer Edelstahlzylinder (316L): SMC HY-Serie (IP69K, NSF-H1-Schmierung, EHEDG-hygienisches Design) oder Parker P1S Stainless Washdown Cylinder. Ergänzen mit pneumatischer Kolbenstangenbremse (Rod Lock) für sicheres Halten bei Stromausfall.\n` +
-        `▸ VARIANTE B – Gekapselter Elektrozylinder IP69K: Bosch Rexroth EMC-HD-XC (IP69K Edelstahl, natives PROFINET) oder Parker ETH-Serie Washdown. Erfordert integrierte Motorbremse und eine Sicherheitsfunktion auf dem Niveau, das die Risikobeurteilung ergibt.`,
+        `▸ VARIANTE A – Pneumatischer Edelstahlzylinder: z. B. Parker P1S (Edelstahl-Rundzylinder nach ISO, äußere Dichtungen aus Fluorkautschuk, lebensmitteltaugliches H1-Fett). Parker nennt keine IP-Schutzart — prüfen, ob er Ihrer Hochdruckreinigung standhält. Ergänzen mit pneumatischer Kolbenstangenbremse (Rod Lock) für sicheres Halten bei Druckabfall.\n` +
+        `▸ VARIANTE B – Gekapselter Elektrozylinder IP69K: z. B. SMC HF2A-LEY (Schutzart IP69K, Metallteile aus Edelstahl 304, lebensmitteltaugliches Fett, Betriebstemperatur 5–40 °C; nicht für direkten Lebensmittelkontakt). Kabel (IP67), Treiber und Belüftungsschlauch sind nicht IP69K und müssen geschützt werden. Erfordert eine Motorbremse und eine Sicherheitsfunktion auf dem Niveau, das die Risikobeurteilung ergibt — laut SMC darf die Verriegelung nicht als Sicherheitsverriegelung verwendet werden.`,
       es: `⚙️ Rutas de arquitectura recomendadas para entorno de matadero/IP69K:\n` +
-        `▸ OPCIÓN A – Cilindro neumático de acero inoxidable (316L): serie SMC HY (IP69K, lubricación NSF-H1, diseño higiénico EHEDG) o Parker P1S Stainless Washdown. Añadir bloqueo de vástago neumático (rod lock) para sujeción segura ante fallo de alimentación.\n` +
-        `▸ OPCIÓN B – Cilindro eléctrico encapsulado IP69K: Bosch Rexroth EMC-HD-XC (IP69K inoxidable, PROFINET nativo) o serie Parker ETH Washdown. Requiere freno de motor integrado y una función de seguridad del nivel que determine la evaluación de riesgos.`,
+        `▸ OPCIÓN A – Cilindro neumático de acero inoxidable: p. ej. Parker P1S (cilindro redondo ISO de acero inoxidable, juntas exteriores de caucho fluorado, grasa alimentaria H1). Parker no indica grado IP — compruebe que resiste su lavado a alta presión. Añadir bloqueo de vástago neumático (rod lock) para sujeción segura ante caída de presión.\n` +
+        `▸ OPCIÓN B – Cilindro eléctrico encapsulado IP69K: p. ej. SMC HF2A-LEY (envolvente IP69K, piezas metálicas de acero inoxidable 304, grasa alimentaria, temperatura de funcionamiento 5–40 °C; no apto para contacto directo con alimentos). Los cables (IP67), el driver y el tubo de respiración no son IP69K y deben protegerse. Requiere freno de motor y una función de seguridad del nivel que determine la evaluación de riesgos — según SMC, su bloqueo no debe usarse como bloqueo de seguridad.`,
     }));
   } else if (isWashdown && isFoodGrade) {
     whyLines.push(pick(locale, {
-      sv: `Miljökrav IP69K + livsmedel kräver: SMC HY-serien (316L, NSF-H1) eller Parker P1S Washdown. Verifierat EHEDG-utförande rekommenderas.`,
-      en: `IP69K + food-grade requires: SMC HY-Series (316L, NSF-H1) or Parker P1S Washdown. EHEDG-certified design recommended.`,
-      de: `Umgebungsanforderung IP69K + Lebensmittelqualität erfordert: SMC HY-Serie (316L, NSF-H1) oder Parker P1S Washdown. EHEDG-zertifizierte Ausführung empfohlen.`,
-      es: `El requisito de entorno IP69K + grado alimenticio exige: serie SMC HY (316L, NSF-H1) o Parker P1S Washdown. Se recomienda diseño certificado EHEDG.`,
+      sv: `Livsmedel + spolning: rostfria cylindrar med livsmedelsgodkänt fett, t.ex. Parker P1S (rostfri ISO-rundcylinder, yttre tätningar i fluorgummi, H1-fett; Parker anger ingen IP-klass), eller som el-alternativ SMC HF2A-LEY (IP69K-kapsling, rostfritt 304, 5–40 °C; inte för direkt livsmedelskontakt). Kontrollera IP69K för vald variant och begär EHEDG-intyg om hygienisk konstruktion krävs.`,
+      en: `Food + washdown: stainless cylinders with food-grade grease, e.g. Parker P1S (stainless ISO round cylinder, fluororubber outer seals, H1 grease; Parker states no IP rating), or as an electric alternative SMC HF2A-LEY (IP69K enclosure, stainless 304, 5–40 °C; not for direct food contact). Check IP69K for the chosen variant and ask for EHEDG certification if hygienic design is required.`,
+      de: `Lebensmittel + Nassreinigung: Edelstahlzylinder mit lebensmitteltauglichem Fett, z. B. Parker P1S (Edelstahl-Rundzylinder nach ISO, äußere Dichtungen aus Fluorkautschuk, H1-Fett; Parker nennt keine IP-Schutzart), oder als elektrische Alternative SMC HF2A-LEY (Schutzart IP69K, Edelstahl 304, 5–40 °C; nicht für direkten Lebensmittelkontakt). IP69K für die gewählte Variante prüfen und eine EHEDG-Zertifizierung anfordern, wenn hygienisches Design gefordert ist.`,
+      es: `Alimentos + lavado: cilindros de acero inoxidable con grasa alimentaria, p. ej. Parker P1S (cilindro redondo ISO de acero inoxidable, juntas exteriores de caucho fluorado, grasa H1; Parker no indica grado IP), o como alternativa eléctrica SMC HF2A-LEY (envolvente IP69K, inoxidable 304, 5–40 °C; no apto para contacto directo con alimentos). Compruebe IP69K para la variante elegida y solicite certificación EHEDG si se exige diseño higiénico.`,
     }));
   } else if (isWashdown && ctx.isSpolmiljo) {
     // Förut stod IP67-produkter under rubriken "IP69K-krav". Katalogens rostfria
