@@ -629,6 +629,7 @@
     "answerQuestions": "Responda estas preguntas para que pueda encontrar los componentes correctos:",
     "typeAnswer": "Escriba su respuesta…",
     "ownAnswer": "Otro…",
+    "dontKnow": "No lo sé",
     "notOrderReady": "Esta solución no está lista para pedir",
     "notOrderReadyHelp": "Póngase en contacto y repasaremos juntos las alternativas — solicite una oferta abajo y uno de nuestros técnicos le responderá.",
     "ofRowsChecked": "de líneas comprobadas frente a requisitos declarados",

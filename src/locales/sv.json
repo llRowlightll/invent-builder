@@ -629,6 +629,7 @@
     "answerQuestions": "Svara på dessa frågor så hittar jag rätt komponenter:",
     "typeAnswer": "Skriv ditt svar…",
     "ownAnswer": "Annat…",
+    "dontKnow": "Vet inte",
     "notOrderReady": "Lösningen är inte klar att beställa",
     "notOrderReadyHelp": "Hör av dig till oss så går vi igenom alternativen tillsammans — begär offert nedan, så svarar en av våra tekniker.",
     "ofRowsChecked": "av rader prövade mot angivna krav",
