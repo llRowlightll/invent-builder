@@ -36,16 +36,16 @@ export function buildCustomSolutionOption(
     whyLines.push(pick(locale, {
       sv: `⚙️ Rekommenderade arkitekturval för slakteri/IP69K-miljö:\n` +
         `▸ ALT A – Pneumatisk rostfri cylinder (316L): SMC HY-serien (IP69K, NSF-H1-smörjning, EHEDG-hygienisk design) eller Parker P1S Stainless Washdown Cylinder. Komplettera med pneumatisk stångbroms (rod lock) för säker hållning vid strömavbrott.\n` +
-        `▸ ALT B – Kapslad el-cylinder IP69K: Bosch Rexroth EMC-HD-XC (IP69K rostfritt, PROFINET-nativ) eller Parker ETH-serie Washdown. Kräver integrerad motorbroms + säkerhetsventil för SIL 2/PLd.`,
+        `▸ ALT B – Kapslad el-cylinder IP69K: Bosch Rexroth EMC-HD-XC (IP69K rostfritt, PROFINET-nativ) eller Parker ETH-serie Washdown. Kräver integrerad motorbroms och en säkerhetsfunktion med den nivå riskbedömningen ger.`,
       en: `⚙️ Recommended architectural paths for slaughterhouse/IP69K:\n` +
         `▸ ALT A – Stainless pneumatic cylinder (316L): SMC HY-Series (IP69K, NSF-H1 lube, EHEDG hygienic design) or Parker P1S Stainless Washdown. Add pneumatic rod lock for safe holding on power loss.\n` +
-        `▸ ALT B – Enclosed IP69K electric cylinder: Bosch Rexroth EMC-HD-XC (IP69K stainless, native PROFINET) or Parker ETH Washdown series. Requires integrated motor brake + safety valve for SIL 2/PLd.`,
+        `▸ ALT B – Enclosed IP69K electric cylinder: Bosch Rexroth EMC-HD-XC (IP69K stainless, native PROFINET) or Parker ETH Washdown series. Requires an integrated motor brake and a safety function at the level the risk assessment sets.`,
       de: `⚙️ Empfohlene Architekturansätze für Schlachthof-/IP69K-Umgebung:\n` +
         `▸ VARIANTE A – Pneumatischer Edelstahlzylinder (316L): SMC HY-Serie (IP69K, NSF-H1-Schmierung, EHEDG-hygienisches Design) oder Parker P1S Stainless Washdown Cylinder. Ergänzen mit pneumatischer Kolbenstangenbremse (Rod Lock) für sicheres Halten bei Stromausfall.\n` +
-        `▸ VARIANTE B – Gekapselter Elektrozylinder IP69K: Bosch Rexroth EMC-HD-XC (IP69K Edelstahl, natives PROFINET) oder Parker ETH-Serie Washdown. Erfordert integrierte Motorbremse + Sicherheitsventil für SIL 2/PLd.`,
+        `▸ VARIANTE B – Gekapselter Elektrozylinder IP69K: Bosch Rexroth EMC-HD-XC (IP69K Edelstahl, natives PROFINET) oder Parker ETH-Serie Washdown. Erfordert integrierte Motorbremse und eine Sicherheitsfunktion auf dem Niveau, das die Risikobeurteilung ergibt.`,
       es: `⚙️ Rutas de arquitectura recomendadas para entorno de matadero/IP69K:\n` +
         `▸ OPCIÓN A – Cilindro neumático de acero inoxidable (316L): serie SMC HY (IP69K, lubricación NSF-H1, diseño higiénico EHEDG) o Parker P1S Stainless Washdown. Añadir bloqueo de vástago neumático (rod lock) para sujeción segura ante fallo de alimentación.\n` +
-        `▸ OPCIÓN B – Cilindro eléctrico encapsulado IP69K: Bosch Rexroth EMC-HD-XC (IP69K inoxidable, PROFINET nativo) o serie Parker ETH Washdown. Requiere freno de motor integrado + válvula de seguridad para SIL 2/PLd.`,
+        `▸ OPCIÓN B – Cilindro eléctrico encapsulado IP69K: Bosch Rexroth EMC-HD-XC (IP69K inoxidable, PROFINET nativo) o serie Parker ETH Washdown. Requiere freno de motor integrado y una función de seguridad del nivel que determine la evaluación de riesgos.`,
     }));
   } else if (isWashdown && isFoodGrade) {
     whyLines.push(pick(locale, {
@@ -54,21 +54,33 @@ export function buildCustomSolutionOption(
       de: `Umgebungsanforderung IP69K + Lebensmittelqualität erfordert: SMC HY-Serie (316L, NSF-H1) oder Parker P1S Washdown. EHEDG-zertifizierte Ausführung empfohlen.`,
       es: `El requisito de entorno IP69K + grado alimenticio exige: serie SMC HY (316L, NSF-H1) o Parker P1S Washdown. Se recomienda diseño certificado EHEDG.`,
     }));
-  } else if (isWashdown) {
+  } else if (isWashdown && ctx.isSpolmiljo) {
+    // Förut stod IP67-produkter under rubriken "IP69K-krav". Katalogens rostfria
+    // cylindrar är korrosionsbeständiga; IP69K måste kontrolleras per variant.
     whyLines.push(pick(locale, {
-      sv: `IP69K-krav: Festo CRDSNU (rostfri), Camozzi Serie 90 (IP67+), SMC CDQ2-serien (IP67) eller Parker P1S. Inga standardaluminiumcylindrar.`,
-      en: `IP69K requirement: Festo CRDSNU (stainless), Camozzi Serie 90 (IP67+), SMC CDQ2-series (IP67) or Parker P1S. No standard aluminum.`,
-      de: `IP69K-Anforderung: Festo CRDSNU (Edelstahl), Camozzi Serie 90 (IP67+), SMC CDQ2-Serie (IP67) oder Parker P1S. Keine Standard-Aluminiumzylinder.`,
-      es: `Requisito IP69K: Festo CRDSNU (inoxidable), Camozzi Serie 90 (IP67+), serie SMC CDQ2 (IP67) o Parker P1S. Sin cilindros de aluminio estándar.`,
+      sv: `IP69K-krav: rostfria cylindrar i hygienisk utformning. Katalogens rostfria cylindrar (t.ex. Festo CRDSNU, Camozzi Serie 90 i AISI 316) är korrosionsbeständiga — kontrollera att vald variant är IP69K-klassad, eller begär offert på en sådan. Inga standardcylindrar i aluminium.`,
+      en: `IP69K requirement: stainless cylinders of hygienic design. The catalogue's stainless cylinders (e.g. Festo CRDSNU, Camozzi Series 90 in AISI 316) are corrosion-resistant — check that the chosen variant is IP69K-rated, or request a quote for one. No standard aluminium cylinders.`,
+      de: `IP69K-Anforderung: Edelstahlzylinder in hygienischer Ausführung. Die Edelstahlzylinder im Katalog (z. B. Festo CRDSNU, Camozzi Serie 90 in AISI 316) sind korrosionsbeständig — prüfen, ob die gewählte Variante IP69K-klassifiziert ist, oder ein Angebot dafür anfordern. Keine Standard-Aluminiumzylinder.`,
+      es: `Requisito IP69K: cilindros de acero inoxidable de diseño higiénico. Los cilindros inoxidables del catálogo (p. ej. Festo CRDSNU, Camozzi Serie 90 en AISI 316) son resistentes a la corrosión — compruebe que la variante elegida tenga clasificación IP69K o solicite una oferta. Sin cilindros de aluminio estándar.`,
+    }));
+  } else if (isWashdown) {
+    // Korrosiv miljö utan spolning: rätt material, inget IP69K-krav.
+    whyLines.push(pick(locale, {
+      sv: `Korrosiv miljö: korrosionsbeständiga cylindrar, t.ex. Festo CRDSNU (rostfri) eller Camozzi Serie 90 (AISI 316). Syrafast rostfritt (A4/316) vid saltvatten eller kemikalier. Inga standardcylindrar i aluminium.`,
+      en: `Corrosive environment: corrosion-resistant cylinders, e.g. Festo CRDSNU (stainless) or Camozzi Series 90 (AISI 316). Acid-proof stainless (A4/316) for salt water or chemicals. No standard aluminium cylinders.`,
+      de: `Korrosive Umgebung: korrosionsbeständige Zylinder, z. B. Festo CRDSNU (Edelstahl) oder Camozzi Serie 90 (AISI 316). Säurebeständiger Edelstahl (A4/316) bei Salzwasser oder Chemikalien. Keine Standard-Aluminiumzylinder.`,
+      es: `Entorno corrosivo: cilindros resistentes a la corrosión, p. ej. Festo CRDSNU (inoxidable) o Camozzi Serie 90 (AISI 316). Inoxidable resistente a ácidos (A4/316) con agua salada o productos químicos. Sin cilindros de aluminio estándar.`,
     }));
   }
 
   if (isVerticalLoad && isSilSafety) {
     whyLines.push(pick(locale, {
-      sv: `⚠️ Vertikal last + säkerhetsfunktion: Mekanisk stångbroms (t.ex. SMC MHF2 rod lock) eller integrerad motorbroms OBLIGATORISK. Säkerhetsventil SIL 2-certifierad krävs per ISO 13849 PLd.`,
-      en: `⚠️ Vertical load + safety function: Mechanical rod lock (e.g. SMC MHF2) or integrated motor brake MANDATORY. SIL 2-certified safety valve required per ISO 13849 PLd.`,
-      de: `⚠️ Vertikale Last + Sicherheitsfunktion: Mechanische Kolbenstangenbremse (z. B. SMC MHF2 Rod Lock) oder integrierte Motorbremse ZWINGEND ERFORDERLICH. SIL 2-zertifiziertes Sicherheitsventil gemäß ISO 13849 PLd erforderlich.`,
-      es: `⚠️ Carga vertical + función de seguridad: Bloqueo de vástago mecánico (p. ej. SMC MHF2 rod lock) o freno de motor integrado OBLIGATORIO. Se requiere válvula de seguridad certificada SIL 2 según ISO 13849 PLd.`,
+      // SMC MHF2 är ett gripdon, ingen stångbroms; och nivån (SIL/PL) har kunden
+      // inte angett -- den bestäms i riskbedömningen (2026-10-08).
+      sv: `⚠️ Vertikal last + säkerhetsfunktion: mekanisk stångbroms eller integrerad motorbroms OBLIGATORISK. Säkerhetsnivån (PL/SIL) och därmed ventilen bestäms i maskinens riskbedömning${ctx.sakerhetsniva ? ` — angivet krav: ${ctx.sakerhetsniva}` : ""}.`,
+      en: `⚠️ Vertical load + safety function: mechanical rod lock or integrated motor brake MANDATORY. The safety level (PL/SIL), and with it the valve, is set by the machine's risk assessment${ctx.sakerhetsniva ? ` — stated requirement: ${ctx.sakerhetsniva}` : ""}.`,
+      de: `⚠️ Vertikale Last + Sicherheitsfunktion: mechanische Kolbenstangenbremse oder integrierte Motorbremse ZWINGEND ERFORDERLICH. Das Sicherheitsniveau (PL/SIL) und damit das Ventil ergibt sich aus der Risikobeurteilung der Maschine${ctx.sakerhetsniva ? ` — angegebene Anforderung: ${ctx.sakerhetsniva}` : ""}.`,
+      es: `⚠️ Carga vertical + función de seguridad: bloqueo de vástago mecánico o freno de motor integrado OBLIGATORIO. El nivel de seguridad (PL/SIL), y con él la válvula, lo determina la evaluación de riesgos de la máquina${ctx.sakerhetsniva ? ` — requisito indicado: ${ctx.sakerhetsniva}` : ""}.`,
     }));
   } else if (isVerticalLoad) {
     whyLines.push(pick(locale, {
@@ -414,6 +426,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   const { primarySku, primaryIsFamilyProd, isElectric, isAtex, isAtexDust,
           isVerticalLoad, isHighSpeed, valveTerminal, isEndPosDetect, locale, products,
           isMounting, isGuided, isArticulated, isRodLock, primaryBoreMm, primaryBrand: primaryBrandFetched, isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
+          isSpolmiljo, isFoodGrade, sakerhetsniva,
           isMultiAxis, perAxisStrokes, isBatteryDryroom, unitCount } = ctx;
   const isPneumatic = !isElectric && !isAtex && !isAtexDust;
   // Found 2026-08-28 (adversarial test): a "6 identiska cylinderstationer"
@@ -910,7 +923,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
         en: "MANDATORY — 2 magnetic sensors (one per end position) required for PLC feedback. Select a sensor matching the cylinder's sensor groove (T-slot or C-slot, depending on brand) and control voltage (24 V DC NPN/PNP).",
         de: "ZWINGEND ERFORDERLICH — 2 Magnetsensoren (einer je Endlage) für die SPS-Rückmeldung erforderlich. Sensor passend zur Sensornut des Zylinders (T-Nut oder C-Nut, je nach Hersteller) und zur Steuerspannung wählen (24 V DC NPN/PNP).",
         es: "OBLIGATORIO — se requieren 2 sensores magnéticos (uno por posición final) para la retroalimentación al PLC. Seleccione un sensor compatible con la ranura del cilindro (ranura en T o en C, según el fabricante) y la tensión de control (24 V CC NPN/PNP).",
-      }) + (isWashdown
+      }) + (isWashdown && (isSpolmiljo || isFoodGrade)
         // Found 2026-08-21: the catalog does not currently stock an IP69K-rated
         // cylinder position sensor at all (checked every "sensor" row's
         // ip_rating - none reach it), so a washdown/food-grade job always gets
@@ -1105,7 +1118,21 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   }
 
   // ── 9. Washdown / food-grade IP69K warning ───────────────────────
-  if (isWashdown) {
+  // IP69K bara vid spolning eller livsmedel; korrosiv miljö får en egen rad.
+  if (isWashdown && !(isSpolmiljo || isFoodGrade)) {
+    rows.push({
+      sku: "SPECIFY", quantity: 1,
+      kind: "warning",
+      role: pick(locale, { sv: "⚠️ Korrosiv miljö — korrosionsbeständigt material", en: "⚠️ Corrosive environment — corrosion-resistant materials", de: "⚠️ Korrosive Umgebung — korrosionsbeständiges Material", es: "⚠️ Entorno corrosivo — material resistente a la corrosión" }),
+      reason: pick(locale, {
+        sv: "Cylinder, ventil och givare i korrosionsbeständigt utförande: rostfritt stål (syrafast A4/316 vid saltvatten, syror eller kemikalier) och tätningar som tål mediet. Kontrollera tätningsmaterialet mot de ämnen som används.",
+        en: "Cylinder, valve and sensor in corrosion-resistant versions: stainless steel (acid-proof A4/316 for salt water, acids or chemicals) and seals compatible with the medium. Check the seal material against the substances used.",
+        de: "Zylinder, Ventil und Sensor in korrosionsbeständiger Ausführung: Edelstahl (säurebeständig A4/316 bei Salzwasser, Säuren oder Chemikalien) und medienbeständige Dichtungen. Dichtungswerkstoff gegen die verwendeten Stoffe prüfen.",
+        es: "Cilindro, válvula y sensor en versión resistente a la corrosión: acero inoxidable (resistente a ácidos A4/316 con agua salada, ácidos o productos químicos) y juntas compatibles con el medio. Compruebe el material de las juntas frente a las sustancias utilizadas.",
+      }),
+    });
+  }
+  if (isWashdown && (isSpolmiljo || isFoodGrade)) {
     rows.push({
       sku: "SPECIFY", quantity: 1,
       kind: "warning",
@@ -1139,13 +1166,25 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     rows.push({
       sku: "SPECIFY", quantity: 1,
       kind: "warning",
-      role: pick(locale, { sv: "⚠️ Säkerhetscertifierad magnetventil SIL/PLd", en: "⚠️ Safety-certified solenoid valve SIL/PLd", de: "⚠️ Sicherheitszertifiziertes Magnetventil SIL/PLd", es: "⚠️ Electroválvula certificada de seguridad SIL/PLd" }),
-      reason: pick(locale, {
-        sv: "KRAV SIL 2 / PLd (ISO 13849): säkerhetscertifierad magnetventil med redundant styrsignal och diagnosfunktion krävs (t.ex. Festo VOFD-DT, SMC VFS). Standard-ventil är EJ tillräcklig.",
-        en: "REQUIRED SIL 2 / PLd (ISO 13849): safety-certified solenoid valve with redundant control and diagnostic function (e.g. Festo VOFD-DT, SMC VFS). Standard valve is NOT sufficient.",
-        de: "ERFORDERLICH SIL 2 / PLd (ISO 13849): sicherheitszertifiziertes Magnetventil mit redundantem Steuersignal und Diagnosefunktion erforderlich (z. B. Festo VOFD-DT, SMC VFS). Ein Standardventil ist NICHT ausreichend.",
-        es: "REQUERIDO SIL 2 / PLd (ISO 13849): se requiere una electroválvula certificada de seguridad con señal de control redundante y función de diagnóstico (p. ej. Festo VOFD-DT, SMC VFS). Una válvula estándar NO es suficiente.",
-      }),
+      // Nivån skrivs bara ut när kunden angett den (2026-10-08). "Nödstopp" eller
+      // "skyddsgrind" säger att det finns en säkerhetsfunktion, inte vilken nivå.
+      // SMC VFS är en vanlig ventilserie och stod här som säkerhetsventil.
+      role: sakerhetsniva
+        ? pick(locale, { sv: `⚠️ Säkerhetsventil för ${sakerhetsniva}`, en: `⚠️ Safety valve for ${sakerhetsniva}`, de: `⚠️ Sicherheitsventil für ${sakerhetsniva}`, es: `⚠️ Válvula de seguridad para ${sakerhetsniva}` })
+        : pick(locale, { sv: "⚠️ Säkerhetsfunktion — nivå enligt riskbedömningen", en: "⚠️ Safety function — level per the risk assessment", de: "⚠️ Sicherheitsfunktion — Niveau gemäß Risikobeurteilung", es: "⚠️ Función de seguridad — nivel según la evaluación de riesgos" }),
+      reason: sakerhetsniva
+        ? pick(locale, {
+            sv: `Angivet krav ${sakerhetsniva} (ISO 13849 / IEC 62061): en säkerhetscertifierad ventil med redundant styrning och övervakning krävs. En standardventil räcker inte.`,
+            en: `Stated requirement ${sakerhetsniva} (ISO 13849 / IEC 62061): a safety-certified valve with redundant control and monitoring is required. A standard valve is not sufficient.`,
+            de: `Angegebene Anforderung ${sakerhetsniva} (ISO 13849 / IEC 62061): ein sicherheitszertifiziertes Ventil mit redundanter Ansteuerung und Überwachung ist erforderlich. Ein Standardventil reicht nicht aus.`,
+            es: `Requisito indicado ${sakerhetsniva} (ISO 13849 / IEC 62061): se requiere una válvula certificada de seguridad con control redundante y supervisión. Una válvula estándar no es suficiente.`,
+          })
+        : pick(locale, {
+            sv: "Beskrivningen nämner en säkerhetsfunktion (t.ex. nödstopp eller skyddsgrind). Vilken nivå som krävs — PL enligt ISO 13849 eller SIL enligt IEC 62061 — avgörs i maskinens riskbedömning. Från PL d krävs normalt en säkerhetsventil med redundans och övervakning; en standardventil räcker då inte.",
+            en: "The description mentions a safety function (e.g. emergency stop or guard). The required level — PL per ISO 13849 or SIL per IEC 62061 — is set by the machine's risk assessment. From PL d a safety valve with redundancy and monitoring is normally required; a standard valve is then not sufficient.",
+            de: "Die Beschreibung nennt eine Sicherheitsfunktion (z. B. Not-Halt oder Schutztür). Das erforderliche Niveau — PL nach ISO 13849 oder SIL nach IEC 62061 — ergibt sich aus der Risikobeurteilung der Maschine. Ab PL d ist in der Regel ein Sicherheitsventil mit Redundanz und Überwachung erforderlich; ein Standardventil reicht dann nicht aus.",
+            es: "La descripción menciona una función de seguridad (p. ej. parada de emergencia o resguardo). El nivel requerido — PL según ISO 13849 o SIL según IEC 62061 — lo determina la evaluación de riesgos de la máquina. A partir de PL d normalmente se requiere una válvula de seguridad con redundancia y supervisión; entonces una válvula estándar no es suficiente.",
+          }),
     });
   }
 

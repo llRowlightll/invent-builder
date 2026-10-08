@@ -2,6 +2,7 @@
 // Run: deno test supabase/functions/groq-advisor/signals.test.ts
 import { assert, assertEquals } from "jsr:@std/assert@^1";
 import {
+  angivenSakerhetsniva, needsSpolmiljo,
   extractGripForceN, extractHoldingForceN, extractLoadKg, needsEsdSafe,
   detectHazards, needsFoodGrade,
   theoreticalForceN, usableForceN, requiredForceN,
@@ -717,4 +718,19 @@ Deno.test("needsHighTemp: exakt 80 °C är inom standardtätningarnas område", 
 Deno.test("utanIpProvvillkor: tar bara parentesen efter en IP-kod", () => {
   assertEquals(utanIpProvvillkor("IP69K (100 bar, 80°C) och 90 °C i ugnen"), "IP69K  och 90 °C i ugnen");
   assertEquals(utanIpProvvillkor("Lucka (max 90 °C)"), "Lucka (max 90 °C)");
+});
+
+Deno.test("angiven säkerhetsnivå: PLC är ingen nivå", () => {
+  assertEquals(angivenSakerhetsniva("Styrs av en Siemens PLC med nödstopp."), null);
+  assertEquals(angivenSakerhetsniva("Funktionen ska klara PL d."), "PL d");
+  assertEquals(angivenSakerhetsniva("Kravet är PLe enligt ISO 13849."), "PL e");
+  assertEquals(angivenSakerhetsniva("SIL 2 krävs."), "SIL 2");
+});
+
+Deno.test("spolmiljö: frätande vätskor är korrosion, inte spolning", () => {
+  assertEquals(needsSpolmiljo("kemikaliebeständiga tätningar krävs, frätande vätskor"), false);
+  assertEquals(needsSpolmiljo("rostfri cylinder till en båt"), false);
+  assertEquals(needsSpolmiljo("daglig skumtvätt"), true);
+  assertEquals(needsSpolmiljo("högtrycksspolas varje skift"), true);
+  assertEquals(needsSpolmiljo("slakteri"), true);
 });

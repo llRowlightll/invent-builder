@@ -2087,13 +2087,21 @@ async function handleBom(
     hazards.isAtex    ? (isSv ? "⛔ ATEX Zone 1/2 — inga elektriska komponenter." : "⛔ ATEX Zone 1/2 — no electric components.") : "",
     hazards.isAtexDust ? (isSv ? "⛔ ATEX Zone 20/21/22 damm." : "⛔ ATEX Zone 20/21/22 dust.") : "",
     hazards.isHighPrecision ? (isSv ? `⛔ Precision ±${hazards.precisionMm}mm — kulskruv obligatorisk.` : `⛔ Precision ±${hazards.precisionMm}mm — ball screw mandatory.`) : "",
-    hazards.isWashdown ? (isSv ? "⚠️ Washdown IP69K." : "⚠️ Washdown IP69K.") : "",
+    hazards.isWashdown
+      ? ((hazards.isSpolmiljo || hazards.isFoodGrade)
+        ? "⚠️ Washdown IP69K."
+        : (isSv ? "⚠️ Korrosiv miljö — korrosionsbeständigt material. Inget IP69K-krav." : "⚠️ Corrosive environment — corrosion-resistant materials. No IP69K requirement."))
+      : "",
     hazards.isPharmaGmp ? (isSv ? "⚠️ GMP/FDA — 316L, PTFE, EPDM." : "⚠️ GMP/FDA — 316L, PTFE, EPDM.") : "",
     hazards.isBatteryDryroom ? (isSv ? "⛔ Dryroom — absolut Cu/Zn/Ni-förbud." : "⛔ Dryroom — Cu/Zn/Ni ban.") : "",
     hazards.isHydraulic || hazards.isVeryHighForce ? (isSv ? "⚠️ Hydraulik/hög kraft — utanför pneumatisk katalog." : "⚠️ Hydraulic/high force — outside pneumatic catalog.") : "",
     hazards.isHighTemp ? (isSv ? "⚠️ Hög temp >80°C — PTFE/FKM-tätning krävs." : "⚠️ High temp >80°C — PTFE/FKM seals required.") : "",
     hazards.isOxygenClean ? (isSv ? "⛔ Syrgasmiljö — oljefria komponenter." : "⛔ Oxygen atmosphere — oil-free only.") : "",
-    hazards.isSilSafety ? (isSv ? "⚠️ SIL/PL säkerhetsfunktion — certifierad ventil krävs." : "⚠️ SIL/PL safety function — certified valve required.") : "",
+    hazards.isSilSafety
+      ? (hazards.sakerhetsniva
+        ? (isSv ? `⚠️ Angivet säkerhetskrav ${hazards.sakerhetsniva} — certifierad säkerhetsventil krävs.` : `⚠️ Stated safety requirement ${hazards.sakerhetsniva} — certified safety valve required.`)
+        : (isSv ? "⚠️ Säkerhetsfunktion nämnd — nivån (PL/SIL) bestäms i riskbedömningen. Ange ingen nivå själv." : "⚠️ Safety function mentioned — the level (PL/SIL) is set by the risk assessment. Do not state a level yourself."))
+      : "",
     hazards.dynamics ? (isSv ? `📐 Rörelse-uppskattning: ~${hazards.dynamics.accel.toFixed(1)} m/s², ~${Math.round(hazards.dynamics.forceN)} N topp — säg uttryckligen att servo/motor måste dimensioneras för detta.` : `📐 Motion estimate: ~${hazards.dynamics.accel.toFixed(1)} m/s², ~${Math.round(hazards.dynamics.forceN)} N peak — state explicitly the servo/motor must be sized for this.`) : "",
     hazards.conflicts.length ? (isSv ? `⚠️ Kravkonflikter att nämna: ${hazards.conflicts.join(" | ")}` : `⚠️ Requirement conflicts to mention: ${hazards.conflicts.join(" | ")}`) : "",
   ].filter(Boolean).join(" ");

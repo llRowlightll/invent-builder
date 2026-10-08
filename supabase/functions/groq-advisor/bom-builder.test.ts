@@ -344,9 +344,9 @@ Deno.test("unitCount does NOT scale the silencer when a valve terminal centraliz
 
 Deno.test("unitCount does NOT scale pure warning/requirement rows -- they apply to the system once, not per station", () => {
   const rows = buildMandatoryBomRows(bomCtx({
-    primarySku: "TEST-PRIMARY", isWashdown: true, isHighTemp: true, isSilSafety: true, unitCount: 6,
+    primarySku: "TEST-PRIMARY", isWashdown: true, isSpolmiljo: true, isHighTemp: true, isSilSafety: true, unitCount: 6,
   }));
-  for (const role of [/Washdown IP69K/i, /Tätningsmaterial/i, /Säkerhetscertifierad magnetventil/i]) {
+  for (const role of [/Washdown IP69K/i, /Tätningsmaterial/i, /Säkerhetsfunktion/i]) {
     const row = rows.find((r) => role.test(r.role));
     assert(row, `expected a row matching ${role}`);
     assertEquals(row!.quantity, 1, `warning row ${role} must not scale with unitCount`);
@@ -830,4 +830,31 @@ Deno.test("ventilraden väljer en 5/2-ventil, inte spole, ejektor eller kulventi
 Deno.test("utan 5/2-ventil i poolen blir raden SPECIFY, inte fel komponent", () => {
   const pool = [namngiven("FE-VADMI-95-AP", "VADMI-95 vakumejektor M5"), namngiven("FESTO-4526", "Festo MSFG-12 magnetspole 12 V DC")];
   assertEquals(findCatalogProductByType("valve", pool), null);
+});
+
+// ── Miljö och säkerhetsnivå (2026-10-08) ─────────────────────────────────────
+// En doseringslinje med "frätande vätskor" fick "KRAV IP69K", och "nödstopp"
+// gav "KRAV SIL 2 / PLd" -- ett krav ingen ställt.
+Deno.test("korrosiv miljö utan spolning: materialrad, ingen IP69K", () => {
+  const rows = buildMandatoryBomRows(bomCtx({ primarySku: "TEST-PRIMARY", isWashdown: true, isSpolmiljo: false, isFoodGrade: false }));
+  assert(rows.some((r) => /Korrosiv miljö/.test(r.role)), "korrosionsraden saknas");
+  assert(!rows.some((r) => /IP69K/.test(`${r.role} ${r.reason}`)), "IP69K ska inte krävas");
+});
+
+Deno.test("spolmiljö: IP69K-raden finns kvar", () => {
+  const rows = buildMandatoryBomRows(bomCtx({ primarySku: "TEST-PRIMARY", isWashdown: true, isSpolmiljo: true }));
+  assert(rows.some((r) => /Washdown IP69K/.test(r.role)));
+});
+
+Deno.test("säkerhetsfunktion utan angiven nivå: ingen nivå skrivs ut", () => {
+  const rows = buildMandatoryBomRows(bomCtx({ primarySku: "TEST-PRIMARY", isSilSafety: true, sakerhetsniva: null }));
+  const rad = rows.find((r) => /Säkerhetsfunktion/.test(r.role))!;
+  assert(rad, "säkerhetsraden saknas");
+  assert(!/SIL\s?2|PLd|PL d\b(?!.*krävs normalt)/.test(rad.role), rad.role);
+  assert(!/VFS/.test(rad.reason), "SMC VFS är ingen säkerhetsventil");
+});
+
+Deno.test("säkerhetsfunktion med angiven nivå: nivån står i raden", () => {
+  const rows = buildMandatoryBomRows(bomCtx({ primarySku: "TEST-PRIMARY", isSilSafety: true, sakerhetsniva: "PL d" }));
+  assert(rows.some((r) => r.role === "⚠️ Säkerhetsventil för PL d"));
 });

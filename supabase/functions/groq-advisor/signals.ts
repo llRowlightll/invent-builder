@@ -696,6 +696,31 @@ export function needsWashdown(text: string): boolean {
   return /washdown|wash[-\s]down|livsmedel|food[-\s]grade|food[-\s]safe|mejeri|dairy|slakteri|slakter|livsmedelsgodkänd|livsmedelsgodkand|ip[-\s]?69|högtrycksspolning|högtryck.*spol|spol.*kemik|kemisk.*reng|cip\b|sip\b|hygienic|hygienisk|clean[-\s]design|cleandesign|rostfri|stainless|korrosionsskyddad|vätsk.*milj|blot.*milj|kemikalie|frätande|korrosiv|korrosion|\bsyra\b|syrabeständig|aggressiva?\s+(medier|vätskor|kemikalier)|lebensmittel\w*|molkerei|schlachthof|edelstahl|rostfrei\w*|hochdruckreinig\w*|chemikalie\w*|ätzend\w*|\bsäure\b|säurebeständig\w*|\balimentos?\b|grado\s?alimentici\w*|lácte\w*|matadero|acero\s?inoxidable|limpieza\s?a\s?alta\s?presión|químic\w*|corrosiv\w*|(?<![\wáéíóúñÁÉÍÓÚÑ])ácido(?![\wáéíóúñÁÉÍÓÚÑ])/i.test(text);
 }
 
+/**
+ * Spolning eller tvätt (högtryck, CIP, skumtvätt) och i sig våta miljöer
+ * (slakteri, mejeri). needsWashdown är bredare -- där räknas också rostfritt,
+ * korrosion och kemikalier, som kräver korrosionsbeständigt material men inte
+ * IP69K. Hittat 2026-10-08: en doseringslinje med "frätande vätskor" fick
+ * stycklisteraden "KRAV IP69K".
+ */
+export function needsSpolmiljo(text: string): boolean {
+  return /washdown|wash[-\s]?down|högtryck\w*|spola[rs]?\b|spolning|spolas|tvätta[rs]?\b|tvättas|rengörs|skumtvätt|\bcip\b|\bsip\b|ip\s?69|slakteri|mejeri|dairy|chark/i.test(text);
+}
+
+/**
+ * Säkerhetsnivån kunden faktiskt angett ("PL d", "PLe", "SIL 2"), annars null.
+ * "PLC" är ingen nivå: PL c räknas bara med mellanslag. Hittat 2026-10-08:
+ * ordet "nödstopp" gav stycklisteraden "KRAV SIL 2 / PLd" -- en nivå ingen
+ * angett. Nivån bestäms i maskinens riskbedömning.
+ */
+export function angivenSakerhetsniva(text: string): string | null {
+  const pl = /\bPL\s?([de])\b|\bPL\s([a-c])\b/i.exec(text);
+  if (pl) return `PL ${(pl[1] ?? pl[2]).toLowerCase()}`;
+  const sil = /\bSIL\s?([1-4])\b/i.exec(text);
+  if (sil) return `SIL ${sil[1]}`;
+  return null;
+}
+
 /** Returns true if the user requested end-position / stroke-end detection (sensors). */
 export function needsEndPositionDetection(text: string): boolean {
   if (/detekt|givare|sensor|ändläge|end.pos|end.stop|stroke.end|reed|proximity|närhets|position.*detect|detect.*position|elektron.*detekt|signalera|signal.*läge|läges.*signal|kontrollera.*läge|läge.*kontroll|home.*detect|detect.*home|smcm|smc.*sensor|piston.*sens/i.test(text)) {
@@ -1129,6 +1154,10 @@ export function needsFoodGrade(text: string): boolean {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface HazardFlags {
+  /** Spolning/tvätt (IP69K-krav), till skillnad från bara korrosiv miljö. */
+  isSpolmiljo?: boolean;
+  /** Den PL/SIL-nivå kunden angett, eller null. */
+  sakerhetsniva?: string | null;
   // Routing / scope
   isSystemScope: boolean;
   isMultiAxis: boolean;
@@ -1286,6 +1315,7 @@ export function detectHazards(
     isSystemScope, isMultiAxis, isVacuum, valveTerminal,
     isAtex, isAtexDust, isVerticalLoad, isHighTemp, isLowTemp, isHydraulic, isVeryHighForce,
     isOxygenClean, isEsdSafe, isHighCycle, isHighSpeed, isSilSafety, isOutdoor, isPharmaGmp,
+    isSpolmiljo: needsSpolmiljo(text), sakerhetsniva: angivenSakerhetsniva(text),
     isFoodGrade, isBatteryDryroom, isRodLock, isWashdown, isEndPosDetect, isArticulated,
     isMounting, isGuided, isLowCost, is24x7, isDirtyEnv, isHighPrecision, minBoreMm,
     requiredMaxTempC, minStrokeMm, perAxisStrokes, requiredStrokeMm, speedMs, precisionMm,
