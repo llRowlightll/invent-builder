@@ -7,6 +7,7 @@ import { loadCatalog } from "@/lib/catalog";
 import { produktnamn } from "@/lib/spec-format";
 import type { ProductRow } from "@/lib/types";
 import { CheckCircle2, Factory, MessageSquare, XCircle } from "lucide-react";
+import { OFFERT_GILTIG_DAGAR, offertGiltigTill } from "@/lib/villkor";
 
 export const Route = createFileRoute("/$locale/rfq/$rfqId")({
   head: ({ params }) => ({
@@ -27,6 +28,8 @@ interface RfqRow {
   quote_amount: number | null;
   quote_currency: string | null;
   created_at: string;
+  /** När offerten lämnades; giltigheten räknas därifrån (villkoren, avsnitt 3). */
+  quoted_at?: string | null;
   bom_id: string | null;
   shipment_status: string | null;
   carrier: string | null;
@@ -398,9 +401,17 @@ function RfqPage() {
             })}
           </p>
           <p className="text-xs text-muted-foreground mt-2">
-            {locale === "sv"
-              ? "Offerten är giltig i 30 dagar. Acceptera nedan för att bekräfta ordern."
-              : "The quote is valid for 30 days. Accept below to confirm the order."}
+            {(() => {
+              const till = offertGiltigTill(rfq.quoted_at ?? rfq.created_at)
+                .toLocaleDateString(locale === "sv" ? "sv-SE" : locale);
+              return locale === "sv"
+                ? `Offerten gäller i ${OFFERT_GILTIG_DAGAR} dagar, t.o.m. ${till}. Acceptera nedan för att beställa enligt offerten.`
+                : `The quote is valid for ${OFFERT_GILTIG_DAGAR} days, until ${till}. Accept below to order as quoted.`;
+            })()}{" "}
+            {locale === "sv" ? "Genom att acceptera godkänner du våra " : "By accepting you agree to our "}
+            <Link to="/$locale/terms" params={{ locale }} target="_blank" className="underline">
+              {locale === "sv" ? "allmänna villkor" : "terms and conditions"}
+            </Link>.
           </p>
           {/* Accept / Reject CTA */}
           <div className="mt-4 flex flex-wrap gap-3">

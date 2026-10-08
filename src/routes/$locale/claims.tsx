@@ -20,7 +20,7 @@ export const Route = createFileRoute("/$locale/claims")({
   component: ClaimsPage,
 });
 
-// Reklamationstiden i allmänna villkoren (avsnitt 6, version 1.1): dolda fel
+// Reklamationstiden i allmänna villkoren (avsnitt 6, sedan version 1.1): dolda fel
 // senast 12 månader efter leverans, eller tillverkarens garantitid om den är
 // längre. Kontrollen är informativ, inte en hård spärr -- supporten kan alltid
 // göra undantag, men kunden ska se direkt om ärendet troligen ligger utanför.

@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminGuard } from "@/lib/auth-context";
 import { fetchCompanySettings, visningsnamn, type CompanySettings } from "@/lib/company-settings";
+import { VILLKOR_VERSION } from "@/lib/villkor";
 
 export const Route = createFileRoute("/$locale/admin/orderbekraftelse/$orderId")({
   component: AdminOCPage,
@@ -347,6 +348,7 @@ export default function AdminOCPage() {
 
           {/* Footer note */}
           <div className="mb-8 text-xs text-muted-foreground" style={{ fontFamily: "system-ui, sans-serif" }}>
+            <p className="mb-2">Maskinvals allmänna villkor (version {VILLKOR_VERSION}, maskinval.se/sv/terms) gäller för ordern.</p>
             <div className="print:block hidden whitespace-pre-wrap">{footerNote}</div>
             <textarea value={footerNote} onChange={e => setFooterNote(e.target.value)}
               placeholder="Eventuella noteringar…" rows={3}
