@@ -629,6 +629,7 @@
     "answerQuestions": "Beantworten Sie diese Fragen, damit ich die richtigen Komponenten finden kann:",
     "typeAnswer": "Antwort eingeben…",
     "ownAnswer": "Andere…",
+    "dontKnow": "Weiß nicht",
     "notOrderReady": "Diese Lösung ist nicht bestellbereit",
     "notOrderReadyHelp": "Melden Sie sich bei uns, wir gehen die Alternativen gemeinsam durch — fordern Sie unten ein Angebot an, einer unserer Techniker antwortet.",
     "ofRowsChecked": "von Zeilen gegen angegebene Anforderungen geprüft",

@@ -702,7 +702,7 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
     const set = new Set<string>();
     for (const q of questions) {
       const val = answers[q.id];
-      if (q.type === "choice" && q.options?.length && val && !q.options.includes(val)) {
+      if (q.type === "choice" && q.options?.length && val && !q.options.includes(val) && val !== t("machineBuilder.dontKnow")) {
         set.add(q.id);
       }
     }
@@ -736,9 +736,24 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
     setEgnaSvar(nytt);
   }
 
+  // "Vet inte" är ett fullgott svar. De flesta som använder maskinbyggaren är
+  // inte automationsingenjörer, och en gissning som skickas vidare som ett
+  // faktum bygger fel stycklista. Svaret går vidare som text; detektorerna i
+  // nästa steg hittar inga värden i det och använder sina standardantaganden.
+  const vetInte = t("machineBuilder.dontKnow");
+  function valjVetInte(q: Question) {
+    if (egnaSvar.has(q.id)) {
+      const kvar = new Set(egnaSvar);
+      kvar.delete(q.id);
+      setEgnaSvar(kvar);
+    }
+    setAnswers({ ...answers, [q.id]: vetInte });
+  }
+
   const allAnswered = questions.length > 0 && questions.every(q => {
     const val = answers[q.id];
     if (val === undefined || val === "") return false;
+    if (val === vetInte) return true;
     if (q.type === "number") {
       const n = parseFloat(val);
       if (isNaN(n)) return false;
@@ -793,6 +808,17 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
                     );
                   })}
                   <button
+                    onClick={() => valjVetInte(q)}
+                    className={`px-3 py-1.5 rounded-lg border text-sm transition ${
+                      !egnaSvar.has(q.id) && answers[q.id] === vetInte
+                        ? "border-info bg-info/10 text-info font-medium"
+                        : "border-dashed border-border text-muted-foreground hover:border-info hover:text-foreground"
+                    }`}
+                  >
+                    {!egnaSvar.has(q.id) && answers[q.id] === vetInte && <span className="mr-1">✓</span>}
+                    {vetInte}
+                  </button>
+                  <button
                     onClick={() => vaxlaEgetSvar(q)}
                     aria-expanded={egnaSvar.has(q.id)}
                     className={`px-3 py-1.5 rounded-lg border text-sm transition ${
@@ -821,8 +847,9 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
               /* Fallback for number, text, or any other type Groq returns */
               (() => {
                 const raw = answers[q.id];
-                const numVal = raw !== undefined && raw !== "" ? parseFloat(raw) : null;
-                const isInvalid = q.type === "number" && raw !== undefined && raw !== "" &&
+                const arVetInte = raw === vetInte;
+                const numVal = raw !== undefined && raw !== "" && !arVetInte ? parseFloat(raw) : null;
+                const isInvalid = q.type === "number" && raw !== undefined && raw !== "" && !arVetInte &&
                   (isNaN(numVal!) || numVal! < 0);
                 return (
                   <div className="ml-7 space-y-1">
@@ -830,7 +857,7 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
                       <input
                         type={q.type === "number" ? "number" : "text"}
                         min={q.type === "number" ? 0 : undefined}
-                        value={raw ?? ""}
+                        value={arVetInte ? "" : raw ?? ""}
                         onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
                         placeholder={q.type === "number" ? t("machineBuilder.enterValue") : t("machineBuilder.typeAnswer")}
                         className={`w-48 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 bg-background transition ${
@@ -840,6 +867,17 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
                         }`}
                       />
                       {q.unit && <span className="text-sm text-muted-foreground">{q.unit}</span>}
+                      <button
+                        onClick={() => valjVetInte(q)}
+                        className={`px-3 py-1.5 rounded-lg border text-sm transition ${
+                          arVetInte
+                            ? "border-info bg-info/10 text-info font-medium"
+                            : "border-dashed border-border text-muted-foreground hover:border-info hover:text-foreground"
+                        }`}
+                      >
+                        {arVetInte && <span className="mr-1">✓</span>}
+                        {vetInte}
+                      </button>
                     </div>
                     {isInvalid && (
                       <p className="text-xs text-destructive">

@@ -629,6 +629,7 @@
     "answerQuestions": "Answer these questions so I can find the right components:",
     "typeAnswer": "Type your answer…",
     "ownAnswer": "Other…",
+    "dontKnow": "Don't know",
     "notOrderReady": "This solution is not ready to order",
     "notOrderReadyHelp": "Get in touch and we will go through the alternatives with you — request a quote below and one of our engineers will reply.",
     "ofRowsChecked": "of rows checked against stated requirements",

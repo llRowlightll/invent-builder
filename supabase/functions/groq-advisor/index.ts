@@ -57,6 +57,10 @@ import {
   extractRequiredMinTemp,
 } from "./signals.ts";
 import {
+  arElektrisk, arElektronikhantering, arKorrosiv, arSakerhetskrav, arSpolmiljo,
+  forfragningstyp, kandaVarden, reservsammanfattning, slutligaFragor, type Fraga,
+} from "./fragor.ts";
+import {
   buildCustomSolutionOption,
   findCatalogProductByType,
   findAxisActuator,
@@ -538,9 +542,18 @@ async function fetchEndEffectorProducts(slug: string, limit: number): Promise<Ca
 // 502 makes advisorCall throw, which surfaces "Something went wrong. Please try
 // again." and keeps the user on the describe step with their typed description
 // intact, ready to resubmit.
-function questionsFailed(locale: string, t0: number, reason: string): Response {
-  logAdvisorEvent("questions", { locale, question_count: 0, duration_ms: Date.now() - t0 }, false, reason);
-  return Response.json({ error: "questions_unavailable", reason }, { status: 502, headers: CORS });
+//
+// 2026-10-08: i stället för 502/503 ställs egna frågor ur fragor.ts när
+// modellen inte svarar. Provkörningen mot drift fick 503 (Groq-kvot) redan
+// på det fjärde anropet; kunden ska få relevanta frågor ändå. Händelsen
+// loggas fortfarande som misslyckad, med orsaken, så att kvoten syns.
+function questionsFailed(description: string, locale: string, t0: number, reason: string, rateLimited = false): Response {
+  const questions = slutligaFragor([], description, locale);
+  logAdvisorEvent("questions", {
+    locale, question_count: questions.length, duration_ms: Date.now() - t0,
+    ...(rateLimited ? { rate_limited: true } : {}),
+  }, false, `${reason} (reservfrågor)`);
+  return Response.json({ summary: reservsammanfattning(description, locale), questions, fallback: true }, { headers: CORS });
 }
 
 async function handleQuestions(description: string, locale: string): Promise<Response> {
@@ -562,41 +575,65 @@ async function handleQuestions(description: string, locale: string): Promise<Res
   const {
     isMultiAxis: isMulti, isVacuum: isVac, isWashdown, isVerticalLoad: isVertical, isFoodGrade,
   } = hazards;
-  const isSafetyMentioned = /livsfara|fallskydd|safe.stop|nödstopp|låsenhet|locking|sil\b|pl[bcd]\b|skyddsdörr|skyddsgrind|guard/i.test(description);
-  const isElectric = /elektrisk|electric|servo|stepper|elaxel|eldriven|kuggrem|ball.screw/i.test(description);
-  const isCylinder = !isElectric;
-  const strokeStated = /(\d{2,4})\s*mm/i.test(description);
-  const isCleanroom = !isWashdown && /\brenrum\b|\bcleanroom\b|\bclean\s+room\b/i.test(description);
-  const hasProtocol = /profinet|ethercat|ethernet.ip|devicenet|canopen/i.test(description);
+  // Förfrågans typ och det kunden redan sagt styr reglerna nedan (fragor.ts).
+  // Granskning 2026-10-08: en luftberedning fick sex cylinderfrågor, "PLC"
+  // räknades som säkerhetskrav (SIL/PL-frågor), "rostfri" som livsmedel
+  // (FDA/EHEDG/NSF-H1) och "elektronikskåp" som kretskortshantering (ESD).
+  const typ = forfragningstyp(description);
+  const kanda = kandaVarden(description);
+  const isSafety = arSakerhetskrav(description);
+  const isElectric = arElektrisk(description);
+  const isSpol = arSpolmiljo(description);
+  const isKorrosiv = arKorrosiv(description) && !isFoodGrade && !isSpol;
+  const isElektronik = arElektronikhantering(description);
+  const isGrip = /grip|greppa|plock|pick|sugkopp|vakuum|vacuum/i.test(description);
+  const isCleanroom = !isSpol && /\brenrum\b|\bcleanroom\b|\bclean\s+room\b/i.test(description);
+  const hasProtocol = kanda.faltbuss;
+  const redanSagt = [
+    kanda.slag && "stroke/travel length", kanda.last && "weight/load", kanda.kraft && "force",
+    kanda.takt && "how often it moves (cycle rate)", kanda.hastighet && "speed", kanda.precision && "precision",
+    kanda.borrning && "bore", kanda.tryck && "pressure", kanda.flode && "air flow", kanda.temperatur && "temperature",
+    kanda.riktning && "direction of motion (vertical/horizontal)", kanda.styrning && "how it is controlled (PLC etc.)",
+    kanda.faltbuss && "fieldbus", kanda.spanning && "voltage", kanda.anslutning && "connection/tube size",
+    kanda.miljo && "environment",
+  ].filter(Boolean);
+  const typregel: Record<string, string> = {
+    luftberedning: `- REQUEST TYPE: AIR PREPARATION (filter, regulator, lubricator). Ask ONLY about air preparation: connection size, required air flow, set pressure, filtration grade, lubrication, automatic condensate drain, lockable shut-off/soft-start valve. Do NOT ask about cylinders, stroke, mounting orientation, guiding, positions or motion.`,
+    ventil: `- REQUEST TYPE: VALVES. Ask about what the valve controls (5/2, 5/3, 3/2), behaviour on power loss (monostable/bistable), voltage, port/tube size, number of valves and how they connect to the control system. Do NOT ask about stroke, load, mounting orientation or guiding.`,
+    givare: `- REQUEST TYPE: SENSORS. Ask what the sensor detects, the signal type (PNP/NPN/IO-Link), the connection (M8/M12/cable) and the cylinder or brand it is fitted to. Do NOT ask about stroke, load or motion.`,
+    slang: `- REQUEST TYPE: TUBING AND FITTINGS. Ask about tube size, tube material, fitting threads and quantity. Do NOT ask about stroke, load or motion.`,
+    rorelse: `- REQUEST TYPE: A MOTION (actuator). Ask what is genuinely open for choosing the actuator and what goes with it: travel, load or force, direction of motion, how often it moves, how the object is held (only if it is picked or gripped), end-position sensing, how it is started/controlled, environment.`,
+  };
 
   const contextRules = [
-    isMulti ? `- MULTI-AXIS SYSTEM DETECTED. Ask about EACH axis separately (stroke X, stroke Z/lift). Make clear in summary that multiple axes are needed.` : "",
-    isVac   ? `- SENSITIVE ITEM DETECTED (PCB/glass/delicate). Ask about gripper type: recommend vacuum suction cups, ask if ESD-safe materials are required.` : "",
-    (isCylinder || isElectric) && !strokeStated
+    typregel[typ],
+    redanSagt.length ? `- ALREADY STATED in the description — never ask about these again: ${redanSagt.join(", ")}.` : "",
+    isMulti ? `- MULTI-AXIS SYSTEM DETECTED. Ask about EACH axis separately (stroke X, stroke Z/lift) unless already stated. Make clear in summary that multiple axes are needed.` : "",
+    isVac && isGrip ? `- DELICATE ITEM TO GRIP (glass/sensitive surface). Ask how it should be held: suction cups or a gripper.` : "",
+    isElektronik && isGrip ? `- ELECTRONICS HANDLING (PCB/components). Ask whether ESD-safe materials are required.` : "",
+    typ === "rorelse" && !kanda.slag
       ? `- STROKE NOT STATED: You MUST include a question asking for the required stroke/travel length (mm). This is mandatory for actuator selection.` : "",
-    isElectric
-      ? `- ELECTRIC SYSTEM: Ask about required repeatability/accuracy (±0.05 mm? ±0.5 mm?), max speed (m/s), and drive type preference (ball screw = precise, belt = fast).` : "",
-    // Washdown / food-grade: ask about IP class and material — NOT cleanroom ISO class
-    isWashdown
-      ? `- WASHDOWN / FOOD-GRADE ENVIRONMENT DETECTED. Do NOT ask about cleanroom ISO class. Instead ask:\n  (1) Required IP protection class: IP67 (splash/immersion) or IP69K (high-pressure steam/chemical jets, 100 bar, 80°C)?\n  (2) Material class: Stainless steel 316L, food-grade plastic (POM/PA), or standard with coating?\n  (3) Certifications needed: FDA / EC 1935/2004 / EHEDG?\n  (4) Lubrication requirement: Standard grease or NSF-H1 food-grade lubricant (mandatory for direct food contact zones)?`
-      : "",
-    // Vertical + safety — ALWAYS ask about SIL/PL if vertical load with safety mention
-    isVertical && isSafetyMentioned
-      ? `- VERTICAL AXIS WITH SAFETY HAZARD DETECTED. You MUST ask:\n  (1) Required safety integrity level: SIL 1 / SIL 2 / SIL 3 (IEC 62061) or Performance Level PL c / PL d / PL e (ISO 13849)?\n  (2) Mechanical holding requirement: Spring-applied rod lock (pneumatic cylinder) OR integrated motor brake (electric axis) OR external locking unit?\n  (3) Fail-safe behavior: Hold position on power loss (spring-set brake) or controlled retract?`
-      : (isVertical
-        ? `- VERTICAL AXIS DETECTED. Ask about mechanical holding: spring-applied brake or external locking unit required?`
-        : ""),
-    // Food + washdown: explicitly probe for NSF-H1 and EHEDG if not already covered
-    isFoodGrade && !isWashdown
-      ? `- FOOD INDUSTRY APPLICATION: Ask about lubrication (NSF-H1 required for food contact zones?) and surface finish (Ra ≤ 0.8 µm for EHEDG?).`
-      : "",
-    // Cleanroom (only if NOT washdown — they are different environments)
+    typ === "rorelse" && isElectric
+      ? `- ELECTRIC SYSTEM: Ask about required repeatability/accuracy (±0.05 mm? ±0.5 mm?), max speed (m/s), and drive type preference (ball screw = precise, belt = fast) — only what is not already stated.` : "",
+    isSpol
+      ? `- WASHDOWN ENVIRONMENT (high-pressure cleaning). Ask about the IP class (IP67 or IP69K) and the material (stainless or plastic). Do NOT ask about cleanroom ISO class.` : "",
+    isFoodGrade
+      ? `- FOOD OR PHARMA APPLICATION. Ask whether the component sits in the product/food zone (then NSF-H1 lubricant and hygienic design matter). Ask about certifications only if the product touches food.` : "",
+    isKorrosiv
+      ? `- CORROSIVE OR MARINE ENVIRONMENT (not food). Ask what it is exposed to (moisture, salt-water spray, chemicals, submersion) to choose stainless A2 vs acid-proof A4/316 and seals. Do NOT ask about food certifications, NSF-H1, EHEDG or IP69K.` : "",
+    typ === "rorelse" && isVertical && isSafety
+      ? `- VERTICAL AXIS WITH A STATED SAFETY REQUIREMENT. You MUST ask:\n  (1) Required safety level: SIL 1 / SIL 2 / SIL 3 (IEC 62061) or Performance Level PL c / PL d / PL e (ISO 13849)?\n  (2) Mechanical holding: spring-applied rod lock (pneumatic cylinder) OR integrated motor brake (electric axis) OR external locking unit?\n  (3) Fail-safe behaviour: hold position on power loss or controlled retract?`
+      : (typ === "rorelse" && isVertical
+        ? `- VERTICAL LOAD. Ask whether the load must be held if air or power is lost (spring-applied rod lock or brake). Do NOT ask about SIL/PL — no safety requirement is stated.`
+        : `- No safety requirement is stated: do NOT ask about SIL or PL.`),
     isCleanroom
       ? `- CLEANROOM DETECTED: ask about ISO class, note pneumatics may be excluded in high-class rooms.` : "",
     hasProtocol
       ? `- COMMUNICATION PROTOCOL ALREADY STATED in description. Do NOT ask about it again unless clarification is needed. Accept the stated protocol.`
       : "",
     `- If stroke is already stated, do NOT ask if they want a longer stroke. Accept stated value as absolute.`,
+    `- Write the label, the hint AND every option in ${lang}. Never mix languages.`,
+    `- The summary is one sentence restating the customer's application in their own terms — never a list of what you are going to ask.`,
     // Found 2026-09-08 (user-reported): a long, highly specified pallet-stacker
     // description came back with a SINGLE question -- asking for the precision
     // the customer had already stated as "±0,5 mm vid varje stopp", with that
@@ -638,7 +675,7 @@ async function handleQuestions(description: string, locale: string): Promise<Res
     await fetchFamilyFacts(qReading.resolved.map((r) => r.familySlug)),
   );
 
-  const system = `You are a senior automation engineer helping a customer who is very likely NOT an automation engineer. Generate 4-6 precise technical questions. All text in ${lang}.${sprakregler(locale)}\n\nRULES:\n${contextRules}${codeNote ? "\n\n" + codeNote : ""}\n\nJSON:\n{ "summary": "one precise sentence in ${lang}", "questions": [ { "id": "snake_case", "label": "question in ${lang}", "hint": "plain-language explanation of the term and how to decide — see PLAIN-LANGUAGE HINTS rule", "type": "choice", "options": ["opt1","opt2"] } ] }\ntype = 'choice' (with options) or 'number' (with unit).${pdfCtx ? "\n\nDocs:\n" + pdfCtx : ""}`;
+  const system = `You are a senior automation engineer helping a customer who is very likely NOT an automation engineer. Generate 3-6 questions; fewer when the description already settles most parameters. Every question must change which product is chosen. All text in ${lang}.${sprakregler(locale)}\n\nRULES:\n${contextRules}${codeNote ? "\n\n" + codeNote : ""}\n\nJSON:\n{ "summary": "one precise sentence in ${lang}", "questions": [ { "id": "snake_case", "label": "question in ${lang}", "hint": "plain-language explanation of the term and how to decide — see PLAIN-LANGUAGE HINTS rule", "type": "choice", "options": ["opt1","opt2"] } ] }\ntype = 'choice' (with options) or 'number' (with unit).${pdfCtx ? "\n\nDocs:\n" + pdfCtx : ""}`;
 
   try {
     const raw = await callGroq([
@@ -665,7 +702,7 @@ async function handleQuestions(description: string, locale: string): Promise<Res
       // Regeln kan ha gjort ett latent problem vanligare; budgeten är hur som
       // helst mekanismen.
     ], 2200, true, 0.2, LLM_MODEL_FAST);
-    if (!raw) return questionsFailed(locale, t0, "empty_llm_response");
+    if (!raw) return questionsFailed(description, locale, t0, "empty_llm_response");
     try {
       const parsed = JSON.parse(raw);
       // Deduplicate by id first, then by label prefix
@@ -677,15 +714,20 @@ async function handleQuestions(description: string, locale: string): Promise<Res
         seenIds.add(q.id);
         seenLabels.add(labelKey);
         return true;
-      }).slice(0, 6); // T19: hard cap at 6 questions
+      });
+      // Rensning efter samma regler som prompten (fragor.ts): inget som redan
+      // är sagt, inget som inte hör till förfrågan, avgörande frågor först och
+      // högst sex (T19).
+      parsed.questions = slutligaFragor(parsed.questions as Fraga[], description, locale);
+      parsed.summary = String(parsed.summary ?? "").replace(/^\s*(sammanfattning|summary|zusammenfassung|resumen)\s*:\s*/i, "");
       // A valid JSON body carrying zero questions is still a failed step for the
-      // customer -- the prompt always asks for 4-6, there is no branch where none
-      // is the right answer, and the UI has nothing to render.
-      if (parsed.questions.length === 0) return questionsFailed(locale, t0, "zero_questions");
+      // customer -- there is no branch where none is the right answer, and the
+      // UI has nothing to render.
+      if (parsed.questions.length === 0) return questionsFailed(description, locale, t0, "zero_questions");
       logAdvisorEvent("questions", { locale, question_count: parsed.questions.length, duration_ms: Date.now() - t0 }, true);
       return Response.json(parsed, { headers: CORS });
     }
-    catch { return questionsFailed(locale, t0, "json_parse_failed"); }
+    catch { return questionsFailed(description, locale, t0, "json_parse_failed"); }
   } catch (e) {
     if ((e as Error).message === "RATE_LIMITED") {
       // Loggas som allt annat som fallerar här. Fram till nu returnerade den
@@ -703,12 +745,9 @@ async function handleQuestions(description: string, locale: string): Promise<Res
       // Statuskoden stannar på 503 och blir inte 502: klienten skiljer på dem
       // (advisor-client.ts kastar RATE_LIMITED just på 503) och visar ett eget
       // meddelande om att vänta i stället för det allmänna felet.
-      logAdvisorEvent("questions", {
-        locale, question_count: 0, duration_ms: Date.now() - t0, rate_limited: true,
-      }, false, "rate_limited");
-      return Response.json({ error: "rate_limited" }, { status: 503, headers: CORS });
+      return questionsFailed(description, locale, t0, "rate_limited", true);
     }
-    return questionsFailed(locale, t0, (e as Error).message || "unknown");
+    return questionsFailed(description, locale, t0, (e as Error).message || "unknown");
   }
 }
 
