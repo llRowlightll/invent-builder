@@ -132,7 +132,7 @@ const BANKENS_AMNEN: Record<string, string> = {
   slaglangd_mm: "slag", slag_x_sidled_mm: "slag", slag_z_hojd_mm: "slag", last_kg: "last",
   kraft_n: "kraft", greppsatt: "grepp", rorelseriktning: "riktning", lasthallning: "hallning",
   takt: "takt", precision: "precision", andlagesavkanning: "givare", manovrering: "styrning",
-  miljo: "miljo", korrosion: "korrosion", luft_anslutning: "anslutning", luft_flode: "flode", luft_tryck: "tryck",
+  miljo: "miljo", korrosion: "korrosion", livsmedelskontakt: "livsmedel", luft_anslutning: "anslutning", luft_flode: "flode", luft_tryck: "tryck",
   luft_filtergrad: "filtergrad", luft_dimsmorjning: "dimsmorjning", luft_kondensat: "kondensat",
   luft_avstangning: "avstangning", ventil_uppgift: "ventilfunktion", ventil_vid_stromavbrott: "ventilaterstall",
   ventil_spanning: "spanning", ventil_anslutning: "anslutning", ventil_antal: "antal",
@@ -378,6 +378,12 @@ export function reservfragor(text: string, locale: string): Fraga[] {
       hint: g(locale, "Avgör om vanligt rostfritt räcker eller om syrafast rostfritt (A4/316) och tåligare tätningar behövs.", "Determines whether ordinary stainless is enough or acid-proof stainless (A4/316) and tougher seals are needed."),
       options: [g(locale, "Fukt och stänk", "Moisture and splashes"), g(locale, "Saltvattenstänk", "Salt water spray"), g(locale, "Kemikalier eller syror", "Chemicals or acids"), g(locale, "Helt nedsänkt i vatten", "Fully submerged in water")] });
   }
+  if (arLivsmedel(text)) {
+    q.push({ id: "livsmedelskontakt", type: "choice",
+      label: g(locale, "Kommer delen i kontakt med livsmedlet eller produkten?", "Will the part come into contact with the food or product?"),
+      hint: g(locale, "I direkt kontakt krävs livsmedelsgodkänt smörjmedel (NSF-H1) och hygienisk utformning. Sitter den bara i närheten räcker oftast standardutförande.", "In direct contact, food-grade lubricant (NSF-H1) and hygienic design are required. If it is only nearby, a standard version is usually enough."),
+      options: [g(locale, "Ja, i direkt kontakt", "Yes, in direct contact"), g(locale, "Nej, bara i närheten", "No, only nearby")] });
+  }
   if (!k.riktning) {
     q.push({ id: "rorelseriktning", type: "choice",
       label: g(locale, "Hur rör sig lasten?", "How does the load move?"),
@@ -439,8 +445,15 @@ const ALLTID = new Set([
  * Högst sex.
  */
 export function slutligaFragor(fran_modellen: Fraga[], text: string, locale: string): Fraga[] {
-  const rensade = rensaFragor(fran_modellen, text, locale);
   const bank = reservfragor(text, locale);
+  // Där banken har en egen fråga om samma ämne ersätter den modellens: bankens
+  // alternativ är prövade mot detektorerna i nästa steg, modellens inte
+  // ("Elektrisk relä" som ändlägesgivare, anslutningar utan G1/4).
+  const bankPerAmne = new Map(bank.map((q) => [amne(q) ?? q.id, q]));
+  const rensade = rensaFragor(fran_modellen, text, locale).map((q) => {
+    const a = amne(q);
+    return (a && bankPerAmne.get(a)) || q;
+  });
   const tackta = new Set(rensade.map((q) => amne(q)).filter(Boolean) as string[]);
   const forst = bank.filter((q) => ALLTID.has(q.id) && !tackta.has(amne(q) ?? ""));
   for (const q of forst) tackta.add(amne(q) ?? q.id);
