@@ -26,7 +26,7 @@
 import {
   extractExplicitBoreMm, extractLoadKg, extractPrecisionMm, extractSpeedMs,
   needsEndPositionDetection, needsFoodGrade, needsMultiAxis, needsPharmaGmp,
-  needsSilSafety, needsVerticalLoad,
+  needsSilSafety, needsSpolmiljo, needsVerticalLoad,
 } from "./signals.ts";
 
 export type Fraga = {
@@ -102,7 +102,7 @@ export function arSakerhetskrav(text: string): boolean {
 
 /** Spolning eller tvätt -- inte bara rostfritt eller korrosion. */
 export function arSpolmiljo(text: string): boolean {
-  return /washdown|wash[-\s]?down|högtryck\w*|spola[rs]?\b|spolning|spolas|tvätta[rs]?\b|tvättas|rengörs|skumtvätt|\bcip\b|\bsip\b|ip\s?69/i.test(text);
+  return needsSpolmiljo(text);
 }
 
 /** Korrosiv eller marin miljö utan livsmedel: frågan gäller medium och material. */
