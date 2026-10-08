@@ -6,6 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCompanySettings, visningsnamn, type CompanySettings } from "@/lib/company-settings";
+import { VILLKOR_VERSION } from "@/lib/villkor";
 import { Printer } from "lucide-react";
 
 export const Route = createFileRoute("/$locale/oc/$orderId")({
@@ -212,6 +213,9 @@ export default function PublicOCPage() {
               <div>{order.po_number ?? "—"}</div>
             </div>
           </div>
+          <p className="-mt-2 mb-6 text-xs text-muted-foreground" style={{ fontFamily: "system-ui, sans-serif" }}>
+            Maskinvals <a href={`/${locale}/terms`} target="_blank" rel="noopener noreferrer" className="underline">allmänna villkor</a> (version {VILLKOR_VERSION}) gäller för ordern.
+          </p>
 
           {/* Footer / signature */}
           <div className="border-t border-border pt-6 flex justify-between text-xs text-muted-foreground" style={{ fontFamily: "system-ui, sans-serif" }}>

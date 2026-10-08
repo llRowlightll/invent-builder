@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCompanySettings, visningsnamn, type CompanySettings } from "@/lib/company-settings";
 import { CheckCircle2 } from "lucide-react";
+import { OFFERT_GILTIG_DAGAR, VILLKOR_VERSION, offertGiltigTill } from "@/lib/villkor";
 
 export const Route = createFileRoute("/$locale/offert/$rfqId")({
   component: PublicOffertPage,
@@ -32,6 +33,8 @@ type Rfq = {
   quote_currency: string | null;
   discount_pct: number | null;
   created_at: string;
+  /** När offerten lämnades (status blev 'quoted'); saknas för äldre rader. */
+  quoted_at?: string | null;
 };
 
 const VAT = 0.25;
@@ -135,7 +138,11 @@ export default function PublicOffertPage() {
   );
 
   const co = company ?? { name: "Maskinval", org: "", address: "", postal: "", email: "info@maskinval.se", phone: "", web: "", bankgiro: "", vat: "" };
-  const today = new Date(rfq.created_at).toLocaleDateString("sv-SE");
+  // Offertdatum = när offerten lämnades, inte när förfrågan kom in. Giltigheten
+  // räknas därifrån (allmänna villkor, avsnitt 3).
+  const offertdatum = rfq.quoted_at ?? rfq.created_at;
+  const today = new Date(offertdatum).toLocaleDateString("sv-SE");
+  const giltigTill = offertGiltigTill(offertdatum).toLocaleDateString("sv-SE");
   const alreadyAnswered = rfq.status === "accepted" || rfq.status === "rejected" || accepted || declined;
 
   return (
@@ -157,6 +164,7 @@ export default function PublicOffertPage() {
               <div className="text-sm text-muted-foreground mt-2 space-y-0.5" style={{ fontFamily: "system-ui, sans-serif" }}>
                 <div><span className="text-muted-foreground">Ref:</span> {docRef(rfqId)}</div>
                 <div><span className="text-muted-foreground">Datum:</span> {today}</div>
+                <div><span className="text-muted-foreground">Giltig t.o.m.:</span> {giltigTill}</div>
               </div>
             </div>
           </div>
@@ -224,6 +232,14 @@ export default function PublicOffertPage() {
             </table>
           </div>
 
+          {/* Villkoren blir en del av avtalet först när de hänvisats till innan det ingås. */}
+          <p className="-mt-6 mb-10 text-xs text-muted-foreground" style={{ fontFamily: "system-ui, sans-serif" }}>
+            Offerten gäller i {OFFERT_GILTIG_DAGAR} dagar, t.o.m. {giltigTill}. Priser exkl. moms. Frakt och andra tillägg
+            framgår av offerten. Maskinvals{" "}
+            <a href={`/${locale}/terms`} target="_blank" rel="noopener noreferrer" className="underline">allmänna villkor</a>{" "}
+            (version {VILLKOR_VERSION}) gäller.
+          </p>
+
           {/* Accept / decline */}
           {accepted || rfq.status === "accepted" ? (
             <div className="rounded-xl border border-green-300 bg-green-50 p-6 text-center space-y-3">
@@ -270,6 +286,10 @@ export default function PublicOffertPage() {
               </div>
               <div className="text-center space-y-4">
                 <p className="text-sm text-muted-foreground">Vill du acceptera denna offert?</p>
+                <p className="text-xs text-muted-foreground">
+                  Genom att acceptera beställer du enligt offerten och godkänner våra{" "}
+                  <a href={`/${locale}/terms`} target="_blank" rel="noopener noreferrer" className="underline">allmänna villkor</a>.
+                </p>
                 <div className="flex justify-center gap-4">
                   <button
                     onClick={() => respond("accepted")}

@@ -825,6 +825,13 @@ function ShoppingListPage() {
                     {rfqSending ? t("shoppingList.sending") : t("shoppingList.sendQuote")}
                   </button>
                 </div>
+                {/* Villkoren ska vara kända när avtalet ingås, även för den som inte har konto. */}
+                <p className="mt-2 text-[11px] text-muted-foreground text-center">
+                  {locale === "sv" ? "Genom att skicka godkänner du våra " : "By sending, you agree to our "}
+                  <Link to="/$locale/terms" params={{ locale }} target="_blank" className="underline hover:text-info">
+                    {locale === "sv" ? "allmänna villkor" : "terms and conditions"}
+                  </Link>.
+                </p>
 
                 <button
                   onClick={() => setRfqStep(null)}
