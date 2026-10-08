@@ -13,23 +13,31 @@
  *             hittar artikelnummer (KQ2H06-01AS, TU0604BU-20) med "Ladda ned
  *             CAD" och leder serienamn (CQ2B32, AW) till serien. Svenska sidor
  *             länkar till sv-se, övriga till en-eu.
+ *   Norgren   norgren.com-sökningen (provad 2026-10-08, beslut att länka
+ *             trots Norgrens pris och köpknapp). RM/28000 och Lintra Plus
+ *             (M/146…) ger artikeln som "Exact match" med CAD och datablad;
+ *             RA/8000 saknar artikelsida men sökningen visar seriens datablad.
+ *             NR-cylindrarna och SA-stötdämparen ger 0 träffar på den
+ *             europeiska sajten och får ingen länk. Texten lovar därför bara
+ *             datablad.
  *
  * Parker, Camozzi och Metal Work saknar ett provat adressmönster, och
- * TraceParts saknar deras artiklar. Norgrens sökning fungerar men visar pris
- * och köpknapp; den väntar på ett affärsbeslut. Hellre ingen länk än en som
- * leder fel.
+ * TraceParts saknar deras artiklar. Hellre ingen länk än en som leder fel.
  */
 export interface Tillverkarlank {
   href: string;
   text: string;
 }
 
-const TEXT: Record<string, { festo: string; traceparts: string; smc: string }> = {
-  sv: { festo: "CAD och datablad hos Festo", traceparts: "CAD och data hos TraceParts", smc: "CAD och datablad hos SMC" },
-  en: { festo: "CAD and datasheet at Festo", traceparts: "CAD and data at TraceParts", smc: "CAD and datasheet at SMC" },
-  de: { festo: "CAD und Datenblatt bei Festo", traceparts: "CAD und Daten bei TraceParts", smc: "CAD und Datenblatt bei SMC" },
-  es: { festo: "CAD y hoja de datos en Festo", traceparts: "CAD y datos en TraceParts", smc: "CAD y hoja de datos en SMC" },
+const TEXT: Record<string, { festo: string; traceparts: string; smc: string; norgren: string }> = {
+  sv: { festo: "CAD och datablad hos Festo", traceparts: "CAD och data hos TraceParts", smc: "CAD och datablad hos SMC", norgren: "Datablad hos Norgren" },
+  en: { festo: "CAD and datasheet at Festo", traceparts: "CAD and data at TraceParts", smc: "CAD and datasheet at SMC", norgren: "Datasheet at Norgren" },
+  de: { festo: "CAD und Datenblatt bei Festo", traceparts: "CAD und Daten bei TraceParts", smc: "CAD und Datenblatt bei SMC", norgren: "Datenblatt bei Norgren" },
+  es: { festo: "CAD y hoja de datos en Festo", traceparts: "CAD y datos en TraceParts", smc: "CAD y hoja de datos en SMC", norgren: "Hoja de datos en Norgren" },
 };
+
+/** Norgren-koder som sökningen hittar: RA/8000, RM/28000 och Lintra Plus (M/146…). */
+const NORGREN_PROVAD = /^(RA\/8\d{3}|RM\/280\d{2}|M\/146\d{3})\/M\/\d+$/;
 
 /** Sökordet hos Festo: artikelnummer, modulnummer eller typkod ur SKU:n. */
 export function festoSokord(sku: string): string {
@@ -52,6 +60,9 @@ export function tillverkarlank(p: { sku: string; brand: { slug: string } }, loca
   if (p.brand.slug === "smc") {
     const region = locale === "sv" ? "sv-se" : "en-eu";
     return { href: `https://www.smc.eu/${region}/search?searchTerm=${encodeURIComponent(smcSokord(p.sku))}`, text: t.smc };
+  }
+  if (p.brand.slug === "norgren" && NORGREN_PROVAD.test(p.sku)) {
+    return { href: `https://www.norgren.com/en/search?q=${encodeURIComponent(p.sku)}`, text: t.norgren };
   }
   return null;
 }
