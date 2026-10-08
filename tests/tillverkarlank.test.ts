@@ -35,8 +35,21 @@ Deno.test("SMC: artikelnummer och serier söks på smc.eu, svenska sidor på sv-
   assertEquals(tillverkarlank(smc("SMC-CA2-Z32-CS16"), "sv")?.href, "https://www.smc.eu/sv-se/search?searchTerm=CA2-Z32-CS16");
 });
 
+Deno.test("Norgren: provade serier söks på norgren.com, övriga får ingen länk", () => {
+  // Provade i webbläsare 2026-10-08: RM/28010/M/25 och M/146125/M/500 ger
+  // artikeln som "Exact match", RA/8032/M/100 seriens datablad, och
+  // NR106X2.25-DPBM2 och SA200625M 0 träffar.
+  const norgren = (sku: string) => ({ sku, brand: { slug: "norgren" } });
+  assertEquals(tillverkarlank(norgren("RM/28010/M/25"), "sv")?.href, "https://www.norgren.com/en/search?q=RM%2F28010%2FM%2F25");
+  assertEquals(tillverkarlank(norgren("M/146125/M/500"), "en")?.text, "Datasheet at Norgren");
+  assertEquals(tillverkarlank(norgren("RA/8125/M/100"), "sv")?.text, "Datablad hos Norgren");
+  assertEquals(tillverkarlank(norgren("M/146050/M/1000"), "de")?.href, "https://www.norgren.com/en/search?q=M%2F146050%2FM%2F1000");
+  assertEquals(tillverkarlank(norgren("NR106X2.25-DPBM2"), "sv"), null);
+  assertEquals(tillverkarlank(norgren("NOR-SA200625M"), "sv"), null);
+});
+
 Deno.test("fabrikat utan provat mönster får ingen länk", () => {
-  for (const slug of ["parker", "camozzi", "norgren", "metal-work", "bosch-rexroth"]) {
+  for (const slug of ["parker", "camozzi", "metal-work", "bosch-rexroth"]) {
     assertEquals(tillverkarlank({ sku: "X-1", brand: { slug } }, "sv"), null);
   }
 });
