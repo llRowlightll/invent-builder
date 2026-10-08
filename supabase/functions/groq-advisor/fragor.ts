@@ -153,6 +153,12 @@ export function amne(q: Pick<Fraga, "id" | "label"> & { options?: string[] }): s
   if (/ip69|ip-?klass|ip.?class|ip.?rating|kapsling|högtryck|washdown/.test(s)) return "ipklass";
   if (/\besd\b|antistat/.test(s)) return "esd";
   if (/renrum|cleanroom|iso.?klass/.test(s)) return "renrum";
+  // Luftberedningens ämnen först: "smörjning" och "filtrering" fanns inte, så
+  // modellens "Fett | Ingen" och "10/20/50 µm" byttes aldrig mot bankens.
+  if (/filtrer|filtergrad|filterfinhet|filtration/.test(s)) return "filtergrad";
+  if (/smörj|dimsmörj|lubric|oljedimma/.test(s)) return "dimsmorjning";
+  if (/kondens|avtapp|\bdrain/.test(s)) return "kondensat";
+  if (/avstängningsventil|avluftningsventil|mjukstart|shut.?off|soft.?start/.test(s)) return "avstangning";
   if (/broms|kolvstångslås|\blås|hålla kvar|hållas kvar|håll(a|er)? (lasten|positionen|position)|fail.?safe|strömavbrott|power.?loss|falla|sjunka|tryckluften försvinner/.test(s)) return "hallning";
   if (/orienter|riktning|vertikal|horisontell|monteringsläge|montera.*i|direction|rör sig/.test(s)) return "riktning";
   if (/givare|sensor|ändläge|end.?position/.test(s)) return "givare";
@@ -408,7 +414,8 @@ export function reservfragor(text: string, locale: string): Fraga[] {
       hint: g(locale, "En vanlig cylinder stannar exakt i sina ändlägen. Ska den stanna exakt mitt i rörelsen behövs oftast en elektrisk axel.", "A standard cylinder stops precisely at its end positions. Stopping precisely mid-travel usually needs an electric axis."),
       options: [g(locale, "Bara i ändlägena", "Only at the end positions"), "±1 mm", "±0,1 mm", g(locale, "±0,02 mm eller bättre", "±0.02 mm or better")] });
   }
-  if (!k.givare) {
+  // En elaxel vet själv var den är; ändlägesgivare är en fråga för cylindrar.
+  if (!k.givare && !arElektrisk(text)) {
     q.push({ id: "andlagesavkanning", type: "choice",
       label: g(locale, "Behöver styrsystemet veta när rörelsen är klar?", "Does the control system need to know when the movement is done?"),
       hint: g(locale, "Då sitter en givare på cylindern som känner av kolvens magnet i ändläget.", "Then a sensor on the cylinder detects the piston magnet at the end position."),

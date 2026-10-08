@@ -118,6 +118,21 @@ Deno.test("pick and place på bageri: greppet frågas, livsmedelsfrågan en gån
   assertEquals(ids(slut), ["greppsatt", "guiding_anti_rotation", "control_system_fieldbus", "ambient_temperature", "livsmedelskontakt"]);
 });
 
+Deno.test("luftberedning: modellens smörj- och filterfrågor byts mot bankens", () => {
+  const modellen: Fraga[] = [
+    { id: "connection_size", label: "Vilken anslutningsstorlek behöver du?", type: "choice", options: ['1/2"', '3/4"', '1"'] },
+    { id: "filtration", label: "Vilken filtreringsgrad krävs?", type: "choice", options: ["5 µm", "10 µm", "20 µm", "50 µm"] },
+    { id: "lubrication", label: "Behöver du smörjning i luftberedningen?", type: "choice", options: ["Fett", "Ingen"] },
+    { id: "drain", label: "Vill du ha automatisk kondensavrinning?", type: "choice", options: ["Ja", "Nej"] },
+  ];
+  assertEquals(ids(slutligaFragor(modellen, LUFT, "sv")), ["luft_anslutning", "luft_filtergrad", "luft_dimsmorjning", "luft_kondensat"]);
+});
+
+Deno.test("elaxel: ingen fråga om ändlägesgivare", () => {
+  const t = "En elcylinder ska flytta en last på 8 kg mellan tre positioner längs 500 mm, ±0,1 mm.";
+  assert(!ids(slutligaFragor([], t, "sv")).includes("andlagesavkanning"));
+});
+
 Deno.test("reservfrågor utan modellen: alltid minst fyra relevanta, högst sex", () => {
   for (const t of [LYFT, LUFT, LUCKA, BAT, BAGERI, "Behöver fem magnetventiler.", "Givare till cylinder.", "Slang och kopplingar."]) {
     const qs = slutligaFragor([], t, "sv");
