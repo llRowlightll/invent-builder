@@ -71,11 +71,13 @@ Deno.test("lyft med PLC: inga SIL-frågor, ingen riktningsfråga, rätt ord för
     { id: "guiding_anti_rotation", label: "Behöver du anti-rotation eller linjär guide för rörelsen?", type: "choice", options: ["Ja, anti-rotation/guide behövs", "Nej, ingen guide behövs"] },
     { id: "fieldbus_type", label: "Vilken fältbus använder Siemens PLC:n?", type: "choice", options: ["PROFINET", "PROFIBUS", "Andra"] },
   ];
-  const slut = slutligaFragor(modellen, LYFT, "sv");
-  assertEquals(ids(slut), ["greppsatt", "mechanical_holding_requirement", "guiding_anti_rotation", "fieldbus_type"]);
-  const hallning = slut.find((q) => q.id === "mechanical_holding_requirement")!;
+  // Modellens hållningsfråga rensas och får rätt ord ...
+  const hallning = rensaFragor(modellen, LYFT, "sv").find((q) => q.id === "mechanical_holding_requirement")!;
   assert(!/fjärrapplicerad|kolvblock/i.test(hallning.label + hallning.options!.join(" ")));
   assert(/fjäderbelastat kolvstångslås/.test(hallning.options![0]));
+  // ... och ersätts sedan av bankens, vars svar detektorerna läser rätt.
+  const slut = slutligaFragor(modellen, LYFT, "sv");
+  assertEquals(ids(slut), ["greppsatt", "lasthallning", "guiding_anti_rotation", "fieldbus_type"]);
 });
 
 Deno.test("lucka på elskåp: takten är sagd, vikten frågas först", () => {
@@ -84,10 +86,9 @@ Deno.test("lucka på elskåp: takten är sagd, vikten frågas först", () => {
     { id: "mounting_orientation", label: "Vilken riktning ska cylindern monteras i?", type: "choice", options: ["Vertikal (upp/down)", "Horisontell (vänster/höger)"] },
     { id: "duty_cycle", label: "Hur många cykler per timme förväntas cylindern utföra?", type: "choice", options: ["1", "2", "5"] },
   ];
+  assertEquals(rensaFragor(modellen, LUCKA, "sv").find((q) => q.id === "mounting_orientation")!.options![0], "Vertikal (upp/ned)");
   const slut = slutligaFragor(modellen, LUCKA, "sv");
-  assertEquals(ids(slut)[0], "last_kg");
-  assert(!ids(slut).includes("duty_cycle"));
-  assertEquals(slut.find((q) => q.id === "mounting_orientation")!.options![0], "Vertikal (upp/ned)");
+  assertEquals(ids(slut), ["last_kg", "slaglangd_mm", "rorelseriktning", "andlagesavkanning"]);
 });
 
 Deno.test("rostfri cylinder till båt: inga livsmedels- eller IP69K-frågor, men frågan om korrosion", () => {
@@ -100,7 +101,7 @@ Deno.test("rostfri cylinder till båt: inga livsmedels- eller IP69K-frågor, men
     { id: "mounting_orientation", label: "Vilken orientering ska cylindern monteras i?", type: "choice", options: ["Horizontal", "Vertical", "Inclined"] },
   ];
   const slut = slutligaFragor(modellen, BAT, "sv");
-  assertEquals(ids(slut), ["last_kg", "korrosion", "required_stroke_length", "rorelseriktning"]);
+  assertEquals(ids(slut), ["last_kg", "korrosion", "slaglangd_mm", "rorelseriktning"]);
   assert(!amnen(slut).some((a) => a === "livsmedel" || a === "ipklass"));
 });
 
@@ -114,7 +115,7 @@ Deno.test("pick and place på bageri: greppet frågas, livsmedelsfrågan en gån
     { id: "surface_finish_ehedg", label: "Behöver du en ytfinish med Ra ≤ 0.8 µm för EHEDG?", type: "choice", options: ["Ja", "Nej"] },
   ];
   const slut = slutligaFragor(modellen, BAGERI, "sv");
-  assertEquals(ids(slut), ["greppsatt", "guiding_anti_rotation", "control_system_fieldbus", "ambient_temperature", "lubrication_nsf_h1"]);
+  assertEquals(ids(slut), ["greppsatt", "guiding_anti_rotation", "control_system_fieldbus", "ambient_temperature", "livsmedelskontakt"]);
 });
 
 Deno.test("reservfrågor utan modellen: alltid minst fyra relevanta, högst sex", () => {
