@@ -12,8 +12,10 @@ import {
   bedomLosning,
   arStyrventil52,
   findCatalogProductByType,
+  buildCustomSolutionOption,
 } from "./bom-builder.ts";
 import { type CatalogProduct, normalizeKeySpecs } from "./scoring.ts";
+import { detectHazards } from "./signals.ts";
 
 function prod(
   sku: string,
@@ -858,3 +860,25 @@ Deno.test("säkerhetsfunktion med angiven nivå: nivån står i raden", () => {
   const rows = buildMandatoryBomRows(bomCtx({ primarySku: "TEST-PRIMARY", isSilSafety: true, sakerhetsniva: "PL d" }));
   assert(rows.some((r) => r.role === "⚠️ Säkerhetsventil för PL d"));
 });
+
+// ── Kundlösningens produktförslag (2026-10-08) ───────────────────────────────
+// Slakteri och livsmedel med spolning föreslog SMC HY "IP69K/316L" (aluminiumhus,
+// enligt SMC inte för livsmedelszonen), Rexroth "EMC-HD-XC" och Parker ETH
+// "Washdown" (IP54/IP65). Förslagen ska bara innehålla belagda uppgifter.
+const OBELAGDA = /\bHY-?Serie|serie SMC HY|EMC-HD|\bETH\b|316L|P1S (Stainless )?Washdown/i;
+
+for (const [fall, text] of [
+  ["slakteri, vertikal last", "Lyftcylinder på slakteri som lyfter slaktkroppar vertikalt, 40 kg, daglig högtryckstvätt"],
+  ["mejeri, horisontell", "Skjutcylinder för förpackningslinje i mejeri, daglig högtryckstvätt, livsmedelszon"],
+] as const) {
+  Deno.test(`kundlösning (${fall}): inga obelagda produktpåståenden, på alla språk`, () => {
+    const h = detectHazards(text, {}, "sv");
+    assert(h.isWashdown && h.isFoodGrade, "förfrågan ska tolkas som livsmedel + spolning");
+    for (const locale of ["sv", "en", "de", "es"]) {
+      const why = buildCustomSolutionOption(0, locale, 0, true, h).why;
+      assert(!OBELAGDA.test(why), `${locale}: ${why}`);
+      assert(/Parker P1S/.test(why) && /SMC HF2A-LEY/.test(why), `${locale}: belagda förslag saknas`);
+      assert(/IP67/.test(why) || !h.isVerticalLoad, `${locale}: kablarnas IP67 ska nämnas`);
+    }
+  });
+}
