@@ -794,27 +794,33 @@ R=$(call_options "$DESC35" '{"stroke":"400 mm"}')
 check "T35a options utan slid/rodless" "$R" "options" "Slide|Rodless|MW-S1"
 R=$(call_bom "$DESC35" '{"stroke":"400 mm","givare":"2"}' "0822121010")
 check "T35b BOM svängfläns+gaffel Ø40-matchade" "$R" "SNCS-40" "Servomotor|servodriv|Stegmotor|Motorkabel"
-check "T35c BOM gaffelfäste Ø40" "$R" "HNC-40" "CRHN-32"
+# HNC är ett FOTFÄSTE (Festos DSBC-datablad, rättat 2026-10-07) -- raderna hette
+# tidigare "gaffelkoppling", och testet krävde då HNC-40 som gaffel. Katalogen
+# har ingen gaffel i Ø40, så rätt svar är en SPECIFY-rad med borrningen utskriven.
+check "T35c BOM gaffelfäste Ø40 begärs som SPECIFY (ingen gaffel Ø40 i katalogen)" "$R" "Ange gaffelfäste i Ø40" "HNC-40|CRHN-32"
 
 # Test 36: Standardtransportören — explicit Ø50 must be honored (not load-min Ø40),
 # "standard cylinder" must yield a plain ISO 15552 (no Guide/Slide/Stainless), and
-# the foot mount must be the bore-matched FNC-50 — never a clevis as "fotfäste".
+# the foot mount must be the bore-matched HNC-50 — FNC is a FLANGE mounting
+# (Festo DSBC datasheet; the rows were mislabelled until 2026-10-07).
 echo "  [36] Explicit Ø50 + standardcylinder + fotfäste Ø50..."
 DESC36="En standard pneumatisk cylinder trycker upp en stopp-platta vertikalt för att stoppa plastlådor 25 kg, slaglängd exakt 100 mm, 6 bar, standard fotfäste, 2 magnetiska givare."
 check_options_retry "T36a explicit Ø50 respekteras (ej Ø40/guide/slid)" "$DESC36" '{"diameter":"50","slag":"100 mm"}' "Ø50" "Guide Cylinder|Slide|Stainless|rostfri"
 R=$(call_bom "$DESC36" '{"diameter":"50","slag":"100 mm","givare":"2"}' "0822122004")
-check "T36b fotfäste = FNC-50 (ej gaffel som fotfäste)" "$R" "FNC-50" "HNC-|Servomotor|Stegmotor|Motorkabel"
+check "T36b fotfäste = HNC-50 (FNC är flänsfäste)" "$R" "HNC-50" "FNC-|Servomotor|Stegmotor|Motorkabel"
 
 # Test 37: Fyllnadslinjen (kemikalier + vertikal + mekaniskt lås) — chemical words
 # must trigger the corrosion-resistant pool (no standard/large-bore cylinder), and
-# the BOM must carry a fail-safe ROD LOCK row, bore-matched when stocked
-# (Ø50 → MW-PLT10-50) and an explicit Ø-called-out SPECIFY otherwise.
+# the BOM must carry a fail-safe ROD LOCK row, bore-matched when stocked and an
+# explicit Ø-called-out SPECIFY otherwise. MW-PLT10-50 was never a rod lock (PLT-10
+# is a 10 mm valve series; discontinued as invented 2026-10-07), so nothing is
+# stocked for Ø50 and the SPECIFY row is the right answer.
 echo "  [37] Kemisk fyllnadslinje → rostfri pool + stångbroms Ø-matchad..."
 DESC37="Pneumatisk cylinder sänker doseringsmunstycke vertikalt, kemikaliebeständiga tätningar krävs, frätande vätskor, slaglängd exakt 200 mm, 6 bar. Armen får inte falla ner vid luft- eller strömbortfall under nödstopp — kräver stångbroms eller mekaniskt lås. 2 magnetiska givare, standard fotfäste."
 R=$(call_options "$DESC37" '{"slag":"200 mm","riktning":"vertikal"}')
 check "T37a kemikalie → rostfri/HCR-pool (ej Ø200/standard)" "$R" "HCR|90M2|DSBF|rostfri|Stainless" "40KM2A200|Ø200"
 R=$(call_bom "$DESC37" '{"slag":"200 mm","riktning":"vertikal","givare":"2"}' "MW-HCR-50")
-check "T37b stångbroms Ø50-matchad (PLT10-50)" "$R" "MW-PLT10-50" "Servomotor|Stegmotor|Motorkabel"
+check "T37b stångbroms Ø50 begärs som SPECIFY (ingen i lager)" "$R" "Ange stångbroms/mekaniskt lås i Ø50" "MW-PLT10|Servomotor|Stegmotor|Motorkabel"
 check "T37c backventil + lås båda med" "$R" "backslagsventil" ""
 
 # Test 38: Hydraulik (250 bar / 200 kN) must escalate to CUSTOM-SOLUTION, never
