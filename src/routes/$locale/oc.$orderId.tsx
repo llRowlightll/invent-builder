@@ -37,6 +37,8 @@ type Order = {
   currency: string;
   estimated_delivery: string | null;
   created_at: string;
+  /** Frakt exkl. moms, ingår i ordersumman men är ingen orderrad. */
+  freight_ex_vat?: number | null;
 };
 
 const VAT = 0.25;
@@ -91,7 +93,8 @@ export default function PublicOCPage() {
     lineTotal: it.qty * it.unit_price_ex_vat,
   }));
 
-  const totalEx  = lineItems.reduce((s, l) => s + l.lineTotal, 0);
+  const frakt    = Number(order.freight_ex_vat ?? 0);
+  const totalEx  = lineItems.reduce((s, l) => s + l.lineTotal, 0) + frakt;
   const vatAmt   = totalEx * VAT;
   const totalInc = totalEx + vatAmt;
 
@@ -188,6 +191,12 @@ export default function PublicOCPage() {
                   <td className="py-1 text-muted-foreground">Summa ex. moms</td>
                   <td className="py-1 text-right font-medium text-foreground">{fmt(totalEx, currency)}</td>
                 </tr>
+                {frakt > 0 && (
+                  <tr>
+                    <td className="py-1 text-muted-foreground">varav frakt</td>
+                    <td className="py-1 text-right text-foreground">{fmt(frakt, currency)}</td>
+                  </tr>
+                )}
                 <tr>
                   <td className="py-1 text-muted-foreground">Moms 25 %</td>
                   <td className="py-1 text-right text-foreground">{fmt(vatAmt, currency)}</td>

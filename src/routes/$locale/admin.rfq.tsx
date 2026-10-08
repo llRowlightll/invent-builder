@@ -36,6 +36,10 @@ type Rfq = {
   internal_notes: string | null;
   quote_amount: number | null;
   quote_currency: string | null;
+  /** Introrabatt i procent; gäller varorna, inte frakten. */
+  discount_pct?: number | null;
+  /** Frakt exkl. moms, satt i offertverktyget. */
+  freight_ex_vat?: number | null;
   created_at: string;
   updated_at: string | null;
   title: string | null;
@@ -165,9 +169,12 @@ export default function AdminRfqPage() {
     setCreatingOrder(true);
     setCreatedOrderId(null);
 
-    // Map RFQ items → order items, using unit_price if admin already set it
+    // Map RFQ items → order items, using unit_price if admin already set it.
+    // Introrabatten dras som på kundens accept (respond_to_quote): på varorna.
+    const rabatt = Number(selected.discount_pct ?? 0) / 100;
+    const frakt  = Number(selected.freight_ex_vat ?? 0);
     const orderItems = items.map((it) => {
-      const unitEx = (it as RfqItem & { unit_price?: number | null }).unit_price ?? 0;
+      const unitEx = Math.round(((it as RfqItem & { unit_price?: number | null }).unit_price ?? 0) * (1 - rabatt) * 100) / 100;
       const qty    = it.qty ?? 1;
       return {
         // product_id tas med så orderraden kan knytas till katalogen; namn och
@@ -182,7 +189,7 @@ export default function AdminRfqPage() {
       };
     });
 
-    const totalEx  = orderItems.reduce((s, i) => s + i.total_price_ex_vat, 0);
+    const totalEx  = orderItems.reduce((s, i) => s + i.total_price_ex_vat, 0) + frakt;
     const vatRate  = 0.25;
     const totalInc = totalEx * (1 + vatRate);
 
@@ -211,6 +218,7 @@ export default function AdminRfqPage() {
         vat_rate:         vatRate,
         total_ex_vat:     totalEx || null,
         total_inc_vat:    totalInc || null,
+        freight_ex_vat:   frakt > 0 ? frakt : null,
         internal_notes:   selected.internal_notes
           ? `Skapad från RFQ ${selected.id.slice(0, 8).toUpperCase()}.\n${selected.internal_notes}`
           : `Skapad från RFQ ${selected.id.slice(0, 8).toUpperCase()}.`,

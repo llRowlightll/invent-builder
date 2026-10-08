@@ -35,6 +35,8 @@ type Order = {
   items: OrderItem[];
   total_ex_vat: number | null;
   total_inc_vat: number | null;
+  /** Frakt exkl. moms, ingår i ordersumman men är ingen orderrad. */
+  freight_ex_vat?: number | null;
   vat_rate: number;
   currency: string;
   estimated_delivery: string | null;
@@ -68,6 +70,7 @@ export default function AdminOCPage() {
 
   const [paymentTerms, setPaymentTerms] = useState("30 dagar netto");
   const [deliveryText, setDeliveryText] = useState("");
+  const [frakt, setFrakt] = useState(0);
   const [footerNote, setFooterNote] = useState("");
 
   // Per-line edits on top of order.items
@@ -92,6 +95,7 @@ export default function AdminOCPage() {
       const o = data as unknown as Order;
       setOrder(o);
       setDeliveryText(o.estimated_delivery ?? "");
+      setFrakt(Number(o.freight_ex_vat ?? 0));
       // Seed line edits
       const seed: Record<number, { qty: number; price: number; note: string }> = {};
       const items: OrderItem[] = Array.isArray(o.items) ? (o.items as OrderItem[]) : [];
@@ -109,7 +113,7 @@ export default function AdminOCPage() {
     return { ...it, editQty: e.qty, editPrice: e.price, editNote: e.note, lineTotal: e.qty * e.price };
   });
 
-  const totalEx  = lineItems.reduce((s, l) => s + l.lineTotal, 0);
+  const totalEx  = lineItems.reduce((s, l) => s + l.lineTotal, 0) + frakt;
   const vatAmt   = totalEx * VAT;
   const totalInc = totalEx + vatAmt;
   const currency = order?.currency ?? "SEK";
@@ -138,6 +142,7 @@ export default function AdminOCPage() {
       items: updatedItems,
       total_ex_vat: totalEx || null,
       total_inc_vat: totalInc || null,
+      freight_ex_vat: frakt > 0 ? frakt : null,
       estimated_delivery: deliveryText || null,
       internal_notes: footerNote || order.internal_notes,
     }).eq("id", orderId);
@@ -266,6 +271,12 @@ export default function AdminOCPage() {
               <input value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)}
                 className="mt-1 w-full border border-border rounded px-2 py-1" />
             </label>
+            <label className="block">
+              <span className="text-muted-foreground uppercase tracking-wide">Frakt (exkl. moms)</span>
+              <input type="number" min={0} step={1} value={frakt}
+                onChange={e => { setFrakt(Math.max(0, Number(e.target.value) || 0)); setSaved(false); }}
+                className="mt-1 w-full border border-border rounded px-2 py-1" />
+            </label>
           </div>
 
           {/* Line items */}
@@ -316,6 +327,12 @@ export default function AdminOCPage() {
                   <td className="py-1 text-muted-foreground">Summa ex. moms</td>
                   <td className="py-1 text-right font-medium text-foreground">{fmt(totalEx, currency)}</td>
                 </tr>
+                {frakt > 0 && (
+                  <tr>
+                    <td className="py-1 text-muted-foreground">varav frakt</td>
+                    <td className="py-1 text-right text-foreground">{fmt(frakt, currency)}</td>
+                  </tr>
+                )}
                 <tr>
                   <td className="py-1 text-muted-foreground">Moms 25 %</td>
                   <td className="py-1 text-right text-foreground">{fmt(vatAmt, currency)}</td>

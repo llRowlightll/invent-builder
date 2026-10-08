@@ -827,6 +827,9 @@ function ShoppingListPage() {
                 </div>
                 {/* Villkoren ska vara kända när avtalet ingås, även för den som inte har konto. */}
                 <p className="mt-2 text-[11px] text-muted-foreground text-center">
+                  {locale === "sv"
+                    ? "Priser exkl. moms. Frakt tillkommer och anges i offerten eller orderbekräftelsen. "
+                    : "Prices excl. VAT. Freight is added and stated in the quote or order confirmation. "}
                   {locale === "sv" ? "Genom att skicka godkänner du våra " : "By sending, you agree to our "}
                   <Link to="/$locale/terms" params={{ locale }} target="_blank" className="underline hover:text-info">
                     {locale === "sv" ? "allmänna villkor" : "terms and conditions"}

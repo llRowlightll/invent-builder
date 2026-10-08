@@ -35,6 +35,8 @@ type Rfq = {
   created_at: string;
   /** När offerten lämnades (status blev 'quoted'); saknas för äldre rader. */
   quoted_at?: string | null;
+  /** Frakt exkl. moms; introrabatten gäller inte frakten. */
+  freight_ex_vat?: number | null;
 };
 
 const VAT = 0.25;
@@ -91,7 +93,8 @@ export default function PublicOffertPage() {
   const totalEx  = lineItems.reduce((s, l) => s + l.lineTotal, 0);
   const discountPct = Number(rfq?.discount_pct ?? 0);
   const discountAmt = totalEx * (discountPct / 100);
-  const netEx = totalEx - discountAmt;
+  const frakt = Number(rfq?.freight_ex_vat ?? 0);
+  const netEx = totalEx - discountAmt + frakt;
   const vatAmt   = netEx * VAT;
   const totalInc = netEx + vatAmt;
   const currency = rfq?.quote_currency ?? "SEK";
@@ -220,6 +223,12 @@ export default function PublicOffertPage() {
                     <td className="py-1 text-right text-emerald-700">−{fmt(discountAmt, currency)}</td>
                   </tr>
                 )}
+                {frakt > 0 && (
+                  <tr>
+                    <td className="py-1 text-muted-foreground">Frakt</td>
+                    <td className="py-1 text-right text-foreground">{fmt(frakt, currency)}</td>
+                  </tr>
+                )}
                 <tr>
                   <td className="py-1 text-muted-foreground">Moms 25 %</td>
                   <td className="py-1 text-right text-foreground">{fmt(vatAmt, currency)}</td>
@@ -234,8 +243,8 @@ export default function PublicOffertPage() {
 
           {/* Villkoren blir en del av avtalet först när de hänvisats till innan det ingås. */}
           <p className="-mt-6 mb-10 text-xs text-muted-foreground" style={{ fontFamily: "system-ui, sans-serif" }}>
-            Offerten gäller i {OFFERT_GILTIG_DAGAR} dagar, t.o.m. {giltigTill}. Priser exkl. moms. Frakt och andra tillägg
-            framgår av offerten. Maskinvals{" "}
+            Offerten gäller i {OFFERT_GILTIG_DAGAR} dagar, t.o.m. {giltigTill}. Priser exkl. moms.{" "}
+            {frakt > 0 ? "Frakt enligt ovan." : "Frakten ingår."} Maskinvals{" "}
             <a href={`/${locale}/terms`} target="_blank" rel="noopener noreferrer" className="underline">allmänna villkor</a>{" "}
             (version {VILLKOR_VERSION}) gäller.
           </p>

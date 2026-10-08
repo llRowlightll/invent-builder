@@ -39,6 +39,8 @@ type Rfq = {
   quote_amount: number | null;
   quote_currency: string | null;
   discount_pct: number | null;
+  /** Frakt exkl. moms (villkoren avsnitt 3). Introrabatten gäller inte frakten. */
+  freight_ex_vat?: number | null;
   status: string | null;
   created_at: string;
 };
@@ -70,6 +72,7 @@ export default function AdminOffertPage() {
   const [quoteReadMsg, setQuoteReadMsg] = useState<string | null>(null);
   const [copiedBrand, setCopiedBrand] = useState<string | null>(null);
   const [discountPct, setDiscountPct] = useState(0);
+  const [frakt, setFrakt] = useState(0);
   const [firstTimer, setFirstTimer] = useState(false);
   const quoteFileRef = useRef<HTMLInputElement>(null);
 
@@ -107,6 +110,7 @@ export default function AdminOffertPage() {
       setRfq(rfqData as Rfq);
       setCurrency((rfqData as Rfq).quote_currency ?? "SEK");
       setDiscountPct(Number((rfqData as Rfq).discount_pct ?? 0));
+      setFrakt(Number((rfqData as Rfq).freight_ex_vat ?? 0));
       // First-time customer? (no other RFQs from this contact email)
       const email = (rfqData as { contact_email?: string | null }).contact_email;
       if (email) {
@@ -150,7 +154,7 @@ export default function AdminOffertPage() {
   });
   const totalEx = lineItems.reduce((s, l) => s + l.lineTotal, 0);
   const discountAmt = totalEx * (discountPct / 100);
-  const netEx = totalEx - discountAmt;
+  const netEx = totalEx - discountAmt + frakt;
   const vatAmt  = netEx * VAT;
   const totalInc = netEx + vatAmt;
 
@@ -174,7 +178,7 @@ export default function AdminOffertPage() {
     // Also update quote_amount on the RFQ
     await supabase
       .from("rfqs")
-      .update({ quote_amount: totalInc, quote_currency: currency, discount_pct: discountPct })
+      .update({ quote_amount: totalInc, quote_currency: currency, discount_pct: discountPct, freight_ex_vat: frakt > 0 ? frakt : null })
       .eq("id", rfqId);
     setSaving(false);
     setSaved(true);
@@ -182,10 +186,13 @@ export default function AdminOffertPage() {
 
   async function sendToCustomer() {
     if (!rfq) return;
+    // Vi tar betalt för frakt (beslut 2026-10-08). En offert utan fraktbelopp
+    // betyder enligt villkoren att frakten ingår.
+    if (frakt <= 0 && !window.confirm("Offerten saknar frakt. Enligt villkoren ingår då frakten i priset. Skicka ändå?")) return;
     setSending(true);
     // Write the quote first — order-status-email re-reads status/amount straight
     // from this row by id, so it must already reflect what we're about to send.
-    await supabase.from("rfqs").update({ status: "quoted", quote_amount: totalInc, quote_currency: currency }).eq("id", rfqId);
+    await supabase.from("rfqs").update({ status: "quoted", quote_amount: totalInc, quote_currency: currency, freight_ex_vat: frakt > 0 ? frakt : null }).eq("id", rfqId);
     await fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -455,6 +462,12 @@ ${co.name}`;
                 className="mt-1 w-full border border-border rounded px-2 py-1" />
             </label>
             <label className="block">
+              <span className="text-muted-foreground uppercase tracking-wide">Frakt (exkl. moms)</span>
+              <input type="number" min={0} step={1} value={frakt}
+                onChange={e => { setFrakt(Math.max(0, Number(e.target.value) || 0)); setSaved(false); }}
+                className="mt-1 w-full border border-border rounded px-2 py-1" />
+            </label>
+            <label className="block">
               <span className="text-muted-foreground uppercase tracking-wide">Valuta</span>
               <select value={currency} onChange={e => setCurrency(e.target.value)}
                 className="mt-1 w-full border border-border rounded px-2 py-1">
@@ -559,6 +572,10 @@ ${co.name}`;
                     <td className="py-1 text-right text-emerald-700">−{fmt(discountAmt, currency)}</td>
                   </tr>
                 )}
+                <tr>
+                  <td className="py-1 text-muted-foreground">Frakt</td>
+                  <td className="py-1 text-right text-foreground">{frakt > 0 ? fmt(frakt, currency) : "Ingår"}</td>
+                </tr>
                 <tr>
                   <td className="py-1 text-muted-foreground">Moms 25 %</td>
                   <td className="py-1 text-right text-foreground">{fmt(vatAmt, currency)}</td>
