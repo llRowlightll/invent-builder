@@ -795,3 +795,9 @@ Deno.test("vinklar och kyla i svarsalternativens form", () => {
   assert(!detectCategories("Lyfta kartonger 300 mm Ja, den behöver styrning").includes("rotary-actuator"));
 });
 
+Deno.test("det angivna kraftkravet följer med till dimensioneringspanelen", () => {
+  assertEquals(detectHazards("Pressa in en bussning i ett hus, behöver 3 kN", {}, "sv").statedForceN, 3000);
+  assertEquals(detectHazards("Pneumatisk parallellgripare, greppkraft ca 100N", {}, "sv").statedForceN, 100);
+  assertEquals(detectHazards("Lyfta en låda på 5 kg", {}, "sv").statedForceN, 0);
+});
+

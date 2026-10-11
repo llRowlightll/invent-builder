@@ -1276,6 +1276,8 @@ export interface HazardFlags {
   loadKg: number;
   gripForceN: number;
   holdingForceN: number;
+  /** Kraft kunden uttryckligen kräver (grepp, håll, press), i N. 0 när ingen anges. */
+  statedForceN?: number;
   torqueNm: number;
   /** Vridmomentet är uppskattat ur vikt och hävarm, inte angivet. */
   torqueUppskattat?: boolean;
@@ -1396,7 +1398,7 @@ export function detectHazards(
     isFoodGrade, isBatteryDryroom, isRodLock, isWashdown, isEndPosDetect, isArticulated,
     isMounting, isGuided, isLowCost, is24x7, isDirtyEnv, isHighPrecision, minBoreMm,
     requiredMaxTempC, minStrokeMm, perAxisStrokes, requiredStrokeMm, speedMs, precisionMm,
-    explicitBoreMm, loadKg, gripForceN, holdingForceN, torqueNm, torqueUppskattat, rotationDeg, cycleTimeS,
+    explicitBoreMm, loadKg, gripForceN, holdingForceN, statedForceN, torqueNm, torqueUppskattat, rotationDeg, cycleTimeS,
     dynamics, conflicts,
   };
 }
