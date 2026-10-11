@@ -148,7 +148,7 @@ export function detectCategories(text: string): string[] {
     if (slugs.size === 0) slugs.add("cylinder");
   }
   // Pick & place: cylinders + vacuum + linear-module (electric option)
-  if (/pick.and.place|pick.*place|plocka.*placera|plocka.*flytta|lyfter.*flytta|flytta.*lyft|transfer.*station|montering|montage/i.test(t)) {
+  if (/pick.and.place|pick.*place|plocka.*placera|plocka.*flytta|plocka.{0,80}\b(ställ|lägg|sätt)(a|er)\b|lyfter.*flytta|flytta.*lyft|transfer.*station|montering|montage/i.test(t)) {
     slugs.add("cylinder");
     slugs.add("vacuum");
     slugs.add("linear-module");
@@ -430,7 +430,7 @@ export function needsMultiAxis(text: string): boolean {
   // letters: the old `x.*y|y.*x|x.*z|z.*x` matched any x/y/z across the whole string,
   // so "Cylinder … exakt" (y…x) was falsely flagged multi-axis — which disabled the
   // precision hard-filter and triggered per-axis BOM logic on single-axis jobs.
-  if (/\b[xyz][-_\s]?ax(el|is|e)|\bxyz\b|\b[xyz]\s*[\/-]\s*[xyz]\b|två axl|två rörel|horisontell.*vertikal|vertikal.*horisontell|pick.and.place|pick.*place|plocka.*placera|plocka.*flytta|lyfter.*flytta|flytta.*lyft|2-axl|2 axl|multi.*axl|cartesian|portalsystem|lyfter.*flyttar|lyfter.*och.*flyttar/i.test(text)) return true;
+  if (/\b[xyz][-_\s]?ax(el|is|e)|\bxyz\b|\b[xyz]\s*[\/-]\s*[xyz]\b|två axl|två rörel|horisontell.*vertikal|vertikal.*horisontell|pick.and.place|pick.*place|plocka.*placera|plocka.*flytta|plocka.{0,80}\b(ställ|lägg|sätt)(a|er)\b|lyfter.*flytta|flytta.*lyft|2-axl|2 axl|multi.*axl|cartesian|portalsystem|lyfter.*flyttar|lyfter.*och.*flyttar/i.test(text)) return true;
 
   // Adversarial test finding 2026-08-16: "en enda cylinder som SAMTIDIGT lyfter,
   // roterar och griper" fell through every pattern above (none of them anticipate
@@ -524,7 +524,7 @@ export function needsHighTemp(textMedProv: string): boolean {
 
 /** Low temperature environment (<-10°C). Standard seals crack/harden — need LT/FKM variants. */
 export function needsLowTemp(text: string): boolean {
-  return /\bfrys\b|\bfrysrum\b|\bkylanläggn\b|\bcold.*room\b|\bcold.*stor\b|\bkylrum\b|\bcryogen\b|\bdjupfrys\b|\bfryscell\b|\bkyla.*milj\b|\b-[1-9]\d\s*°?\s*[cC]\b|\b-\s*[1-9]\d\s*°?\s*[cC]\b|\bbelow.*freez\b|\bsubzero\b|\bfrost.*milj\b|\bgefrier\w*\b|\btiefkühl\w*\b|\bkühlraum\b|\bkälteanlage\b|\bkryogen\w*\b|\bcongelador\b|\bcámara\s?frigorífica\b|\bsala\s?fría\b|\bcriogénic\w*\b/i.test(text);
+  return /\bfrys\b|\bfrysrum\b|\bkylanläggn\b|\bcold.*room\b|\bcold.*stor\b|\bkylrum\b|\bcryogen\b|\bdjupfrys\b|\bfryscell\b|\bkyla.*milj\b|(?<![\w-])[-\u2212]\s*[1-9]\d\s*°?\s*[cC]\b|\bbelow.*freez\b|\bsubzero\b|\bfrost.*milj\b|\bgefrier\w*\b|\btiefkühl\w*\b|\bkühlraum\b|\bkälteanlage\b|\bkryogen\w*\b|\bcongelador\b|\bcámara\s?frigorífica\b|\bsala\s?fría\b|\bcriogénic\w*\b/i.test(text);
 }
 
 /** Hydraulic application — entirely different product family (100–350 bar oil). NOT in pneumatic catalog. */
@@ -693,6 +693,7 @@ export function needsRodLock(text: string): boolean {
  * standard aluminum cylinders will corrode immediately.
  */
 export function needsWashdown(text: string): boolean {
+  if (needsSpolmiljo(text)) return true;
   return /washdown|wash[-\s]down|livsmedel|food[-\s]grade|food[-\s]safe|mejeri|dairy|slakteri|slakter|livsmedelsgodkänd|livsmedelsgodkand|ip[-\s]?69|högtrycksspolning|högtryck.*spol|spol.*kemik|kemisk.*reng|cip\b|sip\b|hygienic|hygienisk|clean[-\s]design|cleandesign|rostfri|stainless|korrosionsskyddad|vätsk.*milj|blot.*milj|kemikalie|frätande|korrosiv|korrosion|\bsyra\b|syrabeständig|aggressiva?\s+(medier|vätskor|kemikalier)|lebensmittel\w*|molkerei|schlachthof|edelstahl|rostfrei\w*|hochdruckreinig\w*|chemikalie\w*|ätzend\w*|\bsäure\b|säurebeständig\w*|\balimentos?\b|grado\s?alimentici\w*|lácte\w*|matadero|acero\s?inoxidable|limpieza\s?a\s?alta\s?presión|químic\w*|corrosiv\w*|(?<![\wáéíóúñÁÉÍÓÚÑ])ácido(?![\wáéíóúñÁÉÍÓÚÑ])/i.test(text);
 }
 
@@ -704,7 +705,7 @@ export function needsWashdown(text: string): boolean {
  * stycklisteraden "KRAV IP69K".
  */
 export function needsSpolmiljo(text: string): boolean {
-  return /washdown|wash[-\s]?down|högtryck\w*|spola[rs]?\b|spolning|spolas|tvätta[rs]?\b|tvättas|rengörs|skumtvätt|\bcip\b|\bsip\b|ip\s?69|slakteri|mejeri|dairy|chark/i.test(text);
+  return /washdown|wash[-\s]?down|högtryck\w*|spola[rs]?\b|spolning|spolas|tvätta[rs]?\b|tvättas|\btvätt(en|ning)?\b|rengörs|skumtvätt|\bcip\b|\bsip\b|ip\s?69|slakteri|mejeri|dairy|chark/i.test(text);
 }
 
 /**
@@ -895,9 +896,52 @@ export function extractLoadKg(text: string, answers: Record<string, string>): nu
   const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
   const kgMatch = allText.match(/(\d+(?:[.,]\d+)?)\s*kg/i);
   if (kgMatch) return parseFloat(kgMatch[1].replace(",", "."));
+  // Maskinbyggarens sifferfält skickar talet utan enhet: {last_kg: "12"}.
+  // Hittat 2026-10-11: vikten kunden svarat lästes aldrig, eftersom "last_kg 12"
+  // har enheten före talet. Nyckeln bär enheten.
+  for (const [k, v] of Object.entries(answers)) {
+    if (/(^|_)(last|vikt|weight|load|massa?|mass)(_|$)|_kg$/i.test(k)) {
+      const n = storstaTal(v);
+      if (n > 0) return n;
+    }
+  }
+  // "Pressa med 3000 N" och "900 N klämkraft" är kraftkrav, inga vikter.
+  if (extractStatedForceN(text, answers) > 0 || extractGripForceN(text, answers) > 0 || extractHoldingForceN(text, answers) > 0) return 0;
   const nMatch = allText.match(/(\d+(?:[.,]\d+)?)\s*N\b/);
   if (nMatch) return parseFloat(nMatch[1].replace(",", ".")) / 9.81;
   return 0;
+}
+
+/** Största talet i ett svar ("5–20 kg" → 20, "12" → 12, "Vet inte" → 0). */
+function storstaTal(v: string): number {
+  const tal = [...String(v ?? "").matchAll(/\d+(?:[.,]\d+)?/g)].map((m) => parseFloat(m[0].replace(",", ".")));
+  return tal.length ? Math.max(...tal) : 0;
+}
+
+/**
+ * Kraft kunden uttryckligen kräver av en press, ett spänn eller en
+ * utskjutning, i newton. Ett kraftkrav ÄR kravet och dubblas inte av
+ * säkerhetsfaktorn (se requiredForceN).
+ *
+ * Hittat 2026-10-11: "behöver 3 kN" lästes inte alls (borrningen blev 0), och
+ * "pressa med 3000 N" lästes som en last på 306 kg som sedan dubblades till
+ * Ø131. Svaret på maskinbyggarens kraftfråga ({kraft_n: "3000"}) lästes inte
+ * heller.
+ */
+export function extractStatedForceN(text: string, answers: Record<string, string>): number {
+  for (const [k, v] of Object.entries(answers)) {
+    if (!/kraft|force/i.test(k) || /grepp|grip|håll|hall|hold/i.test(k)) continue;
+    const kn = String(v).match(/(\d+(?:[.,]\d+)?)\s*kN\b/i);
+    if (kn) return parseFloat(kn[1].replace(",", ".")) * 1000;
+    const n = storstaTal(v);
+    if (n > 0) return n;
+  }
+  const kn = text.match(/(\d+(?:[.,]\d+)?)\s*kN\b/i);
+  if (kn) return parseFloat(kn[1].replace(",", ".")) * 1000;
+  // Inte "trycker upp en last på 500 N": där är newton en vikt, och
+  // säkerhetsfaktorn hör hemma (se requiredForceN).
+  const m = text.match(/(?:\bpress\w*|\bkläm\w*|\bspänn\w*|\bstans\w*|\bnit\w*|kraft)[^\d.]{0,12}(\d+(?:[.,]\d+)?)\s*N\b/i);
+  return m ? parseFloat(m[1].replace(",", ".")) : 0;
 }
 
 /** Extract required torque (Nm) for a rotary-actuator request. */
@@ -943,13 +987,38 @@ export function extractHoldingForceN(text: string, answers: Record<string, strin
 export function extractTorqueNm(text: string, answers: Record<string, string>): number {
   const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
   const m = allText.match(/(\d+(?:[.,]\d+)?)\s*Nm\b/i);
-  return m ? parseFloat(m[1].replace(",", ".")) : 0;
+  if (m) return parseFloat(m[1].replace(",", "."));
+  // Sifferfältet: {vridmoment_nm: "5"}.
+  for (const [k, v] of Object.entries(answers)) {
+    if (/vridmoment|torque/i.test(k)) {
+      const n = storstaTal(v);
+      if (n > 0) return n;
+    }
+  }
+  return 0;
+}
+
+/**
+ * Vridmoment uppskattat ur vikt och hävarm när kunden inte vet det: vikten
+ * gånger avståndet till tyngdpunkten, gånger två för accelerationen. Gäller
+ * fullt ut när delen vänds runt en liggande axel; för ett vridbord ligger det
+ * på den säkra sidan vid normala vridtider. 0 när något saknas.
+ */
+export function uppskattatVridmomentNm(loadKg: number, answers: Record<string, string>): number {
+  let armMm = 0;
+  for (const [k, v] of Object.entries(answers)) {
+    if (/h[aä]varm|lever.?arm/i.test(k)) armMm = storstaTal(v);
+  }
+  if (!(loadKg > 0 && armMm > 0)) return 0;
+  return Math.round(loadKg * 9.81 * (armMm / 1000) * 2 * 10) / 10;
 }
 
 /** Extract required rotation angle (degrees) for a rotary-actuator request. */
 export function extractRotationDeg(text: string, answers: Record<string, string>): number {
   const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
-  const m = allText.match(/(\d{2,3})\s*(?:°|grad(?:er)?|degrees?)\b/i);
+  // \b efter "°" kräver ett ordtecken efter gradtecknet, så "90°" sist i en
+  // text lästes aldrig. Ordgränsen hör bara till orden.
+  const m = allText.match(/(\d{2,3})\s*(?:°|grad(?:er)?\b|degrees?\b)/i);
   return m ? parseFloat(m[1]) : 0;
 }
 
@@ -1122,7 +1191,11 @@ export function endEffectorExplicitlyAsked(text: string): boolean {
  * the superset: it additionally matched nsf/h1).
  */
 export function needsFoodGrade(text: string): boolean {
-  return /livsmedel|food|slakteri|chark|mejeri|kött|meat|poultry|fjäderfä|dairy|fisk|fish|bageri|brewery|nsf|h1\b/i.test(text);
+  // Produkterna räknas, inte bara branschen. Hittat 2026-10-11: "Doseringsmaskin
+  // för sylt … daglig tvätt" fick varken livsmedels- eller tvättfrågor, och
+  // modellens egna frågor om dem rensades bort som irrelevanta.
+  return /livsmedel|food|slakteri|chark|mejeri|kött|meat|poultry|fjäderfä|dairy|fisk|fish|bageri|brewery|nsf|h1\b/i.test(text) ||
+    /\b(sylt|marmelad|juice|saft|läsk|dryck(er)?|bryggeri|choklad|godis|konfektyr|ost(ar)?|bröd|bakverk|frukt|grönsak(er)?|potatis|kaffe|sås|ketchup|majonnäs|dressing|mjölk|yoghurt|smör|ägg|kyckling|korv|barnmat|beverage|bakery|confectionery|chocolate|cheese|candy)\b/i.test(text);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1204,6 +1277,8 @@ export interface HazardFlags {
   gripForceN: number;
   holdingForceN: number;
   torqueNm: number;
+  /** Vridmomentet är uppskattat ur vikt och hävarm, inte angivet. */
+  torqueUppskattat?: boolean;
   rotationDeg: number;
   cycleTimeS: number;
   // Composed -- assume a linear axis, see file-header comment above
@@ -1299,9 +1374,11 @@ export function detectHazards(
   // dubblas av säkerhetsfaktorn. Se requiredForceN().
   const gripForceN = extractGripForceN(text, answers);
   const holdingForceN = extractHoldingForceN(text, answers);
-  const statedForceN = gripForceN || holdingForceN;
+  const statedForceN = gripForceN || holdingForceN || extractStatedForceN(text, answers);
   const minBoreMm = calcMinBoreMm(loadKg, 6, statedForceN);
-  const torqueNm = extractTorqueNm(text, answers);
+  const angivetVridmoment = extractTorqueNm(text, answers);
+  const torqueNm = angivetVridmoment || uppskattatVridmomentNm(loadKg, answers);
+  const torqueUppskattat = angivetVridmoment === 0 && torqueNm > 0;
   const rotationDeg = extractRotationDeg(text, answers);
   const cycleTimeS = extractCycleTimeS(text, answers);
 
@@ -1319,7 +1396,7 @@ export function detectHazards(
     isFoodGrade, isBatteryDryroom, isRodLock, isWashdown, isEndPosDetect, isArticulated,
     isMounting, isGuided, isLowCost, is24x7, isDirtyEnv, isHighPrecision, minBoreMm,
     requiredMaxTempC, minStrokeMm, perAxisStrokes, requiredStrokeMm, speedMs, precisionMm,
-    explicitBoreMm, loadKg, gripForceN, holdingForceN, torqueNm, rotationDeg, cycleTimeS,
+    explicitBoreMm, loadKg, gripForceN, holdingForceN, torqueNm, torqueUppskattat, rotationDeg, cycleTimeS,
     dynamics, conflicts,
   };
 }

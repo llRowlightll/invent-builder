@@ -12,7 +12,7 @@ import { useAuth } from "@/lib/auth-context";
 import type { ProductRow } from "@/lib/types";
 import { callAdvisor } from "@/lib/advisor-client";
 import { saveBomNormalized, loadBomNormalized } from "@/lib/bom-store";
-import { usableForceN } from "@/lib/physics";
+import { usableForceN, LOAD_SAFETY_FACTOR } from "@/lib/physics";
 import { Award, Camera, Lock, Package, RefreshCw, Ruler, Save, Settings } from "lucide-react";
 import { getProductImage } from "@/lib/product-images";
 import { logga } from "@/lib/matning";
@@ -1437,11 +1437,17 @@ function roleToCategory(role: string, sku: string): string | null {
   return null;
 }
 
+/** Ett tal ur ett svar ur sifferfältet ("12", "12,5"); 0 för "Vet inte" och tomt. */
+function svarTal(v: string | undefined): number {
+  const n = parseFloat(String(v ?? "").replace(",", "."));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
 /** Parse minimum technical requirements from the user's question answers. */
 function parseRequirements(answers: Record<string, string>) {
   // Min force (N) from weight answer
   const w = answers.weight ?? "";
-  const minForce =
+  let minForce =
     /< 1|under 1/i.test(w)  ? 20  :
     /1.{0,3}5 kg/i.test(w)  ? 75  :
     /5.{0,3}20/i.test(w)    ? 300 :
@@ -1450,16 +1456,26 @@ function parseRequirements(answers: Record<string, string>) {
 
   // Min stroke (mm) — check stroke, stroke_z, stroke_x
   const s = [answers.stroke, answers.stroke_z, answers.stroke_x].filter(Boolean).join(" ");
-  const minStroke =
+  let minStroke =
     /< 50/i.test(s)        ? 0   :
     /50.{0,3}150/i.test(s) ? 50  :
     /150.{0,3}300/i.test(s)? 150 :
     /300.{0,3}500/i.test(s)? 300 :
     /> 500/i.test(s)       ? 500 : 0;
 
+  // Följdfrågorna i fragor.ts svarar med tal under egna nycklar. Fram till
+  // 2026-10-11 lästes de inte här, så alternativen filtrerades aldrig mot den
+  // vikt, kraft och slaglängd kunden angett. En angiven kraft är kravet; en
+  // vikt får samma säkerhetsfaktor som motorn använder.
+  const kraft = svarTal(answers.kraft_n);
+  const kg = svarTal(answers.last_kg);
+  if (kraft > 0) minForce = Math.max(minForce, Math.round(kraft));
+  else if (kg > 0) minForce = Math.max(minForce, Math.round(kg * 9.81 * LOAD_SAFETY_FACTOR));
+  minStroke = Math.max(minStroke, svarTal(answers.slaglangd_mm), svarTal(answers.slag_z_hojd_mm), svarTal(answers.slag_x_sidled_mm));
+
   // IP requirement from environment
-  const env = answers.environment ?? "";
-  const needsHighIP = /livsmedel|washdown|ip6/i.test(env);
+  const env = `${answers.environment ?? ""} ${answers.miljo ?? ""}`;
+  const needsHighIP = /livsmedel|washdown|ip6|högtrycksspolas|tvättas/i.test(env);
 
   return { minForce, minStroke, needsHighIP };
 }

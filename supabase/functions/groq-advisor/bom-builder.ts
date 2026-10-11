@@ -36,30 +36,31 @@ export function buildCustomSolutionOption(
   // här SMC HY "IP69K/316L" (har aluminiumhus och är enligt SMC inte avsedd för
   // livsmedelszonen), Rexroth "EMC-HD-XC" (ingen sådan IP69K-variant belagd) och
   // Parker ETH "Washdown" (IP54/IP65). Belagt: Parker P1S är en rostfri
-  // ISO-rundcylinder med fluorgummitätningar och H1-fett men utan angiven
-  // IP-klass; SMC HF2A-LEY har IP69K-kapsling (kablar IP67), 5–40 °C, får inte
+  // ISO-rundcylinder med fluorgummitätningar och H1-fett; någon IP-klass gick
+  // inte att belägga (Parkers sidor svarar 403), så den kontrolleras med
+  // Parker. SMC HF2A-LEY har IP69K-kapsling (kablar IP67), 5–40 °C, får inte
   // ha direkt livsmedelskontakt och låset är inget säkerhetslås.
   if (isWashdown && isVerticalLoad && isFoodGrade) {
     whyLines.push(pick(locale, {
       sv: `⚙️ Rekommenderade arkitekturval för slakteri/IP69K-miljö:\n` +
-        `▸ ALT A – Pneumatisk rostfri cylinder: t.ex. Parker P1S (rostfri ISO-rundcylinder, yttre tätningar i fluorgummi, livsmedelsgodkänt H1-fett). Parker anger ingen IP-klass — kontrollera att den tål er högtryckstvätt. Komplettera med pneumatisk stångbroms (rod lock) för säker hållning vid tryckfall.\n` +
+        `▸ ALT A – Pneumatisk rostfri cylinder: t.ex. Parker P1S (rostfri ISO-rundcylinder, yttre tätningar i fluorgummi, livsmedelsgodkänt H1-fett). Kontrollera IP-klassen och att den tål er högtryckstvätt med Parker. Komplettera med pneumatisk stångbroms (rod lock) för säker hållning vid tryckfall.\n` +
         `▸ ALT B – Kapslad el-cylinder IP69K: t.ex. SMC HF2A-LEY (IP69K-kapsling, metalldelar i rostfritt 304, livsmedelsgodkänt fett, drifttemperatur 5–40 °C; inte för direkt livsmedelskontakt). Kablar (IP67), drivenhet och ventilationsslang är inte IP69K och måste skyddas. Kräver motorbroms och en säkerhetsfunktion med den nivå riskbedömningen ger — SMC:s lås får inte användas som säkerhetslås.`,
       en: `⚙️ Recommended architectural paths for slaughterhouse/IP69K:\n` +
-        `▸ ALT A – Stainless pneumatic cylinder: e.g. Parker P1S (stainless ISO round cylinder, fluororubber outer seals, H1 food-grade grease). Parker states no IP rating — check that it withstands your high-pressure washdown. Add a pneumatic rod lock for safe holding on pressure loss.\n` +
+        `▸ ALT A – Stainless pneumatic cylinder: e.g. Parker P1S (stainless ISO round cylinder, fluororubber outer seals, H1 food-grade grease). Check the IP rating and resistance to your high-pressure washdown with Parker. Add a pneumatic rod lock for safe holding on pressure loss.\n` +
         `▸ ALT B – Enclosed IP69K electric cylinder: e.g. SMC HF2A-LEY (IP69K enclosure, stainless 304 metal parts, food-grade grease, operating temperature 5–40 °C; not for direct food contact). Cables (IP67), driver and breathing tube are not IP69K and must be protected. Requires a motor brake and a safety function at the level the risk assessment sets — SMC states its lock must not be used as a safety lock.`,
       de: `⚙️ Empfohlene Architekturansätze für Schlachthof-/IP69K-Umgebung:\n` +
-        `▸ VARIANTE A – Pneumatischer Edelstahlzylinder: z. B. Parker P1S (Edelstahl-Rundzylinder nach ISO, äußere Dichtungen aus Fluorkautschuk, lebensmitteltaugliches H1-Fett). Parker nennt keine IP-Schutzart — prüfen, ob er Ihrer Hochdruckreinigung standhält. Ergänzen mit pneumatischer Kolbenstangenbremse (Rod Lock) für sicheres Halten bei Druckabfall.\n` +
+        `▸ VARIANTE A – Pneumatischer Edelstahlzylinder: z. B. Parker P1S (Edelstahl-Rundzylinder nach ISO, äußere Dichtungen aus Fluorkautschuk, lebensmitteltaugliches H1-Fett). IP-Schutzart und Beständigkeit gegen Ihre Hochdruckreinigung mit Parker klären. Ergänzen mit pneumatischer Kolbenstangenbremse (Rod Lock) für sicheres Halten bei Druckabfall.\n` +
         `▸ VARIANTE B – Gekapselter Elektrozylinder IP69K: z. B. SMC HF2A-LEY (Schutzart IP69K, Metallteile aus Edelstahl 304, lebensmitteltaugliches Fett, Betriebstemperatur 5–40 °C; nicht für direkten Lebensmittelkontakt). Kabel (IP67), Treiber und Belüftungsschlauch sind nicht IP69K und müssen geschützt werden. Erfordert eine Motorbremse und eine Sicherheitsfunktion auf dem Niveau, das die Risikobeurteilung ergibt — laut SMC darf die Verriegelung nicht als Sicherheitsverriegelung verwendet werden.`,
       es: `⚙️ Rutas de arquitectura recomendadas para entorno de matadero/IP69K:\n` +
-        `▸ OPCIÓN A – Cilindro neumático de acero inoxidable: p. ej. Parker P1S (cilindro redondo ISO de acero inoxidable, juntas exteriores de caucho fluorado, grasa alimentaria H1). Parker no indica grado IP — compruebe que resiste su lavado a alta presión. Añadir bloqueo de vástago neumático (rod lock) para sujeción segura ante caída de presión.\n` +
+        `▸ OPCIÓN A – Cilindro neumático de acero inoxidable: p. ej. Parker P1S (cilindro redondo ISO de acero inoxidable, juntas exteriores de caucho fluorado, grasa alimentaria H1). Confirme con Parker el grado IP y la resistencia a su lavado a alta presión. Añadir bloqueo de vástago neumático (rod lock) para sujeción segura ante caída de presión.\n` +
         `▸ OPCIÓN B – Cilindro eléctrico encapsulado IP69K: p. ej. SMC HF2A-LEY (envolvente IP69K, piezas metálicas de acero inoxidable 304, grasa alimentaria, temperatura de funcionamiento 5–40 °C; no apto para contacto directo con alimentos). Los cables (IP67), el driver y el tubo de respiración no son IP69K y deben protegerse. Requiere freno de motor y una función de seguridad del nivel que determine la evaluación de riesgos — según SMC, su bloqueo no debe usarse como bloqueo de seguridad.`,
     }));
   } else if (isWashdown && isFoodGrade) {
     whyLines.push(pick(locale, {
-      sv: `Livsmedel + spolning: rostfria cylindrar med livsmedelsgodkänt fett, t.ex. Parker P1S (rostfri ISO-rundcylinder, yttre tätningar i fluorgummi, H1-fett; Parker anger ingen IP-klass), eller som el-alternativ SMC HF2A-LEY (IP69K-kapsling, rostfritt 304, 5–40 °C; inte för direkt livsmedelskontakt). Kontrollera IP69K för vald variant och begär EHEDG-intyg om hygienisk konstruktion krävs.`,
-      en: `Food + washdown: stainless cylinders with food-grade grease, e.g. Parker P1S (stainless ISO round cylinder, fluororubber outer seals, H1 grease; Parker states no IP rating), or as an electric alternative SMC HF2A-LEY (IP69K enclosure, stainless 304, 5–40 °C; not for direct food contact). Check IP69K for the chosen variant and ask for EHEDG certification if hygienic design is required.`,
-      de: `Lebensmittel + Nassreinigung: Edelstahlzylinder mit lebensmitteltauglichem Fett, z. B. Parker P1S (Edelstahl-Rundzylinder nach ISO, äußere Dichtungen aus Fluorkautschuk, H1-Fett; Parker nennt keine IP-Schutzart), oder als elektrische Alternative SMC HF2A-LEY (Schutzart IP69K, Edelstahl 304, 5–40 °C; nicht für direkten Lebensmittelkontakt). IP69K für die gewählte Variante prüfen und eine EHEDG-Zertifizierung anfordern, wenn hygienisches Design gefordert ist.`,
-      es: `Alimentos + lavado: cilindros de acero inoxidable con grasa alimentaria, p. ej. Parker P1S (cilindro redondo ISO de acero inoxidable, juntas exteriores de caucho fluorado, grasa H1; Parker no indica grado IP), o como alternativa eléctrica SMC HF2A-LEY (envolvente IP69K, inoxidable 304, 5–40 °C; no apto para contacto directo con alimentos). Compruebe IP69K para la variante elegida y solicite certificación EHEDG si se exige diseño higiénico.`,
+      sv: `Livsmedel + spolning: rostfria cylindrar med livsmedelsgodkänt fett, t.ex. Parker P1S (rostfri ISO-rundcylinder, yttre tätningar i fluorgummi, H1-fett; IP-klassen kontrolleras med Parker), eller som el-alternativ SMC HF2A-LEY (IP69K-kapsling, rostfritt 304, 5–40 °C; inte för direkt livsmedelskontakt). Kontrollera IP69K för vald variant och begär EHEDG-intyg om hygienisk konstruktion krävs.`,
+      en: `Food + washdown: stainless cylinders with food-grade grease, e.g. Parker P1S (stainless ISO round cylinder, fluororubber outer seals, H1 grease; check the IP rating with Parker), or as an electric alternative SMC HF2A-LEY (IP69K enclosure, stainless 304, 5–40 °C; not for direct food contact). Check IP69K for the chosen variant and ask for EHEDG certification if hygienic design is required.`,
+      de: `Lebensmittel + Nassreinigung: Edelstahlzylinder mit lebensmitteltauglichem Fett, z. B. Parker P1S (Edelstahl-Rundzylinder nach ISO, äußere Dichtungen aus Fluorkautschuk, H1-Fett; IP-Schutzart mit Parker klären), oder als elektrische Alternative SMC HF2A-LEY (Schutzart IP69K, Edelstahl 304, 5–40 °C; nicht für direkten Lebensmittelkontakt). IP69K für die gewählte Variante prüfen und eine EHEDG-Zertifizierung anfordern, wenn hygienisches Design gefordert ist.`,
+      es: `Alimentos + lavado: cilindros de acero inoxidable con grasa alimentaria, p. ej. Parker P1S (cilindro redondo ISO de acero inoxidable, juntas exteriores de caucho fluorado, grasa H1; confirme el grado IP con Parker), o como alternativa eléctrica SMC HF2A-LEY (envolvente IP69K, inoxidable 304, 5–40 °C; no apto para contacto directo con alimentos). Compruebe IP69K para la variante elegida y solicite certificación EHEDG si se exige diseño higiénico.`,
     }));
   } else if (isWashdown && ctx.isSpolmiljo) {
     // Förut stod IP67-produkter under rubriken "IP69K-krav". Katalogens rostfria
@@ -100,28 +101,36 @@ export function buildCustomSolutionOption(
 
   if (isBatteryDryroom) {
     whyLines.push(pick(locale, {
-      sv: `⛔ Dryroom Cu/Zn/Ni-fritt: SMC 25-serien (Cu/Zn/Ni-fri, PFPE-smörjd). Begär materialdeklerationsintyg.`,
-      en: `⛔ Dryroom Cu/Zn/Ni-free: SMC 25-Series (Cu/Zn/Ni-free, PFPE-lubricated). Request material declaration.`,
-      de: `⛔ Trockenraum Cu/Zn/Ni-frei: SMC 25-Serie (Cu/Zn/Ni-frei, PFPE-geschmiert). Materialdeklaration anfordern.`,
-      es: `⛔ Sala seca sin Cu/Zn/Ni: serie SMC 25 (sin Cu/Zn/Ni, lubricado con PFPE). Solicitar certificado de declaración de materiales.`,
+      // SMC:s manualer (25A-JSY, knowledge_chunks): "restriction on the use of
+      // copper and zinc as main components", spår kan finnas, och serien
+      // rekommenderas för låg daggpunkt. Nickel och PFPE nämns inte (2026-10-11).
+      sv: `⛔ Torrum (batteritillverkning): koppar och zink får inte förekomma. SMC:s 25A-serie är gjord för det — koppar och zink används inte som huvudmaterial, och serien är avsedd för låg daggpunkt. Spår kan ändå finnas i aluminium och vissa rostfria stål, och nickelfrihet måste begäras särskilt. Begär materialdeklaration.`,
+      en: `⛔ Dry room (battery manufacturing): copper and zinc must not be present. SMC's 25A series is made for this — copper and zinc are not used as main materials, and the series is intended for low dew points. Traces can still occur in aluminium and some stainless steels, and nickel-free must be requested separately. Request a material declaration.`,
+      de: `⛔ Trockenraum (Batteriefertigung): Kupfer und Zink dürfen nicht vorkommen. Die SMC-Serie 25A ist dafür ausgelegt — Kupfer und Zink werden nicht als Hauptwerkstoffe verwendet, und die Serie ist für niedrige Taupunkte vorgesehen. Spuren können dennoch in Aluminium und einigen Edelstählen vorkommen, und Nickelfreiheit muss gesondert angefragt werden. Materialdeklaration anfordern.`,
+      es: `⛔ Sala seca (fabricación de baterías): no debe haber cobre ni zinc. La serie SMC 25A está pensada para ello — no utiliza cobre ni zinc como materiales principales y está prevista para puntos de rocío bajos. Aun así puede haber trazas en el aluminio y en algunos aceros inoxidables, y la ausencia de níquel debe solicitarse aparte. Solicite una declaración de materiales.`,
     }));
   }
 
   if (isHydraulic) {
     whyLines.push(pick(locale, {
-      sv: `Hydraulisk applikation (100-350 bar): Parker HMI/HYD-serien, Bosch Rexroth CDL1 eller SMC CH-serien. Utanför pneumatisk standardkatalog.`,
-      en: `Hydraulic application (100-350 bar): Parker HMI/HYD-series, Bosch Rexroth CDL1 or SMC CH-series. Outside pneumatic standard catalog.`,
-      de: `Hydraulische Anwendung (100–350 bar): Parker HMI/HYD-Serie, Bosch Rexroth CDL1 oder SMC CH-Serie. Außerhalb des pneumatischen Standardkatalogs.`,
-      es: `Aplicación hidráulica (100-350 bar): serie Parker HMI/HYD, Bosch Rexroth CDL1 o serie SMC CH. Fuera del catálogo neumático estándar.`,
+      sv: `Hydraulisk applikation: utanför vår pneumatiska standardkatalog. Exempel på hydraulcylindrar: Parker HMI (ISO 6020/2, upp till 210 bar), Bosch Rexroth CDL2 (160 bar) och SMC:s CH-serier (upp till 16 MPa, alltså 160 bar). Välj serie efter systemtrycket.`,
+      en: `Hydraulic application: outside our pneumatic standard catalogue. Examples of hydraulic cylinders: Parker HMI (ISO 6020/2, up to 210 bar), Bosch Rexroth CDL2 (160 bar) and SMC's CH series (up to 16 MPa, i.e. 160 bar). Choose the series by system pressure.`,
+      de: `Hydraulische Anwendung: außerhalb unseres pneumatischen Standardkatalogs. Beispiele für Hydraulikzylinder: Parker HMI (ISO 6020/2, bis 210 bar), Bosch Rexroth CDL2 (160 bar) und die SMC-CH-Serien (bis 16 MPa, also 160 bar). Die Serie nach dem Systemdruck wählen.`,
+      es: `Aplicación hidráulica: fuera de nuestro catálogo neumático estándar. Ejemplos de cilindros hidráulicos: Parker HMI (ISO 6020/2, hasta 210 bar), Bosch Rexroth CDL2 (160 bar) y las series CH de SMC (hasta 16 MPa, es decir 160 bar). Elija la serie según la presión del sistema.`,
     }));
   }
 
   if (isAtex) {
     whyLines.push(pick(locale, {
-      sv: `ATEX-zon: Alla komponenter måste vara NAMUR/IECEx-certifierade. Parker P1X ATEX, SMC CDQMB-ATEX eller Norgren Excelon ATEX-serien.`,
-      en: `ATEX zone: All components must be NAMUR/IECEx-certified. Parker P1X ATEX, SMC CDQMB-ATEX or Norgren Excelon ATEX-series.`,
-      de: `ATEX-Zone: Alle Komponenten müssen NAMUR/IECEx-zertifiziert sein. Parker P1X ATEX, SMC CDQMB-ATEX oder Norgren Excelon ATEX-Serie.`,
-      es: `Zona ATEX: Todos los componentes deben estar certificados NAMUR/IECEx. Parker P1X ATEX, SMC CDQMB-ATEX o serie Norgren Excelon ATEX.`,
+      // Kategorierna enligt 2014/34/EU. Exemplen ur databladen i
+      // knowledge_chunks: Festo DSBF, DSBG och DRVS (II 2G/2D) och Rexroths
+      // ISO 15552-cylindrar ("ATEX optional", II 2G2D). Förut stod här
+      // "NAMUR/IECEx-certifierade" (NAMUR är ett gränssnitt, ingen certifiering)
+      // och "Parker P1X ATEX" och "SMC CDQMB-ATEX", som inte gick att belägga.
+      sv: `ATEX-zon: varje komponent måste vara ATEX-godkänd för zonen — kategori 2 (II 2G/2D) för zon 1 och 21; i zon 2 och 22 räcker kategori 3. Exempel med ATEX-utförande: Festo DSBF och DSBG (II 2G/2D), Festo DRVS-vridenheter (II 2G/2D) och Bosch Rexroths ISO 15552-cylindrar (tillval, II 2G/2D). Ventiler, spolar och givare måste också vara ATEX-märkta.`,
+      en: `ATEX zone: every component must be ATEX-approved for the zone — category 2 (II 2G/2D) for zones 1 and 21; category 3 is enough in zones 2 and 22. Examples with an ATEX version: Festo DSBF and DSBG (II 2G/2D), Festo DRVS rotary actuators (II 2G/2D) and Bosch Rexroth ISO 15552 cylinders (option, II 2G/2D). Valves, coils and sensors must be ATEX-marked too.`,
+      de: `ATEX-Zone: jede Komponente muss für die Zone ATEX-zugelassen sein — Kategorie 2 (II 2G/2D) für Zone 1 und 21; in Zone 2 und 22 genügt Kategorie 3. Beispiele mit ATEX-Ausführung: Festo DSBF und DSBG (II 2G/2D), Festo-Schwenkantriebe DRVS (II 2G/2D) und Bosch Rexroth ISO-15552-Zylinder (Option, II 2G/2D). Ventile, Spulen und Sensoren müssen ebenfalls ATEX-gekennzeichnet sein.`,
+      es: `Zona ATEX: cada componente debe estar homologado ATEX para la zona — categoría 2 (II 2G/2D) para las zonas 1 y 21; en las zonas 2 y 22 basta la categoría 3. Ejemplos con versión ATEX: Festo DSBF y DSBG (II 2G/2D), actuadores giratorios Festo DRVS (II 2G/2D) y cilindros ISO 15552 de Bosch Rexroth (opcional, II 2G/2D). Las válvulas, bobinas y sensores también deben llevar marcado ATEX.`,
     }));
   }
 
@@ -1226,10 +1235,10 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
       kind: "warning",
       role: pick(locale, { sv: "⛔ Dryroom-krav: Cu/Zn/Ni-fritt", en: "⛔ Dryroom requirement: Cu/Zn/Ni-free", de: "⛔ Trockenraum-Anforderung: Cu/Zn/Ni-frei", es: "⛔ Requisito de sala seca: sin Cu/Zn/Ni" }),
       reason: pick(locale, {
-        sv: "OBLIGATORISKT för torrumsmiljö (batteritillverkning): koppar (Cu), zink (Zn) och nickel (Ni) förbjudet i alla vätta/rörliga delar. Standardkulskruvar, zinkbelagda styrningar och de flesta fetter är EJ tillåtna. Begär materialdeklarationsintyg — SMC 25-serien (Cu/Zn/Ni-fri, PFPE-smörjd) är ett känt alternativ.",
-        en: "MANDATORY for dryroom environments (battery manufacturing): copper (Cu), zinc (Zn) and nickel (Ni) are forbidden in any wetted or moving part. Standard ball screws, zinc-coated guides and most greases are NOT allowed. Request a material declaration — SMC 25-Series (Cu/Zn/Ni-free, PFPE-lubricated) is a known option.",
-        de: "ZWINGEND ERFORDERLICH für Trockenraumumgebungen (Batteriefertigung): Kupfer (Cu), Zink (Zn) und Nickel (Ni) sind in allen benetzten/beweglichen Teilen verboten. Standard-Kugelumlaufspindeln, zinkbeschichtete Führungen und die meisten Fette sind NICHT zulässig. Materialdeklaration anfordern — SMC 25-Serie (Cu/Zn/Ni-frei, PFPE-geschmiert) ist eine bekannte Option.",
-        es: "OBLIGATORIO para entornos de sala seca (fabricación de baterías): el cobre (Cu), el zinc (Zn) y el níquel (Ni) están prohibidos en cualquier pieza húmeda o móvil. Los husillos de bolas estándar, las guías con recubrimiento de zinc y la mayoría de las grasas NO están permitidos. Solicite una declaración de materiales — la serie SMC 25 (sin Cu/Zn/Ni, lubricada con PFPE) es una opción conocida.",
+        sv: "OBLIGATORISKT för torrumsmiljö (batteritillverkning): koppar (Cu), zink (Zn) och nickel (Ni) förbjudet i alla vätta/rörliga delar. Standardkulskruvar, zinkbelagda styrningar och de flesta fetter är EJ tillåtna. Begär materialdeklaration — SMC:s 25A-serie använder inte koppar och zink som huvudmaterial (nickelfrihet måste begäras särskilt).",
+        en: "MANDATORY for dryroom environments (battery manufacturing): copper (Cu), zinc (Zn) and nickel (Ni) are forbidden in any wetted or moving part. Standard ball screws, zinc-coated guides and most greases are NOT allowed. Request a material declaration — SMC's 25A series does not use copper and zinc as main materials (nickel-free must be requested separately).",
+        de: "ZWINGEND ERFORDERLICH für Trockenraumumgebungen (Batteriefertigung): Kupfer (Cu), Zink (Zn) und Nickel (Ni) sind in allen benetzten/beweglichen Teilen verboten. Standard-Kugelumlaufspindeln, zinkbeschichtete Führungen und die meisten Fette sind NICHT zulässig. Materialdeklaration anfordern — die SMC-Serie 25A verwendet Kupfer und Zink nicht als Hauptwerkstoffe (Nickelfreiheit gesondert anfragen).",
+        es: "OBLIGATORIO para entornos de sala seca (fabricación de baterías): el cobre (Cu), el zinc (Zn) y el níquel (Ni) están prohibidos en cualquier pieza húmeda o móvil. Los husillos de bolas estándar, las guías con recubrimiento de zinc y la mayoría de las grasas NO están permitidos. Solicite una declaración de materiales — la serie SMC 25A no utiliza cobre ni zinc como materiales principales (la ausencia de níquel debe solicitarse aparte).",
       }),
     });
   }

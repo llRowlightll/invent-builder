@@ -76,8 +76,10 @@ Deno.test("lyft med PLC: inga SIL-frågor, ingen riktningsfråga, rätt ord för
   assert(!/fjärrapplicerad|kolvblock/i.test(hallning.label + hallning.options!.join(" ")));
   assert(/fjäderbelastat kolvstångslås/.test(hallning.options![0]));
   // ... och ersätts sedan av bankens, vars svar detektorerna läser rätt.
+  // Vridskyddet likaså (2026-10-11), och fältbussen frågas inte för en enda
+  // cylinder: den avgör bara valet av ventilterminal.
   const slut = slutligaFragor(modellen, LYFT, "sv");
-  assertEquals(ids(slut), ["greppsatt", "lasthallning", "guiding_anti_rotation", "fieldbus_type"]);
+  assertEquals(ids(slut), ["greppsatt", "lasthallning", "vridskydd", "takt"]);
 });
 
 Deno.test("lucka på elskåp: takten är sagd, vikten frågas först", () => {
@@ -115,7 +117,9 @@ Deno.test("pick and place på bageri: greppet frågas, livsmedelsfrågan en gån
     { id: "surface_finish_ehedg", label: "Behöver du en ytfinish med Ra ≤ 0.8 µm för EHEDG?", type: "choice", options: ["Ja", "Nej"] },
   ];
   const slut = slutligaFragor(modellen, BAGERI, "sv");
-  assertEquals(ids(slut), ["greppsatt", "guiding_anti_rotation", "control_system_fieldbus", "ambient_temperature", "livsmedelskontakt"]);
+  // Fältbussen avgör ventilterminalen i ett plock-och-placera och frågas med
+  // bankens alternativ, som har med vanliga I/O (2026-10-11).
+  assertEquals(ids(slut), ["greppsatt", "vridskydd", "ventil_inkoppling", "ambient_temperature", "livsmedelskontakt"]);
 });
 
 Deno.test("luftberedning: modellens smörj- och filterfrågor byts mot bankens", () => {
@@ -133,10 +137,11 @@ Deno.test("elaxel: ingen fråga om ändlägesgivare", () => {
   assert(!ids(slutligaFragor([], t, "sv")).includes("andlagesavkanning"));
 });
 
-Deno.test("reservfrågor utan modellen: alltid minst fyra relevanta, högst sex", () => {
+Deno.test("reservfrågor utan modellen: minst tre relevanta, högst sex", () => {
+  // "Givare till cylinder." ger tre: vad givaren ska känna av är redan sagt.
   for (const t of [LYFT, LUFT, LUCKA, BAT, BAGERI, "Behöver fem magnetventiler.", "Givare till cylinder.", "Slang och kopplingar."]) {
     const qs = slutligaFragor([], t, "sv");
-    assert(qs.length >= 4 && qs.length <= 6, `${t}: ${qs.length}`);
+    assert(qs.length >= 3 && qs.length <= 6, `${t}: ${qs.length}`);
     assertEquals(new Set(ids(qs)).size, qs.length);
   }
 });
@@ -161,3 +166,129 @@ Deno.test("svarsalternativen läses rätt av detektorerna i nästa steg", () => 
     }
   }
 });
+
+// ── Granskningen 2026-10-11 ──────────────────────────────────────────────────
+// En ingenjör tyckte att följdfrågorna var "lite knas". Femton vanliga
+// förfrågningar kördes mot drift; beskrivningarna och modellens frågor nedan
+// är därifrån.
+
+Deno.test("vridning: vinkel och vridmoment, ingen slaglängd, kraft i N eller riktning", () => {
+  const t = "Vrida en detalj 90 grader mellan två stationer";
+  assertEquals(forfragningstyp(t), "vridning");
+  const modellen: Fraga[] = [
+    { id: "stroke_length", label: "Vilken slaglängd (i mm) krävs?", type: "number" },
+    { id: "required_force", label: "Vilken kraft (N) behöver cylindern kunna hantera för att vrida detaljen?", type: "number" },
+    { id: "mounting_orientation", label: "Hur rör sig lasten?", type: "choice", options: ["Horisontell", "Vertikal"] },
+    { id: "holding_method", label: "Hur ska detaljen hållas fast under vridningen?", type: "choice", options: ["Klämma", "Magnet", "Vakuum", "Annat"] },
+  ];
+  const slut = slutligaFragor(modellen, t, "sv");
+  const a = amnen(slut);
+  assert(ids(slut).includes("vridmoment_nm") && ids(slut).includes("last_kg") && ids(slut).includes("havarm_mm"), ids(slut).join());
+  assert(!a.includes("slag") && !a.includes("kraft") && !a.includes("riktning"), a.join());
+  // 90 grader är sagt.
+  assert(!ids(slut).includes("vridvinkel"));
+  assert(ids(slutligaFragor([], "Vrida en detalj mellan två stationer", "sv")).includes("vridvinkel"));
+  // Anti-rotation är vridskydd på en linjär cylinder, ingen vridning.
+  assertEquals(forfragningstyp("Cylinder med anti-rotation som skjuter ut lådor"), "rorelse");
+});
+
+Deno.test("utbyte med orderkod: koden säger storleken, bara givare och miljö frågas", () => {
+  const t = "Byta ut en trasig cylinder DSBC-50-200-PPVA-N3";
+  const kod = { slagMm: 200, borrningMm: 50 };
+  const modellen: Fraga[] = [
+    { id: "stroke", label: "Vilken slaglängd behövs?", type: "number" },
+    { id: "load", label: "Hur mycket väger lasten?", type: "number" },
+  ];
+  assertEquals(ids(slutligaFragor(modellen, t, "sv", kod)), ["andlagesavkanning", "miljo"]);
+  // Utan upplöst kod är det en vanlig förfrågan.
+  assert(ids(slutligaFragor([], t, "sv")).includes("slaglangd_mm"));
+});
+
+Deno.test("dubbletter: låsa luckan är en slaglängd, signaltyp och ventiltyp har ämnen", () => {
+  const lucka = "Öppna och stänga en lucka på en siloutlastning utomhus";
+  const m1: Fraga[] = [{ id: "stroke_length", label: "Vilken slaglängd (i mm) krävs för att öppna/låsa luckan?", type: "number" }];
+  const s1 = slutligaFragor(m1, lucka, "sv");
+  assertEquals(amnen(s1).filter((a) => a === "slag").length, 1);
+  // Silo utomhus: kyla och brännbart damm frågas, och vikten gäller luckan.
+  assert(ids(s1).includes("temperatur_lagsta") && ids(s1).includes("atex_damm"), ids(s1).join());
+  assert(/luckan/.test(s1.find((q) => q.id === "last_kg")!.label));
+
+  const terminal = "Jag behöver en ventilterminal till 8 cylindrar med PROFINET";
+  const m2: Fraga[] = [{ id: "valve_type", label: "Vilken typ av ventiler ska terminalen hantera?", type: "choice", options: ["5/2", "5/3", "3/2"] }];
+  const s2 = slutligaFragor(m2, terminal, "sv");
+  assertEquals(amnen(s2).filter((a) => a === "ventilfunktion").length, 1);
+  // PROFINET betyder 24 V DC, och 8 cylindrar är antalet.
+  assert(!ids(s2).includes("ventil_spanning") && !ids(s2).includes("ventil_antal"), ids(s2).join());
+  assertEquals(s2[0].label, "Vad ska ventilerna styra?");
+
+  const givare = "Givare till Festo DSBC-cylindrar, behöver 10 st";
+  const m3: Fraga[] = [
+    { id: "signal_type", label: "Vilken signaltyp vill du ha?", type: "choice", options: ["PNP", "NPN", "IO-Link"] },
+    { id: "connection_type", label: "Vilken anslutning föredrar du?", type: "choice", options: ["M8", "M12", "Kabel"] },
+  ];
+  assertEquals(ids(slutligaFragor(m3, givare, "sv")), ["givare_signal", "givare_inkoppling"]);
+});
+
+Deno.test("modellens knasiga frågor stryks eller byts mot bankens", () => {
+  // "Pneumatisk, elektrisk eller hydraulisk?" för 12 kg plåt.
+  const plat = "Lyfta upp plåtdetaljer 150 mm från en fixtur, ca 12 kg";
+  const typ: Fraga = { id: "actuator_type", label: "Vilken typ av aktuator vill du använda?", type: "choice", options: ["Pneumatisk", "Elektrisk", "Hydraulisk"] };
+  assertEquals(rensaFragor([typ], plat, "sv"), []);
+
+  // Anti-rotation med svaret "fjädrande stöd" och fältbussar utan vanliga I/O.
+  const burkar = "Plocka burkar från ett band och ställa dem i en låda, 0,5 kg per burk, ca 30 per minut";
+  const m: Fraga[] = [
+    { id: "anti_rotation", label: "Behöver aktuatorn ha anti-rotation eller guidning?", type: "choice", options: ["Ja, med fjädrande stöd", "Nej, ingen rotation"] },
+    { id: "control_system", label: "Vilken typ av styrsystem eller fältbus vill du använda?", type: "choice", options: ["PLC med Modbus", "PLC med Profibus", "PLC med Ethernet/IP", "PLC med Profinet"] },
+  ];
+  const s = slutligaFragor(m, burkar, "sv");
+  assert(ids(s).includes("vridskydd") && ids(s).includes("ventil_inkoppling"), ids(s).join());
+  assert(!s.some((q) => (q.options ?? []).some((o) => /fjädrande/.test(o))));
+  // Plock och placera: två slaglängder, ingen riktningsfråga.
+  assert(ids(s).includes("slag_x_sidled_mm") && ids(s).includes("slag_z_hojd_mm"), ids(s).join());
+  assert(!ids(s).includes("rorelseriktning"));
+
+  // Stoppcylinder: "Krävda kraften (N)" och "Kontrolltyp".
+  const stopp = "Stoppa paket på ett transportband med en stoppcylinder";
+  const m4: Fraga[] = [
+    { id: "required_force", label: "Krävda kraften (N)", type: "number" },
+    { id: "control_type", label: "Kontrolltyp", type: "choice", options: ["Elektrisk styrning", "Pneumatisk styrning", "Manuell"] },
+  ];
+  const s4 = slutligaFragor(m4, stopp, "sv");
+  assert(!ids(s4).includes("required_force") && !ids(s4).includes("control_type"), ids(s4).join());
+  assert(!ids(s4).includes("rorelseriktning") && !ids(s4).includes("precision"), ids(s4).join());
+  assert(/tyngsta paketet/.test(s4.find((q) => q.id === "last_kg")!.label));
+
+  // Spänndon: "Vilken styrgränssnitt föredrar du?" och "Hur rör sig lasten?".
+  const fixtur = "Spänna fast en detalj i en svetsfixtur med 4 spännpunkter";
+  const m5: Fraga[] = [{ id: "control_interface", label: "Vilken styrgränssnitt föredrar du?", type: "choice", options: ["Manuell (tangenter eller fjärrkontroll)", "PLC (digitala I/O)", "Fältbus (t.ex. EtherCAT, Profinet)"] }];
+  const s5 = slutligaFragor(m5, fixtur, "sv");
+  // Frågan nämner fältbussar, och till ett spänndon utan ventilterminal stryks den.
+  assert(!ids(s5).includes("control_interface"), ids(s5).join());
+  assert(!ids(s5).includes("rorelseriktning"));
+  assert(/spännpunkt/.test(s5.find((q) => q.id === "kraft_n")!.label));
+});
+
+Deno.test("skjuta av från ett band är en sidledsrörelse; syltmaskinen får livsmedel och kraft", () => {
+  assert(kandaVarden("Skjuta av kartonger från ett transportband till en sidobana, kartongerna väger ca 8 kg").riktning);
+  const sylt = slutligaFragor([], "Doseringsmaskin för sylt, cylinder som trycker ut produkt, daglig tvätt", "sv");
+  assert(ids(sylt).includes("livsmedelskontakt") && ids(sylt).includes("kraft_n"), ids(sylt).join());
+  assert(!ids(sylt).includes("last_kg"));
+});
+
+Deno.test("elaxel med lägen: inga ändlägesgivare, inget 'bara i ändlägena', riktningen frågas", () => {
+  const t = "Elaxel som ska flytta en kamera mellan 5 positioner längs 600 mm";
+  const m: Fraga[] = [{ id: "end_position_sensing", label: "Behöver du sensorer för att känna av slutpositionerna?", type: "choice", options: ["Ja, med enkla slutstopp", "Nej, utan sensorer"] }];
+  const s = slutligaFragor(m, t, "sv");
+  assert(!ids(s).includes("end_position_sensing") && !ids(s).includes("andlagesavkanning"), ids(s).join());
+  assert(ids(s).includes("rorelseriktning"), ids(s).join());
+  const precision = reservfragor(t, "sv").find((q) => q.id === "precision")!;
+  assert(!precision.options!.some((o) => /ändläge/.test(o)));
+});
+
+Deno.test("vakuumlyft: lasthållningen gäller vakuumet, inte bara stångbromsen", () => {
+  const q = reservfragor("Vakuumlyft för att lyfta glasskivor 20 kg", "sv").find((x) => x.id === "lasthallning")!;
+  assert(/backventil/.test(q.hint!));
+  assert(needsRodLock(q.options![0]));
+});
+
