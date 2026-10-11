@@ -17,6 +17,7 @@ import {
   extractPrecisionMm, extractExplicitBoreMm, calcMinBoreMm, extractTorqueNm,
   extractRotationDeg, extractCycleTimeS, computeDynamics, detectConflicts,
   extractUnitCount, detectEndEffectorIntent, endEffectorExplicitlyAsked, parseRotationFromSpecs,
+  extractStatedForceN, uppskattatVridmomentNm, detectCategories,
 } from "./signals.ts";
 
 // ── Explicit force statements must not round-trip through extractLoadKg ────────
@@ -41,10 +42,12 @@ Deno.test("extractGripForceN returns 0 (no false match) when no grip-force keywo
   assertEquals(extractGripForceN("Lyfter en detalj som väger 500N", {}), 0);
 });
 
-Deno.test("a stated grip force and extractLoadKg's generic N-fallback disagree on the same text (documents the bug this fix routes around)", () => {
+Deno.test("a stated grip force is not also read as a weight by extractLoadKg", () => {
   const text = "Pneumatisk parallellgripare, greppkraft ca 100N";
   assertEquals(extractGripForceN(text, {}), 100); // the correct, direct reading
-  assertEquals(Math.round(extractLoadKg(text, {}) * 100), 1019); // the wrong reinterpretation the caller must NOT use here
+  // Until 2026-10-11 extractLoadKg's generic N-fallback still turned this into
+  // a 10.19 kg "weight" that callers had to route around. It now returns 0.
+  assertEquals(extractLoadKg(text, {}), 0);
 });
 
 Deno.test("extractHoldingForceN reads an explicit Swedish holding-force statement directly", () => {
@@ -78,9 +81,9 @@ Deno.test("extractGripForceN via an answer key does NOT leak into extractLoadKg'
   const text = "Parallellgripdon för metalldetalj";
   const answers = { greppkraft: "150N" };
   assertEquals(extractGripForceN(text, answers), 150);
-  // Before the fix this was 15.29 (150/9.81) -- a fabricated "weight" derived
-  // from a force the customer already stated directly.
-  assertEquals(Math.round(extractLoadKg(text, answers)), 15);
+  // Was 15.29 (150/9.81) -- a fabricated "weight" derived from a force the
+  // customer already stated directly. 0 since 2026-10-11.
+  assertEquals(extractLoadKg(text, answers), 0);
 });
 
 Deno.test("extractHoldingForceN reads a holding force stated via the answer KEY, not just inline in the value", () => {
@@ -734,3 +737,61 @@ Deno.test("spolmiljö: frätande vätskor är korrosion, inte spolning", () => {
   assertEquals(needsSpolmiljo("högtrycksspolas varje skift"), true);
   assertEquals(needsSpolmiljo("slakteri"), true);
 });
+
+// ── Maskinbyggarens svar, som de faktiskt skickas (2026-10-11) ──────────────
+// Sifferfälten skickar talet utan enhet: {last_kg: "12"}. Vikten, presskraften
+// och vridmomentet kunden svarat lästes aldrig -- bara slaglängden, vars
+// nyckel extractMinStroke redan läste. Testerna nedan har svarens riktiga form.
+Deno.test("svaren ur sifferfälten läses: vikt, kraft och vridmoment utan enhet", () => {
+  assertEquals(extractLoadKg("Lyfta upp plåtdetaljer från en fixtur", { slaglangd_mm: "150", last_kg: "12" }), 12);
+  assertEquals(detectHazards("Lyfta upp plåtdetaljer från en fixtur", { last_kg: "12" }, "sv").minBoreMm > 0, true);
+  assertEquals(extractStatedForceN("Pressa in en bussning", { kraft_n: "3000" }), 3000);
+  assertEquals(extractTorqueNm("Vrida en detalj 90 grader", { vridmoment_nm: "5" }), 5);
+  assertEquals(extractLoadKg("Lyfta en låda", { last_kg: "Vet inte" }), 0);
+});
+
+Deno.test("en angiven presskraft är ett kraftkrav, ingen vikt", () => {
+  assertEquals(extractStatedForceN("Pressa in en bussning i ett hus, behöver 3 kN", {}), 3000);
+  // Var 0: "3 kN" lästes inte alls, och borrningen blev 0.
+  assertEquals(detectHazards("Pressa in en bussning i ett hus, behöver 3 kN", {}, "sv").minBoreMm, 93);
+  // Var 306 kg, dubblat till Ø131.
+  const h = detectHazards("Pressa med 3000 N", {}, "sv");
+  assertEquals(h.loadKg, 0);
+  assertEquals(h.minBoreMm, 93);
+  // Men newton som vikt får fortfarande säkerhetsfaktorn.
+  assertEquals(Math.round(extractLoadKg("Trycker upp en last på 500 N", {})), 51);
+});
+
+Deno.test("vridmomentet uppskattas ur vikt och hävarm när kunden inte vet det", () => {
+  assertEquals(uppskattatVridmomentNm(2, { havarm_mm: "100" }), 3.9);
+  const h = detectHazards("Vrida en detalj 90 grader", { vridmoment_nm: "Vet inte", last_kg: "2", havarm_mm: "100" }, "sv");
+  assertEquals(h.torqueNm, 3.9);
+  assertEquals(h.torqueUppskattat, true);
+  assertEquals(detectHazards("Vrida en detalj, 5 Nm", {}, "sv").torqueUppskattat, false);
+  // Hävarmen får inte läsas som en slaglängd: då väljs ingen vridenhet.
+  assertEquals(extractMinStroke({ havarm_mm: "100" }, "Vrida en detalj 90 grader"), 0);
+});
+
+Deno.test("sylt, daglig tvätt och plocka-och-ställa känns igen", () => {
+  const t = "Doseringsmaskin för sylt, cylinder som trycker ut produkt, daglig tvätt";
+  assert(needsFoodGrade(t));
+  assert(needsSpolmiljo(t));
+  assert(needsWashdown(t));
+  assert(needsMultiAxis("Plocka burkar från ett band och ställa dem i en låda, 0,5 kg per burk"));
+  assert(!needsFoodGrade("Lyfta glasskivor på 20 kg"));
+  assert(!needsSpolmiljo("Biltvätt med borstar"));
+});
+
+Deno.test("vinklar och kyla i svarsalternativens form", () => {
+  assertEquals(extractRotationDeg("90°", {}), 90);
+  assert(needsLowTemp("Lucka utomhus Ner till -20 °C"));
+  assert(!needsLowTemp("Inte under 0 °C"));
+  assert(needsAtexDust("Ja, brännbart damm (zon 21 eller 22)"));
+  assert(!needsAtex("Ja, brännbart damm (zon 21 eller 22)"));
+  assert(!needsAtexDust("Nej Dammigt eller smutsigt"));
+  // Vridskyddsfrågans svar: "styrning" ger styrd cylinder, men inga vridenheter.
+  assert(needsGuidance("Ja, den behöver styrning"));
+  assert(!needsGuidance("Nej, det behövs inte"));
+  assert(!detectCategories("Lyfta kartonger 300 mm Ja, den behöver styrning").includes("rotary-actuator"));
+});
+

@@ -42,7 +42,6 @@ import {
   needsEndPositionDetection,
   isNonArticulatingActuator,
   needsMounting,
-  extractTorqueNm,
   extractRotationDeg,
   parseTorqueFromSpecs,
   parseRotationFromSpecs,
@@ -57,8 +56,8 @@ import {
   extractRequiredMinTemp,
 } from "./signals.ts";
 import {
-  arElektrisk, arElektronikhantering, arKorrosiv, arSakerhetskrav, arSpolmiljo,
-  forfragningstyp, kandaVarden, reservsammanfattning, slutligaFragor, type Fraga,
+  arElektrisk, arElektronikhantering, arKorrosiv, arSakerhetskrav, arSpolmiljo, arUtbyte,
+  forfragningstyp, kandaVarden, reservsammanfattning, slutligaFragor, type Fraga, type Kodvarden,
 } from "./fragor.ts";
 import {
   buildCustomSolutionOption,
@@ -547,13 +546,13 @@ async function fetchEndEffectorProducts(slug: string, limit: number): Promise<Ca
 // modellen inte svarar. Provkörningen mot drift fick 503 (Groq-kvot) redan
 // på det fjärde anropet; kunden ska få relevanta frågor ändå. Händelsen
 // loggas fortfarande som misslyckad, med orsaken, så att kvoten syns.
-function questionsFailed(description: string, locale: string, t0: number, reason: string, rateLimited = false): Response {
-  const questions = slutligaFragor([], description, locale);
+function questionsFailed(description: string, locale: string, t0: number, reason: string, rateLimited = false, kod?: Kodvarden): Response {
+  const questions = slutligaFragor([], description, locale, kod);
   logAdvisorEvent("questions", {
     locale, question_count: questions.length, duration_ms: Date.now() - t0,
     ...(rateLimited ? { rate_limited: true } : {}),
   }, false, `${reason} (reservfrågor)`);
-  return Response.json({ summary: reservsammanfattning(description, locale), questions, fallback: true }, { headers: CORS });
+  return Response.json({ summary: reservsammanfattning(description, locale, kod), questions, fallback: true }, { headers: CORS });
 }
 
 async function handleQuestions(description: string, locale: string): Promise<Response> {
@@ -580,7 +579,18 @@ async function handleQuestions(description: string, locale: string): Promise<Res
   // räknades som säkerhetskrav (SIL/PL-frågor), "rostfri" som livsmedel
   // (FDA/EHEDG/NSF-H1) och "elektronikskåp" som kretskortshantering (ESD).
   const typ = forfragningstyp(description);
-  const kanda = kandaVarden(description);
+  // Orderkoder i förfrågan slås upp i katalogen och låses som EXAKTA mått.
+  // Utan det tolkade modellen dem fritt: DSBC-50-100 lästes som ett tak och
+  // besvarades med en Ø32, och N3/PPSA fick påhittade betydelser. Måtten i
+  // koden räknas också som redan angivna: "Byta ut en trasig cylinder
+  // DSBC-50-200-PPVA-N3" fick frågan om slaglängd (2026-10-11).
+  const qReading = readOrderCodes(description, await fetchFamilyBriefs());
+  const kod: Kodvarden = {
+    slagMm: qReading.resolved.find((r) => r.strokeMm)?.strokeMm ?? null,
+    borrningMm: qReading.resolved.find((r) => r.boreMm)?.boreMm ?? null,
+  };
+  const utbyte = arUtbyte(description, kod);
+  const kanda = kandaVarden(description, kod);
   const isSafety = arSakerhetskrav(description);
   const isElectric = arElektrisk(description);
   const isSpol = arSpolmiljo(description);
@@ -595,7 +605,8 @@ async function handleQuestions(description: string, locale: string): Promise<Res
     kanda.borrning && "bore", kanda.tryck && "pressure", kanda.flode && "air flow", kanda.temperatur && "temperature",
     kanda.riktning && "direction of motion (vertical/horizontal)", kanda.styrning && "how it is controlled (PLC etc.)",
     kanda.faltbuss && "fieldbus", kanda.spanning && "voltage", kanda.anslutning && "connection/tube size",
-    kanda.miljo && "environment",
+    kanda.miljo && "environment", kanda.vinkel && "rotation angle", kanda.vridmoment && "torque",
+    kanda.fabrikat && "brand",
   ].filter(Boolean);
   const typregel: Record<string, string> = {
     luftberedning: `- REQUEST TYPE: AIR PREPARATION (filter, regulator, lubricator). Ask ONLY about air preparation: connection size, required air flow, set pressure, filtration grade, lubrication, automatic condensate drain, lockable shut-off/soft-start valve. Do NOT ask about cylinders, stroke, mounting orientation, guiding, positions or motion.`,
@@ -603,10 +614,15 @@ async function handleQuestions(description: string, locale: string): Promise<Res
     givare: `- REQUEST TYPE: SENSORS. Ask what the sensor detects, the signal type (PNP/NPN/IO-Link), the connection (M8/M12/cable) and the cylinder or brand it is fitted to. Do NOT ask about stroke, load or motion.`,
     slang: `- REQUEST TYPE: TUBING AND FITTINGS. Ask about tube size, tube material, fitting threads and quantity. Do NOT ask about stroke, load or motion.`,
     rorelse: `- REQUEST TYPE: A MOTION (actuator). Ask what is genuinely open for choosing the actuator and what goes with it: travel, load or force, direction of motion, how often it moves, how the object is held (only if it is picked or gripped), end-position sensing, how it is started/controlled, environment.`,
+    vridning: `- REQUEST TYPE: A ROTATION (rotary actuator, swivel unit, indexing). Ask about the rotation angle (if not stated), the torque in Nm — or the weight being rotated and the distance from the axis to its centre of gravity, since most customers don't know the torque —, end-position sensing, how it is controlled, environment. NEVER ask for a stroke in mm, a force in N, or whether the load moves horizontally or vertically.`,
   };
 
   const contextRules = [
-    typregel[typ],
+    utbyte
+      ? `- REPLACEMENT OF AN IDENTIFIED PART: the order code already fixes bore and stroke, and the size was chosen when the machine was built. Do NOT ask for stroke, bore, load, force, direction or cycle rate. Ask at most whether end-position sensors are needed and about the environment.`
+      : typregel[typ],
+    `- NEVER ask the customer to choose between pneumatic, electric or hydraulic. Choosing the technology is your job.`,
+    `- Write natural, grammatical ${lang}. Every label is a complete question a person would ask ("Hur ska rörelsen startas?"), never a bare noun or a literal translation ("Kontrolltyp", "Krävda kraften").`,
     redanSagt.length ? `- ALREADY STATED in the description — never ask about these again: ${redanSagt.join(", ")}.` : "",
     isMulti ? `- MULTI-AXIS SYSTEM DETECTED. Ask about EACH axis separately (stroke X, stroke Z/lift) unless already stated. Make clear in summary that multiple axes are needed.` : "",
     isVac && isGrip ? `- DELICATE ITEM TO GRIP (glass/sensitive surface). Ask how it should be held: suction cups or a gripper.` : "",
@@ -666,10 +682,6 @@ async function handleQuestions(description: string, locale: string): Promise<Res
     })}" (that just repeats the term). A hint with no real explanation is a failed question, not an optional field.`,
   ].filter(Boolean).join("\n");
 
-  // Orderkoder i förfrågan slås upp i katalogen och låses som EXAKTA mått.
-  // Utan det tolkade modellen dem fritt: DSBC-50-100 lästes som ett tak och
-  // besvarades med en Ø32, och N3/PPSA fick påhittade betydelser.
-  const qReading = readOrderCodes(description, await fetchFamilyBriefs());
   const codeNote = orderCodeInstruction(
     qReading, locale,
     await fetchFamilyFacts(qReading.resolved.map((r) => r.familySlug)),
@@ -702,7 +714,7 @@ async function handleQuestions(description: string, locale: string): Promise<Res
       // Regeln kan ha gjort ett latent problem vanligare; budgeten är hur som
       // helst mekanismen.
     ], 2200, true, 0.2, LLM_MODEL_FAST);
-    if (!raw) return questionsFailed(description, locale, t0, "empty_llm_response");
+    if (!raw) return questionsFailed(description, locale, t0, "empty_llm_response", false, kod);
     try {
       const parsed = JSON.parse(raw);
       // Deduplicate by id first, then by label prefix
@@ -718,16 +730,16 @@ async function handleQuestions(description: string, locale: string): Promise<Res
       // Rensning efter samma regler som prompten (fragor.ts): inget som redan
       // är sagt, inget som inte hör till förfrågan, avgörande frågor först och
       // högst sex (T19).
-      parsed.questions = slutligaFragor(parsed.questions as Fraga[], description, locale);
+      parsed.questions = slutligaFragor(parsed.questions as Fraga[], description, locale, kod);
       parsed.summary = String(parsed.summary ?? "").replace(/^\s*(sammanfattning|summary|zusammenfassung|resumen)\s*:\s*/i, "");
       // A valid JSON body carrying zero questions is still a failed step for the
       // customer -- there is no branch where none is the right answer, and the
       // UI has nothing to render.
-      if (parsed.questions.length === 0) return questionsFailed(description, locale, t0, "zero_questions");
+      if (parsed.questions.length === 0) return questionsFailed(description, locale, t0, "zero_questions", false, kod);
       logAdvisorEvent("questions", { locale, question_count: parsed.questions.length, duration_ms: Date.now() - t0 }, true);
       return Response.json(parsed, { headers: CORS });
     }
-    catch { return questionsFailed(description, locale, t0, "json_parse_failed"); }
+    catch { return questionsFailed(description, locale, t0, "json_parse_failed", false, kod); }
   } catch (e) {
     if ((e as Error).message === "RATE_LIMITED") {
       // Loggas som allt annat som fallerar här. Fram till nu returnerade den
@@ -745,9 +757,9 @@ async function handleQuestions(description: string, locale: string): Promise<Res
       // Statuskoden stannar på 503 och blir inte 502: klienten skiljer på dem
       // (advisor-client.ts kastar RATE_LIMITED just på 503) och visar ett eget
       // meddelande om att vänta i stället för det allmänna felet.
-      return questionsFailed(description, locale, t0, "rate_limited", true);
+      return questionsFailed(description, locale, t0, "rate_limited", true, kod);
     }
-    return questionsFailed(description, locale, t0, (e as Error).message || "unknown");
+    return questionsFailed(description, locale, t0, (e as Error).message || "unknown", false, kod);
   }
 }
 
@@ -1114,7 +1126,10 @@ async function handleOptions(
     && !isSystemScope && !isMultiAxis;
   if (isPureRotary) {
     const rotaryProducts = await fetchProducts(["rotary-actuator"], 40);
-    const requiredTorque = extractTorqueNm(combinedText, answers);
+    // hazards.torqueNm är det angivna vridmomentet, eller ett uppskattat ur
+    // vikt och hävarm när kunden svarat Vet inte (följdfrågorna 2026-10-11).
+    // Utan något alls valdes de tre minsta vridenheterna.
+    const requiredTorque = hazards.torqueNm;
     const requiredDeg = extractRotationDeg(combinedText, answers);
     const withTorque = rotaryProducts.filter(p => parseTorqueFromSpecs(p.key_specs ?? {}) > 0);
     const pool = withTorque.length ? withTorque : rotaryProducts;
@@ -1123,6 +1138,12 @@ async function handleOptions(
     // No product reaches the required torque: closest (highest available) is the
     // honest recommendation, flagged inexact — never silently undersized.
     const torqueInexact = requiredTorque > 0 && adequate.length === 0;
+    const uppskattatVridmoment = hazards.torqueUppskattat ? pick(locale, {
+      sv: ` Kravet ${requiredTorque} Nm är uppskattat ur vikt och avstånd till vridcentrum, med säkerhetsfaktor 2 — kontrollera det.`,
+      en: ` The ${requiredTorque} Nm requirement is estimated from weight and distance to the centre of rotation, with a safety factor of 2 — please verify it.`,
+      de: ` Die Anforderung von ${requiredTorque} Nm ist aus Gewicht und Abstand zum Drehzentrum geschätzt, mit Sicherheitsfaktor 2 — bitte prüfen.`,
+      es: ` El requisito de ${requiredTorque} Nm está estimado a partir del peso y la distancia al centro de giro, con un factor de seguridad de 2 — verifíquelo.`,
+    }) : "";
     const picks = (adequate.length ? adequate : sorted.slice(-3)).slice(0, 3);
     // Found 2026-08-21: this branch never called the LLM (deliberately, same
     // "no hallucination risk" reasoning as buildMandatoryBomRows) but that left
@@ -1196,7 +1217,7 @@ async function handleOptions(
               en: `${p.name} — ${torque} Nm torque${requiredDeg > 0 ? `, ${requiredDeg}° rotation range` : ""}.`,
               de: `${p.name} — ${torque} Nm Drehmoment${requiredDeg > 0 ? `, ${requiredDeg}° Drehbereich` : ""}.`,
               es: `${p.name} — ${torque} Nm de par${requiredDeg > 0 ? `, rango de rotación de ${requiredDeg}°` : ""}.`,
-            }),
+            }) + uppskattatVridmoment,
         pros, cons,
       };
     });
@@ -1384,7 +1405,9 @@ async function handleOptions(
   // cylinder must outrank guided/compact/rodless/stainless specials.
   const wantsPlainStd = /standard\s*(pneumatisk\s*)?cylinder|standardcylinder|vanlig\s+(profil)?cylinder/i.test(combinedText);
   const isSpecialCyl = (p: CatalogProduct) =>
-    p.category === "cylinder" && /guide|guided|compact|rodless|slide|stainless|rostfri|kolvstångslös/i.test(p.name);
+    // "clean design" sedan 2026-10-11: DSBF-C hette "Stainless Steel" (fel --
+    // röret är aluminium) och räknades som special bara genom det ordet.
+    p.category === "cylinder" && /guide|guided|compact|rodless|slide|stainless|rostfri|kolvstångslös|clean design/i.test(p.name);
   const plainSet = wantsPlainStd ? boreScoped0.filter(p => !isSpecialCyl(p)) : boreScoped0;
   const boreScoped = plainSet.length > 0 ? plainSet : boreScoped0;
 
