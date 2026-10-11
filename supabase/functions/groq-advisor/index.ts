@@ -1024,7 +1024,9 @@ async function handleOptions(
   // of just prose reasoning (engineers expect a calculated load-curve feel here).
   // En angiven kraft (klämkraft, greppkraft, hållkraft) är redan ett krav och
   // får inte säkerhetsfaktorn ovanpå. Se requiredForceN() i signals.ts.
-  const statedForceN = hazards.gripForceN || hazards.holdingForceN;
+  // Presskraften ("behöver 3 kN", svaret på kraftfrågan) räknas med sedan
+  // 2026-10-11; utan den visade panelen inget kraftkrav för en press.
+  const statedForceN = hazards.statedForceN ?? (hazards.gripForceN || hazards.holdingForceN);
   const requiredForceN = Math.round(sigRequiredForceN(loadKg, statedForceN));
 
   // ── Shock-absorber application (decelerate an external moving mass) ──────────
@@ -1138,11 +1140,13 @@ async function handleOptions(
     // No product reaches the required torque: closest (highest available) is the
     // honest recommendation, flagged inexact — never silently undersized.
     const torqueInexact = requiredTorque > 0 && adequate.length === 0;
+    // "4.6 Nm" på svenska, tyska och spanska skrivs "4,6 Nm".
+    const nm = (n: number) => (locale === "en" ? String(n) : String(n).replace(".", ","));
     const uppskattatVridmoment = hazards.torqueUppskattat ? pick(locale, {
-      sv: ` Kravet ${requiredTorque} Nm är uppskattat ur vikt och avstånd till vridcentrum, med säkerhetsfaktor 2 — kontrollera det.`,
-      en: ` The ${requiredTorque} Nm requirement is estimated from weight and distance to the centre of rotation, with a safety factor of 2 — please verify it.`,
-      de: ` Die Anforderung von ${requiredTorque} Nm ist aus Gewicht und Abstand zum Drehzentrum geschätzt, mit Sicherheitsfaktor 2 — bitte prüfen.`,
-      es: ` El requisito de ${requiredTorque} Nm está estimado a partir del peso y la distancia al centro de giro, con un factor de seguridad de 2 — verifíquelo.`,
+      sv: ` Kravet ${nm(requiredTorque)} Nm är uppskattat ur vikt och avstånd till vridcentrum, med säkerhetsfaktor 2 — kontrollera det.`,
+      en: ` The ${nm(requiredTorque)} Nm requirement is estimated from weight and distance to the centre of rotation, with a safety factor of 2 — please verify it.`,
+      de: ` Die Anforderung von ${nm(requiredTorque)} Nm ist aus Gewicht und Abstand zum Drehzentrum geschätzt, mit Sicherheitsfaktor 2 — bitte prüfen.`,
+      es: ` El requisito de ${nm(requiredTorque)} Nm está estimado a partir del peso y la distancia al centro de giro, con un factor de seguridad de 2 — verifíquelo.`,
     }) : "";
     const picks = (adequate.length ? adequate : sorted.slice(-3)).slice(0, 3);
     // Found 2026-08-21: this branch never called the LLM (deliberately, same
@@ -1178,10 +1182,10 @@ async function handleOptions(
       ].filter(Boolean) as string[];
       const cons = [
         i === 0 && torqueInexact ? pick(locale, {
-          sv: `Klarar INTE de begärda ${requiredTorque} Nm — se den som utgångspunkt, inte en bekräftad match.`,
-          en: `Does NOT meet the requested ${requiredTorque} Nm — treat as a starting point, not a confirmed match.`,
-          de: `Erfüllt die angeforderten ${requiredTorque} Nm NICHT — als Ausgangspunkt betrachten, keine bestätigte Übereinstimmung.`,
-          es: `NO cumple los ${requiredTorque} Nm solicitados — considérela un punto de partida, no una coincidencia confirmada.`,
+          sv: `Klarar INTE de begärda ${nm(requiredTorque)} Nm — se den som utgångspunkt, inte en bekräftad match.`,
+          en: `Does NOT meet the requested ${nm(requiredTorque)} Nm — treat as a starting point, not a confirmed match.`,
+          de: `Erfüllt die angeforderten ${nm(requiredTorque)} Nm NICHT — als Ausgangspunkt betrachten, keine bestätigte Übereinstimmung.`,
+          es: `NO cumple los ${nm(requiredTorque)} Nm solicitados — considérela un punto de partida, no una coincidencia confirmada.`,
         }) : "",
         tempRange ? pick(locale, {
           sv: `Drifttemperatur ${tempRange} — verifiera mot er miljö.`, en: `Operating temperature ${tempRange} — verify against your environment.`,
@@ -1207,16 +1211,16 @@ async function handleOptions(
         rotation_deg: parseRotationFromSpecs(p.key_specs ?? {}) || null,
         why: torqueInexact
           ? pick(locale, {
-              sv: `${p.name} — ${torque} Nm är det högsta vridmoment vi har i lager, men klarar INTE de begärda ${requiredTorque} Nm. Rekommendation, inte en bekräftad match — för ${requiredTorque} Nm krävs kundspecifik lösning.`,
-              en: `${p.name} — ${torque} Nm is the highest torque we stock, but does NOT meet the requested ${requiredTorque} Nm. A recommendation, not a confirmed match — ${requiredTorque} Nm needs a custom solution.`,
-              de: `${p.name} — ${torque} Nm ist das höchste Drehmoment, das wir auf Lager haben, erfüllt jedoch NICHT die angeforderten ${requiredTorque} Nm. Eine Empfehlung, keine bestätigte Übereinstimmung — für ${requiredTorque} Nm ist eine kundenspezifische Lösung erforderlich.`,
-              es: `${p.name} — ${torque} Nm es el par máximo que tenemos en stock, pero NO cumple los ${requiredTorque} Nm solicitados. Es una recomendación, no una coincidencia confirmada — para ${requiredTorque} Nm se necesita una solución a medida.`,
+              sv: `${p.name} — ${nm(torque)} Nm är det högsta vridmoment vi har i lager, men klarar INTE de begärda ${nm(requiredTorque)} Nm. Rekommendation, inte en bekräftad match — för ${nm(requiredTorque)} Nm krävs kundspecifik lösning.`,
+              en: `${p.name} — ${nm(torque)} Nm is the highest torque we stock, but does NOT meet the requested ${nm(requiredTorque)} Nm. A recommendation, not a confirmed match — ${nm(requiredTorque)} Nm needs a custom solution.`,
+              de: `${p.name} — ${nm(torque)} Nm ist das höchste Drehmoment, das wir auf Lager haben, erfüllt jedoch NICHT die angeforderten ${nm(requiredTorque)} Nm. Eine Empfehlung, keine bestätigte Übereinstimmung — für ${nm(requiredTorque)} Nm ist eine kundenspezifische Lösung erforderlich.`,
+              es: `${p.name} — ${nm(torque)} Nm es el par máximo que tenemos en stock, pero NO cumple los ${nm(requiredTorque)} Nm solicitados. Es una recomendación, no una coincidencia confirmada — para ${nm(requiredTorque)} Nm se necesita una solución a medida.`,
             })
           : pick(locale, {
-              sv: `${p.name} — ${torque} Nm vridmoment${requiredDeg > 0 ? `, ${requiredDeg}° rörelseomfång` : ""}.`,
-              en: `${p.name} — ${torque} Nm torque${requiredDeg > 0 ? `, ${requiredDeg}° rotation range` : ""}.`,
-              de: `${p.name} — ${torque} Nm Drehmoment${requiredDeg > 0 ? `, ${requiredDeg}° Drehbereich` : ""}.`,
-              es: `${p.name} — ${torque} Nm de par${requiredDeg > 0 ? `, rango de rotación de ${requiredDeg}°` : ""}.`,
+              sv: `${p.name} — ${nm(torque)} Nm vridmoment${requiredDeg > 0 ? `, ${requiredDeg}° rörelseomfång` : ""}.`,
+              en: `${p.name} — ${nm(torque)} Nm torque${requiredDeg > 0 ? `, ${requiredDeg}° rotation range` : ""}.`,
+              de: `${p.name} — ${nm(torque)} Nm Drehmoment${requiredDeg > 0 ? `, ${requiredDeg}° Drehbereich` : ""}.`,
+              es: `${p.name} — ${nm(torque)} Nm de par${requiredDeg > 0 ? `, rango de rotación de ${requiredDeg}°` : ""}.`,
             }) + uppskattatVridmoment,
         pros, cons,
       };
@@ -1260,16 +1264,16 @@ async function handleOptions(
         })
       : torqueInexact
       ? pick(locale, {
-          sv: `Ingen lagervara klarar de begärda ${requiredTorque} Nm — ${picks[0]?.name} (${parseTorqueFromSpecs(picks[0]?.key_specs ?? {})} Nm) är närmaste, men otillräcklig. Se den som en utgångspunkt; för ${requiredTorque} Nm behövs en kundspecifik rotationsaktuator.`,
-          en: `No stocked unit meets the requested ${requiredTorque} Nm — ${picks[0]?.name} (${parseTorqueFromSpecs(picks[0]?.key_specs ?? {})} Nm) is the closest, but insufficient. Treat it as a starting point; ${requiredTorque} Nm needs a custom rotary actuator.`,
-          de: `Keine Lagerware erfüllt die angeforderten ${requiredTorque} Nm — ${picks[0]?.name} (${parseTorqueFromSpecs(picks[0]?.key_specs ?? {})} Nm) ist am nächsten, aber unzureichend. Als Ausgangspunkt betrachten; für ${requiredTorque} Nm wird ein kundenspezifischer Rotationsaktuator benötigt.`,
-          es: `Ninguna unidad en stock cumple los ${requiredTorque} Nm solicitados — ${picks[0]?.name} (${parseTorqueFromSpecs(picks[0]?.key_specs ?? {})} Nm) es la más cercana, pero insuficiente. Considérela como punto de partida; para ${requiredTorque} Nm se necesita un actuador rotativo a medida.`,
+          sv: `Ingen lagervara klarar de begärda ${nm(requiredTorque)} Nm — ${picks[0]?.name} (${nm(parseTorqueFromSpecs(picks[0]?.key_specs ?? {}))} Nm) är närmaste, men otillräcklig. Se den som en utgångspunkt; för ${nm(requiredTorque)} Nm behövs en kundspecifik rotationsaktuator.`,
+          en: `No stocked unit meets the requested ${nm(requiredTorque)} Nm — ${picks[0]?.name} (${nm(parseTorqueFromSpecs(picks[0]?.key_specs ?? {}))} Nm) is the closest, but insufficient. Treat it as a starting point; ${nm(requiredTorque)} Nm needs a custom rotary actuator.`,
+          de: `Keine Lagerware erfüllt die angeforderten ${nm(requiredTorque)} Nm — ${picks[0]?.name} (${nm(parseTorqueFromSpecs(picks[0]?.key_specs ?? {}))} Nm) ist am nächsten, aber unzureichend. Als Ausgangspunkt betrachten; für ${nm(requiredTorque)} Nm wird ein kundenspezifischer Rotationsaktuator benötigt.`,
+          es: `Ninguna unidad en stock cumple los ${nm(requiredTorque)} Nm solicitados — ${picks[0]?.name} (${nm(parseTorqueFromSpecs(picks[0]?.key_specs ?? {}))} Nm) es la más cercana, pero insuficiente. Considérela como punto de partida; para ${nm(requiredTorque)} Nm se necesita un actuador rotativo a medida.`,
         })
       : pick(locale, {
-          sv: `Rotationsaktuator vald efter vridmoment${requiredTorque > 0 ? ` (krav ${requiredTorque} Nm)` : ""}${requiredDeg > 0 ? ` och ${requiredDeg}° rörelseomfång` : ""} — inte cylinderslag.`,
-          en: `Rotary actuator selected by torque${requiredTorque > 0 ? ` (requirement ${requiredTorque} Nm)` : ""}${requiredDeg > 0 ? ` and ${requiredDeg}° rotation range` : ""} — not cylinder stroke.`,
-          de: `Rotationsaktuator ausgewählt nach Drehmoment${requiredTorque > 0 ? ` (Anforderung ${requiredTorque} Nm)` : ""}${requiredDeg > 0 ? ` und ${requiredDeg}° Drehbereich` : ""} — nicht nach Zylinderhub.`,
-          es: `Actuador rotativo seleccionado según el par${requiredTorque > 0 ? ` (requisito ${requiredTorque} Nm)` : ""}${requiredDeg > 0 ? ` y rango de rotación de ${requiredDeg}°` : ""} — no la carrera del cilindro.`,
+          sv: `Rotationsaktuator vald efter vridmoment${requiredTorque > 0 ? ` (krav ${nm(requiredTorque)} Nm)` : ""}${requiredDeg > 0 ? ` och ${requiredDeg}° rörelseomfång` : ""} — inte cylinderslag.`,
+          en: `Rotary actuator selected by torque${requiredTorque > 0 ? ` (requirement ${nm(requiredTorque)} Nm)` : ""}${requiredDeg > 0 ? ` and ${requiredDeg}° rotation range` : ""} — not cylinder stroke.`,
+          de: `Rotationsaktuator ausgewählt nach Drehmoment${requiredTorque > 0 ? ` (Anforderung ${nm(requiredTorque)} Nm)` : ""}${requiredDeg > 0 ? ` und ${requiredDeg}° Drehbereich` : ""} — nicht nach Zylinderhub.`,
+          es: `Actuador rotativo seleccionado según el par${requiredTorque > 0 ? ` (requisito ${nm(requiredTorque)} Nm)` : ""}${requiredDeg > 0 ? ` y rango de rotación de ${requiredDeg}°` : ""} — no la carrera del cilindro.`,
         });
     const summary = summaryBase + conflictNote;
     logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: finalOptions[0]?.sku ?? null, option_count: finalOptions.length }, true);

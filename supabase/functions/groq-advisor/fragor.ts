@@ -218,7 +218,7 @@ const BANKENS_AMNEN: Record<string, string> = {
   givare_inkoppling: "givarinkoppling", givare_fabrikat: "fabrikat", slang_dimension: "slangdimension",
   slang_material: "slangmaterial", koppling_ganga: "anslutning", slang_langd_m: "langd",
   vridvinkel: "vinkel", vridmoment_nm: "vridmoment", havarm_mm: "havarm", vridskydd: "vridskydd",
-  temperatur_lagsta: "temperatur", atex_damm: "atex",
+  temperatur_lagsta: "temperatur", atex_damm: "atex", material: "material",
 };
 
 /** Ämnet en fråga handlar om. Används för att rensa och fylla på. */
@@ -227,6 +227,10 @@ export function amne(q: Pick<Fraga, "id" | "label"> & { options?: string[] }): s
   // Alternativen räknas med: "Vilka certifieringar behövs?" är en
   // livsmedelsfråga först när alternativen är FDA och EHEDG.
   const s = `${q.id} ${q.label} ${(q.options ?? []).join(" ")}`.toLowerCase();
+  // Etiketten ensam, för ämnen där ett svarsalternativ kan lura: "Vad ska
+  // givaren mäta? … Temperatur" är ingen temperaturfråga, och "Hur vill du
+  // styra vridningen? … Fältbuss" är en fråga om styrning (2026-10-11).
+  const l = `${q.id} ${q.label}`.toLowerCase();
   // Att välja teknik är vårt jobb, inte kundens. Frågan känns igen på
   // etiketten eller på att alternativen är tekniker; "Krav på mekanisk
   // hållning … (pneumatisk cylinder) eller motorbroms (elektrisk axel)" är en
@@ -250,15 +254,20 @@ export function amne(q: Pick<Fraga, "id" | "label"> & { options?: string[] }): s
   // bredvid modellens ("Vilken typ av ventiler?" + "Vad ska ventilen styra?").
   if (/\b[35]\/[23]\b|ventiltyp|typ av ventil|ventilfunktion|valve.?(type|function)/.test(s)) return "ventilfunktion";
   if (/monostabil|bistabil|monostable|bistable/.test(s)) return "ventilaterstall";
-  if (/\bpnp\b|\bnpn\b|signaltyp|utsignal|signal.?type|output.?signal/.test(s)) return "givarsignal";
+  // En givarsignal är PNP/NPN, eller en signalfråga om en givare -- inte
+  // "Vilken typ av signaler används för att styra ventilen?" (id signal_type).
+  if (/\bpnp\b|\bnpn\b/.test(s) || (/givare|sensor/.test(l) && /signal/.test(l))) return "givarsignal";
   if (/\bm8\b|\bm12\b|kontaktdon|fast kabel/.test(s)) return "givarinkoppling";
+  if (/vad ska (givaren|sensorn) (känna av|mäta|detektera|registrera)|givarens uppgift|what should the sensor/.test(l)) return "givaruppgift";
+  if (/fältbus|fieldbus|protokoll|protocol/.test(l) || (/kopplas|anslut|inkoppl|connect/.test(l) && /fältbus|profinet|ethercat|io-?link/.test(s))) return "faltbuss";
+  if (/\bstyr(a|s|as|es)\b|styrsystem|styrsätt|styrgränssnitt|kontrolltyp|control.?(type|interface|system)|manövr|\bplc\b/.test(l)) return "styrning";
   // Före lasthållningen: "Vilken slaglängd krävs för att öppna/låsa luckan?"
   // är en slaglängdsfråga, inte en fråga om lås.
   if (/slaglängd|\bstroke\b/.test(s)) return "slag";
   if (/vridmoment|torque|\bnm\b/.test(s)) return "vridmoment";
   if (/hävarm|lever.?arm|vridcentrum/.test(s)) return "havarm";
   // Temperaturen före vinkeln: "°C" och "minusgrader" är inga vinklar.
-  if (/temperatur|temperature|°\s*c\b|kyla|kallt/.test(s)) return "temperatur";
+  if (/temperatur|temperature|°\s*c\b|kyla|kallt/.test(l)) return "temperatur";
   // Inte "Vinkel" som svar på en monteringsfråga ("Vertikal | Horisontell | Vinkel").
   if (/\bgrader\b(?!\s*(c\b|celsius|varm|kall))|vridvinkel|rotationsvinkel|svängvinkel|rotation.?angle|degrees|°(?!\s*c\b)/.test(s)) return "vinkel";
   if (/broms|kolvstångslås|stånglås|\blås\b|låsenhet|hålla kvar|hållas kvar|håll(a|er)? (lasten|positionen|position)|fail.?safe|strömavbrott|power.?loss|falla|sjunka|tryckluften försvinner/.test(s)) return "hallning";
@@ -283,6 +292,9 @@ export function amne(q: Pick<Fraga, "id" | "label"> & { options?: string[] }): s
   if (/grepp|grip|sugkopp|vakuum|vacuum/.test(s)) return "grepp";
   return null;
 }
+
+/** Något i förfrågan som gör temperaturen till en fråga. */
+const TEMPERATURLEDTRAD = /utomhus|outdoor|\bute\b|vinter|frys|kyl(rum|lager|hus|container)|\bugn|värme|varm|\bhet[at]?\b|gjuteri|svets|bastu|torkugn|°\s*c|minusgrad|ånga|steam|bageri|bakery/i;
 
 /** Ämnen som bara hör till en rörelse. */
 const RORELSEAMNEN = new Set(["slag", "takt", "last", "kraft", "hastighet", "precision", "riktning", "vridskydd", "givare", "hallning", "grepp", "sakerhetsniva", "vinkel", "vridmoment", "havarm"]);
@@ -351,8 +363,15 @@ export function rensaFragor(fragor: Fraga[], text: string, locale: string, kod?:
     if (a === "tryck" && k.tryck) continue;
     if (a === "flode" && k.flode) continue;
     if (a === "temperatur" && k.temperatur) continue;
+    // Vanliga komponenter klarar en vanlig fabrik. Utan något i förfrågan som
+    // tyder på kyla eller värme är temperaturfrågan bara en fråga till, och
+    // modellens påhittade spann ("-10°C till 50°C") slår på kyldetektorn.
+    if (a === "temperatur" && !TEMPERATURLEDTRAD.test(text)) continue;
     if (a === "riktning" && (k.riktning || multi || arStopp(text) || arSpann(text))) continue;
     if (a === "styrning" && k.styrning) continue;
+    // Ventilens och givarens styrning täcks av bankens frågor om spänning,
+    // inkoppling och signal ("Digital 24V | Analog 4-20mA" till en magnetventil).
+    if (a === "styrning" && (typ === "ventil" || typ === "givare")) continue;
     if (a === "faltbuss" && k.faltbuss) continue;
     if (a === "spanning" && (k.spanning || k.faltbuss)) continue;
     if (a === "vinkel" && k.vinkel) continue;
@@ -363,12 +382,14 @@ export function rensaFragor(fragor: Fraga[], text: string, locale: string, kod?:
     if (a === "givare" && elektrisk) continue;
     // Fältbussen avgör bara valet av ventilterminal; till en enstaka cylinder
     // är den en fråga till elkonstruktören, inte till oss.
-    if (a === "faltbuss" && typ === "rorelse" && !needsValveTerminal(text)) continue;
+    if (a === "faltbuss" && (typ === "rorelse" || typ === "vridning") && !needsValveTerminal(text)) continue;
     if (typ === "vridning" && a && INTE_VRIDNING.has(a)) continue;
     if (utbyte && a && INTE_UTBYTE.has(a)) continue;
     if (typ === "luftberedning" && ((a && RORELSEAMNEN.has(a)) || /cylind|kolv|slag|positioner|stopp/i.test(q.label))) continue;
     if ((typ === "ventil" || typ === "givare" || typ === "slang") && a && RORELSEAMNEN.has(a) && a !== "takt") continue;
     if (locale === "sv" && q.options?.length && q.options.filter(serEngelsk).length * 2 >= q.options.length) continue;
+    // Svenska decimaltecken: "0.1–0.5 m/s" blir "0,1–0,5 m/s" (detektorerna läser båda).
+    if (locale === "sv" && q.options) q.options = q.options.map((o) => o.replace(/(\d)\.(\d)/g, "$1,$2"));
     if (a && sedda.has(a)) continue;
     if (a) sedda.add(a);
     ut.push(q);
@@ -691,6 +712,18 @@ function ersattningar(text: string, locale: string): Map<string, Fraga> {
     label: g(locale, "Måste det som sitter på kolvstången hållas rätt utan att vrida sig, eller tar kolvstången sidokrafter?", "Must whatever sits on the piston rod be kept from turning, or does the rod take side loads?"),
     hint: g(locale, "Då behövs en cylinder med styrning (styrstänger eller en styrd enhet). En vanlig kolvstång kan vrida sig och tål bara små sidokrafter.", "Then a cylinder with guiding is needed (guide rods or a guided unit). A plain piston rod can turn and only takes small side loads."),
     options: [g(locale, "Ja, den behöver styrning", "Yes, it needs guiding"), g(locale, "Nej, det behövs inte", "No, not needed")] });
+  if (arLivsmedel(text) || arSpolmiljo(text)) {
+    // DSBF-C-databladet: Clean Design i aluminium för torra zoner och
+    // stänkzoner i livsmedels- och förpackningsindustrin.
+    m.set("material", { id: "material", type: "choice",
+      label: g(locale, "Måste cylindern vara i rostfritt stål, eller räcker en tvättålig cylinder i aluminium (Clean Design)?", "Must the cylinder be stainless steel, or is a washable aluminium cylinder (clean design) enough?"),
+      hint: g(locale, "Rostfritt, helst syrafast A4/316, väljs där den spolas direkt eller sitter i livsmedelszonen. En Clean Design-cylinder i anodiserad aluminium räcker ofta i stänkzonen.", "Stainless, preferably acid-proof A4/316, is chosen where it is washed directly or sits in the food zone. A clean-design cylinder in anodised aluminium is often enough in the splash zone."),
+      options: [g(locale, "Rostfritt stål", "Stainless steel"), g(locale, "Clean Design i aluminium räcker", "Clean design in aluminium is enough")] });
+  } else if (arKorrosiv(text)) {
+    // Korrosion utan livsmedel: materialet följer av vad den utsätts för.
+    const korrosion = reservfragor(text, locale).find((q) => q.id === "korrosion");
+    if (korrosion) m.set("material", korrosion);
+  }
   if (needsValveTerminal(text)) {
     m.set("faltbuss", { id: "ventil_inkoppling", type: "choice",
       label: g(locale, "Hur kopplas ventilerna till styrsystemet?", "How are the valves connected to the control system?"),

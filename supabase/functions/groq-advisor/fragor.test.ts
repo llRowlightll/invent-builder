@@ -292,3 +292,44 @@ Deno.test("vakuumlyft: lasthållningen gäller vakuumet, inte bara stångbromsen
   assert(needsRodLock(q.options![0]));
 });
 
+// ── Andra körningen mot drift 2026-10-11 ─────────────────────────────────────
+// Efter omgång 2 hittade modellen fortfarande på egna frågor som inte höll.
+Deno.test("omgång 3: temperatur bara med anledning, styrning och givaruppgift läses på etiketten", () => {
+  const temp: Fraga = { id: "operating_temperature", label: "Vilken är den förväntade driftstemperaturen?", type: "choice", options: ["-10°C till 50°C", "0°C till 40°C", "0°C till 70°C"] };
+  assertEquals(rensaFragor([temp], "Lyfta upp plåtdetaljer 150 mm från en fixtur, ca 12 kg", "sv"), []);
+  const pressTemp: Fraga = { id: "temp_env", label: "Vilken temperaturmiljö ska aktuatören klara?", type: "choice", options: ["0–40°C", "–20–60°C", "–40–80°C"] };
+  assertEquals(rensaFragor([pressTemp], "Pressa in en bussning i ett hus, behöver 3 kN", "sv"), []);
+  // Utomhus är en anledning, och då ställs bankens fråga i stället.
+  const lucka = slutligaFragor([temp], "Öppna och stänga en lucka på en siloutlastning utomhus", "sv");
+  assert(ids(lucka).includes("temperatur_lagsta") && !ids(lucka).includes("operating_temperature"), ids(lucka).join());
+
+  // "Hur vill du styra vridningen? … Fältbuss" är en styrfråga och byts mot bankens.
+  const styr: Fraga = { id: "control", label: "Hur vill du styra vridningen?", type: "choice", options: ["Manuell", "PLC-programmerad", "Fältbuss (t.ex. Modbus, EtherCAT)"] };
+  assertEquals(amne(styr), "styrning");
+  assert(ids(slutligaFragor([styr], "Vrida en detalj 90 grader mellan två stationer", "sv")).includes("manovrering"));
+
+  // "Digital 24V | Analog 4-20mA" till en PROFINET-terminal stryks.
+  const signal: Fraga = { id: "signal_type", label: "Vilken typ av signaler används för att styra ventilen?", type: "choice", options: ["Digital 24V", "Analog 4-20mA"] };
+  assertEquals(rensaFragor([signal], "Jag behöver en ventilterminal till 8 cylindrar med PROFINET", "sv"), []);
+  assertEquals(rensaFragor([signal], "Behöver fem magnetventiler.", "sv"), []);
+
+  // "Vad ska givaren mäta? … Temperatur" är givarens uppgift, och den är sagd.
+  const uppgift: Fraga = { id: "measure", label: "Vad ska givaren mäta?", type: "choice", options: ["Position (kolvposition)", "Tryck (cylindertryck)", "Temperatur (cylindertemperatur)", "Kollisionsdetektion"] };
+  assertEquals(amne(uppgift), "givaruppgift");
+  assertEquals(rensaFragor([uppgift], "Givare till Festo DSBC-cylindrar, behöver 10 st", "sv"), []);
+});
+
+Deno.test("omgång 3: materialfrågan byts mot bankens, decimaler får komma", () => {
+  const sylt = "Doseringsmaskin för sylt, cylinder som trycker ut produkt, daglig tvätt";
+  const material: Fraga = { id: "material", label: "Vilket material ska cylindern tillverkas av?", type: "choice", options: ["Stål (rostfritt)", "Plast (PE, PP)"] };
+  const s = slutligaFragor([material], sylt, "sv");
+  const m = s.find((q) => q.id === "material")!;
+  assert(m && !m.options!.some((o) => /plast/i.test(o)), JSON.stringify(m));
+  // Svaren slår inte på något kunden inte bett om.
+  for (const o of m.options!) assert(!/vrid|rot|styrning|livsmedel/i.test(o), o);
+
+  const fart: Fraga = { id: "speed", label: "Hur snabbt ska rörelsen vara?", type: "choice", options: ["≤ 0.1 m/s", "0.1–0.5 m/s", "0.5–1 m/s", "> 1 m/s"] };
+  const r = rensaFragor([fart], "Elaxel som ska flytta en kamera mellan 5 positioner längs 600 mm", "sv")[0];
+  assertEquals(r.options, ["≤ 0,1 m/s", "0,1–0,5 m/s", "0,5–1 m/s", "> 1 m/s"]);
+});
+
