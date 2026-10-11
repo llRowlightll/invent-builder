@@ -333,3 +333,21 @@ Deno.test("omgång 3: materialfrågan byts mot bankens, decimaler får komma", (
   assertEquals(r.options, ["≤ 0,1 m/s", "0,1–0,5 m/s", "0,5–1 m/s", "> 1 m/s"]);
 });
 
+// ── Tredje körningen mot drift 2026-10-11 ────────────────────────────────────
+Deno.test("omgång 4: felstavad slaglängd, 45° i en riktningsfråga och grepp om en kamera", () => {
+  const lucka = "Öppna och stänga en lucka på en siloutlastning utomhus";
+  const m: Fraga[] = [
+    { id: "stroke_length", label: "Vilken rörelse (slägelängd) krävs för att öppna/låsa luckan?", type: "number", unit: "mm" },
+    { id: "direction", label: "Vilken riktning ska rörelsen gå?", type: "choice", options: ["Vertikal (upp/ner)", "Horisontell (fram/framåt)", "Vinkelriktad (t.ex. 45°)"] },
+  ];
+  assertEquals(amne(m[0]), "slag");
+  assertEquals(amne(m[1]), "riktning");
+  const s = slutligaFragor(m, lucka, "sv");
+  assertEquals(amnen(s).filter((a) => a === "slag").length, 1, ids(s).join());
+
+  const kamera: Fraga = { id: "camera_holding", label: "Hur ska kameran hållas fast under rörelsen?", type: "choice", options: ["Med ett statiskt grepp", "Med ett dynamiskt grepp", "Med ett magnetiskt grepp", "Ingen hållning behövs"] };
+  assertEquals(rensaFragor([kamera], "Elaxel som ska flytta en kamera mellan 5 positioner längs 600 mm", "sv"), []);
+  // Men vid plock frågas greppet, med bankens alternativ.
+  assert(ids(slutligaFragor([kamera], "Plocka burkar från ett band och ställa dem i en låda", "sv")).includes("greppsatt"));
+});
+

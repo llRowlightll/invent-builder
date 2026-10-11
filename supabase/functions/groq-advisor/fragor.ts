@@ -172,6 +172,11 @@ export function arElektrisk(text: string): boolean {
   return /elcylinder|elektrisk\w*\s+(cylinder|axel|linjär\w*|ställdon|aktuator|drivning)|eldriven|elaxel|\bservo|stegmotor|stepper|kuggrem|kulskruv|ball.?screw|linjärmodul|linear.?axis|electric\s+(actuator|cylinder|axis)/i.test(text);
 }
 
+/** Något ska plockas, gripas eller lyftas i: då frågas hur det hålls. */
+function arGrepp(text: string): boolean {
+  return /grip|greppa|plock|pick|lyft(a|er)?\s+(upp\s+)?(kartong|låd|flask|burk|säck|plåt|skiv|detalj|paket|förpackning)|sug/i.test(text);
+}
+
 /** Stoppcylinder vid ett transportband: lasten åker mot den, den lyfter ingenting. */
 function arStopp(text: string): boolean {
   return /stoppcylinder|\bstopper\b|stopp(a|ar)\s+.{0,40}(band|paket|kartong|låd|produkt)/i.test(text);
@@ -222,7 +227,7 @@ const BANKENS_AMNEN: Record<string, string> = {
 };
 
 /** Ämnet en fråga handlar om. Används för att rensa och fylla på. */
-export function amne(q: Pick<Fraga, "id" | "label"> & { options?: string[] }): string | null {
+export function amne(q: Pick<Fraga, "id" | "label"> & { options?: string[]; unit?: string }): string | null {
   if (BANKENS_AMNEN[q.id]) return BANKENS_AMNEN[q.id];
   // Alternativen räknas med: "Vilka certifieringar behövs?" är en
   // livsmedelsfråga först när alternativen är FDA och EHEDG.
@@ -262,14 +267,19 @@ export function amne(q: Pick<Fraga, "id" | "label"> & { options?: string[] }): s
   if (/fältbus|fieldbus|protokoll|protocol/.test(l) || (/kopplas|anslut|inkoppl|connect/.test(l) && /fältbus|profinet|ethercat|io-?link/.test(s))) return "faltbuss";
   if (/\bstyr(a|s|as|es)\b|styrsystem|styrsätt|styrgränssnitt|kontrolltyp|control.?(type|interface|system)|manövr|\bplc\b/.test(l)) return "styrning";
   // Före lasthållningen: "Vilken slaglängd krävs för att öppna/låsa luckan?"
-  // är en slaglängdsfråga, inte en fråga om lås.
-  if (/slaglängd|\bstroke\b/.test(s)) return "slag";
+  // är en slaglängdsfråga, inte en fråga om lås. Modellen stavar ibland fel
+  // ("slägelängd"), och en sifferfråga i mm om en rörelse är en slaglängd.
+  if (/sl[aäe]+g\w*längd|slaglangd|\bstroke\b/.test(s)) return "slag";
+  if (/^\s*mm\s*$/i.test(q.unit ?? "") && /rörelse|lyfthöjd|hur lång|sträcka/.test(l)) return "slag";
   if (/vridmoment|torque|\bnm\b/.test(s)) return "vridmoment";
   if (/hävarm|lever.?arm|vridcentrum/.test(s)) return "havarm";
   // Temperaturen före vinkeln: "°C" och "minusgrader" är inga vinklar.
   if (/temperatur|temperature|°\s*c\b|kyla|kallt/.test(l)) return "temperatur";
-  // Inte "Vinkel" som svar på en monteringsfråga ("Vertikal | Horisontell | Vinkel").
-  if (/\bgrader\b(?!\s*(c\b|celsius|varm|kall))|vridvinkel|rotationsvinkel|svängvinkel|rotation.?angle|degrees|°(?!\s*c\b)/.test(s)) return "vinkel";
+  // Inte "Vinkel" eller "45°" som svar på en riktningsfråga ("Vertikal |
+  // Horisontell | Vinkelriktad (t.ex. 45°)"): gradtecknet i alternativen
+  // räknas bara när etiketten handlar om att vrida.
+  if (/\bgrader\b(?!\s*(c\b|celsius|varm|kall))|vridvinkel|rotationsvinkel|svängvinkel|rotation.?angle|degrees/.test(l) ||
+    (/vrid|rotera|sväng|vinkel/.test(l) && /°(?!\s*c\b)/.test(s))) return "vinkel";
   if (/broms|kolvstångslås|stånglås|\blås\b|låsenhet|hålla kvar|hållas kvar|håll(a|er)? (lasten|positionen|position)|fail.?safe|strömavbrott|power.?loss|falla|sjunka|tryckluften försvinner/.test(s)) return "hallning";
   if (/orienter|riktning|vertikal|horisontell|monteringsläge|montera.*i|direction|rör sig/.test(s)) return "riktning";
   if (/givare|sensor|ändläge|end.?position/.test(s)) return "givare";
@@ -377,6 +387,9 @@ export function rensaFragor(fragor: Fraga[], text: string, locale: string, kod?:
     if (a === "vinkel" && k.vinkel) continue;
     if (a === "vridmoment" && k.vridmoment) continue;
     if (a === "givaruppgift" && k.givaruppgift) continue;
+    // Hur något hålls fast hör till plock och lyft, inte till en kamera på en
+    // elaxel ("statiskt, dynamiskt eller magnetiskt grepp").
+    if (a === "grepp" && !k.greppsatt && !arGrepp(text)) continue;
     if (a === "fabrikat" && k.fabrikat) continue;
     // En elaxel vet själv var den är (samma regel som banken).
     if (a === "givare" && elektrisk) continue;
@@ -588,7 +601,7 @@ export function reservfragor(text: string, locale: string, kod?: Kodvarden): Fra
 
   // ── Rörelse ────────────────────────────────────────────────────────────────
   const multi = needsMultiAxis(text);
-  const grepp = /grip|greppa|plock|pick|lyft(a|er)?\s+(upp\s+)?(kartong|låd|flask|burk|säck|plåt|skiv|detalj|paket|förpackning)|sug/i.test(text);
+  const grepp = arGrepp(text);
   const press = arPress(text);
   const spann = arSpann(text);
   const stopp = arStopp(text);
