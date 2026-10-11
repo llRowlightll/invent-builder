@@ -277,7 +277,7 @@ Deno.test("battery-dryroom BOM gets a deterministic Cu/Zn/Ni material-ban row, i
   const rows = buildMandatoryBomRows(bomCtx({
     primarySku: "SMC-LEY", primaryBrand: "smc", isElectric: true, isVerticalLoad: true, isBatteryDryroom: true,
   }));
-  const warnRow = rows.find((r) => /Cu\/Zn\/Ni/i.test(r.reason));
+  const warnRow = rows.find((r) => /Cu\/Zn\/Ni/i.test(`${r.role} ${r.reason}`));
   assert(warnRow, "expected a deterministic Cu/Zn/Ni material-ban row for a battery-dryroom request");
   assertEquals(warnRow!.sku, "SPECIFY");
 });
@@ -882,3 +882,23 @@ for (const [fall, text] of [
     }
   });
 }
+
+// ── ATEX, torrum och hydraulik (2026-10-11) ──────────────────────────────────
+// Samma funktion påstod "NAMUR/IECEx-certifierade" (NAMUR är ett gränssnitt),
+// "Parker P1X ATEX", "SMC CDQMB-ATEX", "SMC 25-serien … PFPE-smord", "Parker
+// HMI/HYD", "Rexroth CDL1" och SMC CH för 350 bar. Kontrollerat mot databladen
+// i knowledge_chunks och tillverkarnas sidor.
+const OBELAGDA_2 = /NAMUR\/IECEx|P1X|CDQMB|PFPE|HMI\/HYD|CDL1|25-serie|25-Serie|anger ingen IP-klass|states no IP rating|nennt keine IP|no indica grado IP|350 bar/i;
+
+Deno.test("kundlösningen: inga obelagda ATEX-, torrums- eller hydraulikpåståenden, på alla språk", () => {
+  const h = detectHazards("Slakteri med daglig högtryckstvätt, vertikalt lyft, ATEX zon 1, torrum för batterier, hydraulik 250 bar", {}, "sv");
+  const ctx = { ...h, isAtex: true, isBatteryDryroom: true, isHydraulic: true, isWashdown: true, isFoodGrade: true, isVerticalLoad: true };
+  for (const locale of ["sv", "en", "de", "es"]) {
+    const why = buildCustomSolutionOption(0, locale, 0, true, ctx).why;
+    assert(!OBELAGDA.test(why) && !OBELAGDA_2.test(why), `${locale}: ${why}`);
+    assert(/DSBF/.test(why) && /25A/.test(why) && /HMI/.test(why), `${locale}: belagda exempel saknas`);
+  }
+  const torrum = buildMandatoryBomRows(bomCtx({ primarySku: "SMC-LEY", primaryBrand: "smc", isElectric: true, isBatteryDryroom: true }));
+  for (const r of torrum) assert(!OBELAGDA_2.test(`${r.role} ${r.reason}`), r.reason);
+});
+
