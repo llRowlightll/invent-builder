@@ -5,7 +5,7 @@
 // provkörningen mot drift 2026-10-08 (se fragor.ts).
 import { assert, assertEquals } from "jsr:@std/assert@^1";
 import {
-  amne, arSakerhetskrav, forfragningstyp, kandaVarden, rensaFragor, reservfragor, slutligaFragor, type Fraga,
+  amne, arSakerhetskrav, forfragningstyp, kandaVarden, rensaFragor, reservfragor, slutligaFragor, teknikval, type Fraga,
 } from "./fragor.ts";
 import {
   extractPrecisionMm, needsDirtyEnv, needsEndPositionDetection, needsHighCycle, needsOutdoor,
@@ -349,5 +349,35 @@ Deno.test("omgång 4: felstavad slaglängd, 45° i en riktningsfråga och grepp 
   assertEquals(rensaFragor([kamera], "Elaxel som ska flytta en kamera mellan 5 positioner längs 600 mm", "sv"), []);
   // Men vid plock frågas greppet, med bankens alternativ.
   assert(ids(slutligaFragor([kamera], "Plocka burkar från ett band och ställa dem i en låda", "sv")).includes("greppsatt"));
+});
+
+// ── Geminis testfall (2026-10-11) ────────────────────────────────────────────
+// "Frågorna verkar utgå från att lösningen är en pneumatisk cylinder": slaglängd
+// (2 m stod i texten), styrning av kolvstången, ändlägesgivare, slagfrekvens.
+const GEMINI = "Jag behöver flytta en aluminiumprofil som väger 80 kg 2 meter i sidled. Positioneringsnoggrannheten ska vara ±0,1 mm och hastigheten minst 1 m/s. Miljön innehåller aluminiumdamm och maskinen körs 24/7. Budgeten är begränsad men driftsäkerhet är prioriterad.";
+
+Deno.test("Gemini: elaxelns frågor, inga cylinderfrågor, och teknikvalet först", () => {
+  const modellen: Fraga[] = [
+    { id: "stroke_length", label: "Vilken slaglängd krävs?", type: "number", unit: "mm" },
+    { id: "anti_rotation", label: "Behöver kolvstången styrning för sidokrafter?", type: "choice", options: ["Ja", "Nej"] },
+    { id: "end_position", label: "Behövs ändlägesgivare?", type: "choice", options: ["Ja, båda", "Nej"] },
+    { id: "cycle_rate", label: "Hur många slag per minut?", type: "choice", options: ["<10", "10–60", ">60"] },
+    { id: "power_loss", label: "Ska lasten hållas vid strömavbrott?", type: "choice", options: ["Ja", "Nej"] },
+  ];
+  const s = slutligaFragor(modellen, GEMINI, "sv");
+  assertEquals(ids(s), ["atex_damm", "antal_lagen", "noggrannhet_typ", "forflyttningstid_s", "lastplacering", "styrning_axel"]);
+  assert(kandaVarden(GEMINI).slag, "2 meter är en slaglängd");
+  assertEquals(amne(modellen[3]), "takt");
+  const tv = teknikval(GEMINI, "sv");
+  assert(/servostyrd elaxel/.test(tv) && /kuggrem/.test(tv) && /kulskruv/.test(tv), tv);
+  // Den som redan valt el får ingen förklaring.
+  assertEquals(teknikval("Elaxel som flyttar 5 kg 600 mm, ±0,1 mm", "sv"), "");
+  assertEquals(teknikval("Skjuta av kartonger från ett band", "sv"), "");
+});
+
+Deno.test("elaxel lodrätt: motorbroms, inte stångbroms", () => {
+  const q = reservfragor("Elaxel som lyfter 20 kg 400 mm uppåt, ±0,1 mm", "sv").find((x) => x.id === "lasthallning")!;
+  assert(/strömmen bryts/.test(q.label) && /motor med broms/.test(q.hint!), q.label + " | " + q.hint);
+  assert(!reservfragor("Elaxel som lyfter 20 kg 400 mm uppåt, ±0,1 mm", "sv").some((x) => x.id === "andlagesavkanning"));
 });
 

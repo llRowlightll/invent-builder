@@ -16,6 +16,9 @@ import {
   borrningstal,
   familjeborrning,
   kraftVid6Bar,
+  isBeltDrivenProduct,
+  isBallScrewProduct,
+  repeterbarhetMm,
 } from "./scoring.ts";
 
 function prod(
@@ -255,3 +258,43 @@ Deno.test("kraftVid6Bar: samma tal som kortet visade för Ø63", () => {
   assertEquals(kraftVid6Bar(63), 1870);
   assertEquals(kraftVid6Bar(50), 1178);
 });
+
+// ── Axelval efter data (Geminis testfall 2026-10-11) ─────────────────────────
+// "80 kg, 2 m i sidled, ±0,1 mm, 1 m/s" gav tre kulskruvsaxlar: all rem
+// uteslöts vid ±0,5 mm eller bättre, och "toothed belt" kändes inte ens igen.
+// Katalogens remaxlar klarar kravet (Festo EGC-TB ±0,08, Parker HMR rem ±0,05),
+// och vid långt slag och hög fart sätter kulskruvens varvtal gränsen.
+const remaxel = (sku: string, rep: string): CatalogProduct =>
+  ({ sku, name: `${sku} – Electric Linear Axis, Toothed Belt`, category: "linear-module", brand: "festo",
+     key_specs: { drive: "Toothed belt, recirculating ball bearing guide", repeatability_mm: rep, force_n: 2500, stroke_mm: "8500 mm", max_speed: "5 m/s" } });
+const skruvaxel = (sku: string, rep: string): CatalogProduct =>
+  ({ sku, name: `${sku} – Electric Linear Axis, Ball Screw`, category: "linear-module", brand: "festo",
+     key_specs: { drive: "Ball screw, recirculating ball bearing guide", repeatability_mm: rep, force_n: 3000, stroke_mm: "3000 mm", max_speed: "2 m/s" } });
+
+Deno.test("kuggrem känns igen, och repeterbarheten läses ur katalogen", () => {
+  assert(isBeltDrivenProduct(remaxel("FESTO-EGC-TB", "±0.08")));
+  assert(!isBallScrewProduct(remaxel("FESTO-EGC-TB", "±0.08")));
+  assert(isBeltDrivenProduct({ sku: "PARKER-HMRB", name: "Parker HMR Belt Electromechanical Linear Axis", category: "linear-module", brand: "parker", key_specs: {} }));
+  assertEquals(repeterbarhetMm(remaxel("X", "±0,05 mm")), 0.05);
+  assertEquals(repeterbarhetMm({ sku: "Y", name: "Y", category: "linear-module", brand: "", key_specs: {} }), 0);
+});
+
+Deno.test("precisionen avgörs av axelns repeterbarhet, inte av drivtypen", () => {
+  assert(isAllowedForHighPrecision(remaxel("FESTO-EGC-TB", "±0.08"), 0.1));
+  assert(!isAllowedForHighPrecision(remaxel("FESTO-EGC-TB", "±0.08"), 0.05));
+  // Utan data gäller den gamla regeln: ingen rem.
+  assert(!isAllowedForHighPrecision({ sku: "R", name: "R toothed belt axis", category: "linear-module", brand: "", key_specs: {} }, 0.1));
+  // Pneumatik klarar aldrig ett läge mitt i slaget.
+  assert(!isAllowedForHighPrecision(prod("DSBC-50", "cylinder", "festo", { bore_mm: 50 }), 0.5));
+});
+
+Deno.test("långt och snabbt med ±0,1 mm: remaxeln före kulskruven", () => {
+  const c = ctx({ requiredStroke: 2000, isHighPrecision: true, isHighSpeed: true, precisionMm: 0.1, speedMs: 1, requiredForceN: 637 });
+  const rem = scoreProduct(remaxel("FESTO-EGC-TB", "±0.08"), c);
+  const skruv = scoreProduct(skruvaxel("FESTO-EGC-BS", "±0.003"), c);
+  assert(rem > skruv, `rem ${rem} mot kulskruv ${skruv}`);
+  // Kort slag: precisionen väger tyngre än farten, kulskruven står sig.
+  const kort = ctx({ requiredStroke: 300, isHighPrecision: true, isHighSpeed: true, precisionMm: 0.1, speedMs: 1 });
+  assert(scoreProduct(skruvaxel("FESTO-EGC-BS", "±0.003"), kort) >= scoreProduct(remaxel("FESTO-EGC-TB", "±0.08"), kort));
+});
+

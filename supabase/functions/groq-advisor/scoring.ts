@@ -32,6 +32,10 @@ export interface ScoringCtx {
   requiredForceN?: number;
   isHighPrecision: boolean;
   isHighSpeed: boolean;
+  // Precisionskravet i mm och farten i m/s, 0 = okänt. Med dem jämförs en
+  // axels egen repeterbarhet mot kravet i stället för en regel per drivtyp.
+  precisionMm?: number;
+  speedMs?: number;
   isVertical: boolean;
   isWashdown: boolean;
   isAtex: boolean;
@@ -277,10 +281,22 @@ export function isBallScrewProduct(p: CatalogProduct): boolean {
   return /\begsk\b|\bkulskruv\b|\bball\s*screw\b|\bspindel\b|\bspindle\b|\blead\s*screw\b|\bleadscrew\b/i.test(s);
 }
 
-/** Returns true if a product is belt-driven (not ball screw, not pneumatic). */
+/**
+ * Returns true if a product is belt-driven (not ball screw, not pneumatic).
+ * "Toothed belt" kändes inte igen före 2026-10-11, så Festo EGC-TB, ELGA-TB
+ * och Parker HMR med rem räknades varken som rem eller kulskruv.
+ */
 export function isBeltDrivenProduct(p: CatalogProduct): boolean {
   const s = (p.name + " " + p.sku + " " + JSON.stringify(p.key_specs ?? {})).toLowerCase();
-  return /\bkuggrem\b|\btiming[\s-]?belt\b|\bsynchronous[\s-]?belt\b|\belgc[-.]?tb\b|\begsc\b|\belt[-\s]driv/i.test(s);
+  return /\bkuggrem\w*|\btandrem\w*|\btoothed[\s-]?belt\b|\btiming[\s-]?belt\b|\bsynchronous[\s-]?belt\b|\b(?:elgc|egc|elga|elgr)[-.]?tb\b|\begsc\b|\bhmrb\b|\belt[-\s]driv/i.test(s);
+}
+
+/** Axelns repeterbarhet i mm ur katalogen ("±0.08", "±0,05 mm"), 0 när den saknas. */
+export function repeterbarhetMm(p: CatalogProduct): number {
+  const v = p.key_specs?.repeatability_mm;
+  if (v == null) return 0;
+  const m = String(v).replace(",", ".").match(/\d+(?:\.\d+)?/);
+  return m ? parseFloat(m[0]) : 0;
 }
 
 /** Returns true if a product is a pneumatic cylinder (actuator) — NOT an electric axis. */
@@ -307,11 +323,17 @@ export function isPneumaticActuatorProduct(p: CatalogProduct): boolean {
  *
  * Returns true if product is ALLOWED for high-precision application.
  */
-export function isAllowedForHighPrecision(p: CatalogProduct): boolean {
+export function isAllowedForHighPrecision(p: CatalogProduct, kravMm = 0): boolean {
   if (isAccessory(p)) return true; // sensors/fittings always included
   if (!isElectricActuator(p)) return false; // no pneumatics (repeatability too poor)
-  if (isBeltDrivenProduct(p)) return false; // no belt (backlash too high)
-  return true; // electric ball screw / spindle / linear motor only
+  // Axelns egen repeterbarhet avgör när den finns. Förut uteslöts all rem vid
+  // ±0,5 mm eller bättre, fast Festo EGC-TB klarar ±0,08 och Parker HMR med
+  // rem ±0,05 -- kvar blev kulskruv, även vid 2 m och 1 m/s där kulskruvens
+  // varvtal sätter gränsen (Geminis testfall 2026-10-11).
+  const r = repeterbarhetMm(p);
+  if (kravMm > 0 && r > 0) return r <= kravMm;
+  if (isBeltDrivenProduct(p)) return false; // utan data: remmens glapp för osäkert
+  return true;
 }
 
 /**
@@ -416,13 +438,23 @@ export function scoreProduct(p: CatalogProduct, ctx: ScoringCtx): number {
   const isBallScrew = isBallScrewProduct(p);
   const isBelt     = isBeltDrivenProduct(p);
   const isPneu     = isPneumaticActuatorProduct(p);
+  const krav = ctx.precisionMm ?? 0;
+  const rep = repeterbarhetMm(p);
   if (ctx.isHighPrecision) {
-    if (isBallScrew)        score += 25;
-    else if (isPneu || isBelt) score -= 25;
+    if (isPneu) score -= 25;
+    else if (krav > 0 && rep > 0) score += rep <= krav ? 20 : -25;   // datan avgör
+    else if (isBallScrew)  score += 25;
+    else if (isBelt)       score -= 25;
   }
   if (ctx.isHighSpeed && !ctx.isHighPrecision) {
     if (isBelt)       score += 20;
     else if (isBallScrew) score -= 15;
+  }
+  // Långt och snabbt: kulskruvens tillåtna fart sjunker med längden (kritiskt
+  // varvtal), remmen klarar flera m/s över hela slaget.
+  if ((ctx.speedMs ?? 0) >= 1 && ctx.requiredStroke >= 1500) {
+    if (isBelt) score += 15;
+    else if (isBallScrew) score -= 20;
   }
 
   // ── Washdown fit (±15 points) ─────────────────────────────────────
