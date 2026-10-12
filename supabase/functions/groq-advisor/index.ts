@@ -56,8 +56,8 @@ import {
   extractRequiredMinTemp,
 } from "./signals.ts";
 import {
-  arElektrisk, arElektronikhantering, arKorrosiv, arSakerhetskrav, arSpolmiljo, arUtbyte,
-  forfragningstyp, kandaVarden, reservsammanfattning, slutligaFragor, type Fraga, type Kodvarden,
+  arElaxel, arElektronikhantering, arKorrosiv, arSakerhetskrav, arSpolmiljo, arUtbyte,
+  forfragningstyp, kandaVarden, reservsammanfattning, slutligaFragor, teknikval, type Fraga, type Kodvarden,
 } from "./fragor.ts";
 import {
   buildCustomSolutionOption,
@@ -552,7 +552,8 @@ function questionsFailed(description: string, locale: string, t0: number, reason
     locale, question_count: questions.length, duration_ms: Date.now() - t0,
     ...(rateLimited ? { rate_limited: true } : {}),
   }, false, `${reason} (reservfrågor)`);
-  return Response.json({ summary: reservsammanfattning(description, locale, kod), questions, fallback: true }, { headers: CORS });
+  const summary = [teknikval(description, locale), reservsammanfattning(description, locale, kod)].filter(Boolean).join(" ");
+  return Response.json({ summary, questions, fallback: true }, { headers: CORS });
 }
 
 async function handleQuestions(description: string, locale: string): Promise<Response> {
@@ -592,7 +593,9 @@ async function handleQuestions(description: string, locale: string): Promise<Res
   const utbyte = arUtbyte(description, kod);
   const kanda = kandaVarden(description, kod);
   const isSafety = arSakerhetskrav(description);
-  const isElectric = arElektrisk(description);
+  // Elaxelspåret: uttryckligt el, eller krav som bara en elaxel klarar
+  // (±0,5 mm, fler än två lägen, ingen tryckluft). Se arElaxel i fragor.ts.
+  const isElectric = arElaxel(description);
   const isSpol = arSpolmiljo(description);
   const isKorrosiv = arKorrosiv(description) && !isFoodGrade && !isSpol;
   const isElektronik = arElektronikhantering(description);
@@ -630,7 +633,7 @@ async function handleQuestions(description: string, locale: string): Promise<Res
     typ === "rorelse" && !kanda.slag
       ? `- STROKE NOT STATED: You MUST include a question asking for the required stroke/travel length (mm). This is mandatory for actuator selection.` : "",
     typ === "rorelse" && isElectric
-      ? `- ELECTRIC SYSTEM: Ask about required repeatability/accuracy (±0.05 mm? ±0.5 mm?), max speed (m/s), and drive type preference (ball screw = precise, belt = fast) — only what is not already stated.` : "",
+      ? `- ELECTRIC AXIS: the requirements need a servo-driven electric axis. Do NOT ask cylinder questions (end-position sensors, piston rod, rod lock, push button or hand valve) and do NOT ask the customer to choose ball screw or belt — choosing is your job. Ask what decides the axis and motor, only what is not already stated: how many positions it stops at, whether the stated accuracy means repeatability or absolute accuracy over the whole stroke, how long one move may take (it sets the acceleration), whether the load is centred on the carriage or overhanging, and how the axis is controlled (fieldbus, digital signals, stand-alone).` : "",
     isSpol
       ? `- WASHDOWN ENVIRONMENT (high-pressure cleaning). Ask about the IP class (IP67 or IP69K) and the material (stainless or plastic). Do NOT ask about cleanroom ISO class.` : "",
     isFoodGrade
@@ -732,6 +735,8 @@ async function handleQuestions(description: string, locale: string): Promise<Res
       // högst sex (T19).
       parsed.questions = slutligaFragor(parsed.questions as Fraga[], description, locale, kod);
       parsed.summary = String(parsed.summary ?? "").replace(/^\s*(sammanfattning|summary|zusammenfassung|resumen)\s*:\s*/i, "");
+      // Teknikvalet först, när det följer av kraven (Geminis punkt 1).
+      parsed.summary = [teknikval(description, locale), parsed.summary].filter(Boolean).join(" ");
       // A valid JSON body carrying zero questions is still a failed step for the
       // customer -- there is no branch where none is the right answer, and the
       // UI has nothing to render.
@@ -1027,7 +1032,13 @@ async function handleOptions(
   // Presskraften ("behöver 3 kN", svaret på kraftfrågan) räknas med sedan
   // 2026-10-11; utan den visade panelen inget kraftkrav för en press.
   const statedForceN = hazards.statedForceN ?? (hazards.gripForceN || hazards.holdingForceN);
-  const requiredForceN = Math.round(sigRequiredForceN(loadKg, statedForceN));
+  // Kraftkravet efter riktning (signals.ts kraftkrav): en elaxel i sidled ska
+  // accelerera lasten, inte lyfta den. Var 80 kg × 9,81 × 2 = 1570 N i Geminis
+  // testfall (2 m i sidled), nu 637 N med antagen acceleration -- och
+  // uträkningen visas i dimensioneringspanelen.
+  const requiredForceN = hazards.kraftkrav
+    ? hazards.kraftkrav.forceN
+    : Math.round(sigRequiredForceN(loadKg, statedForceN));
 
   // ── Shock-absorber application (decelerate an external moving mass) ──────────
   // Sized by kinetic energy ½·m·v², not bore/force — handled here so it skips the
@@ -1364,7 +1375,7 @@ async function handleOptions(
   const precisionFiltered = applyPrecisionFilter
     ? washdownFiltered.filter(p =>
         (!isMultiAxis || isHighPrecisionVertical)
-          ? isAllowedForHighPrecision(p)          // ball-screw only
+          ? isAllowedForHighPrecision(p, precisionMm)   // axelns repeterbarhet mot kravet
           : !isPneumaticActuatorProduct(p))        // multi-axis: drop pneumatics, keep belt
     : washdownFiltered;
   const applySpeedFilter = speedMs > 0.8 && !isHighPrecision && !isAtex;
@@ -1451,7 +1462,7 @@ async function handleOptions(
   // ── v40/v51: Server-side product selection ───────────────────────
   // rankActuators() tiers candidates so a configurable family NEVER outranks a
   // concrete-stroke product that meets the requirement (regression-tested).
-  const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, requiredForceN, isHighPrecision, isHighSpeed, isVertical: isVerticalLoad, isWashdown: needsCorrosionResistant, isAtex, preferredBrands: detectRequestedBrands(combinedText), explicitBoreMm, isFood: hazards.isFoodGrade };
+  const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, requiredForceN, isHighPrecision, isHighSpeed, precisionMm, speedMs, isVertical: isVerticalLoad, isWashdown: needsCorrosionResistant, isAtex, preferredBrands: detectRequestedBrands(combinedText), explicitBoreMm, isFood: hazards.isFoodGrade };
   const topProducts = rankActuators(catalogProducts, scoringCtx).slice(0, 3);
 
   // Build server-side option objects (correct data, LLM fills in text)
@@ -1529,7 +1540,7 @@ async function handleOptions(
     // requirements block rendered on the same page (687 N). Hand it the numbers
     // the server already computed instead of leaving it to re-derive them.
     loadKg > 0 ? `Last: ${loadKg} kg` : "",
-    requiredForceN > 0 ? `Erforderlig kraft: ${requiredForceN} N (last x 9,81 x säkerhetsfaktor 2 — använd DENNA siffra, räkna inte om den)` : "",
+    requiredForceN > 0 ? `Erforderlig kraft: ${requiredForceN} N (${hazards.kraftkrav?.forklaring || "last x 9,81 x säkerhetsfaktor 2"} — använd DENNA siffra, räkna inte om den)` : "",
     precisionMm > 0 ? `Precision: ±${precisionMm} mm` : "",
     isVerticalLoad ? pick(locale, { sv: "Vertikal last", en: "Vertical load", de: "Vertikale Last", es: "Carga vertical" }) : "",
     isWashdown ? "Washdown/IP69K" : "",
@@ -1556,9 +1567,13 @@ async function handleOptions(
   // guarantees force_n is at 6 bar (it reads piston_force_6bar_N, or computes
   // bore x 6 bar when absent), so the fix is to say so in the key name rather
   // than to argue with the model about arithmetic it had every reason to do.
-  const labelForceAtPressure = (specs: Record<string, unknown>): Record<string, unknown> => {
+  const labelForceAtPressure = (specs: Record<string, unknown>, p?: CatalogProduct): Record<string, unknown> => {
     if (specs.force_n == null) return specs;
     const { force_n, ...rest } = specs;
+    // En elaxels kraft är matningskraft och har inget med tryck att göra.
+    // Med "at_6bar" skrev modellen "levererar 3000 N vid 6 bar" om en
+    // kulskruvsaxel (Geminis testfall 2026-10-11).
+    if (p && isElectricActuator(p)) return { max_feed_force_n: force_n, ...rest };
     return { force_n_at_6bar: force_n, ...rest };
   };
 
@@ -1571,7 +1586,7 @@ async function handleOptions(
     return isFamilyProduct(p) && maxRequiredStroke > 0 && max >= maxRequiredStroke ? max : 0;
   };
   const specsForLlm = (p: CatalogProduct): Record<string, unknown> => {
-    let ks = labelForceAtPressure(p.key_specs ?? {});
+    let ks = labelForceAtPressure(p.key_specs ?? {}, p);
     if (familjeStorlek.has(p.sku)) {
       const { bore_mm: _max, force_n_at_6bar: _maxF, bore_range, ...rest } = ks;
       const b = familjeStorlek.get(p.sku) ?? 0;
@@ -1765,7 +1780,10 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
         es: `⚠️ Producto estándar — verifique la protección contra corrosión para entorno washdown.`,
       });
     }
-    if (isHighPrecision && !isAllowedForHighPrecision(cat)) {
+    if (isElectricActuator(cat) && typeof opt.why === "string") {
+      opt.why = (opt.why as string).replace(/\s*(?:\(|,\s*)?(?:vid|at|bei|a)\s+6\s*bar\)?/gi, "");
+    }
+    if (isHighPrecision && !isAllowedForHighPrecision(cat, precisionMm)) {
       const ft = isPneumaticActuatorProduct(cat)
         ? pick(locale, { sv: "pneumatisk cylinder", en: "pneumatic cylinder", de: "Pneumatikzylinder", es: "cilindro neumático" })
         : pick(locale, { sv: "kuggremsdrift", en: "belt drive", de: "Zahnriemenantrieb", es: "accionamiento por correa" });
@@ -1890,7 +1908,10 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     required_force_n: requiredForceN > 0 ? requiredForceN : null,
     required_stroke_mm: maxRequiredStroke > 0 ? maxRequiredStroke : null,
     safety_factor: 2,
-    pressure_bar: 6,
+    pressure_bar: hazards.elaxel ? null : 6,
+    // Hur kraftkravet räknades, i klartext (Geminis punkt 3: "Krävs 1570 N"
+    // utan uträkning gick inte att granska).
+    force_basis: requiredForceN > 0 ? (hazards.kraftkrav?.forklaring || null) : null,
   };
 
   // LLM:en kvot-strypt: leverera det deterministiska resultatet i stället för

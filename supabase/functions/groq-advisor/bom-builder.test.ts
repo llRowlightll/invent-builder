@@ -902,3 +902,27 @@ Deno.test("kundlösningen: inga obelagda ATEX-, torrums- eller hydraulikpåståe
   for (const r of torrum) assert(!OBELAGDA_2.test(`${r.role} ${r.reason}`), r.reason);
 });
 
+// ── Servoaxlar (Geminis testfall 2026-10-11) ─────────────────────────────────
+Deno.test("servoaxel i hög fart: ändstopp rekommenderas, ingen obligatorisk stötdämpare", () => {
+  const el = buildMandatoryBomRows(bomCtx({ primarySku: "FESTO-EGC-TB", isElectric: true, isHighSpeed: true }));
+  assert(!el.some((r) => r.kind === "shock_absorber"), "ingen obligatorisk stötdämpare på en servoaxel");
+  const rad = el.find((r) => /Rekommenderas/.test(r.role))!;
+  assert(rad && rad.kind === "warning" && !/cylinder/i.test(rad.reason), JSON.stringify(rad));
+  // En snabb cylinder har kvar kravet.
+  const pn = buildMandatoryBomRows(bomCtx({ primarySku: "TEST-PRIMARY", isHighSpeed: true }));
+  assert(pn.some((r) => r.kind === "shock_absorber" && /OBLIGATORISK/.test(r.reason)));
+});
+
+Deno.test("absolut noggrannhet med kuggrem ger linjärt mätsystem; utskjutande last en momentkontroll", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "FESTO-EGC-TB", isElectric: true, precisionMm: 0.1, absolutNoggrannhet: true, utskjutandeLast: true,
+    primarySpecs: { drive: "Toothed belt, recirculating ball bearing guide" },
+  }));
+  assert(rows.some((r) => /Linjärt mätsystem/.test(r.role) && r.sku === "SPECIFY"), "mätsystemet saknas");
+  assert(rows.some((r) => /Utskjutande last/.test(r.role) && r.kind === "warning"), "momentkontrollen saknas");
+  // Repeterbarhet räcker för remmen: inget mätsystem.
+  const rep = buildMandatoryBomRows(bomCtx({ primarySku: "FESTO-EGC-TB", isElectric: true, precisionMm: 0.1, absolutNoggrannhet: false,
+    primarySpecs: { drive: "Toothed belt" } }));
+  assert(!rep.some((r) => /Linjärt mätsystem/.test(r.role)));
+});
+

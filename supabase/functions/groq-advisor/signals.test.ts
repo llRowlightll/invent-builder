@@ -18,6 +18,7 @@ import {
   extractRotationDeg, extractCycleTimeS, computeDynamics, detectConflicts,
   extractUnitCount, detectEndEffectorIntent, endEffectorExplicitlyAsked, parseRotationFromSpecs,
   extractStatedForceN, uppskattatVridmomentNm, detectCategories,
+  slagIMeterMm, needsElectricAxis, extractMoveTimeS, rorelseprofil, kraftkrav,
 } from "./signals.ts";
 
 // ── Explicit force statements must not round-trip through extractLoadKg ────────
@@ -799,5 +800,64 @@ Deno.test("det angivna kraftkravet följer med till dimensioneringspanelen", () 
   assertEquals(detectHazards("Pressa in en bussning i ett hus, behöver 3 kN", {}, "sv").statedForceN, 3000);
   assertEquals(detectHazards("Pneumatisk parallellgripare, greppkraft ca 100N", {}, "sv").statedForceN, 100);
   assertEquals(detectHazards("Lyfta en låda på 5 kg", {}, "sv").statedForceN, 0);
+});
+
+// ── Geminis testfall (2026-10-11) ────────────────────────────────────────────
+const GEMINI = "Jag behöver flytta en aluminiumprofil som väger 80 kg 2 meter i sidled. Positioneringsnoggrannheten ska vara ±0,1 mm och hastigheten minst 1 m/s. Miljön innehåller aluminiumdamm och maskinen körs 24/7. Budgeten är begränsad men driftsäkerhet är prioriterad.";
+
+Deno.test("Gemini: 2 meter, elaxel, damm och budget känns igen", () => {
+  assertEquals(slagIMeterMm(GEMINI), 2000);
+  assertEquals(extractMinStroke({}, GEMINI), 2000);
+  assertEquals(slagIMeterMm("hastigheten minst 1 m/s"), 0);
+  assertEquals(slagIMeterMm("10 m slang och kopplingar"), 0);
+  assert(needsElectricAxis(GEMINI));
+  assert(needsElectricAxis("Behöver stanna i 5 positioner längs axeln"));
+  assert(needsElectricAxis("Vi har ingen tryckluft i fabriken"));
+  assert(!needsElectricAxis("Skjuta av kartonger från ett band, 8 kg"));
+  const h = detectHazards(GEMINI, {}, "sv");
+  assert(h.isDirtyEnv, "aluminiumdamm");
+  assert(h.isLowCost, "budgeten är begränsad");
+  assert(!needsDirtyEnv("dammfri miljö"));
+});
+
+Deno.test("Gemini: kraften i sidled är acceleration och friktion, inte 2 × tyngden", () => {
+  // Var 80 kg × 9,81 × 2 = 1570 N.
+  const h = detectHazards(GEMINI, {}, "sv");
+  assertEquals(h.kraftkrav?.metod, "dynamik");
+  assertEquals(h.kraftkrav?.forceN, 637);
+  assert(/antagen/.test(h.kraftkrav!.forklaring) && /80 kg × 3,0 m\/s²/.test(h.kraftkrav!.forklaring), h.kraftkrav!.forklaring);
+  // Med förflyttningstiden räknas accelerationen fram: 2 m på 3 s med 1 m/s.
+  const t = detectHazards(GEMINI, { forflyttningstid_s: "3" }, "sv");
+  assertEquals(extractMoveTimeS(GEMINI, { forflyttningstid_s: "3" }), 3);
+  assertEquals(t.kraftkrav?.forceN, 317);
+  assert(!/antagen/.test(t.kraftkrav!.forklaring));
+});
+
+Deno.test("rörelseprofil: trapets med fart, triangel utan, antagen utan tid", () => {
+  const trapets = rorelseprofil(2000, 3, 1);
+  assertEquals(trapets.acc, 1);
+  assertEquals(trapets.vPeak, 1);
+  const triangel = rorelseprofil(1000, 2, 0);
+  assertEquals(triangel.acc, 1);
+  assertEquals(triangel.vPeak, 1);
+  assert(rorelseprofil(2000, 1.5, 1).forKort);
+  assert(rorelseprofil(2000, 0, 1).antagen);
+});
+
+Deno.test("kraftkravet ändras inte för lyft, cylindrar i sidled eller angiven kraft", () => {
+  const bas = { locale: "sv", statedForceN: 0, strokeMm: 500, tMoveS: 0, speedMs: 0 };
+  assertEquals(kraftkrav({ ...bas, loadKg: 12, isVertical: true, isHorizontal: false, elaxel: false }).forceN, 235);
+  assertEquals(kraftkrav({ ...bas, loadKg: 12, isVertical: true, isHorizontal: false, elaxel: true }).metod, "lyft");
+  assertEquals(kraftkrav({ ...bas, loadKg: 8, isVertical: false, isHorizontal: true, elaxel: false }).metod, "tumregel");
+  // Okänd riktning på en elaxel räknas som lyft, på den säkra sidan.
+  assertEquals(kraftkrav({ ...bas, loadKg: 3, isVertical: false, isHorizontal: false, elaxel: true }).metod, "tumregel");
+  assertEquals(kraftkrav({ ...bas, loadKg: 80, statedForceN: 3000, isVertical: false, isHorizontal: true, elaxel: true }).forceN, 3000);
+});
+
+Deno.test("svaren om noggrannhet och lastens placering läses", () => {
+  assert(detectHazards(GEMINI + " Exakt rätt över hela slaget (absolut noggrannhet)", {}, "sv").absolutNoggrannhet);
+  assert(!detectHazards(GEMINI + " Samma läge igen (repeterbarhet)", {}, "sv").absolutNoggrannhet);
+  assert(detectHazards(GEMINI + " Utskjutande (hävarm)", {}, "sv").utskjutandeLast);
+  assert(!detectHazards(GEMINI + " Centrerad på vagnen", {}, "sv").utskjutandeLast);
 });
 

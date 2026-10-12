@@ -73,7 +73,10 @@ interface Requirements {
   required_torque_nm?: number | null;
   required_rotation_deg?: number | null;
   safety_factor: number;
-  pressure_bar: number;
+  /** Trycket kraften anges vid. null för en elaxel: dess kraft är matningskraft. */
+  pressure_bar: number | null;
+  /** Hur kraftkravet räknades, i klartext (sedan 2026-10-11). */
+  force_basis?: string | null;
 }
 
 /** En kant i maskingrafen, som groq-advisor levererar den (se
@@ -1135,14 +1138,22 @@ function DimensioningPanel({ locale, requirements, option, bordered = true }: {
   return (
     <div className={`flex flex-wrap gap-4 ${bordered ? "mt-3 pt-3 border-t border-border/60" : ""}`}>
       {showForce && (
-        <DimensioningBar
-          label={isSv ? `Kraft @ ${requirements.pressure_bar} bar` : `Force @ ${requirements.pressure_bar} bar`}
-          required={requirements.required_force_n!}
-          available={option.force_n!}
-          unit="N"
-          requiredLabel={isSv ? "Krävs" : "Required"}
-          availableLabel={isSv ? "Ger" : "Delivers"}
-        />
+        <div className="space-y-1">
+          <DimensioningBar
+            label={requirements.pressure_bar
+              ? (isSv ? `Kraft @ ${requirements.pressure_bar} bar` : `Force @ ${requirements.pressure_bar} bar`)
+              : (isSv ? "Matningskraft" : "Feed force")}
+            required={requirements.required_force_n!}
+            available={option.force_n!}
+            unit="N"
+            requiredLabel={isSv ? "Krävs" : "Required"}
+            availableLabel={isSv ? "Ger" : "Delivers"}
+          />
+          {/* Uträkningen bakom kravet, så att den går att granska. */}
+          {requirements.force_basis && (
+            <p className="text-xs text-muted-foreground max-w-md">{requirements.force_basis}</p>
+          )}
+        </div>
       )}
       {showTorque && (
         <DimensioningBar

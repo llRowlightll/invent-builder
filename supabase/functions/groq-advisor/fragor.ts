@@ -45,9 +45,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
-  extractExplicitBoreMm, extractPrecisionMm, extractRotationDeg, extractSpeedMs,
-  needsEndPositionDetection, needsFoodGrade, needsMultiAxis, needsPharmaGmp,
-  needsSilSafety, needsSpolmiljo, needsValveTerminal, needsVerticalLoad,
+  arHorisontellRorelse, extractExplicitBoreMm, extractMinStroke, extractMoveTimeS, extractPrecisionMm, extractRotationDeg, extractSpeedMs,
+  needsElectricAxis, needsEndPositionDetection, needsFoodGrade, needsMultiAxis, needsPharmaGmp,
+  needsSilSafety, needsSpolmiljo, needsValveTerminal, needsVerticalLoad, slagIMeterMm,
 } from "./signals.ts";
 
 export type Fraga = {
@@ -118,7 +118,7 @@ export type Kanda = {
 /** Det kunden redan har angett. Frågas aldrig igen (av modellen eller av oss). */
 export function kandaVarden(text: string, kod?: Kodvarden): Kanda {
   return {
-    slag: !!kod?.slagMm || /(slag(längd)?|lyfthöjd|lyft\w*|höj[ae]\w*|sänk\w*|flytt\w*|skjut\w*|förflytt\w*|rörelse\w*|vandring|travel|stroke|sträcka|sidled|längs)[^.\d]{0,25}\d{2,5}\s*mm|\d{2,5}\s*mm[^.\d]{0,20}(slag|upp\b|uppåt|ner\b|ned\b|nedåt|i sidled|lyft|stroke|travel|rörelse|förflyttning|framåt|bakåt)/i.test(text),
+    slag: !!kod?.slagMm || slagIMeterMm(text) > 0 || /(slag(längd)?|lyfthöjd|lyft\w*|höj[ae]\w*|sänk\w*|flytt\w*|skjut\w*|förflytt\w*|rörelse\w*|vandring|travel|stroke|sträcka|sidled|längs)[^.\d]{0,25}\d{2,5}\s*mm|\d{2,5}\s*mm[^.\d]{0,20}(slag|upp\b|uppåt|ner\b|ned\b|nedåt|i sidled|lyft|stroke|travel|rörelse|förflyttning|framåt|bakåt)/i.test(text),
     last: /\d+(?:[.,]\d+)?\s*kg\b/i.test(text),
     kraft: /\d+(?:[.,]\d+)?\s*k?N\b/.test(text),
     takt: /(\d+|en|ett|två|tre|fyra|fem|sex|sju|åtta|nio|tio|tjugo|trettio|hundra)\s*(gånger|ggr|cykler|slag|takter?|st|lyft|rörelser)\s*(per|i|om|\/)\s*(sekund\w*|sek|s\b|minut\w*|min\b|timme\w*|tim\b|h\b|dag\w*|dygn\w*|vecka\w*|skift\w*)|\d+\s*\/\s*(min|h|s)\b|cykeltid|takttid|per\s+minut|i\s+minuten/i.test(text),
@@ -168,6 +168,45 @@ export function arElektronikhantering(text: string): boolean {
   return /kretskort|\bpcb\b|elektronikkomponent|komponenter.*kort|ytmonter|\besd\b|antistat/i.test(text);
 }
 
+/**
+ * Elaxelspåret: uttryckligt el/servo, ±0,5 mm eller bättre, fler än två lägen
+ * eller ingen tryckluft (needsElectricAxis i signals.ts, samma gräns som
+ * resultatsteget). Hittat 2026-10-11 (Geminis testfall): "±0,1 mm, 2 m, 1 m/s"
+ * fick cylinderfrågor -- ändlägesgivare, kolvstång, slag per minut.
+ */
+export function arElaxel(text: string): boolean {
+  return needsElectricAxis(text);
+}
+
+/**
+ * Teknikvalet i klartext, före frågorna, när det följer av kraven och inte
+ * står i förfrågan. Geminis punkt 1: frågefasen såg ut att ha bestämt sig för
+ * en cylinder innan den förstått behovet. Tom sträng när inget behöver sägas.
+ */
+export function teknikval(text: string, locale: string): string {
+  if (!arElaxel(text) || arElektrisk(text) || forfragningstyp(text) !== "rorelse") return "";
+  const precision = extractPrecisionMm(text, {});
+  const fart = extractSpeedMs(text, {});
+  const slag = extractMinStroke({}, text);
+  const tal = (n: number) => (locale === "sv" ? String(n).replace(".", ",") : String(n));
+  let grund: string;
+  if (precision > 0 && precision <= 0.5) {
+    grund = g(locale, `±${tal(precision)} mm kräver en servostyrd elaxel — en pneumatisk cylinder stannar bara exakt i sina ändlägen.`,
+      `±${tal(precision)} mm requires a servo-driven electric axis — a pneumatic cylinder only stops precisely at its end positions.`);
+  } else if (/ingen\s+tryckluft|utan\s+tryckluft|saknar\s+tryckluft|bara\s+el\b|endast\s+el\b|no\s+compressed\s+air/i.test(text)) {
+    grund = g(locale, "Utan tryckluft blir det en elektrisk axel.", "Without compressed air it will be an electric axis.");
+  } else {
+    grund = g(locale, "Flera stopplägen kräver en servostyrd elaxel — en pneumatisk cylinder har bara två ändlägen.",
+      "Several stop positions require a servo-driven electric axis — a pneumatic cylinder only has two end positions.");
+  }
+  if (slag >= 1500 && fart >= 1 && precision > 0) {
+    grund += " " + g(locale,
+      `Över ${tal(slag / 1000)} m med ${tal(fart)} m/s talar farten för kuggrem och precisionen för kulskruv — frågorna nedan avgör.`,
+      `Over ${tal(slag / 1000)} m at ${tal(fart)} m/s the speed favours a toothed belt and the precision a ball screw — the questions below decide.`);
+  }
+  return grund;
+}
+
 export function arElektrisk(text: string): boolean {
   return /elcylinder|elektrisk\w*\s+(cylinder|axel|linjär\w*|ställdon|aktuator|drivning)|eldriven|elaxel|\bservo|stegmotor|stepper|kuggrem|kulskruv|ball.?screw|linjärmodul|linear.?axis|electric\s+(actuator|cylinder|axis)/i.test(text);
 }
@@ -202,7 +241,7 @@ function arKallt(text: string): boolean {
 
 /** Där brännbart damm kan finnas (mjöl, spannmål, socker, trä). */
 function arDammRisk(text: string): boolean {
-  return /\bsilo|kvarn|spannmål|\bmjöl|\bfoder\b|pellets|sågverk|\bspån|pulver|socker|kolpulver/i.test(text) &&
+  return /\bsilo|kvarn|spannmål|\bmjöl|\bfoder\b|pellets|sågverk|\bspån|pulver|socker|kolpulver|aluminiumdamm|metalldamm|slipdamm|magnesium/i.test(text) &&
     !/atex|zon\s*2[012]|explosi/i.test(text);
 }
 
@@ -224,6 +263,8 @@ const BANKENS_AMNEN: Record<string, string> = {
   slang_material: "slangmaterial", koppling_ganga: "anslutning", slang_langd_m: "langd",
   vridvinkel: "vinkel", vridmoment_nm: "vridmoment", havarm_mm: "havarm", vridskydd: "vridskydd",
   temperatur_lagsta: "temperatur", atex_damm: "atex", material: "material",
+  antal_lagen: "lagen", noggrannhet_typ: "noggrannhetstyp", forflyttningstid_s: "tid",
+  lastplacering: "lastplacering", styrning_axel: "styrning",
 };
 
 /** Ämnet en fråga handlar om. Används för att rensa och fylla på. */
@@ -283,10 +324,15 @@ export function amne(q: Pick<Fraga, "id" | "label"> & { options?: string[]; unit
   if (/broms|kolvstångslås|stånglås|\blås\b|låsenhet|hålla kvar|hållas kvar|håll(a|er)? (lasten|positionen|position)|fail.?safe|strömavbrott|power.?loss|falla|sjunka|tryckluften försvinner/.test(s)) return "hallning";
   if (/orienter|riktning|vertikal|horisontell|monteringsläge|montera.*i|direction|rör sig/.test(s)) return "riktning";
   if (/givare|sensor|ändläge|end.?position/.test(s)) return "givare";
+  if (/per minut|per timme|\/min\b|frekvens|hur ofta|takt|cycles? per/.test(l)) return "takt";
   if (/slag|travel|lyfthöjd|rörelsens längd|längd.*rörelse|hur lång/.test(s)) return "slag";
   if (/cykl|gånger|frekvens|takt|cycle|hur ofta|per timme|per minut/.test(s)) return "takt";
   if (/vikt|väger|\blast\b|massa|\bload\b|weight|\bkg\b|hur tung/.test(s)) return "last";
   if (/kraft|force|\(n\)/.test(s)) return "kraft";
+  if (/hur många (lägen|positioner|stopp)|antal (lägen|positioner)|mellanläg|number of positions/.test(l)) return "lagen";
+  if (/accelerat|förflyttningstid|rörelsetid|cykeltid|hur lång tid|move.?time|cycle.?time/.test(l)) return "tid";
+  if (/överhäng|utskjutande|hävarm|tyngdpunkt|centrerad|overhang|cantilever/.test(l)) return "lastplacering";
+  if (/sluten (loop|reglering)|positionsreglering|linjärgivare|mätsystem|absolut noggrann|closed.?loop|linear encoder/.test(l)) return "noggrannhetstyp";
   if (/hastighet|speed|m\/s|snabb/.test(s)) return "hastighet";
   if (/precision|noggrann|repeterbar|accuracy|exakt/.test(s)) return "precision";
   if (/fältbus|fieldbus|protokoll|protocol|profinet|ethercat/.test(s)) return "faltbuss";
@@ -342,7 +388,8 @@ export function rensaFragor(fragor: Fraga[], text: string, locale: string, kod?:
   const utbyte = arUtbyte(text, kod);
   const multi = needsMultiAxis(text);
   const press = arPress(text);
-  const elektrisk = arElektrisk(text);
+  const elektrisk = arElaxel(text);
+  const horisontell = arHorisontellRorelse(text);
   const sedda = new Set<string>();
   const ut: Fraga[] = [];
   for (const q0 of fragor) {
@@ -391,8 +438,12 @@ export function rensaFragor(fragor: Fraga[], text: string, locale: string, kod?:
     // elaxel ("statiskt, dynamiskt eller magnetiskt grepp").
     if (a === "grepp" && !k.greppsatt && !arGrepp(text)) continue;
     if (a === "fabrikat" && k.fabrikat) continue;
-    // En elaxel vet själv var den är (samma regel som banken).
+    // En elaxel vet själv var den är (samma regel som banken), och har en
+    // styrd vagn i stället för en kolvstång som kan vrida sig.
     if (a === "givare" && elektrisk) continue;
+    if (a === "vridskydd" && elektrisk) continue;
+    // I sidled faller ingenting när strömmen eller luften försvinner.
+    if (a === "hallning" && horisontell) continue;
     // Fältbussen avgör bara valet av ventilterminal; till en enstaka cylinder
     // är den en fråga till elkonstruktören, inte till oss.
     if (a === "faltbuss" && (typ === "rorelse" || typ === "vridning") && !needsValveTerminal(text)) continue;
@@ -607,7 +658,7 @@ export function reservfragor(text: string, locale: string, kod?: Kodvarden): Fra
   const stopp = arStopp(text);
   const vakuum = /vakuum|vacuum|sugkopp/i.test(text);
   const lucka = /\blucka|luckan|\bdörr|\bgrind|\block\b/i.test(text);
-  const elektrisk = arElektrisk(text);
+  const elektrisk = arElaxel(text);
   const flerLagen = /\d+\s*(positioner|lägen|stopp)\b|mellanläg|flera\s+(lägen|positioner)/i.test(text);
   const positionering = !stopp && (/positioner|mellanläg|flera\s+lägen|stopp\w*\s+(på|i)|exakt|precision|noggrann/i.test(text) || elektrisk);
 
@@ -676,11 +727,58 @@ export function reservfragor(text: string, locale: string, kod?: Kodvarden): Fra
     q.push({ id: "lasthallning", type: "choice",
       label: vakuum
         ? g(locale, "Om tryckluften eller strömmen bryts, får lasten falla?", "If the compressed air or power is lost, may the load drop?")
-        : g(locale, "Om tryckluften försvinner, får lasten sjunka ned?", "If the compressed air is lost, may the load drop?"),
+        : elektrisk
+          ? g(locale, "Om strömmen bryts, får lasten sjunka ned?", "If power is lost, may the load drop?")
+          : g(locale, "Om tryckluften försvinner, får lasten sjunka ned?", "If the compressed air is lost, may the load drop?"),
       hint: vakuum
         ? g(locale, "Ska lasten sitta kvar behövs en backventil som håller vakuumet i sugkopparna en stund, och en stångbroms på lyftcylindern.", "If the load must stay put, a non-return valve that holds the vacuum in the cups for a while is needed, and a rod lock on the lifting cylinder.")
-        : g(locale, "Ska lasten stå kvar läggs en stångbroms till som håller den mekaniskt.", "If the load must stay put, a rod lock is added that holds it mechanically."),
+        : elektrisk
+          ? g(locale, "Ska lasten stå kvar behövs en motor med broms som håller axeln när strömmen bryts.", "If the load must stay put, a motor with a brake that holds the axis when power is lost is needed.")
+          : g(locale, "Ska lasten stå kvar läggs en stångbroms till som håller den mekaniskt.", "If the load must stay put, a rod lock is added that holds it mechanically."),
       options: [g(locale, "Nej, lasten får inte falla ned", "No — load holding required, it must not drop"), g(locale, "Ja, det gör inget", "Yes, that is fine")] });
+  }
+  // ── Elaxel ────────────────────────────────────────────────────────────────
+  // Det en ingenjör frågar före ett servoval (Geminis testfall 2026-10-11):
+  // hur många lägen, vad noggrannheten avser, hur fort förflyttningen ska gå
+  // (accelerationen dimensionerar motorn), var lasten sitter och hur axeln
+  // styrs. Inga cylinderfrågor -- ändlägesgivare, kolvstång, slag per minut.
+  if (elektrisk) {
+    const precision = extractPrecisionMm(text, {});
+    const tal = (n: number) => (locale === "sv" ? String(n).replace(".", ",") : String(n));
+    if (!flerLagen) q.push({ id: "antal_lagen", type: "choice",
+      label: g(locale, "Hur många lägen ska axeln stanna i?", "How many positions should the axis stop at?"),
+      hint: g(locale, "Fasta lägen kan styras med enkla signaler; fritt valda lägen kräver att styrsystemet skickar positioner till drivsteget.", "Fixed positions can be selected with simple signals; freely chosen positions need the control system to send positions to the drive."),
+      options: [g(locale, "Bara två ändlägen", "Only two end positions"), g(locale, "3–10 fasta lägen", "3–10 fixed positions"), g(locale, "Fritt valda lägen", "Freely chosen positions")] });
+    if (precision > 0 && precision <= 0.5) {
+      q.push({ id: "noggrannhet_typ", type: "choice",
+        label: g(locale, `Gäller ±${tal(precision)} mm att axeln hittar samma läge igen, eller att varje läge ligger exakt rätt över hela slaget?`,
+          `Does ±${tal(precision)} mm mean the axis returns to the same position, or that every position is exactly right over the whole stroke?`),
+        hint: g(locale, "Samma läge igen (repeterbarhet) klarar en kuggremsaxel. Exakt rätt över hela slaget (absolut noggrannhet) kräver kulskruv eller ett linjärt mätsystem på vagnen.",
+          "Returning to the same position (repeatability) is within reach of a toothed belt axis. Exactly right over the whole stroke (absolute accuracy) needs a ball screw or a linear measuring system on the carriage."),
+        options: [g(locale, "Samma läge igen (repeterbarhet)", "The same position again (repeatability)"), g(locale, "Exakt rätt över hela slaget (absolut noggrannhet)", "Exactly right over the whole stroke (absolute accuracy)")] });
+    } else if (!k.precision) {
+      q.push({ id: "precision", type: "choice",
+        label: g(locale, "Hur exakt måste den stanna?", "How precisely must it stop?"),
+        hint: g(locale, "Hur nära önskat läge den måste stanna varje gång.", "How close to the target position it must stop every time."),
+        options: ["±1 mm", "±0,1 mm", g(locale, "±0,02 mm eller bättre", "±0.02 mm or better")] });
+    }
+    if (extractMoveTimeS(text, {}) === 0) q.push({ id: "forflyttningstid_s", type: "number", unit: "s",
+      label: g(locale, "Hur lång tid får en förflyttning ta?", "How long may one move take?"),
+      hint: g(locale, "Från start till stopp. Tiden avgör accelerationen, och den avgör motorn. Vet du bara farten, välj Vet inte.", "From start to stop. The time sets the acceleration, which sets the motor. If you only know the speed, choose Don't know.") });
+    q.push({ id: "lastplacering", type: "choice",
+      label: g(locale, "Sitter lasten mitt på vagnen, eller sticker den ut åt sidan eller uppåt?", "Is the load centred on the carriage, or does it overhang to the side or upwards?"),
+      hint: g(locale, "En utskjutande last belastar axelns styrning med ett moment, och då behövs ofta en större axel.", "An overhanging load puts a moment on the axis guide, and then a larger axis is often needed."),
+      options: [g(locale, "Centrerad på vagnen", "Centred on the carriage"), g(locale, "Utskjutande (hävarm)", "Overhanging (lever arm)")] });
+    if (!k.styrning) q.push({ id: "styrning_axel", type: "choice",
+      label: g(locale, "Hur ska axeln styras?", "How will the axis be controlled?"),
+      hint: g(locale, "Avgör vilket drivsteg som passar: med fältbuss skickar PLC:n positioner direkt.", "Determines which drive fits: with a fieldbus the PLC sends positions directly."),
+      options: [g(locale, "Från en PLC via fältbuss (t.ex. PROFINET, EtherCAT)", "From a PLC via fieldbus (e.g. PROFINET, EtherCAT)"), g(locale, "Från en PLC med digitala signaler", "From a PLC with digital signals"), g(locale, "Fristående, utan PLC", "Stand-alone, without a PLC")] });
+    if (!k.miljo) q.push(miljofraga(locale));
+    if (!k.takt) q.push({ id: "takt", type: "choice",
+      label: g(locale, "Hur ofta görs rörelsen?", "How often is the movement made?"),
+      hint: g(locale, "Täta rörelser avgör axelns och motorns livslängd.", "Frequent movements determine the life of the axis and motor."),
+      options: [g(locale, "Några gånger i timmen eller mer sällan", "A few times an hour or less"), g(locale, "Upp till 10 slag/min", "Up to 10 strokes/min"), g(locale, "10–59 slag/min", "10–59 strokes/min"), g(locale, "60 slag/min eller mer", "60 strokes/min or more")] });
+    return q;
   }
   // Precisionen före takten: den avgör om det blir en cylinder eller en elaxel.
   if (positionering && !k.precision) {
@@ -755,6 +853,7 @@ const ALLTID = new Set([
   "slaglangd_mm", "slag_x_sidled_mm", "slag_z_hojd_mm", "last_kg", "kraft_n", "greppsatt", "lasthallning",
   "luft_anslutning", "luft_flode", "ventil_uppgift", "givare_uppgift", "slang_dimension", "korrosion",
   "vridvinkel", "vridmoment_nm", "havarm_mm", "atex_damm", "temperatur_lagsta", "livsmedelskontakt",
+  "antal_lagen", "noggrannhet_typ", "forflyttningstid_s", "lastplacering", "styrning_axel",
 ]);
 
 /**
@@ -777,7 +876,7 @@ export function slutligaFragor(fran_modellen: Fraga[], text: string, locale: str
   const rensade = ersatta.filter((q, i) => ersatta.findIndex((x) => x.id === q.id) === i);
   const tackta = new Set(rensade.map((q) => amne(q)).filter(Boolean) as string[]);
   // En lodrät elaxel behöver en motorbroms: riktningen avgör stycklistan.
-  const maste = (q: Fraga) => ALLTID.has(q.id) || (q.id === "rorelseriktning" && arElektrisk(text));
+  const maste = (q: Fraga) => ALLTID.has(q.id) || (q.id === "rorelseriktning" && arElaxel(text));
   const forst = bank.filter((q) => maste(q) && !tackta.has(amne(q) ?? ""));
   for (const q of forst) tackta.add(amne(q) ?? q.id);
   const ut = [...forst, ...rensade];
@@ -793,6 +892,11 @@ export function slutligaFragor(fran_modellen: Fraga[], text: string, locale: str
 
 /** Ingressen när modellen inte svarar. */
 export function reservsammanfattning(text: string, locale: string, kod?: Kodvarden): string {
+  if (forfragningstyp(text) === "rorelse" && arElaxel(text)) {
+    return locale === "sv"
+      ? "Några frågor till för att välja rätt axel, motor och drivsteg."
+      : "A few more questions to choose the right axis, motor and drive.";
+  }
   if (forfragningstyp(text) === "rorelse" && arUtbyte(text, kod)) {
     return locale === "sv"
       ? "Koden säger storleken. Ett par frågor till om det som hör till."

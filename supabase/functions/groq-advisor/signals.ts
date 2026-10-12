@@ -399,6 +399,10 @@ export function extractMinStroke(answers: Record<string, string>, description: s
     const v = parseInt(m[1]);
     if (v >= 50 && v <= 10000 && v > maxFound) maxFound = v;
   }
+  // "2 meter i sidled", "flytta 1,5 m": slaglängd i meter, men bara intill ett
+  // rörelseord -- "1 m/s" är en fart och "10 m slang" ingen rörelse.
+  const iMeter = slagIMeterMm(allText);
+  if (iMeter > maxFound) maxFound = iMeter;
   if (maxFound > 0) return maxFound;
   const rangeMatch = allText.match(/(\d+)[–—\-](\d+)\s*mm/);
   if (rangeMatch) return parseInt(rangeMatch[2]);
@@ -407,6 +411,24 @@ export function extractMinStroke(answers: Record<string, string>, description: s
   if (/150.{0,5}300/i.test(allText)) return 150;
   if (/50.{0,5}150/i.test(allText)) return 50;
   return 0;
+}
+
+const RORELSEORD = "(?:slag\\w*|lyfthöjd|lyft\\w*|höj\\w*|sänk\\w*|flytt\\w*|förflytt\\w*|skjut\\w*|rörelse\\w*|vandring|travel|stroke|sträcka|sidled|längs)";
+const METER = "(\\d+(?:[.,]\\d+)?)\\s*(?:m|meter|metre|meters)\\b(?!\\s*[\\/²³])";
+const METER_EFTER_ORD = `${RORELSEORD}[^.\\d]{0,25}${METER}`;
+const METER_FORE_ORD = `${METER}[^.\\d]{0,20}(?:i\\s+sidled|sidled|uppåt|nedåt|upp\\b|ned\\b|ner\\b|lyft\\w*|slag\\w*|rörelse|förflyttning|framåt|bakåt|längs)`;
+
+/**
+ * Slaglängd angiven i meter i en rörelse, i mm. 0 när ingen finns.
+ * Hittat 2026-10-11 (Geminis testfall): "flytta … 2 meter i sidled" lästes
+ * inte, eftersom bara "mm" räknades -- slaglängden frågades igen och motorn
+ * kunde inte räkna på rörelsen.
+ */
+export function slagIMeterMm(text: string): number {
+  let max = 0;
+  for (const m of text.matchAll(new RegExp(METER_EFTER_ORD, "gi"))) max = Math.max(max, parseFloat(m[1].replace(",", ".")) * 1000);
+  for (const m of text.matchAll(new RegExp(METER_FORE_ORD, "gi"))) max = Math.max(max, parseFloat(m[1].replace(",", ".")) * 1000);
+  return max >= 50 && max <= 20000 ? Math.round(max) : 0;
 }
 
 export function extractPerAxisStrokes(answers: Record<string, string>): { axis: string; stroke: number }[] {
@@ -1078,7 +1100,7 @@ export function extractUnitCount(text: string, answers: Record<string, string>):
 }
 
 export function needsLowCost(text: string): boolean {
-  return /\blåg\s*kostnad\b|\bbillig\w*\b|\bkostnadseffektiv\w*\b|\bbudget\b|\blow[\s-]?cost\b|\bcheap\b|\bcost[\s-]?effective\b|\bminimera\s*kostnad/i.test(text);
+  return /\blåg\s*kostnad\b|\bbillig\w*\b|\bkostnadseffektiv\w*\b|\bbudget\w*\b|\bbegränsad\w*\s+budget|\bsnål\w*\s+budget|\blimited\s+budget|\blow[\s-]?cost\b|\bcheap\b|\bcost[\s-]?effective\b|\bminimera\s*kostnad/i.test(text);
 }
 
 export function needsContinuousDuty(text: string): boolean {
@@ -1086,7 +1108,9 @@ export function needsContinuousDuty(text: string): boolean {
 }
 
 export function needsDirtyEnv(text: string): boolean {
-  return /\bdamm\w*\b|\bdust\w*\b|\bolja\b|\boil\w*\b|\bsmuts\w*\b|\bdirty\b|\bspån\b|\bchips\b|\bkylvätska\b|\bcoolant\b|\bpartik\w*\b|\bcontaminat/i.test(text);
+  // "damm" även i sammansättningar ("aluminiumdamm", "slipdamm"), men inte
+  // "dammfri" eller "dammsugare". Hittat 2026-10-11 (Geminis testfall).
+  return /damm(?!fri|sug)\w*|\bdust\w*\b|\bolja\b|\boil\w*\b|\bsmuts\w*\b|\bdirty\b|\bspån\b|\bchips\b|\bkylvätska\b|\bcoolant\b|\bpartik\w*\b|\bcontaminat/i.test(text);
 }
 
 /** First-order move dynamics from cycle time + stroke + mass (triangular profile). */
@@ -1100,6 +1124,158 @@ export function computeDynamics(massKg: number, strokeMm: number, cycleTimeS: nu
   const g = 9.81;
   const forceN = massKg * accel + (isVertical ? massKg * g : 0) + 0.1 * massKg * g;
   return { vPeak, accel, forceN };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Elaxelspåret och kraftkravet (2026-10-11, Geminis testfall)
+//
+// "Flytta 80 kg 2 meter i sidled, ±0,1 mm, minst 1 m/s" fick cylinderfrågor
+// (ändlägesgivare, kolvstång, slag/min) och kravet "1570 N" -- 80 kg × 9,81 ×
+// 2, som om profilen lyftes. I sidled bär styrningen tyngden; axeln behöver
+// bara accelerera lasten och övervinna friktionen, ungefär 300–650 N här.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Kräver förfrågan en elaxel? Samma gräns som resultatsteget använder
+ * (isHighPrecision, ±0,5 mm): en pneumatisk cylinder stannar bara exakt i sina
+ * ändlägen. Dessutom fler än två lägen, uttryckligt el/servo och ingen tryckluft.
+ */
+export function needsElectricAxis(text: string): boolean {
+  if (/elcylinder|elektrisk\w*\s+(cylinder|axel|linjär\w*|ställdon|aktuator|drivning)|eldriven|elaxel|\bservo|stegmotor|stepper|kuggrem|kulskruv|ball.?screw|linjärmodul|linear.?axis|electric\s+(actuator|cylinder|axis)/i.test(text)) return true;
+  const precision = extractPrecisionMm(text, {});
+  if (precision > 0 && precision <= 0.5) return true;
+  if (/\b([3-9]|[1-9]\d)\s*(?:st\s+)?(?:positioner|lägen|stopplägen|positions)\b|mellanläg|flera\s+(?:lägen|positioner)|programmerbar\w*\s+(?:lägen|positioner)/i.test(text)) return true;
+  return /ingen\s+tryckluft|utan\s+tryckluft|saknar\s+tryckluft|inte\s+tillgång\s+till\s+tryckluft|bara\s+el\b|endast\s+el\b|no\s+compressed\s+air|without\s+compressed\s+air/i.test(text);
+}
+
+/** Tiden en förflyttning får ta, i sekunder. 0 när den inte är angiven. */
+export function extractMoveTimeS(text: string, answers: Record<string, string>): number {
+  for (const [k, v] of Object.entries(answers)) {
+    if (/f[oö]rflyttningstid|r[oö]relsetid|move.?time/i.test(k)) {
+      const n = storstaTal(v);
+      if (n > 0) return n;
+    }
+  }
+  const m = text.match(/(?:förflyttning\w*|rörelse\w*|flytt\w*|\bmove\w*)[^.\d]{0,30}(?:på|inom|in|under|within)\s*(\d+(?:[.,]\d+)?)\s*(?:s\b|sek\w*|sec\w*)/i);
+  return m ? parseFloat(m[1].replace(",", ".")) : 0;
+}
+
+/** Antagen acceleration när förflyttningstiden inte är känd: måttligt dynamisk elaxel. */
+export const ANTAGEN_ACCELERATION = 3;
+/** Friktionstal för en styrd last på kulbussningar eller rullstyrning, med tätningar och täckband. */
+export const FRIKTIONSTAL_STYRNING = 0.1;
+
+/**
+ * Accelerationen en förflyttning kräver. Med både tid och fart: trapetsprofil
+ * (accelerera, åk med farten, bromsa). Utan fart: triangelprofil. Utan tid:
+ * antagen acceleration, och det sägs.
+ */
+export function rorelseprofil(strokeMm: number, tMoveS: number, speedMs: number): { acc: number; vPeak: number; antagen: boolean; forKort: boolean } {
+  const s = strokeMm / 1000;
+  if (tMoveS > 0 && s > 0) {
+    if (speedMs > 0 && tMoveS < 2 * s / speedMs) {
+      if (tMoveS > s / speedMs) return { acc: speedMs / (tMoveS - s / speedMs), vPeak: speedMs, antagen: false, forKort: false };
+      // Tiden räcker inte ens med full fart hela vägen: farten måste upp.
+      return { acc: 4 * s / (tMoveS * tMoveS), vPeak: 2 * s / tMoveS, antagen: false, forKort: true };
+    }
+    return { acc: 4 * s / (tMoveS * tMoveS), vPeak: 2 * s / tMoveS, antagen: false, forKort: false };
+  }
+  return { acc: ANTAGEN_ACCELERATION, vPeak: speedMs, antagen: true, forKort: false };
+}
+
+export type Kraftkrav = {
+  /** Kravet i N, med säkerhetsfaktor där den hör hemma. 0 när inget går att räkna. */
+  forceN: number;
+  metod: "angiven" | "lyft" | "dynamik" | "tumregel" | "ingen";
+  /** Uträkningen i klartext, för dimensioneringspanelen och modellen. */
+  forklaring: string;
+};
+
+function tal(locale: string, n: number, decimaler = 0): string {
+  const t = decimaler > 0 ? n.toFixed(decimaler) : String(Math.round(n));
+  return locale === "en" ? t : t.replace(".", ",");
+}
+
+/**
+ * Kraftkravet och hur det räknades.
+ *
+ * - Angiven kraft (press, grepp, håll): kravet, utan säkerhetsfaktor.
+ * - Lyft, eller okänd riktning: 2 × tyngden. Täcker acceleration och tryckfall,
+ *   och ligger på den säkra sidan när riktningen inte är sagd.
+ * - Elaxel i sidled: massa × acceleration + friktion, × 2. Tyngden bärs av
+ *   styrningen och ska inte räknas som kraft i rörelseriktningen.
+ * - Cylinder i sidled: tumregeln 2 × tyngden (oförändrad; en pneumatisk
+ *   cylinder är billig att ta en storlek större på, en servoaxel är det inte).
+ */
+export function kraftkrav(o: {
+  locale: string; loadKg: number; statedForceN: number; isVertical: boolean; isHorizontal: boolean;
+  elaxel: boolean; strokeMm: number; tMoveS: number; speedMs: number;
+}): Kraftkrav {
+  const { locale } = o;
+  const g = 9.81;
+  const sf = LOAD_SAFETY_FACTOR;
+  if (o.statedForceN > 0) {
+    return { forceN: Math.round(o.statedForceN), metod: "angiven", forklaring: pick(locale, {
+      sv: `Angiven kraft ${tal(locale, o.statedForceN)} N — används som den är, utan säkerhetsfaktor.`,
+      en: `Stated force ${tal(locale, o.statedForceN)} N — used as is, without a safety factor.`,
+      de: `Angegebene Kraft ${tal(locale, o.statedForceN)} N — wird unverändert verwendet, ohne Sicherheitsfaktor.`,
+      es: `Fuerza indicada ${tal(locale, o.statedForceN)} N — se usa tal cual, sin factor de seguridad.`,
+    }) };
+  }
+  if (o.loadKg <= 0) return { forceN: 0, metod: "ingen", forklaring: "" };
+  const m = o.loadKg;
+  const tyngd = m * g;
+  if (o.elaxel && o.isHorizontal && !o.isVertical) {
+    const prof = rorelseprofil(o.strokeMm, o.tMoveS, o.speedMs);
+    const fAcc = m * prof.acc;
+    const fFr = FRIKTIONSTAL_STYRNING * tyngd;
+    const forceN = Math.round((fAcc + fFr) * sf);
+    const topp = !prof.antagen && prof.vPeak > 0 ? pick(locale, {
+      sv: ` Topphastigheten blir ${tal(locale, prof.vPeak, 1)} m/s.`,
+      en: ` Peak speed becomes ${tal(locale, prof.vPeak, 1)} m/s.`,
+      de: ` Die Spitzengeschwindigkeit beträgt ${tal(locale, prof.vPeak, 1)} m/s.`,
+      es: ` La velocidad máxima es ${tal(locale, prof.vPeak, 1)} m/s.`,
+    }) : "";
+    const antagen = prof.antagen ? pick(locale, {
+      sv: " (antagen — ange förflyttningstiden för en exakt beräkning)",
+      en: " (assumed — give the move time for an exact calculation)",
+      de: " (angenommen — Verfahrzeit angeben für eine genaue Berechnung)",
+      es: " (supuesta — indique el tiempo de desplazamiento para un cálculo exacto)",
+    }) : "";
+    return { forceN, metod: "dynamik", forklaring: pick(locale, {
+      sv: `I sidled bär styrningen tyngden; axeln ska accelerera lasten och övervinna friktionen: ${tal(locale, m)} kg × ${tal(locale, prof.acc, 1)} m/s²${antagen} = ${tal(locale, fAcc)} N, plus friktion ${tal(locale, FRIKTIONSTAL_STYRNING, 1)} × ${tal(locale, m)} kg × 9,81 = ${tal(locale, fFr)} N. Summa ${tal(locale, fAcc + fFr)} N × säkerhetsfaktor ${tal(locale, sf)} = ${tal(locale, forceN)} N.${topp}`,
+      en: `Horizontally the guide carries the weight; the axis must accelerate the load and overcome friction: ${tal(locale, m)} kg × ${tal(locale, prof.acc, 1)} m/s²${antagen} = ${tal(locale, fAcc)} N, plus friction ${tal(locale, FRIKTIONSTAL_STYRNING, 1)} × ${tal(locale, m)} kg × 9.81 = ${tal(locale, fFr)} N. Total ${tal(locale, fAcc + fFr)} N × safety factor ${tal(locale, sf)} = ${tal(locale, forceN)} N.${topp}`,
+      de: `Horizontal trägt die Führung das Gewicht; die Achse muss die Last beschleunigen und die Reibung überwinden: ${tal(locale, m)} kg × ${tal(locale, prof.acc, 1)} m/s²${antagen} = ${tal(locale, fAcc)} N, plus Reibung ${tal(locale, FRIKTIONSTAL_STYRNING, 1)} × ${tal(locale, m)} kg × 9,81 = ${tal(locale, fFr)} N. Summe ${tal(locale, fAcc + fFr)} N × Sicherheitsfaktor ${tal(locale, sf)} = ${tal(locale, forceN)} N.${topp}`,
+      es: `En horizontal la guía soporta el peso; el eje debe acelerar la carga y vencer la fricción: ${tal(locale, m)} kg × ${tal(locale, prof.acc, 1)} m/s²${antagen} = ${tal(locale, fAcc)} N, más fricción ${tal(locale, FRIKTIONSTAL_STYRNING, 1)} × ${tal(locale, m)} kg × 9,81 = ${tal(locale, fFr)} N. Total ${tal(locale, fAcc + fFr)} N × factor de seguridad ${tal(locale, sf)} = ${tal(locale, forceN)} N.${topp}`,
+    }) };
+  }
+  const forceN = Math.round(tyngd * sf);
+  if (o.isVertical) {
+    return { forceN, metod: "lyft", forklaring: pick(locale, {
+      sv: `Lyft: ${tal(locale, m)} kg × 9,81 = ${tal(locale, tyngd)} N × säkerhetsfaktor ${tal(locale, sf)} = ${tal(locale, forceN)} N (täcker acceleration och tryckfall).`,
+      en: `Lift: ${tal(locale, m)} kg × 9.81 = ${tal(locale, tyngd)} N × safety factor ${tal(locale, sf)} = ${tal(locale, forceN)} N (covers acceleration and pressure drop).`,
+      de: `Heben: ${tal(locale, m)} kg × 9,81 = ${tal(locale, tyngd)} N × Sicherheitsfaktor ${tal(locale, sf)} = ${tal(locale, forceN)} N (deckt Beschleunigung und Druckabfall ab).`,
+      es: `Elevación: ${tal(locale, m)} kg × 9,81 = ${tal(locale, tyngd)} N × factor de seguridad ${tal(locale, sf)} = ${tal(locale, forceN)} N (cubre aceleración y caída de presión).`,
+    }) };
+  }
+  const okandRiktning = !o.isHorizontal ? pick(locale, {
+    sv: " Riktningen är inte angiven, så det räknas som ett lyft för säkerhets skull.",
+    en: " The direction is not stated, so it is treated as a lift to be safe.",
+    de: " Die Richtung ist nicht angegeben, daher wird sicherheitshalber wie beim Heben gerechnet.",
+    es: " La dirección no está indicada, así que se calcula como una elevación por seguridad.",
+  }) : "";
+  return { forceN, metod: "tumregel", forklaring: pick(locale, {
+    sv: `Tumregel: ${tal(locale, sf)} × lastens tyngd (${tal(locale, m)} kg × 9,81 × ${tal(locale, sf)} = ${tal(locale, forceN)} N) täcker friktion, acceleration och tryckfall.${okandRiktning}`,
+    en: `Rule of thumb: ${tal(locale, sf)} × the load's weight (${tal(locale, m)} kg × 9.81 × ${tal(locale, sf)} = ${tal(locale, forceN)} N) covers friction, acceleration and pressure drop.${okandRiktning}`,
+    de: `Faustregel: ${tal(locale, sf)} × Gewichtskraft der Last (${tal(locale, m)} kg × 9,81 × ${tal(locale, sf)} = ${tal(locale, forceN)} N) deckt Reibung, Beschleunigung und Druckabfall ab.${okandRiktning}`,
+    es: `Regla práctica: ${tal(locale, sf)} × el peso de la carga (${tal(locale, m)} kg × 9,81 × ${tal(locale, sf)} = ${tal(locale, forceN)} N) cubre fricción, aceleración y caída de presión.${okandRiktning}`,
+  }) };
+}
+
+/** Säger kunden att rörelsen är horisontell, utan att den samtidigt lyfter? */
+export function arHorisontellRorelse(text: string): boolean {
+  return sagerHorisontell(text) ||
+    (/\bi\s+sidled\b|\bsidled\w*|\bvågrät\w*|skjut\w*\s+(av|ut|bort|över|in|fram|tillbaka)\b|knuff|sidobana/i.test(text) && !needsVerticalLoad(text));
 }
 
 /** Flag conflicting / unrealistic requirement combinations — what a real engineer says. */
@@ -1281,6 +1457,16 @@ export interface HazardFlags {
   torqueNm: number;
   /** Vridmomentet är uppskattat ur vikt och hävarm, inte angivet. */
   torqueUppskattat?: boolean;
+  /** Förfrågan kräver en elaxel (precision, lägen, el, ingen tryckluft). */
+  elaxel?: boolean;
+  /** Förflyttningstiden, s. 0 när den inte är angiven. */
+  moveTimeS?: number;
+  /** Kraftkravet och uträkningen (kraftkrav()). */
+  kraftkrav?: Kraftkrav;
+  /** Noggrannheten gäller varje läge över hela slaget, inte bara att hitta tillbaka. */
+  absolutNoggrannhet?: boolean;
+  /** Lasten sticker ut från vagnen och belastar styrningen med ett moment. */
+  utskjutandeLast?: boolean;
   rotationDeg: number;
   cycleTimeS: number;
   // Composed -- assume a linear axis, see file-header comment above
@@ -1378,6 +1564,12 @@ export function detectHazards(
   const holdingForceN = extractHoldingForceN(text, answers);
   const statedForceN = gripForceN || holdingForceN || extractStatedForceN(text, answers);
   const minBoreMm = calcMinBoreMm(loadKg, 6, statedForceN);
+  const elaxel = needsElectricAxis(text);
+  const moveTimeS = extractMoveTimeS(text, answers);
+  const kraft = kraftkrav({
+    locale, loadKg, statedForceN, isVertical: isVerticalLoad, isHorizontal: arHorisontellRorelse(text),
+    elaxel, strokeMm: requiredStrokeMm || minStrokeMm, tMoveS: moveTimeS, speedMs,
+  });
   const angivetVridmoment = extractTorqueNm(text, answers);
   const torqueNm = angivetVridmoment || uppskattatVridmomentNm(loadKg, answers);
   const torqueUppskattat = angivetVridmoment === 0 && torqueNm > 0;
@@ -1399,6 +1591,9 @@ export function detectHazards(
     isMounting, isGuided, isLowCost, is24x7, isDirtyEnv, isHighPrecision, minBoreMm,
     requiredMaxTempC, minStrokeMm, perAxisStrokes, requiredStrokeMm, speedMs, precisionMm,
     explicitBoreMm, loadKg, gripForceN, holdingForceN, statedForceN, torqueNm, torqueUppskattat, rotationDeg, cycleTimeS,
+    elaxel, moveTimeS, kraftkrav: kraft,
+    absolutNoggrannhet: /absolut\w*\s+(?:positions)?noggrann|exakt rätt över hela slaget|absolute\s+(?:positioning\s+)?accuracy/i.test(text),
+    utskjutandeLast: /utskjutande|överhäng\w*|sticker ut|hävarm|overhang\w*|cantilever\w*/i.test(text) && !/centrerad på vagnen/i.test(text),
     dynamics, conflicts,
   };
 }

@@ -10,7 +10,7 @@
 // are called.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { type CatalogProduct, arBorrningsspann, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
+import { type CatalogProduct, arBorrningsspann, isBeltDrivenProduct, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
 import { type HazardFlags, pick, isPneumaticByDrive, isNonArticulatingActuator, tolkaTempSpann } from "./signals.ts";
 
 export function buildCustomSolutionOption(
@@ -473,8 +473,14 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     en: ` ⚠️ Product family — order it in Ø${famStorlek}, the smallest size in the series that gives the required force. Specify the full ordering code (bore + stroke + variants) when ordering.`,
     de: ` ⚠️ Produktfamilie — in Ø${famStorlek} bestellen, die kleinste Größe der Serie, die die erforderliche Kraft liefert. Vollständigen Bestellcode (Bohrung + Hub + Varianten) bei der Bestellung angeben.`,
     es: ` ⚠️ Familia de productos — pídalo en Ø${famStorlek}, el tamaño más pequeño de la serie que da la fuerza necesaria. Indique el código de pedido completo (diámetro + carrera + variantes) al realizar el pedido.`,
+  }) : primaryIsFamilyProd && isElectric ? pick(locale, {
+    // En elaxel har storlek, inte borrning.
+    sv: " ⚠️ Produktfamilj — ange komplett beställningskod (storlek + slaglängd + varianter) vid order.",
+    en: " ⚠️ Product family — specify full ordering code (size + stroke + variants) when ordering.",
+    de: " ⚠️ Produktfamilie — vollständigen Bestellcode (Baugröße + Hub + Varianten) bei der Bestellung angeben.",
+    es: " ⚠️ Familia de productos — indique el código de pedido completo (tamaño + carrera + variantes) al realizar el pedido.",
   }) : primaryIsFamilyProd ? pick(locale, {
-    sv: " ⚠️ Produktfamilj — ange komplett beställningskod (bore + stroke + varianter) vid order.",
+    sv: " ⚠️ Produktfamilj — ange komplett beställningskod (borrning + slag + varianter) vid order.",
     en: " ⚠️ Product family — specify full ordering code (bore + stroke + variants) when ordering.",
     de: " ⚠️ Produktfamilie — vollständigen Bestellcode (Bohrung + Hub + Varianten) bei der Bestellung angeben.",
     es: " ⚠️ Familia de productos — indique el código de pedido completo (diámetro + carrera + variantes) al realizar el pedido.",
@@ -880,7 +886,23 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   }
 
   // ── 6. Shock absorbers (high speed ≥1000 mm/s) ───────────────────
-  if (isHighSpeed) {
+  // En cylinder bromsas av sin dämpning och av stötdämpare: vid över 1 m/s är
+  // de ett krav. En servoaxel bromsas av drivsteget; ändstopp och stötdämpare
+  // är där ett skydd vid fel, ingen del av rörelsen (Geminis punkt 4,
+  // 2026-10-11: "OBLIGATORISK … skador på cylinderände" stod på en servoaxel).
+  if (isHighSpeed && isElectric) {
+    rows.push({
+      sku: "SPECIFY", quantity: 1,
+      kind: "warning",
+      role: pick(locale, { sv: "⚠️ Rekommenderas: ändstopp som skydd", en: "⚠️ Recommended: end stops as protection", de: "⚠️ Empfohlen: Endanschläge als Schutz", es: "⚠️ Recomendado: topes finales como protección" }),
+      reason: pick(locale, {
+        sv: "Servot bromsar axeln vid varje stopp. Mekaniska ändstopp eller stötdämpare rekommenderas som skydd vid ett styrfel eller nödstopp, dimensionerade för lastens massa och fart. Kontrollera också att drivsteget hinner bromsa inom axelns slaglängd.",
+        en: "The servo brakes the axis at every stop. Mechanical end stops or shock absorbers are recommended as protection against a control fault or emergency stop, sized for the load's mass and speed. Also check that the drive can stop within the axis stroke.",
+        de: "Der Servo bremst die Achse bei jedem Halt. Mechanische Endanschläge oder Stoßdämpfer werden als Schutz bei Steuerungsfehlern oder Not-Halt empfohlen, ausgelegt auf Masse und Geschwindigkeit der Last. Außerdem prüfen, dass der Antrieb innerhalb des Achshubs anhalten kann.",
+        es: "El servo frena el eje en cada parada. Se recomiendan topes finales mecánicos o amortiguadores como protección ante un fallo de control o una parada de emergencia, dimensionados para la masa y la velocidad de la carga. Compruebe también que el accionamiento puede frenar dentro de la carrera del eje.",
+      }),
+    });
+  } else if (isHighSpeed) {
     const saMatch = findCatalogProductByType("shock-absorber", products);
     rows.push({
       sku: saMatch?.sku ?? "SPECIFY", quantity: 2 * uc,
@@ -891,6 +913,38 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
         en: "MANDATORY at stroke speed >1 m/s — prevents end-stop damage to cylinder and machine frame. Select adjustable hydraulic shock absorber sized for cylinder force and mass.",
         de: "ZWINGEND ERFORDERLICH bei einer Hubgeschwindigkeit >1 m/s — verhindert Endlagenschäden am Zylinder und am Maschinenrahmen. Einstellbaren hydraulischen Stoßdämpfer wählen, dimensioniert für Zylinderkraft und Masse.",
         es: "OBLIGATORIO a velocidad de carrera >1 m/s — evita daños en el tope final del cilindro y en la estructura de la máquina. Seleccione un amortiguador hidráulico ajustable dimensionado para la fuerza y la masa del cilindro.",
+      }),
+    });
+  }
+
+  // ── 6b. Elaxelns noggrannhet och last (följdfrågorna 2026-10-11) ─────────
+  // Absolut noggrannhet över hela slaget med kuggrem: remmen töjer sig, så
+  // läget behöver mätas på vagnen. En utskjutande last belastar styrningen
+  // med ett moment som katalogen inte anger per storlek.
+  if (isElectric && ctx.absolutNoggrannhet && ctx.precisionMm > 0 && ctx.precisionMm <= 0.2 &&
+      isBeltDrivenProduct({ sku: primarySku, name: "", category: "", brand: "", key_specs: ctx.primarySpecs ?? {} })) {
+    rows.push({
+      sku: "SPECIFY", quantity: uc,
+      kind: "sensor",
+      role: pick(locale, { sv: "Linjärt mätsystem (sluten loop)", en: "Linear measuring system (closed loop)", de: "Lineares Messsystem (geschlossener Regelkreis)", es: "Sistema de medición lineal (lazo cerrado)" }),
+      reason: pick(locale, {
+        sv: `Absolut noggrannhet ±${String(ctx.precisionMm).replace(".", ",")} mm över hela slaget: en kuggrem töjer sig med lasten, så läget mäts med en linjärgivare på vagnen som drivsteget reglerar mot. Alternativet är en kulskruvsaxel med lägre fart.`,
+        en: `Absolute accuracy ±${ctx.precisionMm} mm over the whole stroke: a toothed belt stretches under load, so the position is measured with a linear encoder on the carriage that the drive controls against. The alternative is a ball screw axis at lower speed.`,
+        de: `Absolute Genauigkeit ±${String(ctx.precisionMm).replace(".", ",")} mm über den gesamten Hub: Ein Zahnriemen dehnt sich unter Last, daher wird die Position mit einem Linearmessgeber am Schlitten gemessen, auf den der Antrieb regelt. Die Alternative ist eine Spindelachse mit geringerer Geschwindigkeit.`,
+        es: `Precisión absoluta ±${String(ctx.precisionMm).replace(".", ",")} mm en toda la carrera: una correa dentada se estira con la carga, por lo que la posición se mide con un encóder lineal en el carro contra el que regula el accionamiento. La alternativa es un eje de husillo a menor velocidad.`,
+      }),
+    });
+  }
+  if (isElectric && ctx.utskjutandeLast) {
+    rows.push({
+      sku: "SPECIFY", quantity: 1,
+      kind: "warning",
+      role: pick(locale, { sv: "⚠️ Utskjutande last: kontrollera momentet", en: "⚠️ Overhanging load: check the moment", de: "⚠️ Auskragende Last: Moment prüfen", es: "⚠️ Carga en voladizo: compruebe el momento" }),
+      reason: pick(locale, {
+        sv: "Lasten sticker ut från vagnen och belastar axelns styrning med ett moment (massa × avstånd till tyngdpunkten). Jämför med vagnens tillåtna moment i axelns datablad och välj en större storlek om det inte räcker.",
+        en: "The load overhangs the carriage and loads the axis guide with a moment (mass × distance to the centre of gravity). Compare with the carriage's permissible moments in the axis datasheet and choose a larger size if it is not enough.",
+        de: "Die Last kragt über den Schlitten aus und belastet die Achsführung mit einem Moment (Masse × Abstand zum Schwerpunkt). Mit den zulässigen Momenten des Schlittens im Datenblatt vergleichen und bei Bedarf eine größere Baugröße wählen.",
+        es: "La carga sobresale del carro y somete la guía del eje a un momento (masa × distancia al centro de gravedad). Compárelo con los momentos admisibles del carro en la hoja de datos del eje y elija un tamaño mayor si no basta.",
       }),
     });
   }

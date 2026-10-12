@@ -67,7 +67,9 @@ interface AdvisorRequirements {
   required_force_n: number | null;
   required_stroke_mm: number | null;
   safety_factor: number;
-  pressure_bar: number;
+  /** null för en elaxel: dess kraft är matningskraft, inte tryck. */
+  pressure_bar: number | null;
+  force_basis?: string | null;
 }
 
 
@@ -800,7 +802,9 @@ function AdvisorOptionCard({ opt, requirements, isSv, locale }: {
         <div className="mt-3 pt-3 border-t border-border/60 flex flex-wrap gap-4">
           {showForce && (
             <AdvisorDimBar
-              label={isSv ? `Kraft @ ${requirements!.pressure_bar} bar` : `Force @ ${requirements!.pressure_bar} bar`}
+              label={requirements!.pressure_bar
+                ? (isSv ? `Kraft @ ${requirements!.pressure_bar} bar` : `Force @ ${requirements!.pressure_bar} bar`)
+                : (isSv ? "Matningskraft" : "Feed force")}
               required={requirements!.required_force_n!} available={opt.force_n!} unit="N"
               requiredLabel={isSv ? "Krävs" : "Required"} availableLabel={isSv ? "Ger" : "Delivers"}
             />
