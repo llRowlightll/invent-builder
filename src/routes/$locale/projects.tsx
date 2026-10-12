@@ -23,6 +23,7 @@ interface ProjectRow {
   locale: string;
   answers: Record<string, string>;
   bom_lines: BomLineSaved[];
+  typ?: string;
   created_at: string;
   updated_at: string;
 }
@@ -120,7 +121,7 @@ function ProjectsPage() {
       <div className="container-page py-20 text-center">
         <p className="text-muted-foreground mb-4">{t("projects.notLoggedIn")}</p>
         <Link to="/$locale/login" params={{ locale }}
-          className="btn-primary px-6 py-2 rounded-md text-sm font-medium">
+          className="inline-block px-6 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition">
           {t("auth.submitLogin")}
         </Link>
       </div>
@@ -206,12 +207,33 @@ function ProjectsPage() {
                       >
                         {isExpanded ? "▲ Dölj" : `▼ Produkter (${lines.length})`}
                       </button>
-                      <button
-                        onClick={() => openProject(project)}
-                        className="px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition"
-                      >
-                        {t("projects.loadProject")}
-                      </button>
+                      {project.typ === "befintlig_maskin" ? (
+                        // En befintlig maskin har ingen stycklista att bygga vidare på
+                        // i maskinbyggaren; den öppnas i PLC-modulen.
+                        <Link
+                          to="/$locale/plc/$projektId"
+                          params={{ locale, projektId: project.id }}
+                          className="px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition"
+                        >
+                          {t("projects.loadProject")}
+                        </Link>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => openProject(project)}
+                            className="px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition"
+                          >
+                            {t("projects.loadProject")}
+                          </button>
+                          <Link
+                            to="/$locale/plc/$projektId"
+                            params={{ locale, projektId: project.id }}
+                            className="px-3 py-1.5 text-xs font-medium rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-primary/50 transition"
+                          >
+                            {t("nav.plc")}
+                          </Link>
+                        </>
+                      )}
                       <button
                         onClick={() => deleteProject(project.id)}
                         disabled={deleting === project.id}

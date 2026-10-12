@@ -1923,6 +1923,123 @@ export type Database = {
         }
         Relationships: []
       }
+      plc_underlag: {
+        Row: {
+          created_at: string
+          data: Json
+          id: string
+          kallrevision: number
+          project_id: string
+          revision: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          data: Json
+          id?: string
+          kallrevision: number
+          project_id: string
+          revision?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          id?: string
+          kallrevision?: number
+          project_id?: string
+          revision?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plc_underlag_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plc_underlag_revisioner: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          data: Json
+          id: string
+          kallrevision: number
+          revision: number
+          underlag_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          data: Json
+          id?: string
+          kallrevision: number
+          revision: number
+          underlag_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          data?: Json
+          id?: string
+          kallrevision?: number
+          revision?: number
+          underlag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plc_underlag_revisioner_underlag_id_fkey"
+            columns: ["underlag_id"]
+            isOneToOne: false
+            referencedRelation: "plc_underlag"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_revisions: {
+        Row: {
+          answers: Json
+          bom_lines: Json
+          created_at: string
+          description: string | null
+          id: string
+          project_id: string
+          revision: number
+        }
+        Insert: {
+          answers?: Json
+          bom_lines?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          project_id: string
+          revision: number
+        }
+        Update: {
+          answers?: Json
+          bom_lines?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          project_id?: string
+          revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_revisions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           answers: Json
@@ -1933,6 +2050,8 @@ export type Database = {
           id: string
           locale: string
           name: string
+          revision: number
+          typ: string
           updated_at: string
           user_id: string
         }
@@ -1945,6 +2064,8 @@ export type Database = {
           id?: string
           locale?: string
           name: string
+          revision?: number
+          typ?: string
           updated_at?: string
           user_id: string
         }
@@ -1957,6 +2078,8 @@ export type Database = {
           id?: string
           locale?: string
           name?: string
+          revision?: number
+          typ?: string
           updated_at?: string
           user_id?: string
         }
@@ -3025,6 +3148,18 @@ export type Database = {
       }
     }
     Functions: {
+      skapa_befintlig_maskin: {
+        Args: { p_beskrivning: string; p_data: Json; p_locale: string; p_namn: string }
+        Returns: string
+      }
+      skapa_plc_underlag: {
+        Args: { p_data: Json; p_project: string }
+        Returns: Database["public"]["Tables"]["plc_underlag"]["Row"]
+      }
+      spara_plc_underlag: {
+        Args: { p_data: Json; p_forvantad_revision: number; p_id: string }
+        Returns: number
+      }
       admin_list_product_pricing: {
         Args: never
         Returns: {
