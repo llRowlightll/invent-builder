@@ -113,7 +113,11 @@ def run_customer_checks(email: str, password: str) -> None:
     stamp = datetime.now(timezone.utc).isoformat()
     created = rest(
         "POST", "rfqs", token,
-        body={"user_id": user_id, "status": "processing", "title": f"[TEST] flow check {stamp}", "contact_email": email},
+        # Status "new": kunders raderingsregel (users delete own untouched
+        # rfqs) gäller bara orörda förfrågningar. Med "processing" gick
+        # städningen nedan aldrig igenom, och en [TEST]-rad per natt blev kvar
+        # i offertlistan (12 stycken 2026-10-01--12).
+        body={"user_id": user_id, "status": "new", "title": f"[TEST] flow check {stamp}", "contact_email": email},
         extra_headers=["Prefer: return=representation"],
     )
     rfq_id = created[0]["id"] if isinstance(created, list) and created else None
