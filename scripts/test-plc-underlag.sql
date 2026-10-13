@@ -1,4 +1,4 @@
--- Prov av PLC-underlagets behörighet och kontroller (fas 1). Städar efter sig.
+-- Prov av PLC-underlagets behörighet och kontroller (fas 1 och B). Städar efter sig.
 --
 -- Körs mot databasen som administratör (t.ex. via MCP execute_sql). Ägaren är
 -- testkontot; främlingen är ett slumpat användar-id utan roller, eftersom
@@ -162,6 +162,40 @@ begin
   end;
   perform set_config('role', 'none', true);
   insert into plc_prov values (14, 'plc_kallrevision är inte öppen för klienter', fel like '42501%', coalesce(fel, 'inget fel'));
+
+  -- 16. Ett testutfall utan ansvarig och datum är inget bevis (Fas B, steg 7).
+  select revision into rev from public.plc_underlag where id = uid;
+  fel := null;
+  begin
+    perform set_config('role', 'authenticated', true);
+    perform set_config('request.jwt.claims', som_agare, true);
+    perform public.spara_plc_underlag(uid, rev, bas || '{"testfall":[{"id":"t1","nummer":"T1","utfall":"godkant","ansvarig":"","datum":""}]}');
+  exception when others then fel := sqlstate || ' ' || sqlerrm;
+  end;
+  perform set_config('role', 'none', true);
+  insert into plc_prov values (16, 'testutfall utan ansvarig och datum stoppas', fel like '%utfall utan ansvarig och datum%', coalesce(fel, 'inget fel'));
+
+  -- 17. Ett okänt testutfall stoppas.
+  fel := null;
+  begin
+    perform set_config('role', 'authenticated', true);
+    perform set_config('request.jwt.claims', som_agare, true);
+    perform public.spara_plc_underlag(uid, rev, bas || '{"testfall":[{"id":"t1","nummer":"T1","utfall":"klart","ansvarig":"Prov","datum":"2026-10-14"}]}');
+  exception when others then fel := sqlstate || ' ' || sqlerrm;
+  end;
+  perform set_config('role', 'none', true);
+  insert into plc_prov values (17, 'okänt testutfall stoppas', fel like '%okänt testutfall%', coalesce(fel, 'inget fel'));
+
+  -- 18. Ett utfall med ansvarig och datum sparas, och ett ej utfört testfall utan dem också.
+  fel := null;
+  begin
+    perform set_config('role', 'authenticated', true);
+    perform set_config('request.jwt.claims', som_agare, true);
+    n := public.spara_plc_underlag(uid, rev, bas || '{"testfall":[{"id":"t1","nummer":"T1","utfall":"godkant","ansvarig":"Prov","datum":"2026-10-14"},{"id":"t2","nummer":"T2","utfall":"ej_utfort","ansvarig":"","datum":""}]}');
+  exception when others then fel := sqlstate || ' ' || sqlerrm;
+  end;
+  perform set_config('role', 'none', true);
+  insert into plc_prov values (18, 'utfall med ansvarig och datum sparas', fel is null and n = rev + 1, coalesce(fel, 'revision ' || n));
 
   -- Städa: projektet tar med sig underlag, historik och revisioner.
   delete from public.projects where id = pid;

@@ -12,7 +12,8 @@ import { cn } from "@/lib/utils";
  *   last     -- inte tillgängligt än
  * Ett genomfört steg går att gå tillbaka till; ett låst gör det inte.
  */
-export type StegTillstand = "aktivt" | "klart" | "saknas" | "konflikt" | "last";
+import type { StegTillstand } from "@/lib/design/steg";
+export type { StegTillstand };
 
 export interface StegPost {
   id: string;
@@ -26,10 +27,11 @@ const CIRKEL: Record<StegTillstand, string> = {
   saknas: "bg-warning-surface text-warning-deep",
   konflikt: "bg-danger-surface text-danger-deep",
   last: "bg-muted text-muted-foreground/70",
+  ny: "bg-surface text-foreground/70 ring-1 ring-border",
 };
 
 const STAPEL: Record<StegTillstand, string> = {
-  aktivt: "bg-primary", klart: "bg-success", saknas: "bg-warning-deep", konflikt: "bg-danger-deep", last: "bg-border",
+  aktivt: "bg-primary", klart: "bg-success", saknas: "bg-warning-deep", konflikt: "bg-danger-deep", last: "bg-border", ny: "bg-border",
 };
 
 function lageText(t: StegTillstand, sv: boolean): string {
@@ -39,6 +41,7 @@ function lageText(t: StegTillstand, sv: boolean): string {
     case "saknas": return sv ? "uppgifter saknas" : "information missing";
     case "konflikt": return sv ? "konflikt" : "conflict";
     case "last": return sv ? "inte tillgängligt än" : "not available yet";
+    case "ny": return sv ? "inte påbörjat" : "not started";
   }
 }
 
