@@ -1,14 +1,16 @@
 /**
- * Kraven i ett maskinprojekt, hämtade med motorns egna detektorer
- * (supabase/functions/groq-advisor/signals.ts) -- samma som maskinbyggaren
- * använde när den valde komponenterna, så att PLC-underlaget och stycklistan
- * aldrig läser samma beskrivning på två sätt.
+ * Kraven i ett maskinprojekt, hämtade ur kravbilden
+ * (supabase/functions/groq-advisor/kravbild.ts) -- samma tolkning som
+ * maskinbyggaren visar och motorn använder, så att PLC-underlaget och
+ * stycklistan aldrig läser samma beskrivning på två sätt.
  *
- * Värdena tolkas inte om. "24/7" är en drifttid, aldrig en takt: en takt
- * finns bara om kunden angett den (följdfrågan om hur ofta rörelsen görs, eller
- * en cykeltid i texten). Varje krav bär sitt ursprung.
+ * Varje krav bär föremål, egenskap, ursprung och bekräftelse. Intervall står
+ * kvar som intervall ("0,5–3 kg"); ett dimensionerande värde är ett eget,
+ * härlett krav. "24/7" är en drifttid, aldrig en takt. Det maskinprojektet
+ * saknar följer med som luckor, och osäkra tolkningar som inte avgjorts som
+ * öppna frågor -- inget fylls i med påhittade värden.
  */
-import { arHorisontellRorelse, detectHazards } from "../../../supabase/functions/groq-advisor/signals.ts";
+import { delaSvar, kravetsVarde, tolkaKravbild } from "../../../supabase/functions/groq-advisor/kravbild.ts";
 import type { Importerat, ImporteradKomponent, ImporteratKrav } from "./modell.ts";
 
 export interface ProjektKalla {
@@ -19,72 +21,36 @@ export interface ProjektKalla {
   revision: number;
 }
 
-function tal(n: number): string {
-  return String(Math.round(n * 100) / 100).replace(".", ",");
-}
-
-/** Kategoriska krav lagras som koder; gränssnittet visar dem på kundens språk. */
-export const KRAVKODER = {
-  miljo: ["damm", "spolning", "livsmedel", "atex", "utomhus", "kyla", "varme"],
-  drift: ["24_7"],
-  riktning: ["lodrat", "sidled"],
-  sakerhet: ["sakerhetskrav"],
-  teknik: ["elaxel"],
-} as const;
-
 export function importeraKrav(p: ProjektKalla, nu: Date = new Date()): Importerat {
   const beskrivning = (p.description ?? p.name ?? "").trim();
-  const svar = p.answers ?? {};
-  // Samma sammanfogning som motorn: beskrivningen och alla svar.
-  const helt = `${beskrivning} ${Object.values(svar).join(" ")}`;
-  const h = detectHazards(helt, svar, "sv");
-  const hb = detectHazards(beskrivning, {}, "sv");
-  const fran = (iBeskrivning: boolean): Pick<ImporteratKrav, "kalla"> => ({ kalla: iBeskrivning ? "beskrivning" : "svar" });
+  const { svar, tolkning } = delaSvar(p.answers ?? {});
+  const kb = tolkaKravbild(beskrivning, svar, tolkning);
 
-  const krav: ImporteratKrav[] = [];
-  if (h.loadKg > 0) krav.push({ id: "massa", varde: `${tal(h.loadKg)} kg`, ...fran(hb.loadKg > 0) });
-  const slag = h.requiredStrokeMm || h.minStrokeMm;
-  if (slag > 0) krav.push({ id: "slag", varde: `${tal(slag)} mm`, ...fran((hb.requiredStrokeMm || hb.minStrokeMm) > 0) });
-  if (h.speedMs > 0) krav.push({ id: "hastighet", varde: `${tal(h.speedMs)} m/s`, ...fran(hb.speedMs > 0) });
-  if (h.precisionMm > 0) krav.push({ id: "noggrannhet", varde: `±${tal(h.precisionMm)} mm`, ...fran(hb.precisionMm > 0) });
-  if ((h.statedForceN ?? 0) > 0) krav.push({ id: "kraft", varde: `${tal(h.statedForceN ?? 0)} N`, ...fran((hb.statedForceN ?? 0) > 0) });
-  if (h.torqueNm > 0 && !h.torqueUppskattat) krav.push({ id: "vridmoment", varde: `${tal(h.torqueNm)} Nm`, ...fran(hb.torqueNm > 0) });
-  if (h.rotationDeg > 0) krav.push({ id: "vinkel", varde: `${h.rotationDeg}°`, ...fran(hb.rotationDeg > 0) });
-
-  const riktning = h.isVerticalLoad ? "lodrat" : arHorisontellRorelse(helt) ? "sidled" : "";
-  if (riktning) krav.push({ id: "riktning", varde: riktning, ...fran(riktning === "lodrat" ? hb.isVerticalLoad : arHorisontellRorelse(beskrivning)) });
-
-  const miljo: Array<[string, boolean, boolean]> = [
-    ["damm", h.isDirtyEnv, hb.isDirtyEnv],
-    ["spolning", !!h.isSpolmiljo, !!hb.isSpolmiljo],
-    ["livsmedel", h.isFoodGrade, hb.isFoodGrade],
-    ["atex", h.isAtex || h.isAtexDust, hb.isAtex || hb.isAtexDust],
-    ["utomhus", h.isOutdoor, hb.isOutdoor],
-    ["kyla", h.isLowTemp, hb.isLowTemp],
-    ["varme", h.isHighTemp, hb.isHighTemp],
-  ];
-  for (const [kod, finns, iBeskrivning] of miljo) {
-    if (finns) krav.push({ id: `miljo_${kod}`, varde: kod, ...fran(iBeskrivning) });
-  }
-
-  // Drifttid och takt hålls isär. 24/7 säger hur länge maskinen går, inte
-  // hur ofta en rörelse görs.
-  if (h.is24x7) krav.push({ id: "drift", varde: "24_7", ...fran(hb.is24x7) });
-  if (h.cycleTimeS > 0) krav.push({ id: "cykeltid", varde: `${tal(h.cycleTimeS)} s`, ...fran(hb.cycleTimeS > 0) });
-  if (svar.takt && !/vet inte|don't know/i.test(svar.takt)) {
-    krav.push({ id: "takt", varde: svar.takt, kalla: "svar", kallaDetalj: "takt" });
-  }
-
-  if (h.isSilSafety || h.sakerhetsniva) {
-    krav.push({ id: "sakerhet", varde: h.sakerhetsniva ?? "sakerhetskrav", ...fran(hb.isSilSafety || !!hb.sakerhetsniva) });
-  }
-  if (h.elaxel) krav.push({ id: "teknik", varde: "elaxel", ...fran(!!hb.elaxel) });
+  const krav: ImporteratKrav[] = kb.krav.map((k) => ({
+    id: k.id,
+    varde: kravetsVarde(k, "sv"),
+    kalla: k.kalla.typ,
+    ...(k.kalla.svarId ? { kallaDetalj: k.kalla.svarId } : {}),
+    objekt: k.objektId,
+    egenskap: k.egenskap,
+    ursprung: k.ursprung,
+    bekraftelse: k.bekraftelse,
+    ...(k.metod ? { metod: k.metod } : {}),
+  }));
 
   const komponenter: ImporteradKomponent[] = (p.bom_lines ?? []).map((l) => ({
     sku: l.sku, roll: l.role, antal: l.qty, ...(l.name ? { namn: l.name } : {}),
   }));
 
-  return { kallrevision: p.revision, hamtat: nu.toISOString(), krav, komponenter };
+  return {
+    kallrevision: p.revision,
+    hamtat: nu.toISOString(),
+    krav,
+    komponenter,
+    saknas: kb.saknas.map((s) => ({ id: s.id, sv: s.sv, en: s.en })),
+    osakra: kb.osakra.map((o) => ({ id: o.id, sv: o.fraga.sv, en: o.fraga.en })),
+    processbeskrivning: beskrivning,
+  };
 }
 
 export interface KravAndring {

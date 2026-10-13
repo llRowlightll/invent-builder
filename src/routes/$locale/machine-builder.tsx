@@ -15,6 +15,9 @@ import { saveBomNormalized, loadBomNormalized } from "@/lib/bom-store";
 import { usableForceN, LOAD_SAFETY_FACTOR } from "@/lib/physics";
 import { Award, Camera, Lock, Package, RefreshCw, Ruler, Save, Settings } from "lucide-react";
 import { getProductImage } from "@/lib/product-images";
+import { Tolkningspanel } from "@/components/maskin/Tolkningspanel";
+import { Resultatstatus, type ResultatData } from "@/components/maskin/Resultatstatus";
+import { delaSvar } from "../../../supabase/functions/groq-advisor/kravbild.ts";
 import { logga } from "@/lib/matning";
 
 /** Namnet på sidans språk för rader som kan sakna katalogprodukt. */
@@ -39,6 +42,8 @@ interface Question {
   id: string;
   label: string;
   hint?: string;
+  /** "Varför behöver vi detta?": vilket beslut svaret påverkar. */
+  varfor?: string;
   type: "choice" | "number";
   options?: string[];
   unit?: string;
@@ -59,6 +64,10 @@ interface ActuatorOption {
   pros: string[];
   cons: string[];
   product?: ProductRow;
+  /** Kraven alternativet prövats mot, deterministiskt (sedan 2026-10-13). */
+  kravstatus?: Array<{ krav: string; utfall: string; text: string }>;
+  /** Kundlösningen: varför katalogen inte räckte. */
+  orsak?: string;
 }
 
 /** Server-computed requirement numbers — lets the UI draw a "required vs
@@ -77,6 +86,11 @@ interface Requirements {
   pressure_bar: number | null;
   /** Hur kraftkravet räknades, i klartext (sedan 2026-10-11). */
   force_basis?: string | null;
+  /** Kraften är en uppskattning, inte ett krav (sedan 2026-10-13). */
+  force_preliminary?: boolean;
+  force_missing?: string[];
+  /** Trycket är antaget, inte angivet av kunden. */
+  pressure_assumed?: boolean;
 }
 
 /** En kant i maskingrafen, som groq-advisor levererar den (se
@@ -104,6 +118,8 @@ interface BomLine {
    *  KAN kontrollera har kontrollerats -- inte att allt är kontrollerat. */
   verifiering?: string;
   verifieringsskal?: string;
+  /** Kraven raden prövats mot (tryck, spänning, miljö), sedan 2026-10-13. */
+  kontroller?: Array<{ krav: string; utfall: string; text: string }>;
   product?: ProductRow;
 }
 
@@ -114,7 +130,10 @@ interface Dom {
   bestallningsklar: boolean;
   blockerande: Array<{ sku: string; role: string; verifiering: string; skal: string }>;
   /** Hur mycket som faktiskt prövades. Utan den läses tystnad som godkännande. */
-  kontrollerat?: { verifierade: number; utan_krav: number; blockerande: number; rader: number };
+  kontrollerat?: {
+    verifierade: number; utan_krav: number; blockerande: number; rader: number;
+    underlag_saknas?: number; stods_inte?: number; ej_tillampligt?: number; konfiguration?: number; med_luckor?: number;
+  };
 }
 
 type Step = "describe" | "q_loading" | "questions" | "o_loading" | "options" | "bom_loading" | "result";
@@ -193,6 +212,9 @@ function MachineBuilderPage() {
   const [bomTitle, setBomTitle] = useState("");
   const [connections, setConnections] = useState<BomConnection[]>([]);
   const [dom, setDom] = useState<Dom | null>(null);
+  // Motorns strukturerade resultat (resultat.ts). null för ett öppnat projekt:
+  // det räknas fram först när stycklistan byggs om.
+  const [resultat, setResultat] = useState<ResultatData | null>(null);
   const [bomExplanation, setBomExplanation] = useState("");
   const [catalog, setCatalog] = useState<ProductRow[]>([]);
   const [error, setError] = useState("");
@@ -388,10 +410,11 @@ function MachineBuilderPage() {
   // Step 3 → BOM (or advisor redirect for custom solutions)
   async function handleSelect(opt: ActuatorOption) {
     if (opt.sku === "CUSTOM-SOLUTION") {
+      const { svar: kundsvar } = delaSvar(answers);
       const context = [
         description,
-        Object.keys(answers).length
-          ? "\n\nKrav:\n" + Object.entries(answers).map(([k, v]) => `${k}: ${v}`).join("\n")
+        Object.keys(kundsvar).length
+          ? "\n\nKrav:\n" + Object.entries(kundsvar).map(([k, v]) => `${k}: ${v}`).join("\n")
           : "",
       ].join("");
       window.location.href = `/${locale}/advisor?q=${encodeURIComponent(context)}`;
@@ -413,6 +436,7 @@ function MachineBuilderPage() {
         : null);
       setBomTitle(data.title ?? "");
       setBomExplanation(data.explanation ?? "");
+      setResultat(data.resultat ?? null);
       setStep("result");
     } catch (e) {
       setError(t((e as Error).message === "RATE_LIMITED" ? "machineBuilder.errorRateLimit" : "machineBuilder.errorGeneric"));
@@ -433,6 +457,7 @@ function MachineBuilderPage() {
     setSelected(null);
     setBom([]);
     setDom(null);
+    setResultat(null);
     setBomTitle("");
     setBomExplanation("");
     setRfqSent(false);
@@ -485,6 +510,7 @@ function MachineBuilderPage() {
         <QuestionsStep
           t={t}
           locale={locale}
+          description={description}
           summary={qSummary}
           questions={questions}
           answers={answers}
@@ -520,6 +546,7 @@ function MachineBuilderPage() {
           locale={locale}
           title={bomTitle}
           explanation={bomExplanation}
+          resultat={resultat}
           selected={selected}
           requirements={requirements}
           bom={bom}
@@ -717,8 +744,8 @@ function DescribeStep({ t, locale, description, setDescription, onSubmit }: {
 }
 
 // ── Questions Step ──────────────────────────────────────────────────────────
-function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onSubmit, onBack }: {
-  t: (key: import("@/lib/i18n").TKey) => string; locale: string; summary: string; questions: Question[]; answers: Record<string, string>;
+function QuestionsStep({ t, locale, description, summary, questions, answers, setAnswers, onSubmit, onBack }: {
+  t: (key: import("@/lib/i18n").TKey) => string; locale: string; description: string; summary: string; questions: Question[]; answers: Record<string, string>;
   setAnswers: (a: Record<string, string>) => void; onSubmit: () => void; onBack: () => void;
 }) {
   const isSv = locale === "sv";
@@ -784,6 +811,17 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
   // faktum bygger fel stycklista. Svaret går vidare som text; detektorerna i
   // nästa steg hittar inga värden i det och använder sina standardantaganden.
   const vetInte = t("machineBuilder.dontKnow");
+  // "Lämnas öppen" (manualen 4.2): frågan besvaras inte nu och följer med som
+  // en öppen fråga. Skiljt från "Vet inte", som är ett svar.
+  const lamnasOppen = isSv ? "Lämnas öppen" : "Left open";
+  function lamnaOppen(q: Question) {
+    if (egnaSvar.has(q.id)) {
+      const kvar = new Set(egnaSvar);
+      kvar.delete(q.id);
+      setEgnaSvar(kvar);
+    }
+    setAnswers({ ...answers, [q.id]: lamnasOppen });
+  }
   function valjVetInte(q: Question) {
     if (egnaSvar.has(q.id)) {
       const kvar = new Set(egnaSvar);
@@ -796,7 +834,7 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
   const allAnswered = questions.length > 0 && questions.every(q => {
     const val = answers[q.id];
     if (val === undefined || val === "") return false;
-    if (val === vetInte) return true;
+    if (val === vetInte || val === lamnasOppen) return true;
     if (q.type === "number") {
       const n = parseFloat(val);
       if (isNaN(n)) return false;
@@ -814,6 +852,8 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
         </div>
       )}
 
+      <Tolkningspanel locale={locale} description={description} answers={answers} setAnswers={setAnswers} />
+
       <div className="rounded-xl border border-border bg-card p-6 space-y-6">
         <div className="text-sm font-medium text-foreground">
           {t("machineBuilder.answerQuestions")}
@@ -826,6 +866,12 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
               <div>
                 <div className="text-sm font-medium">{q.label}</div>
                 {q.hint && <div className="text-xs text-muted-foreground mt-0.5">{q.hint}</div>}
+                {q.varfor && (
+                  <details className="mt-1 text-xs">
+                    <summary className="cursor-pointer text-info hover:underline w-fit">{isSv ? "Varför behöver vi detta?" : "Why do we need this?"}</summary>
+                    <p className="mt-1 text-muted-foreground max-w-prose">{q.varfor}</p>
+                  </details>
+                )}
               </div>
             </div>
             {q.type === "choice" && q.options?.length ? (
@@ -873,6 +919,18 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
                     {egnaSvar.has(q.id) && <span className="mr-1">✓</span>}
                     {t("machineBuilder.ownAnswer")}
                   </button>
+                  <button
+                    onClick={() => lamnaOppen(q)}
+                    aria-pressed={!egnaSvar.has(q.id) && answers[q.id] === lamnasOppen}
+                    className={`px-3 py-1.5 rounded-lg border text-sm transition ${
+                      !egnaSvar.has(q.id) && answers[q.id] === lamnasOppen
+                        ? "border-info bg-info/10 text-info font-medium"
+                        : "border-dashed border-border text-muted-foreground hover:border-info hover:text-foreground"
+                    }`}
+                  >
+                    {!egnaSvar.has(q.id) && answers[q.id] === lamnasOppen && <span className="mr-1">✓</span>}
+                    {lamnasOppen}
+                  </button>
                 </div>
                 {egnaSvar.has(q.id) && (
                   <input
@@ -890,7 +948,7 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
               /* Fallback for number, text, or any other type Groq returns */
               (() => {
                 const raw = answers[q.id];
-                const arVetInte = raw === vetInte;
+                const arVetInte = raw === vetInte || raw === lamnasOppen;
                 const numVal = raw !== undefined && raw !== "" && !arVetInte ? parseFloat(raw) : null;
                 const isInvalid = q.type === "number" && raw !== undefined && raw !== "" && !arVetInte &&
                   (isNaN(numVal!) || numVal! < 0);
@@ -913,13 +971,25 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
                       <button
                         onClick={() => valjVetInte(q)}
                         className={`px-3 py-1.5 rounded-lg border text-sm transition ${
-                          arVetInte
+                          raw === vetInte
                             ? "border-info bg-info/10 text-info font-medium"
                             : "border-dashed border-border text-muted-foreground hover:border-info hover:text-foreground"
                         }`}
                       >
-                        {arVetInte && <span className="mr-1">✓</span>}
+                        {raw === vetInte && <span className="mr-1">✓</span>}
                         {vetInte}
+                      </button>
+                      <button
+                        onClick={() => lamnaOppen(q)}
+                        aria-pressed={raw === lamnasOppen}
+                        className={`px-3 py-1.5 rounded-lg border text-sm transition ${
+                          raw === lamnasOppen
+                            ? "border-info bg-info/10 text-info font-medium"
+                            : "border-dashed border-border text-muted-foreground hover:border-info hover:text-foreground"
+                        }`}
+                      >
+                        {raw === lamnasOppen && <span className="mr-1">✓</span>}
+                        {lamnasOppen}
                       </button>
                     </div>
                     {isInvalid && (
@@ -952,10 +1022,28 @@ function QuestionsStep({ t, locale, summary, questions, answers, setAnswers, onS
 }
 
 // ── Options Step ────────────────────────────────────────────────────────────
+// Kravstatus per alternativ (manualen 4.3). Texten bär beskedet; färgen är
+// bara ett stöd, så att statusen går att läsa utan att se färger.
+const UTFALL: Record<string, { sv: string; en: string; ikon: string; stil: string }> = {
+  uppfyllt: { sv: "uppfylls", en: "met", ikon: "✓", stil: "text-success-deep" },
+  ej_uppfyllt: { sv: "uppfylls inte", en: "not met", ikon: "✗", stil: "text-destructive" },
+  avvikelse: { sv: "avviker", en: "deviates", ikon: "≠", stil: "text-warning-deep" },
+  konfigureras: { sv: "konfigureras vid order", en: "configured at order", ikon: "⚙", stil: "text-muted-foreground" },
+  kan_inte_bedomas: { sv: "kan inte bedömas", en: "cannot be assessed", ikon: "?", stil: "text-warning-deep" },
+};
+
+const KUNDLOSNING_ORSAK: Record<string, [string, string]> = {
+  ingen_katalogmatchning: ["Ingen artikel i katalogen matchar kraven.", "No catalogue item matches the requirements."],
+  otillrackligt_underlag: ["Underlaget räcker inte för att välja: last eller kraft saknas.", "Not enough data to choose: load or force is missing."],
+  kravkonflikt: ["Kraven motsäger varandra; se konflikterna ovan.", "The requirements contradict each other; see the conflicts above."],
+  alternativ: ["Ett alternativ om inget av förslagen passar.", "An alternative if none of the proposals fits."],
+};
+
 function OptionsStep({ t, locale, summary, options, requirements, onSelect, onBack }: {
   t: (key: import("@/lib/i18n").TKey) => string; locale: string; summary: string; options: ActuatorOption[];
   requirements: Requirements | null; onSelect: (o: ActuatorOption) => void; onBack: () => void;
 }) {
+  const isSv = locale === "sv";
   const BADGE_COLORS: Record<string, string> = {
     "Bästa valet": "bg-success-surface text-success-deep",
     "Best choice": "bg-success-surface text-success-deep",
@@ -1001,6 +1089,9 @@ function OptionsStep({ t, locale, summary, options, requirements, onSelect, onBa
                     Skicka förfrågan →
                   </span>
                 </div>
+                {opt.orsak && KUNDLOSNING_ORSAK[opt.orsak] && (
+                  <p className="mt-2 text-xs font-medium text-foreground">{KUNDLOSNING_ORSAK[opt.orsak][isSv ? 0 : 1]}</p>
+                )}
                 <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{opt.why}</p>
                 <div className="mt-3 grid sm:grid-cols-2 gap-3">
                   <div>
@@ -1052,6 +1143,24 @@ function OptionsStep({ t, locale, summary, options, requirements, onSelect, onBa
 
               {/* Calculated dimensioning — required vs available */}
               <DimensioningPanel locale={locale} requirements={requirements} option={opt} />
+
+              {opt.kravstatus && opt.kravstatus.length > 0 && (
+                <ul className="mt-3 space-y-0.5 text-xs" aria-label={isSv ? "Krav som prövats" : "Requirements checked"}>
+                  {opt.kravstatus.map((k, i) => {
+                    const u = UTFALL[k.utfall] ?? UTFALL.kan_inte_bedomas;
+                    return (
+                      <li key={i} className="flex gap-1.5">
+                        <span aria-hidden className={`${u.stil} w-3 shrink-0 text-center`}>{u.ikon}</span>
+                        <span>
+                          <span className="text-foreground">{k.krav}</span>
+                          {": "}<span className={`font-medium ${u.stil}`}>{isSv ? u.sv : u.en}</span>
+                          {k.text && <span className="text-muted-foreground"> — {k.text}</span>}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
 
               {/* Why */}
               <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{opt.why}</p>
@@ -1181,12 +1290,15 @@ function DimensioningPanel({ locale, requirements, option, bordered = true }: {
         <div className="space-y-1">
           <DimensioningBar
             label={requirements.pressure_bar
-              ? (isSv ? `Kraft @ ${requirements.pressure_bar} bar` : `Force @ ${requirements.pressure_bar} bar`)
+              ? (isSv
+                ? `Kraft @ ${requirements.pressure_bar} bar${requirements.pressure_assumed ? " (antaget)" : ""}`
+                : `Force @ ${requirements.pressure_bar} bar${requirements.pressure_assumed ? " (assumed)" : ""}`)
               : (isSv ? "Matningskraft" : "Feed force")}
             required={requirements.required_force_n!}
             available={option.force_n!}
             unit="N"
-            requiredLabel={isSv ? "Krävs" : "Required"}
+            // En uträknad kraft är en uppskattning, inte ett krav (lådsorteringstestet).
+            requiredLabel={requirements.force_preliminary ? (isSv ? "Uppskattning" : "Estimate") : (isSv ? "Krävs" : "Required")}
             availableLabel={isSv ? "Ger" : "Delivers"}
           />
           {/* Uträkningen bakom kravet, så att den går att granska. */}
@@ -1240,8 +1352,14 @@ function DimensioningPanel({ locale, requirements, option, bordered = true }: {
  * olika saker i de tre artefakter som når samma kund.
  */
 const STATUSTEXT: Record<string, string> = {
-  verifierad: "Verifierad",
-  inga_krav: "Inga krav att pröva",
+  // Sedan 2026-10-13 (manualen 5.6): "Inga krav att pröva" är ersatt av vad
+  // som faktiskt gäller för raden. inga_krav finns kvar för äldre svar.
+  verifierad: "Kontrollerat mot angivna krav",
+  inga_krav: "Ej kontrollerat",
+  underlag_saknas: "Underlag saknas",
+  stods_inte: "Automatisk kontroll stöds inte",
+  ej_tillampligt: "Ej tillämpligt",
+  delvis: "Delvis kontrollerat",
   kraver_verifiering: "Kräver verifiering",
   kraver_konfiguration: "Kräver konfiguration",
   avvikelse: "Avvikelse",
@@ -1249,6 +1367,12 @@ const STATUSTEXT: Record<string, string> = {
   ej_godkand: "Ej godkänd",
 };
 const BLOCKERANDE_STATUS = new Set(["kraver_verifiering", "ej_uppfyllt", "ej_godkand"]);
+const KONTROLLUTFALL: Record<string, string> = {
+  uppfyllt: "uppfylls",
+  ej_uppfyllt: "uppfylls inte",
+  underlag_saknas: "underlag saknas",
+  stods_inte: "automatisk kontroll stöds inte",
+};
 
 /**
  * Tre lägen, inte två. "Inga krav att pröva" får inte vara grönt: grönt läses
@@ -1261,10 +1385,21 @@ function statusStil(v: string): string {
   // bevisat inte miljön" och "vi vet inte" gick inte att skilja på en blick.
   if (v === "ej_uppfyllt" || v === "ej_godkand") return "bg-destructive/10 text-destructive";
   if (BLOCKERANDE_STATUS.has(v)) return "bg-warning-surface text-warning-deep";
+  if (v === "underlag_saknas" || v === "stods_inte" || v === "avvikelse" || v === "delvis") return "bg-warning-surface/60 text-warning-deep";
   if (v === "verifierad") return "bg-success-surface text-success-deep";
   return "bg-muted text-muted-foreground";
 }
 const statusText = (v?: string) => (v ? STATUSTEXT[v] ?? v : "");
+
+/**
+ * Radens status som den ska läsas. En rad där något prövades men ett annat
+ * krav saknade underlag är "delvis kontrollerad", inte kontrollerad -- annars
+ * säger etiketten mer än kontrollerna (ventilen: tryck prövat, 24 V DC inte).
+ */
+function radStatus(l: { verifiering?: string; kontroller?: Array<{ utfall: string }> }): string | undefined {
+  if (l.verifiering === "verifierad" && (l.kontroller ?? []).some(k => k.utfall === "underlag_saknas" || k.utfall === "stods_inte")) return "delvis";
+  return l.verifiering;
+}
 
 /** PDF:en byggs som HTML-sträng. Allt som stoppas in måste escapas. */
 function esc(v: unknown): string {
@@ -1286,7 +1421,7 @@ function exportBomCsv(bom: BomLine[], title: string) {
   const cit = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const rows = bom.map(l =>
     [l.sku, cit(l.product?.name ?? ""), l.quantity, cit(l.role), cit(l.reason),
-     cit(statusText(l.verifiering)), cit(l.verifieringsskal ?? "")].join(",")
+     cit(statusText(radStatus(l))), cit(l.verifieringsskal ?? "")].join(",")
   );
   const blob = new Blob([header + "\n" + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -1307,7 +1442,7 @@ function exportBomPdf(bom: BomLine[], title: string, explanation: string, select
       <td style="text-align:center">${esc(l.quantity)}</td>
       <td>${esc(l.role)}</td>
       <td>${esc(l.reason)}</td>
-      <td>${l.verifiering ? `<span class="status ${l.verifiering === "ej_uppfyllt" || l.verifiering === "ej_godkand" ? "status-fel" : blockerar ? "status-block" : l.verifiering === "verifierad" ? "status-ok" : "status-neutral"}">${esc(statusText(l.verifiering))}</span>` : ""}${
+      <td>${l.verifiering ? `<span class="status ${l.verifiering === "ej_uppfyllt" || l.verifiering === "ej_godkand" ? "status-fel" : blockerar ? "status-block" : l.verifiering === "verifierad" ? "status-ok" : "status-neutral"}">${esc(statusText(radStatus(l)))}</span>` : ""}${
         l.verifieringsskal ? `<div class="skal">${esc(l.verifieringsskal)}</div>` : ""}</td>
     </tr>`;
   }).join("");
@@ -1644,10 +1779,10 @@ function projektinnehall(description: string, answers: Record<string, string>, b
 }
 
 // ── Result Step ─────────────────────────────────────────────────────────────
-function ResultStep({ t, locale, title, explanation, selected, requirements, bom, dom, connections, catalog, description, answers,
+function ResultStep({ t, locale, title, explanation, resultat, selected, requirements, bom, dom, connections, catalog, description, answers,
   rfqName, rfqEmail, rfqCompany, rfqPhone, rfqPoNumber, rfqOrgNumber, rfqSent, rfqId, autoSaved, projektId, onProjektSparat,
   setRfqName, setRfqEmail, setRfqCompany, setRfqPhone, setRfqPoNumber, setRfqOrgNumber, setRfqSent, setRfqId, onRestart, onBack }: {
-  t: (key: import("@/lib/i18n").TKey) => string; locale: string; title: string; explanation: string;
+  t: (key: import("@/lib/i18n").TKey) => string; locale: string; title: string; explanation: string; resultat: ResultatData | null;
   selected: ActuatorOption; requirements: Requirements | null; bom: BomLine[]; dom: Dom | null; connections: BomConnection[]; catalog: ProductRow[]; description: string; answers: Record<string, string>;
   rfqName: string; rfqEmail: string; rfqCompany: string; rfqPhone: string; rfqPoNumber: string; rfqOrgNumber: string;
   rfqSent: boolean; rfqId: string; autoSaved: boolean;
@@ -1823,8 +1958,14 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
           {t("machineBuilder.yourSolution")}
         </div>
         <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
-        <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{explanation}</p>
+        {/* Med strukturerat resultat visas princip och kravbild här och resten
+            i statusdelen nedan; ett öppnat projekt har bara texten. */}
+        <p className="mt-2 text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+          {resultat ? resultat.text.split("\n\n").slice(0, 2).join("\n\n") : explanation}
+        </p>
       </div>
+
+      {resultat && <Resultatstatus locale={locale} resultat={resultat} />}
 
       {/* Calculated dimensioning — required vs available, for the chosen actuator */}
       {requirements && (requirements.required_force_n != null || requirements.required_stroke_mm != null) && (
@@ -2001,10 +2142,25 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
                           <div className="mt-1">
                             <span
                               title={line.verifieringsskal ?? undefined}
-                              className={`inline-block rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] ${statusStil(line.verifiering)}`}
+                              className={`inline-block rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] ${statusStil(radStatus(line) ?? "")}`}
                             >
-                              {statusText(line.verifiering)}
+                              {statusText(radStatus(line))}
                             </span>
+                            {line.verifieringsskal && (
+                              <details className="mt-1 text-xs">
+                                <summary className="cursor-pointer text-info hover:underline w-fit">{locale === "sv" ? "Vad som prövats" : "What was checked"}</summary>
+                                <p className="mt-1 text-muted-foreground max-w-xs">{line.verifieringsskal}</p>
+                                {line.kontroller && line.kontroller.length > 0 && (
+                                  <ul className="mt-1 space-y-0.5">
+                                    {line.kontroller.map((k, i) => (
+                                      <li key={i} className="text-muted-foreground">
+                                        <span className="text-foreground">{k.krav}</span>: {KONTROLLUTFALL[k.utfall] ?? k.utfall}{k.text ? ` — ${k.text}` : ""}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </details>
+                            )}
                           </div>
                         )}
                       </td>
@@ -2093,6 +2249,9 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
             <span className={dom.kontrollerat.verifierade === 0 ? "text-warning-deep" : ""}>
               · {dom.kontrollerat.verifierade} {t("machineBuilder.ofRowsChecked")} {dom.kontrollerat.rader}
               {dom.kontrollerat.verifierade === 0 && ` — ${t("machineBuilder.nothingChecked")}`}
+              {(dom.kontrollerat.med_luckor ?? 0) > 0 && (locale === "sv"
+                ? ` · ${dom.kontrollerat.med_luckor} med krav som inte kunde prövas`
+                : ` · ${dom.kontrollerat.med_luckor} with requirements that could not be checked`)}
             </span>
           )}
         </div>
@@ -2454,10 +2613,15 @@ function BomSystemView({ bom, connections, selected, locale }: {
     return [];
   });
 
-  // Build pipeline: main flow nodes in order
+  // Build pipeline: main flow nodes in order.
+  //
+  // Givaren ligger INTE i flödet (manualen 7.3, lådsorteringstestet: schemat
+  // visade "LUFTFLÖDE → aktuator → givare", som om luften gick vidare in i
+  // givaren). En givare känner av aktuatorns läge och skickar en signal till
+  // styrningen; den ritas som återkoppling på en egen rad.
   const pipelineOrder: NodeType[] = isElectric
-    ? ["psu", "drive", "actuator", "sensor"]
-    : ["supply", "frl", "valve", "actuator", "gripper", "vacuum", "sensor"];
+    ? ["psu", "drive", "actuator"]
+    : ["supply", "frl", "valve", "actuator", "gripper", "vacuum"];
 
   // Group bom lines by node type for the diagram
   const byType: Partial<Record<NodeType, typeof classified>> = {};
@@ -2476,6 +2640,8 @@ function BomSystemView({ bom, connections, selected, locale }: {
   const sideItems = sideTypes
     .filter(t => byType[t]?.length)
     .flatMap(t => byType[t]!);
+
+  const feedbackItems = byType.sensor ?? [];
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -2500,6 +2666,7 @@ function BomSystemView({ bom, connections, selected, locale }: {
           <SystemDiagram
             pipelineItems={pipelineItems}
             sideItems={sideItems}
+            feedbackItems={feedbackItems}
             active={active}
             setActive={setActive}
             isElectric={isElectric}
@@ -2577,10 +2744,11 @@ function BomSystemView({ bom, connections, selected, locale }: {
 }
 
 // ── Pipeline SVG Diagram ────────────────────────────────────────────────────
-function SystemDiagram({ pipelineItems, sideItems, active, setActive, isElectric, locale }: {
+function SystemDiagram({ pipelineItems, sideItems, feedbackItems, active, setActive, isElectric, locale }: {
   locale: string;
   pipelineItems: { type: NodeType; lines: { idx: number; sku: string; role: string; quantity: number; product?: ProductRow | null; nodeType: NodeType }[] }[];
   sideItems: { idx: number; sku: string; role: string; quantity: number; product?: ProductRow | null; nodeType: NodeType }[];
+  feedbackItems: { idx: number; sku: string; role: string; quantity: number; product?: ProductRow | null; nodeType: NodeType }[];
   active: number | null;
   setActive: (i: number | null) => void;
   isElectric: boolean;
@@ -2590,9 +2758,14 @@ function SystemDiagram({ pipelineItems, sideItems, active, setActive, isElectric
   const pLen = pipelineItems.length;
   const totalW = Math.max(600, pLen * (BOX_W + GAP) - GAP + 80);
   const mainY = 80;
-  const sideRowY = mainY + BOX_H + 80;
-  const totalH = sideItems.length > 0 ? sideRowY + SIDE_H + 40 : mainY + BOX_H + 60;
+  const sv = locale === "sv";
+  // Rader: flödet, givaråterkopplingen (egen rad), tillbehören, förklaringen.
+  const feedbackRowY = mainY + BOX_H + 70;
+  const sideRowY = (feedbackItems.length > 0 ? feedbackRowY + SIDE_H + 80 : mainY + BOX_H + 80);
+  const legendY = (sideItems.length > 0 ? sideRowY + SIDE_H + 36 : feedbackItems.length > 0 ? feedbackRowY + SIDE_H + 36 : mainY + BOX_H + 50);
+  const totalH = legendY + 24;
   const arrowColor = isElectric ? "#7c3aed" : "#0ea5e9";
+  const feedbackColor = "#16a34a";
 
   const pipelinePositions = pipelineItems.map((_, i) => ({
     x: 40 + i * (BOX_W + GAP),
@@ -2616,7 +2789,9 @@ function SystemDiagram({ pipelineItems, sideItems, active, setActive, isElectric
 
       {/* Flow label */}
       <text x="40" y="28" fontSize="10" fill="#94a3b8" fontFamily="system-ui, sans-serif" letterSpacing="0.12em">
-        {isElectric ? "ELFLÖDE →" : "LUFTFLÖDE →"}
+        {isElectric
+          ? (sv ? "ELEKTRISK MATNING OCH STYRNING →" : "ELECTRIC SUPPLY AND CONTROL →")
+          : (sv ? "LUFTFLÖDE (PNEUMATIK) →" : "AIR FLOW (PNEUMATICS) →")}
       </text>
 
       {/* Connecting arrows between pipeline nodes */}
@@ -2701,6 +2876,53 @@ function SystemDiagram({ pipelineItems, sideItems, active, setActive, isElectric
         );
       })}
 
+      {/* Givaråterkoppling: egen rad, prickad linje till aktuatorn */}
+      {feedbackItems.length > 0 && (() => {
+        const aktIdx = pipelineItems.findIndex(p => p.type === "actuator");
+        const akt = aktIdx >= 0 ? pipelinePositions[aktIdx] : pipelinePositions[pipelinePositions.length - 1];
+        return (
+          <g>
+            {/* Under raden: linjen från aktuatorn korsar annars rubriken. */}
+            <text x={40} y={feedbackRowY + SIDE_H + 16} fontSize="9" fill={feedbackColor} fontFamily="system-ui, sans-serif" letterSpacing="0.12em">
+              {sv ? "GIVARÅTERKOPPLING (SIGNAL TILL STYRNINGEN)" : "SENSOR FEEDBACK (SIGNAL TO THE CONTROLLER)"}
+            </text>
+            {akt && feedbackItems.map((item, i) => {
+              const x = 40 + i * (SIDE_W + 16);
+              return (
+                <line key={item.idx}
+                  x1={akt.x + BOX_W / 2} y1={mainY + BOX_H + 2} x2={x + SIDE_W / 2} y2={feedbackRowY - 2}
+                  stroke={feedbackColor} strokeWidth="1.5" strokeDasharray="2 4" />
+              );
+            })}
+            {feedbackItems.map((item, i) => {
+              const x = 40 + i * (SIDE_W + 16);
+              const meta = NODE_META[item.nodeType];
+              const isActive = active === item.idx;
+              return (
+                <g key={`fb-${item.idx}`} style={{ cursor: "pointer" }} onClick={() => setActive(isActive ? null : item.idx)}>
+                  <rect x={x} y={feedbackRowY} width={SIDE_W} height={SIDE_H} rx="6"
+                    fill={isActive ? meta.color : meta.fill} stroke={isActive ? meta.color : feedbackColor}
+                    strokeWidth={isActive ? 2 : 1} strokeDasharray={isActive ? "0" : "3 2"} filter="url(#shadow)" />
+                  <circle cx={x + 11} cy={feedbackRowY + 11} r={9} fill={meta.color} />
+                  <text x={x + 11} y={feedbackRowY + 15} textAnchor="middle" fontSize="9" fill="white" fontWeight="700" fontFamily="system-ui, sans-serif">
+                    {item.idx + 1}
+                  </text>
+                  <text x={x + SIDE_W / 2} y={feedbackRowY + 22} textAnchor="middle" fontSize="9"
+                    fill={isActive ? "white" : "#64748b"} fontFamily="system-ui, sans-serif" letterSpacing="0.05em">
+                    {meta.label.toUpperCase()}
+                  </text>
+                  <foreignObject x={x + 4} y={feedbackRowY + 28} width={SIDE_W - 8} height={20}>
+                    <div style={{ fontSize: "10px", color: isActive ? "white" : "#1e293b", fontFamily: "system-ui, sans-serif", fontWeight: 600, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+                      {visatNamn(item.product, locale) ?? item.sku}
+                    </div>
+                  </foreignObject>
+                </g>
+              );
+            })}
+          </g>
+        );
+      })()}
+
       {/* Dotted lines from pipeline to side items */}
       {sideItems.length > 0 && (
         <>
@@ -2752,6 +2974,24 @@ function SystemDiagram({ pipelineItems, sideItems, active, setActive, isElectric
           </g>
         );
       })}
+
+      {/* Teckenförklaring: kopplingstyperna skiljs åt (manualen 7.3). */}
+      <g fontFamily="system-ui, sans-serif" fontSize="9" fill="#64748b">
+        <line x1={40} y1={legendY} x2={64} y2={legendY} stroke={arrowColor} strokeWidth="2" strokeDasharray={isElectric ? "6 3" : "0"} />
+        <text x={70} y={legendY + 3}>{isElectric ? (sv ? "Elektrisk matning/styrning" : "Electric supply/control") : (sv ? "Pneumatik (luftflöde)" : "Pneumatics (air flow)")}</text>
+        {feedbackItems.length > 0 && (
+          <>
+            <line x1={220} y1={legendY} x2={244} y2={legendY} stroke={feedbackColor} strokeWidth="1.5" strokeDasharray="2 4" />
+            <text x={250} y={legendY + 3}>{sv ? "Givaråterkoppling (signal)" : "Sensor feedback (signal)"}</text>
+          </>
+        )}
+        {sideItems.length > 0 && (
+          <>
+            <line x1={400} y1={legendY} x2={424} y2={legendY} stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 4" />
+            <text x={430} y={legendY + 3}>{sv ? "Tillbehör och mekanik" : "Accessories and mechanics"}</text>
+          </>
+        )}
+      </g>
     </svg>
   );
 }

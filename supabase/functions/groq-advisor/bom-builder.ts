@@ -10,6 +10,7 @@
 // are called.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { provaSpanning, provaTryck, SPANNINGSSATTA, TRYCKSATTA, type Kontroll, type Spanning } from "./kontroller.ts";
 import { type CatalogProduct, arBorrningsspann, isBeltDrivenProduct, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
 import { type HazardFlags, pick, isPneumaticByDrive, isNonArticulatingActuator, tolkaTempSpann } from "./signals.ts";
 
@@ -295,6 +296,12 @@ export interface BomCtx extends HazardFlags {
   primarySpecs: Record<string, unknown>;
   /** Lägsta temperatur kunden angett, °C. NaN när ingen minusgrad nämnts. */
   kravTempMinC: number;
+  /** Matningstryck kunden angett (kravbilden), bar. 0 = inte angivet. */
+  kravTryckBar?: number;
+  /** Styrspänning kunden angett (kravbilden), t.ex. 24 V DC. */
+  kravSpanning?: Spanning | null;
+  /** Miljön kunden beskrivit (kravbilden), t.ex. "torr, lätt damm". */
+  kravMiljo?: string;
 }
 
 /**
@@ -338,7 +345,12 @@ export type Verifiering =
   | "kraver_verifiering"    // en kritisk uppgift eller relation saknas
   | "avvikelse"             // uppfyller funktionen men avviker från ett krav
   | "ej_uppfyllt"           // ett obligatoriskt krav saknas helt
-  | "ej_godkand";           // får inte användas i den här konfigurationen
+  | "ej_godkand"            // får inte användas i den här konfigurationen
+  // Sedan 2026-10-13 ersätter de tre nedan "inga_krav", som blandade ihop
+  // "inget krav gäller" med "vi kan inte pröva det" (manualens punkt 5.6).
+  | "underlag_saknas"       // ett krav gäller, men katalogen saknar uppgiften
+  | "stods_inte"            // ett krav gäller, men ingen automatisk kontroll finns för det
+  | "ej_tillampligt";       // inget angivet krav gäller den här komponenttypen
 
 /** Statusar som INTE får finnas i en lösning som kallas beställningsklar. */
 const BLOCKERANDE: ReadonlySet<Verifiering> = new Set<Verifiering>([
@@ -355,6 +367,8 @@ export interface BomRow {
   verifiering?: Verifiering;
   /** Varför statusen är vad den är, i klartext för läsaren. */
   verifieringsskal?: string;
+  /** Varje krav som prövades eller inte kunde prövas mot raden. */
+  kontroller?: Kontroll[];
 }
 
 /**
@@ -378,7 +392,15 @@ export function bedomLosning(rows: BomRow[]): {
    * säga hur tunt underlaget är i stället för att tystnaden ser ut som ett
    * godkännande.
    */
-  kontrollerat: { verifierade: number; utan_krav: number; blockerande: number; rader: number };
+  kontrollerat: {
+    verifierade: number; utan_krav: number; blockerande: number; rader: number;
+    /** Sedan 2026-10-13: hur många rader som saknar underlag, inte kan prövas
+     *  automatiskt, inte berörs av något krav, eller har en öppen konfiguration. */
+    underlag_saknas: number; stods_inte: number; ej_tillampligt: number; konfiguration: number;
+    /** Rader där minst ett krav inte kunde prövas för att underlaget saknas,
+     *  oavsett radens status. Avgör om kompatibiliteten kan kallas kontrollerad. */
+    med_luckor: number;
+  };
 } {
   const komponenter = rows.filter(r => r.kind !== "warning");
   const blockerande = rows
@@ -396,6 +418,11 @@ export function bedomLosning(rows: BomRow[]): {
       utan_krav: komponenter.filter(r => r.verifiering === "inga_krav").length,
       blockerande: blockerande.length,
       rader: komponenter.length,
+      underlag_saknas: komponenter.filter(r => r.verifiering === "underlag_saknas").length,
+      stods_inte: komponenter.filter(r => r.verifiering === "stods_inte").length,
+      ej_tillampligt: komponenter.filter(r => r.verifiering === "ej_tillampligt").length,
+      konfiguration: komponenter.filter(r => r.verifiering === "kraver_konfiguration" || r.verifiering === "avvikelse").length,
+      med_luckor: komponenter.filter(r => (r.kontroller ?? []).some(k => k.utfall === "underlag_saknas" || k.utfall === "stods_inte")).length,
     },
   };
 }
@@ -1575,6 +1602,56 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
 
     if (fallde) continue;
 
+    // ── Tryck, spänning och miljö (sedan 2026-10-13) ───────────────────────
+    // Kraven kommer ur kravbilden: det kunden faktiskt angett. Ingen uppgift
+    // i katalogen ger "underlag saknas", aldrig ett tyst godkännande.
+    const sv = locale === "sv";
+    const kontroller: Kontroll[] = [];
+    const pneumatiskRad = TRYCKSATTA.has(r.kind) || (r.kind === "actuator" && !ctx.isElectric);
+    if ((ctx.kravTryckBar ?? 0) > 0 && pneumatiskRad) kontroller.push(provaTryck(ctx.kravTryckBar!, specar, sv));
+    if (ctx.kravSpanning && SPANNINGSSATTA.has(r.kind)) kontroller.push(provaSpanning(ctx.kravSpanning, specar, sv));
+    if (ctx.kravMiljo && (r.kind === "actuator" || r.kind === "valve" || r.kind === "valve_terminal" || r.kind === "sensor")) {
+      kontroller.push({
+        krav: sv ? `miljö (${ctx.kravMiljo})` : `environment (${ctx.kravMiljo})`,
+        utfall: "stods_inte",
+        text: sv ? "ingen automatisk kontroll av kapslingsklass mot miljön" : "no automatic check of enclosure rating against the environment",
+      });
+    }
+    if (kontroller.length) r.kontroller = kontroller;
+    const underkand = kontroller.find(k => k.utfall === "ej_uppfyllt");
+    if (underkand) {
+      r.verifiering = "ej_uppfyllt";
+      r.verifieringsskal = sv
+        ? `Kravet ${underkand.krav} uppfylls inte: ${underkand.text}. Artikeln måste bytas före beställning.`
+        : `The requirement ${underkand.krav} is not met: ${underkand.text}. The item must be replaced before ordering.`;
+      continue;
+    }
+    for (const k of kontroller) if (k.utfall === "uppfyllt") provat.push(`${k.krav} (${k.text})`);
+    const utanUnderlag = kontroller.filter(k => k.utfall === "underlag_saknas").map(k => k.krav);
+    const ejAutomatiskt = kontroller.filter(k => k.utfall === "stods_inte").map(k => k.krav);
+
+    // SLAGET AVVIKER FRÅN DEN ÖNSKADE RÖRELSEN (lådsorteringstestet: vald
+    // cylinder med 400 mm slag, sammanfattningen lovade 350 mm). Vanligt och
+    // ofta rätt -- med ett ställbart ändstopp -- men det är ett val som någon
+    // ska göra och dokumentera, inte en tyst avrundning.
+    // En familj (borrning eller slag som spann) konfigureras vid order; där
+    // väljs slaget, och det fångas av familjekontrollen nedan.
+    const arFamilj = [specar?.bore_mm, specar?.bore_range].some(arBorrningsspann) ||
+      /\d\s*[–—-]\s*\d/.test(String(specar?.stroke_range ?? "")) || /\d\s*[–—-]\s*\d/.test(String(specar?.stroke_mm ?? ""));
+    if (r.kind === "actuator" && r.sku === primarySku && requiredStrokeMm > 0 && specar && !arFamilj) {
+      const slag = firstNumAbs(specar.stroke_mm);
+      if (slag > requiredStrokeMm) {
+        r.verifiering = "avvikelse";
+        r.verifieringsskal = pick(locale, {
+          sv: `Vald artikel har ${slag} mm slag; önskad rörelse är ${requiredStrokeMm} mm. Öppen konfigurationspunkt: välj en variant med ${requiredStrokeMm} mm slag, begränsa rörelsen med ett ställbart ändstopp, eller bekräfta att ${slag} mm fungerar. Punkten stängs först med en dokumenterad lösning.`,
+          en: `The selected item has a ${slag} mm stroke; the required travel is ${requiredStrokeMm} mm. Open configuration point: choose a ${requiredStrokeMm} mm variant, limit the travel with an adjustable end stop, or confirm that ${slag} mm works. The point closes only with a documented solution.`,
+          de: `Der gewählte Artikel hat ${slag} mm Hub; gefordert sind ${requiredStrokeMm} mm Weg. Offener Konfigurationspunkt: Variante mit ${requiredStrokeMm} mm Hub wählen, den Weg mit einem einstellbaren Endanschlag begrenzen oder bestätigen, dass ${slag} mm passt. Der Punkt wird erst mit einer dokumentierten Lösung geschlossen.`,
+          es: `El artículo elegido tiene ${slag} mm de carrera; el recorrido requerido es ${requiredStrokeMm} mm. Punto de configuración abierto: elija una variante de ${requiredStrokeMm} mm, limite el recorrido con un tope ajustable o confirme que ${slag} mm sirve. El punto se cierra solo con una solución documentada.`,
+        });
+        continue;
+      }
+    }
+
     // SLAGLÄNGD SOM INGEN HAR ANGETT.
     //
     // Hittat 2026-10-02 i en genomgång av fyra typfall: ett stoppdon för 5 kg
@@ -1646,23 +1723,41 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
     // "Verifierad" betyder att NÅGOT prövades och höll, och skälet säger vad.
     // Prövades ingenting finns inget att intyga -- och då säger vi det, i
     // stället för att låta tystnad se ut som ett godkännande.
+    // Det som inte kunde prövas sägs ut i samma mening som det som prövades.
+    const ovrigt = [
+      utanUnderlag.length ? (sv ? `Underlag saknas för: ${utanUnderlag.join("; ")}.` : `Data missing for: ${utanUnderlag.join("; ")}.`) : "",
+      ejAutomatiskt.length ? (sv ? `Automatisk kontroll stöds inte för: ${ejAutomatiskt.join("; ")}.` : `No automatic check for: ${ejAutomatiskt.join("; ")}.`) : "",
+    ].filter(Boolean).join(" ");
+
     if (provat.length > 0) {
       r.verifiering = "verifierad";
       r.verifieringsskal = pick(locale, {
-        sv: `Prövad mot: ${provat.join("; ")}.`,
-        en: `Checked against: ${provat.join("; ")}.`,
-        de: `Geprüft gegen: ${provat.join("; ")}.`,
-        es: `Comprobado frente a: ${provat.join("; ")}.`,
-      });
+        sv: `Kontrollerat mot angivna krav: ${provat.join("; ")}.`,
+        en: `Checked against stated requirements: ${provat.join("; ")}.`,
+        de: `Gegen angegebene Anforderungen geprüft: ${provat.join("; ")}.`,
+        es: `Comprobado frente a los requisitos indicados: ${provat.join("; ")}.`,
+      }) + (ovrigt ? " " + ovrigt : "");
       continue;
     }
 
-    r.verifiering = "inga_krav";
+    if (utanUnderlag.length > 0) {
+      r.verifiering = "underlag_saknas";
+      r.verifieringsskal = ovrigt + (sv ? " Kontrollera mot databladet före beställning." : " Check the datasheet before ordering.");
+      continue;
+    }
+
+    if (ejAutomatiskt.length > 0) {
+      r.verifiering = "stods_inte";
+      r.verifieringsskal = ovrigt + (sv ? " Bedöm mot databladet." : " Assess against the datasheet.");
+      continue;
+    }
+
+    r.verifiering = "ej_tillampligt";
     r.verifieringsskal = pick(locale, {
-      sv: "Inga angivna krav att pröva artikeln mot. Ingen kontroll har gjorts, och ingen utsaga görs om lämpligheten.",
-      en: "No stated requirements to check this item against. No check was performed, and no claim is made about suitability.",
-      de: "Keine angegebenen Anforderungen, gegen die dieser Artikel geprüft werden könnte. Es wurde nichts geprüft und nichts behauptet.",
-      es: "No hay requisitos declarados con los que comprobar este artículo. No se ha realizado ninguna comprobación ni se afirma nada sobre su idoneidad.",
+      sv: "Inget angivet krav gäller den här komponenttypen. Ingen kontroll har gjorts, och ingen utsaga görs om lämpligheten.",
+      en: "No stated requirement applies to this component type. No check was performed, and no claim is made about suitability.",
+      de: "Keine angegebene Anforderung betrifft diesen Komponententyp. Es wurde nichts geprüft und nichts behauptet.",
+      es: "Ningún requisito indicado se aplica a este tipo de componente. No se ha realizado ninguna comprobación ni se afirma nada sobre su idoneidad.",
     });
   }
 }

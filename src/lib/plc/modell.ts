@@ -19,16 +19,39 @@ export type Ursprung = "importerad" | "stycklista" | "manuell" | "ai";
 /** Föreslagen tills en människa bekräftar; inaktuell när det den bygger på ändrats. */
 export type Bekraftelse = "foreslagen" | "bekraftad" | "inaktuell";
 
-/** Ett krav hämtat ur maskinprojektet, med ursprung. Tolkas aldrig om. */
+/**
+ * Ett krav hämtat ur maskinprojektets kravbild, med föremål, ursprung och
+ * bekräftelse (supabase/functions/groq-advisor/kravbild.ts). Tolkas aldrig om.
+ *
+ * Underlag sparade före 2026-10-13 har bara id, värde och källa ("massa",
+ * "hastighet" ...), utan föremål. De visas som de är och märks för granskning
+ * -- en äldre "hastighet" kan ha varit transportbandets.
+ */
 export interface ImporteratKrav {
-  /** Stabil nyckel: "massa", "slag", "drift" … */
+  /** Stabilt id: "krav-produkt-massa" (äldre: "massa"). */
   id: string;
   /** Värdet som det står i projektet, formaterat för läsning. */
   varde: string;
   /** Var i projektet värdet står. */
-  kalla: "beskrivning" | "svar" | "stycklista";
+  kalla: "beskrivning" | "svar" | "stycklista" | "harlett";
   /** Svarets fråge-id, när värdet kommer från en följdfråga. */
   kallaDetalj?: string;
+  /** Föremålet kravet gäller: "produkt", "transportband", "aktuator" ... */
+  objekt?: string;
+  /** Egenskapen: "massa", "hastighet" ... */
+  egenskap?: string;
+  /** Ursprung (användare, beräkning ...) skilt från bekräftelsen. */
+  ursprung?: string;
+  bekraftelse?: "ej_bekraftat" | "bekraftat" | "avvisat" | "inaktuellt";
+  /** För ett härlett krav: hur värdet togs fram (lastfallet). */
+  metod?: string;
+}
+
+/** En uppgift maskinprojektet saknar, eller en tolkning som inte är avgjord. */
+export interface ImporteradLucka {
+  id: string;
+  sv: string;
+  en: string;
 }
 
 export interface ImporteradKomponent {
@@ -44,6 +67,17 @@ export interface Importerat {
   hamtat: string;
   krav: ImporteratKrav[];
   komponenter: ImporteradKomponent[];
+  /** Uppgifter som saknas i maskinprojektet (blir öppna frågor här). */
+  saknas?: ImporteradLucka[];
+  /** Tolkningar användaren inte avgjort i maskinbyggaren. */
+  osakra?: ImporteradLucka[];
+  /** Processbeskrivningen som den står i projektet, hel. */
+  processbeskrivning?: string;
+}
+
+/** Ett underlag vars krav hämtades före kravbilden (utan föremål). */
+export function arAldreImport(i: Importerat): boolean {
+  return i.krav.length > 0 && i.krav.some((k) => !k.objekt);
 }
 
 export type Leverans = "underlag" | "programforslag" | "ingenjor";

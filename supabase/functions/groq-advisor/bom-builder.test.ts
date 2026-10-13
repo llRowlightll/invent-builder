@@ -560,7 +560,8 @@ Deno.test("temperatur: saknad uppgift ger kraver_verifiering, aldrig verifierad"
 // adversariell granskning 2026-10-02 pekade ut just det -- "sviten är grön
 // därför att den kodifierar hålet".
 //
-// Nu är utfallet "inga_krav": blockerar inte, men lovar heller ingenting.
+// Utfallet var "inga_krav" till 2026-10-13; nu "ej_tillampligt" (inget
+// angivet krav gäller raden). Blockerar inte, men lovar heller ingenting.
 Deno.test("utan angivet krav påstås ingen verifiering", () => {
   const rows = buildMandatoryBomRows(bomCtx({
     primarySku: "FE-CYL",
@@ -569,9 +570,9 @@ Deno.test("utan angivet krav påstås ingen verifiering", () => {
     products: [prod("FE-CYL", "cylinders", "festo", { bore_mm: 50 })],
   }));
   const primar = rows.find(r => r.sku === "FE-CYL");
-  assertEquals(primar!.verifiering, "inga_krav");
+  assertEquals(primar!.verifiering, "ej_tillampligt");
   assertEquals(bedomLosning(rows).blockerande.some(b => b.sku === "FE-CYL"), false,
-    "inga_krav får inte blockera en beställning");
+    "ej_tillampligt får inte blockera en beställning");
 });
 
 // "Verifierad" ska säga VAD som prövades, annars är ordet lika tomt som förut.
@@ -727,7 +728,7 @@ Deno.test("slaglängd: en produkt utan slagmått berörs inte", () => {
     products: [],
   }));
   const primar = rows.find(r => r.sku === "ARP-063-180");
-  assertEquals(primar!.verifiering, "inga_krav");
+  assertEquals(primar!.verifiering, "ej_tillampligt");
 });
 
 // Räkningen finns för att tystnad inte ska läsas som godkännande.
@@ -735,7 +736,7 @@ Deno.test("bedomLosning räknar hur mycket som faktiskt prövades", () => {
   const rows = buildMandatoryBomRows(bomCtx({
     primarySku: "FE-CYL",
     primaryBrand: "festo",
-    requiredStrokeMm: 100,
+    requiredStrokeMm: 200,
     kravTempC: 90,
     primarySpecs: { stroke_mm: "200 mm", temp_range: "-20…+120" },
     products: [],
@@ -743,7 +744,53 @@ Deno.test("bedomLosning räknar hur mycket som faktiskt prövades", () => {
   const dom = bedomLosning(rows);
   assertEquals(dom.kontrollerat.verifierade, 1, "primären prövades mot temperaturkravet");
   assert(dom.kontrollerat.rader > 1, "listan har fler rader än primären");
-  assertEquals(dom.kontrollerat.rader, dom.kontrollerat.verifierade + dom.kontrollerat.utan_krav + dom.kontrollerat.blockerande);
+  const k = dom.kontrollerat;
+  assertEquals(k.rader, k.verifierade + k.utan_krav + k.blockerande + k.underlag_saknas + k.stods_inte + k.ej_tillampligt + k.konfiguration);
+});
+
+// ── Lådsorteringstestet 2026-10-13 ──────────────────────────────────────────
+Deno.test("slaget som avviker från önskad rörelse är en öppen konfigurationspunkt", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "FE-CYL", primaryBrand: "festo", requiredStrokeMm: 350,
+    primarySpecs: { stroke_mm: "400 mm", bore_mm: "32" }, products: [],
+  }));
+  const primar = rows.find(r => r.sku === "FE-CYL")!;
+  assertEquals(primar.verifiering, "avvikelse");
+  assert(/400 mm slag; önskad rörelse är 350 mm/.test(primar.verifieringsskal!), primar.verifieringsskal);
+  assert(/dokumenterad lösning/.test(primar.verifieringsskal!));
+  // Blockerar inte: valet är vanligt och ofta rätt, men ska göras.
+  assertEquals(bedomLosning(rows).blockerande.some(b => b.sku === "FE-CYL"), false);
+  assertEquals(bedomLosning(rows).kontrollerat.konfiguration >= 1, true);
+});
+
+Deno.test("matningstryck och spänning prövas per rad, och luckor sägs ut", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "FE-CYL", primaryBrand: "festo", requiredStrokeMm: 400,
+    primarySpecs: { stroke_mm: "400 mm", bore_mm: "32", operating_pressure: "1–10 bar" },
+    products: [], kravTryckBar: 6, kravSpanning: { volt: 24, typ: "DC" }, kravMiljo: "torr, lätt damm",
+  }));
+  const primar = rows.find(r => r.sku === "FE-CYL")!;
+  assertEquals(primar.verifiering, "verifierad");
+  assert(/Kontrollerat mot angivna krav: tryck 6 bar \(artikeln klarar 1–10 bar\)/.test(primar.verifieringsskal!), primar.verifieringsskal);
+  assert(/Automatisk kontroll stöds inte för: miljö \(torr, lätt damm\)/.test(primar.verifieringsskal!), primar.verifieringsskal);
+  assertEquals(primar.kontroller!.map(k => k.utfall), ["uppfyllt", "stods_inte"]);
+  // Ventilen saknar uppgifter i fixturen: underlag saknas, ingen tyst godkänning.
+  const ventil = rows.find(r => r.kind === "valve");
+  if (ventil && ventil.sku !== "SPECIFY") {
+    assert(ventil.kontroller!.some(k => k.utfall === "underlag_saknas"), JSON.stringify(ventil.kontroller));
+    assert(ventil.verifiering !== "verifierad");
+  }
+});
+
+Deno.test("ett tryck artikeln inte klarar fäller raden", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "FE-CYL", primaryBrand: "festo", requiredStrokeMm: 100,
+    primarySpecs: { stroke_mm: "100 mm", bore_mm: "32", max_pressure: "7 bar" },
+    products: [], kravTryckBar: 10,
+  }));
+  const primar = rows.find(r => r.sku === "FE-CYL")!;
+  assertEquals(primar.verifiering, "ej_uppfyllt");
+  assert(/tryck 10 bar uppfylls inte: artikeln klarar max 7 bar/.test(primar.verifieringsskal!), primar.verifieringsskal);
 });
 
 

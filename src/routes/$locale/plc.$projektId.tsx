@@ -9,9 +9,10 @@ import {
 import {
   LEVERANSINNEHALL, nyttId, tomtUnderlag,
   type Arbete, type ImporteratKrav, type Leverans, type Leveransinnehall, type Omfattning, type Plattform,
-  type PlattformsVal, type TextPost, type Underlag, type UnderlagRad,
+  type PlattformsVal, type TextPost, type Underlag, type UnderlagRad, arAldreImport,
 } from "@/lib/plc/modell";
 import { hittaPlattform, mojligheter, PLATTFORMAR } from "@/lib/plc/plattformar";
+import { EGENSKAPSNAMN, OBJEKTNAMN, type ObjektTyp } from "../../../supabase/functions/groq-advisor/kravbild.ts";
 
 /**
  * Ett projekts programmeringsunderlag, i åtta steg (planen "Plan för
@@ -99,6 +100,14 @@ const KALLA: Record<ImporteratKrav["kalla"], [string, string]> = {
   beskrivning: ["Beskrivningen", "Description"],
   svar: ["Följdfråga", "Follow-up answer"],
   stycklista: ["Stycklistan", "Bill of materials"],
+  harlett: ["Härlett", "Derived"],
+};
+
+const BEKRAFTELSE: Record<string, [string, string]> = {
+  ej_bekraftat: ["Ej bekräftad", "Not confirmed"],
+  bekraftat: ["Bekräftad", "Confirmed"],
+  avvisat: ["Avvisad", "Rejected"],
+  inaktuellt: ["Inaktuell", "Outdated"],
 };
 
 const LEVERANSER: Array<{ id: Leverans; sv: string; en: string; textSv: string; textEn: string }> = [
@@ -181,7 +190,14 @@ const FALTNAMN: Record<string, [string, string]> = {
   oppnaFragor: ["Öppna frågor", "Open questions"],
 };
 
-function kravNamn(id: string, tx: Tx): string {
+/** Kravets namn: föremål och egenskap ur kravbilden, eller det äldre id:t. */
+function kravNamn(k: string | { id: string; objekt?: string; egenskap?: string }, tx: Tx): string {
+  const id = typeof k === "string" ? k : k.id;
+  if (typeof k !== "string" && k.objekt && k.egenskap) {
+    const objekt = OBJEKTNAMN[k.objekt as ObjektTyp];
+    const egenskap = EGENSKAPSNAMN[k.egenskap];
+    if (egenskap) return `${objekt ? tx(objekt[0], objekt[1]) + ": " : ""}${tx(egenskap[0], egenskap[1]).toLowerCase()}`;
+  }
   if (id.startsWith("miljo_")) return tx("Miljö", "Environment");
   const n = KRAVNAMN[id];
   return n ? tx(n[0], n[1]) : id;
@@ -226,6 +242,9 @@ interface Kravandringar {
   till: number;
   krav: KravAndring[];
   komponenter: KomponentAndring[];
+  /** Kraven var hämtade med den äldre tolkningen och är nu tolkade på nytt;
+   *  id:na skiljer sig, så en jämförelse nyckel för nyckel säger ingenting. */
+  omtolkade?: boolean;
 }
 
 function PlcProjekt() {
@@ -390,11 +409,13 @@ function PlcProjekt() {
       if (!p) return;
       const nytt = importeraKrav(p);
       setProjekt(p);
+      const omtolkade = arAldreImport(utkast.importerat);
       setKravandringar({
         fran: utkast.importerat.kallrevision,
         till: nytt.kallrevision,
-        krav: jamforKrav(utkast.importerat.krav, nytt.krav),
+        krav: omtolkade ? [] : jamforKrav(utkast.importerat.krav, nytt.krav),
         komponenter: jamforKomponenter(utkast.importerat.komponenter, nytt.komponenter),
+        omtolkade,
       });
       setUtkast({ ...utkast, importerat: nytt });
     } finally {
@@ -509,7 +530,26 @@ function PlcProjekt() {
         <KonfliktRuta tx={tx} konflikt={konflikt} onAnvandSparad={anvandSparad} onSparaMin={() => void sparaMinOvanpa()} />
       )}
 
-      {kravInaktuella && !kravandringar && (
+      {arAldreImport(utkast.importerat) && !kravandringar && (
+        <div role="status" className="mt-4 rounded-lg border border-warning/40 bg-warning-surface px-4 py-3 text-sm">
+          <p className="text-foreground">
+            {tx(
+              "Kraven hämtades med en äldre tolkning, innan värdena knöts till föremål. En hastighet kan till exempel ha varit transportbandets och inte aktuatorns. Granska dem och hämta dem igen för att få föremål, intervall och bekräftelse.",
+              "The requirements were fetched with an older reading, before values were tied to parts. A speed may, for example, have been the conveyor's rather than the actuator's. Review them and fetch them again to get parts, ranges and confirmation.",
+            )}
+          </p>
+          <button
+            type="button"
+            onClick={() => void hamtaKravIgen()}
+            disabled={hamtarKrav}
+            className="mt-2 px-3 py-1.5 rounded-md border border-warning-deep text-warning-deep text-xs font-medium hover:bg-warning-deep hover:text-primary-foreground transition disabled:opacity-50"
+          >
+            {hamtarKrav ? tx("Hämtar …", "Fetching …") : tx("Hämta kraven igen", "Fetch the requirements again")}
+          </button>
+        </div>
+      )}
+
+      {kravInaktuella && !kravandringar && !arAldreImport(utkast.importerat) && (
         <div role="status" className="mt-4 rounded-lg border border-info/40 bg-info-surface px-4 py-3 text-sm">
           <p className="text-foreground">
             {tx(
@@ -713,15 +753,28 @@ function StegOmfattning({ tx, locale, underlag, kravInaktuella, andra }: {
               </tr>
             </thead>
             <tbody>
-              {krav.map((k) => (
-                <tr key={k.id} className="border-b border-border/60 last:border-0">
-                  <th scope="row" className="py-1.5 pr-3 text-left font-normal text-muted-foreground">{kravNamn(k.id, tx)}</th>
-                  <td className="py-1.5 pr-3 text-foreground font-medium">{kravVarde(k, tx, locale)}</td>
-                  <td className="py-1.5 text-xs text-muted-foreground">
-                    {tx(KALLA[k.kalla][0], KALLA[k.kalla][1])} · rev. {underlag.importerat.kallrevision}
-                  </td>
-                </tr>
-              ))}
+              {krav.map((k) => {
+                // En äldre hastighet visste inte vilket föremål den gällde
+                // (lådsorteringstestet: bandets 0,25 m/s blev aktuatorns).
+                const granskas = !k.objekt && k.id === "hastighet";
+                return (
+                  <tr key={k.id} className={`border-b border-border/60 last:border-0 ${k.bekraftelse === "avvisat" ? "opacity-60" : ""}`}>
+                    <th scope="row" className="py-1.5 pr-3 text-left font-normal text-muted-foreground">{kravNamn(k, tx)}</th>
+                    <td className={`py-1.5 pr-3 text-foreground font-medium ${k.bekraftelse === "avvisat" ? "line-through" : ""}`}>
+                      {kravVarde(k, tx, locale)}
+                      {granskas && (
+                        <span className="block text-[11px] font-normal text-warning-deep">
+                          {tx("Granskas: okänt vilket föremål hastigheten gäller", "Review: unknown which part the speed refers to")}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-1.5 text-xs text-muted-foreground">
+                      <span title={k.metod}>{tx(KALLA[k.kalla]?.[0] ?? k.kalla, KALLA[k.kalla]?.[1] ?? k.kalla)}</span> · rev. {underlag.importerat.kallrevision}
+                      {k.bekraftelse && <span className="block">{tx(BEKRAFTELSE[k.bekraftelse][0], BEKRAFTELSE[k.bekraftelse][1])}</span>}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -1087,8 +1140,8 @@ function Projektoversikt({ tx, locale, projekt, underlag, onVisaMaskinprojekt, a
         ) : (
           <ul className="mt-1 space-y-0.5">
             {underlag.importerat.krav.map((k) => (
-              <li key={k.id} className="flex justify-between gap-2">
-                <span className="text-muted-foreground">{kravNamn(k.id, tx)}</span>
+              <li key={k.id} className={`flex justify-between gap-2 ${k.bekraftelse === "avvisat" ? "opacity-60 line-through" : ""}`}>
+                <span className="text-muted-foreground">{kravNamn(k, tx)}</span>
                 <span className="text-foreground text-right">{kravVarde(k, tx, locale)}</span>
               </li>
             ))}
@@ -1145,7 +1198,12 @@ function Projektoversikt({ tx, locale, projekt, underlag, onVisaMaskinprojekt, a
       <Postlista
         tx={tx}
         rubrik={tx("Öppna frågor", "Open questions")}
-        harledda={harledda.map((h) => tx(HARLEDD_TEXT[h][0], HARLEDD_TEXT[h][1]))}
+        harledda={[
+          ...harledda.map((h) => tx(HARLEDD_TEXT[h][0], HARLEDD_TEXT[h][1])),
+          // Det maskinprojektet saknar, och tolkningar som inte avgjorts där.
+          ...(underlag.importerat.osakra ?? []).map((o) => tx(o.sv, o.en)),
+          ...(underlag.importerat.saknas ?? []).map((o) => tx(o.sv, o.en)),
+        ]}
         poster={underlag.oppnaFragor}
         prefix="fraga"
         etikett={tx("Ny öppen fråga", "New open question")}
@@ -1161,18 +1219,24 @@ function Projektoversikt({ tx, locale, projekt, underlag, onVisaMaskinprojekt, a
         onChange={(ny) => andraLista("antaganden", ny)}
       />
 
-      <section className="pt-3 border-t border-border">
-        {projekt.typ === "maskinbyggare" ? (
+      {/* Hela processbeskrivningen, som den står i projektet (manualen, Fas A:
+          "bevara hela processbeskrivningen"). Kraven ovan är en tolkning av den. */}
+      {(underlag.importerat.processbeskrivning || projekt.description) && (
+        <section>
+          <details>
+            <summary className={`${rubrik} cursor-pointer`}>{tx("Processbeskrivning", "Process description")}</summary>
+            <p className="mt-1 text-muted-foreground whitespace-pre-line">{underlag.importerat.processbeskrivning || projekt.description}</p>
+          </details>
+        </section>
+      )}
+
+      {projekt.typ === "maskinbyggare" && (
+        <section className="pt-3 border-t border-border">
           <button type="button" onClick={onVisaMaskinprojekt} className="text-info hover:underline">
             {tx("Visa maskinprojektet", "Show the machine project")} →
           </button>
-        ) : projekt.description ? (
-          <>
-            <h3 className={rubrik}>{tx("Beskrivning", "Description")}</h3>
-            <p className="mt-1 text-muted-foreground whitespace-pre-line">{projekt.description}</p>
-          </>
-        ) : null}
-      </section>
+        </section>
+      )}
     </div>
   );
 }
@@ -1288,7 +1352,7 @@ function KonfliktRuta({ tx, konflikt, onAnvandSparad, onSparaMin }: {
 }
 
 function KravandringRuta({ tx, locale, andringar }: { tx: Tx; locale: string; andringar: Kravandringar }) {
-  const inga = andringar.krav.length === 0 && andringar.komponenter.length === 0;
+  const inga = !andringar.omtolkade && andringar.krav.length === 0 && andringar.komponenter.length === 0;
   const v = (id: string, varde: string | null) => (varde === null ? "—" : kravVarde({ id, varde }, tx, locale));
   return (
     <div role="status" className="mt-4 rounded-lg border border-info/40 bg-info-surface px-4 py-3 text-sm">
@@ -1298,6 +1362,14 @@ function KravandringRuta({ tx, locale, andringar }: { tx: Tx; locale: string; an
           `The requirements are fetched from revision ${andringar.till} (previously revision ${andringar.fran}). Save to keep them.`,
         )}
       </p>
+      {andringar.omtolkade && (
+        <p className="mt-1 text-foreground">
+          {tx(
+            "Kraven är tolkade på nytt, med föremål, intervall, ursprung och bekräftelse. Jämför dem i listan nedan med den tidigare tolkningen innan du sparar.",
+            "The requirements have been read again, with parts, ranges, origin and confirmation. Compare them in the list below with the earlier reading before saving.",
+          )}
+        </p>
+      )}
       {inga ? (
         <p className="mt-1 text-muted-foreground">{tx("Inga krav eller komponenter har ändrats.", "No requirements or components have changed.")}</p>
       ) : (

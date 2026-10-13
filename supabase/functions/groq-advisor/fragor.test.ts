@@ -381,3 +381,14 @@ Deno.test("elaxel lodrätt: motorbroms, inte stångbroms", () => {
   assert(!reservfragor("Elaxel som lyfter 20 kg 400 mm uppåt, ±0,1 mm", "sv").some((x) => x.id === "andlagesavkanning"));
 });
 
+
+Deno.test("sortering från ett band: frågorna om tid, avstånd och följd ställs, med varför", () => {
+  const text = "Vi vill sortera ut plastlådor från ett transportband. Lådorna väger 0,5–3 kg. Bandet går med 0,25 m/s. Lådan ska skjutas av i sidled 350 mm.";
+  const q = slutligaFragor([], text, "sv");
+  const ids = q.map((x) => x.id);
+  for (const id of ["band_vid_utskjutning", "utskjutningstid_s", "minsta_avstand_mm", "utsorteringar_i_foljd"]) assert(ids.includes(id), `${id}: ${ids}`);
+  assert(q.length <= 6);
+  assert(q.filter((x) => ids.includes(x.id) && /utskjut|avstand|foljd|band_vid/.test(x.id)).every((x) => (x.varfor ?? "").length > 20));
+  // Utan band är det ingen sortering.
+  assertEquals(slutligaFragor([], "Skjuta ut en låda 200 mm, 5 kg", "sv").some((x) => x.id === "band_vid_utskjutning"), false);
+});
