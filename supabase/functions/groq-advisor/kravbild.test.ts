@@ -1,6 +1,6 @@
 /// <reference lib="deno.ns" />
 import { assert, assertEquals } from "jsr:@std/assert@^1";
-import { delaSvar, hastighetensFormal, kravetsVarde, tolkaKravbild, type Kravbild } from "./kravbild.ts";
+import { delaSvar, hastighetensFormal, hastighetensObjekt, kravetsVarde, tolkaKravbild, type Kravbild } from "./kravbild.ts";
 
 import { SORTERING } from "./fixtur-sortering.ts";
 
@@ -182,4 +182,23 @@ Deno.test("riktning, säkerhetskrav, temperatur, cykeltid och sammansatt damm l�
   // Sorteringen är vågrät.
   assertEquals(ett(tolkaKravbild(SORTERING), "aktuator", "riktning").text, "Vågrät");
   assertEquals(kravetsVarde(ett(tolkaKravbild("Noggrannhet ±0,1 mm."), "aktuator", "noggrannhet")), "±0,1 mm");
+});
+
+Deno.test("en hastighet vid ett produktord är aktuatorns när meningen inte nämner bandet", () => {
+  // Sajtkritikens fynd 2026-10-13: Fas A gjorde de här till bandets, och motorn tappade dem.
+  const fall: Array<[string, string, string]> = [
+    ["Skjuta paket 5 kg 300 mm med 0,8 m/s", "0,8", "aktuator"],
+    ["cylindern ska skjuta 25 kilos lådor 0,5m sidledes med 0.3m/s", "0.3", "aktuator"],
+    ["Pick and place 0.2 kg parts, 3 positions, 1.5 m/s, cleanroom", "1.5", "aktuator"],
+    ["Lådorna kommer i 0,3 m/s på bandet. En cylinder skjuter ut dem.", "0,3", "transportband"],
+    // Bandet nämns i en annan mening och meningen saknar rörelseord: bandets.
+    ["Ett transportband matar fram detaljerna. Detaljerna 0,2 m/s.", "0,2", "transportband"],
+  ];
+  for (const [text, tal, vantat] of fall) {
+    assertEquals(hastighetensObjekt(text, text.indexOf(tal)), vantat, text);
+    const kb = tolkaKravbild(text);
+    assertEquals(kb.krav.find((k) => k.egenskap === "hastighet")?.objektId, vantat, text);
+    // Fortfarande en fråga: systemet gissar, användaren avgör.
+    assertEquals(kb.osakra.find((o) => o.kravId.startsWith("krav-hastighet"))?.forval, vantat, text);
+  }
 });

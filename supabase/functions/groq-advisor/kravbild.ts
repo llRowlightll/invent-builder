@@ -192,16 +192,45 @@ function narmasteFormal(mening: string, pos: number): ObjektTyp | null {
   return efter?.typ ?? null;
 }
 
-/**
- * Föremålet en hastighet i texten gäller, eller null om texten inte säger det.
- * Används av motorns extractSpeedMs: en hastighet som hör till
- * transportbandet, produkten eller mottagningen är inte aktuatorns.
- */
+/** Föremålet en hastighet i texten står närmast, eller null om texten inte säger det. */
 export function hastighetensFormal(text: string, index: number): ObjektTyp | null {
   for (const m of meningar(text)) {
     if (index >= m.start && index < m.start + m.text.length) return narmasteFormal(m.text, index - m.start);
   }
   return null;
+}
+
+function namner(typ: ObjektTyp, s: string): boolean {
+  const f = FORMAL.find((x) => x.typ === typ)!;
+  f.re.lastIndex = 0;
+  const finns = f.re.test(s);
+  f.re.lastIndex = 0;
+  return finns;
+}
+
+/**
+ * Den del en hastighet tillskrivs tills användaren beslutat. Ett produktord
+ * närmast före talet säger inte vad som rör sig: "Lådorna kommer i 0,3 m/s på
+ * bandet" är bandets, "Skjuta paket 5 kg 300 mm med 0,8 m/s" är aktuatorns.
+ * Resten av meningen avgör då -- ett bandord ger bandet, ett rörelseord eller
+ * en text helt utan band ger aktuatorn.
+ */
+function forvaltObjekt(mening: string, pos: number, helaTexten: string): ObjektTyp {
+  const formal = narmasteFormal(mening, pos);
+  if (formal === "transportband" || formal === "mottagning") return formal;
+  if (formal !== "produkt") return "aktuator";
+  if (namner("transportband", mening)) return "transportband";
+  if (namner("aktuator", mening) || !namner("transportband", helaTexten)) return "aktuator";
+  return "transportband";
+}
+
+/** Delen en hastighet i texten gäller utan användarens beslut. Samma i
+ *  kravbilden och i motorns extractSpeedMs. */
+export function hastighetensObjekt(text: string, index: number): ObjektTyp {
+  for (const m of meningar(text)) {
+    if (index >= m.start && index < m.start + m.text.length) return forvaltObjekt(m.text, index - m.start, text);
+  }
+  return "aktuator";
 }
 
 /** Kravets id för en hastighet. Samma i kravbilden och i motorns extractSpeedMs,
@@ -249,7 +278,7 @@ export function tolkaKravbild(beskrivning: string, svarIn: Record<string, string
       const enhet = m[2].toLowerCase();
       const varde = enhet === "mm/s" ? tal(m[1]) / 1000 : enhet === "m/min" ? tal(m[1]) / 60 : tal(m[1]);
       const formal = narmasteFormal(s, m.index ?? 0);
-      const forvalt: ObjektTyp = formal === "transportband" || formal === "produkt" || formal === "mottagning" ? (formal === "produkt" ? "transportband" : formal) : "aktuator";
+      const forvalt = forvaltObjekt(s, m.index ?? 0, text);
       const kravId = hastighetsKravId(varde);
       const beslutat = beslut[`tolkning-${kravId}`] as ObjektTyp | undefined;
       const objekt: ObjektTyp = beslutat && OBJEKT_ORDNING.includes(beslutat) ? beslutat : forvalt;
