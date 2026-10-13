@@ -20,6 +20,7 @@ import {
   extractStatedForceN, uppskattatVridmomentNm, detectCategories,
   slagIMeterMm, needsElectricAxis, extractMoveTimeS, rorelseprofil, kraftkrav,
 } from "./signals.ts";
+import { SORTERING } from "./fixtur-sortering.ts";
 
 // ── Explicit force statements must not round-trip through extractLoadKg ────────
 // Found 2026-08-27 (adversarial test): "greppkraft ca 100N" was matched by
@@ -861,3 +862,36 @@ Deno.test("svaren om noggrannhet och lastens placering läses", () => {
   assert(!detectHazards(GEMINI + " Centrerad på vagnen", {}, "sv").utskjutandeLast);
 });
 
+
+// ── Lådsorteringstestet 2026-10-13 (manualens avsnitt 5 och 13) ─────────────
+Deno.test("bandets hastighet används inte som utskjutarens", () => {
+  assertEquals(extractSpeedMs(SORTERING, {}), 0);
+  assertEquals(detectHazards(SORTERING, {}, "sv").speedMs, 0);
+  // Utskjutarens egen tid eller hastighet läses fortfarande, ur svaret.
+  assertEquals(extractSpeedMs(SORTERING, { hastighet: "0,5 m/s" }), 0.5);
+});
+
+Deno.test("hastigheten vid slaget räknas fortfarande som aktuatorns (regressionssvitens T1)", () => {
+  assertEquals(extractSpeedMs("Horisontell cylinder knuffar 12kg kartonger på transportband, stroke 200mm, 400mm/s, 6 bar", {}), 0.4);
+  assertEquals(extractSpeedMs("Cylinder 150mm stroke, hastighet 1200mm/s", {}), 1.2);
+  assertEquals(extractSpeedMs(GEMINI, {}), 1);
+});
+
+Deno.test("användarens tolkningsbeslut avgör en hastighet utan föremål", () => {
+  assertEquals(extractSpeedMs("Vi behöver 0,8 m/s.", {}), 0.8);
+  assertEquals(extractSpeedMs("Vi behöver 0,8 m/s.", {}, { "tolkning-krav-hastighet-0_8": "transportband" }), 0);
+  assertEquals(extractSpeedMs("Bandet går 0,25 m/s.", {}, { "tolkning-krav-hastighet-0_25": "aktuator" }), 0.25);
+});
+
+Deno.test("en uträknad kraft är en preliminär uppskattning med det som saknas", () => {
+  const h = detectHazards(SORTERING, {}, "sv");
+  assertEquals(h.kraftkrav?.forceN, 59);
+  assertEquals(h.kraftkrav?.preliminar, true);
+  assert(/^Preliminär uppskattning/.test(h.kraftkrav!.forklaring), h.kraftkrav!.forklaring);
+  assert(/antas räcka/.test(h.kraftkrav!.forklaring));
+  assert(h.kraftkrav!.saknas!.some((s) => /friktionstal/.test(s)));
+  assert(h.kraftkrav!.saknas!.some((s) => /utskjutningstid/.test(s)));
+  // En kraft kunden angett är ett krav, ingen uppskattning.
+  const angiven = kraftkrav({ locale: "sv", statedForceN: 3000, loadKg: 0, isVertical: false, isHorizontal: true, elaxel: false, strokeMm: 0, tMoveS: 0, speedMs: 0 });
+  assertEquals([angiven.metod, angiven.preliminar], ["angiven", undefined]);
+});

@@ -3,7 +3,8 @@
 import { assert, assertEquals, assertThrows } from "jsr:@std/assert@^1";
 import { importeraKrav, jamforKomponenter, jamforKrav, type ProjektKalla } from "../src/lib/plc/krav.ts";
 import { harleddaFragor, saknas, skillnader } from "../src/lib/plc/kontroll.ts";
-import { lasUnderlag, STATUSNAMN, tomtUnderlag, type Underlag } from "../src/lib/plc/modell.ts";
+import { arAldreImport, lasUnderlag, STATUSNAMN, tomtUnderlag, type Underlag } from "../src/lib/plc/modell.ts";
+import { SORTERING } from "../supabase/functions/groq-advisor/fixtur-sortering.ts";
 import { mojligheter, PLATTFORMAR } from "../src/lib/plc/plattformar.ts";
 
 const NU = new Date("2026-10-12T10:00:00Z");
@@ -12,45 +13,76 @@ const projekt = (p: Partial<ProjektKalla>): ProjektKalla => ({
 });
 const varde = (krav: { id: string; varde: string }[], id: string) => krav.find((k) => k.id === id)?.varde;
 
-// ── Kravimporten ────────────────────────────────────────────────────────────
+// ── Kravimporten (ur kravbilden, sedan 2026-10-13) ──────────────────────────
 
-Deno.test("Gemini-fallet: kraven hämtas med värde, ursprung och revision", () => {
+const krav = (imp: { krav: Array<{ objekt?: string; egenskap?: string; varde: string }> }, objekt: string, egenskap: string) =>
+  imp.krav.filter((k) => k.objekt === objekt && k.egenskap === egenskap);
+
+Deno.test("Gemini-fallet: kraven hämtas med föremål, ursprung och revision", () => {
   const imp = importeraKrav(projekt({
     description: "Horisontell förflyttning av en last på 80 kg, slaglängd 2000 mm, minst 1 m/s, noggrannhet ±0,1 mm. Miljö med aluminiumdamm, drift 24/7.",
     revision: 3,
   }), NU);
   assertEquals(imp.kallrevision, 3);
   assertEquals(imp.hamtat, "2026-10-12T10:00:00.000Z");
-  assertEquals(varde(imp.krav, "massa"), "80 kg");
-  assertEquals(varde(imp.krav, "slag"), "2000 mm");
-  assertEquals(varde(imp.krav, "hastighet"), "1 m/s");
-  assertEquals(varde(imp.krav, "noggrannhet"), "±0,1 mm");
-  assertEquals(varde(imp.krav, "riktning"), "sidled");
-  assertEquals(varde(imp.krav, "miljo_damm"), "damm");
-  assert(imp.krav.every((k) => k.kalla === "beskrivning"));
+  assertEquals(krav(imp, "produkt", "massa")[0].varde, "80 kg");
+  assertEquals(krav(imp, "aktuator", "slaglangd")[0].varde, "2000 mm");
+  assertEquals(krav(imp, "aktuator", "hastighet")[0].varde, "minst 1 m/s");
+  assertEquals(krav(imp, "aktuator", "noggrannhet")[0].varde, "±0,1 mm");
+  assertEquals(krav(imp, "aktuator", "riktning")[0].varde, "Vågrät");
+  assertEquals(krav(imp, "maskin", "miljo")[0].varde, "aluminiumdamm");
+  assert(imp.krav.every((k) => k.kalla === "beskrivning" && k.ursprung === "anvandare" && k.bekraftelse === "ej_bekraftat"));
+  assertEquals(imp.processbeskrivning?.startsWith("Horisontell förflyttning"), true);
+});
+
+Deno.test("lådsorteringen: bandets hastighet är bandets och intervallet står kvar", () => {
+  const imp = importeraKrav(projekt({ description: SORTERING, revision: 2 }), NU);
+  assertEquals(krav(imp, "transportband", "hastighet")[0].varde, "0,25 m/s");
+  assertEquals(krav(imp, "aktuator", "hastighet"), []);
+  assertEquals(krav(imp, "produkt", "massa")[0].varde, "0,5–3 kg");
+  const dim = krav(imp, "produkt", "dimensionerande_massa")[0] as { varde: string; ursprung?: string; kalla: string; metod?: string };
+  assertEquals([dim.varde, dim.ursprung, dim.kalla], ["3 kg", "berakning", "harlett"]);
+  assert(/intervall/.test(dim.metod ?? ""));
+  // Det som saknas och det som inte är avgjort följer med som luckor.
+  const saknas = (imp.saknas ?? []).map((x) => x.id);
+  for (const id of ["saknas-utskjutarhastighet", "saknas-minsta-avstand", "saknas-produktdetektering", "saknas-blockerad-mottagning", "saknas-plc-modell", "saknas-signaladresser"]) {
+    assert(saknas.includes(id), id);
+  }
+  assert((imp.osakra ?? []).some((o) => /350 mm/.test(o.sv)));
 });
 
 Deno.test("24/7 blir drifttid, aldrig takt eller cykeltid", () => {
   const imp = importeraKrav(projekt({ description: "Pressa in en bussning med 2 kN, maskinen går 24/7" }), NU);
-  assertEquals(varde(imp.krav, "drift"), "24_7");
-  assertEquals(varde(imp.krav, "takt"), undefined);
-  assertEquals(varde(imp.krav, "cykeltid"), undefined);
-  assertEquals(varde(imp.krav, "kraft"), "2000 N");
+  assertEquals(krav(imp, "maskin", "drifttid")[0].varde, "Dygnet runt (24/7)");
+  assertEquals(krav(imp, "aktuator", "takt"), []);
+  assertEquals(krav(imp, "aktuator", "cykeltid"), []);
+  assertEquals(krav(imp, "aktuator", "kraft")[0].varde, "2000 N");
 });
 
 Deno.test("takten kommer bara från kundens svar, och 'Vet inte' lämnar den tom", () => {
   const angiven = importeraKrav(projekt({ description: "Lyfta lådor", answers: { takt: "6 per minut" } }), NU);
-  assertEquals(angiven.krav.find((k) => k.id === "takt"), { id: "takt", varde: "6 per minut", kalla: "svar", kallaDetalj: "takt" });
+  const t = krav(angiven, "aktuator", "takt")[0] as { varde: string; kalla: string; kallaDetalj?: string };
+  assertEquals([t.varde, t.kalla, t.kallaDetalj], ["6 per minut", "svar", "takt"]);
   const okand = importeraKrav(projekt({ description: "Lyfta lådor", answers: { takt: "Vet inte" } }), NU);
-  assertEquals(varde(okand.krav, "takt"), undefined);
+  assertEquals(krav(okand, "aktuator", "takt"), []);
 });
 
 Deno.test("ett värde som bara står i ett svar får ursprunget svar", () => {
   const imp = importeraKrav(projekt({ description: "Lyfta lådor", answers: { last_kg: "12", slaglangd_mm: "300" } }), NU);
-  assertEquals(imp.krav.find((k) => k.id === "massa")?.kalla, "svar");
-  assertEquals(imp.krav.find((k) => k.id === "slag")?.kalla, "svar");
+  assertEquals(imp.krav.find((k) => k.egenskap === "massa")?.kalla, "svar");
+  assertEquals(imp.krav.find((k) => k.egenskap === "slaglangd")?.kalla, "svar");
   // Lyftet står i beskrivningen, inte i svaren.
-  assertEquals(imp.krav.find((k) => k.id === "riktning"), { id: "riktning", varde: "lodrat", kalla: "beskrivning" });
+  assertEquals(krav(imp, "aktuator", "riktning")[0].varde, "Lodrät (lyft)");
+});
+
+Deno.test("tolkningsbesluten från maskinbyggaren följer med och syns inte som svar", () => {
+  const imp = importeraKrav(projekt({
+    description: "Vi behöver 0,8 m/s.",
+    answers: { "tolkning:tolkning-krav-hastighet-0_8": "transportband", "tolkning:alla": "bekraftat" },
+  }), NU);
+  assertEquals(krav(imp, "transportband", "hastighet")[0].varde, "0,8 m/s");
+  assert(imp.krav.every((k) => k.bekraftelse === "bekraftat"));
+  assert(!imp.krav.some((k) => k.kallaDetalj?.startsWith("tolkning")));
 });
 
 Deno.test("komponenterna följer med från stycklistan", () => {
@@ -69,8 +101,14 @@ Deno.test("komponenterna följer med från stycklistan", () => {
 
 Deno.test("en befintlig maskin utan beskrivning ger inga påhittade krav", () => {
   const imp = importeraKrav(projekt({ name: "Station 4", description: "" }), NU);
-  assertEquals(imp.krav, []);
+  assertEquals(imp.krav.filter((k) => k.egenskap !== "svar"), []);
   assertEquals(imp.komponenter, []);
+});
+
+Deno.test("ett underlag från före kravbilden känns igen som en äldre import", () => {
+  assertEquals(arAldreImport({ kallrevision: 1, hamtat: "", komponenter: [], krav: [{ id: "hastighet", varde: "0,25 m/s", kalla: "beskrivning" }] }), true);
+  assertEquals(arAldreImport(importeraKrav(projekt({ description: SORTERING }), NU)), false);
+  assertEquals(arAldreImport({ kallrevision: 1, hamtat: "", komponenter: [], krav: [] }), false);
 });
 
 // ── Ändringar mellan två hämtningar ─────────────────────────────────────────

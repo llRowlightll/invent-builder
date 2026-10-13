@@ -9,6 +9,7 @@
 // bom-builder.ts or index.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { hastighetensFormal, hastighetsKravId, type Tolkningsbeslut } from "./kravbild.ts";
 import { type CatalogProduct, parseStrokeFromSpecs } from "./scoring.ts";
 
 // Found 2026-08-19: every LLM-facing "write your answer in ${lang}" instruction
@@ -641,14 +642,33 @@ export function needsBatteryDryroom(text: string): boolean {
   return /\bdryroom\b|\bdry\s*room\b|\btorrkammare\b|\blitiumjon\b|\blithium[-\s]?ion\b|\bli[-\s]?ion\b|\bbatterifabrik\b|\bbattery\s*(?:manufactur|produc|cell|fabrik)\b|\bbatteriproduk\b|\bbattericell\b|\bkatod(?:material)?\w*\b|\banod(?:material)?\w*\b|\belektrod(?:material)?\w*\b|\belectrode\b|\bpouch\s*cell\b|\blitiumbatteri\b|\bcell\s*monter\b|\bcu\/zn\/ni\b|\bkoppar.*zink.*nickel\b|\btrockenraum\b|\blithium[-\s]?ionen\b|\bbatteriefertigung\b|\bbatterieproduktion\b|\bsala\s?seca\b|\blitio[-\s]?ion\b|\bproducción\s?de\s?baterías\b|\bcátodo\w*\b|(?<![\wáéíóúñÁÉÍÓÚÑ])ánodo\w*|\belectrodo\w*\b/i.test(text);
 }
 
-/** Extract numeric speed in m/s from free text + answers (for mechanism compatibility check). */
-export function extractSpeedMs(text: string, answers: Record<string, string>): number {
-  const all = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
-  // Match e.g. "1.2 m/s", "0,8m/s", "800 mm/s"
-  const msMatch = all.match(/(\d+(?:[.,]\d+)?)\s*m\/s/i);
-  if (msMatch) return parseFloat(msMatch[1].replace(",", "."));
-  const mmMatch = all.match(/(\d+(?:[.,]\d+)?)\s*mm\/s/i);
-  if (mmMatch) return parseFloat(mmMatch[1].replace(",", ".")) / 1000;
+/**
+ * Aktuatorns hastighet i m/s ur text och svar.
+ *
+ * Fram till 2026-10-13 var det den FÖRSTA hastigheten i texten, oavsett vad
+ * den gällde. "Bandet går med 0,25 m/s" blev därför utskjutarens hastighet i
+ * lådsorteringstestet, och rörelseenergin och dämpningsråden räknades på
+ * bandet. Nu hoppas en hastighet över som meningen knyter till
+ * transportbandet, produkten eller mottagningen (kravbild.ts). Står den inte
+ * vid något föremål gäller den aktuatorn som förut -- men kravbilden visar den
+ * då som en osäker tolkning, och användarens beslut (tolkning) avgör.
+ */
+export function extractSpeedMs(text: string, answers: Record<string, string>, tolkning: Tolkningsbeslut = {}): number {
+  const svarText = Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
+  const all = text + " " + svarText;
+  for (const m of all.matchAll(/(\d+(?:[.,]\d+)?)\s*(mm\/s|m\/s)/gi)) {
+    const n = parseFloat(m[1].replace(",", "."));
+    const varde = m[2].toLowerCase() === "mm/s" ? n / 1000 : n;
+    const beslut = tolkning[`tolkning-${hastighetsKravId(varde)}`];
+    if (beslut) {
+      if (beslut === "aktuator") return varde;
+      continue;
+    }
+    const iText = (m.index ?? 0) < text.length;
+    const formal = iText ? hastighetensFormal(text, m.index ?? 0) : null;
+    if (formal === "transportband" || formal === "mottagning" || formal === "produkt") continue;
+    return varde;
+  }
   return 0;
 }
 
@@ -1151,7 +1171,7 @@ export function needsElectricAxis(text: string): boolean {
 /** Tiden en förflyttning får ta, i sekunder. 0 när den inte är angiven. */
 export function extractMoveTimeS(text: string, answers: Record<string, string>): number {
   for (const [k, v] of Object.entries(answers)) {
-    if (/f[oö]rflyttningstid|r[oö]relsetid|move.?time/i.test(k)) {
+    if (/f[oö]rflyttningstid|r[oö]relsetid|utskjutningstid|move.?time|push.?time/i.test(k)) {
       const n = storstaTal(v);
       if (n > 0) return n;
     }
@@ -1189,7 +1209,39 @@ export type Kraftkrav = {
   metod: "angiven" | "lyft" | "dynamik" | "tumregel" | "ingen";
   /** Uträkningen i klartext, för dimensioneringspanelen och modellen. */
   forklaring: string;
+  /**
+   * En uppskattning, inte ett krav eller ett dimensioneringsresultat. Allt
+   * utom en kraft kunden angett är det: säkerhetsfaktorn och friktionstalet
+   * är antaganden (lådsorteringstestet: "59 N" visades som krav).
+   */
+  preliminar?: boolean;
+  /** Indata som saknas för en riktig dimensionering, i klartext. */
+  saknas?: string[];
 };
+
+/** Märker en uträknad kraft som preliminär och säger vad som saknas. */
+function preliminar(locale: string, k: Kraftkrav, saknas: Array<Record<"sv" | "en" | "de" | "es", string>>): Kraftkrav {
+  const lista = saknas.map((x) => pick(locale, x));
+  const forst = pick(locale, {
+    sv: "Preliminär uppskattning, inte ett dimensioneringsresultat. ",
+    en: "Preliminary estimate, not a sizing result. ",
+    de: "Vorläufige Schätzung, kein Auslegungsergebnis. ",
+    es: "Estimación preliminar, no un resultado de dimensionamiento. ",
+  });
+  const sist = lista.length ? pick(locale, {
+    sv: ` Saknas för dimensionering: ${lista.join(", ")}.`,
+    en: ` Missing for sizing: ${lista.join(", ")}.`,
+    de: ` Fehlt für die Auslegung: ${lista.join(", ")}.`,
+    es: ` Falta para el dimensionamiento: ${lista.join(", ")}.`,
+  }) : "";
+  return { ...k, preliminar: true, saknas: lista, forklaring: forst + k.forklaring + sist };
+}
+
+const SAKNAS_FRIKTION = { sv: "friktionstal mellan produkten och underlaget", en: "friction coefficient between product and surface", de: "Reibwert zwischen Produkt und Unterlage", es: "coeficiente de fricción entre producto y superficie" };
+const SAKNAS_TID = { sv: "förflyttnings- eller utskjutningstid", en: "move or push time", de: "Verfahr- oder Ausschubzeit", es: "tiempo de desplazamiento o de empuje" };
+const SAKNAS_RORLIG = { sv: "massan hos rörliga delar utöver lasten", en: "mass of moving parts besides the load", de: "Masse bewegter Teile zusätzlich zur Last", es: "masa de las partes móviles además de la carga" };
+const SAKNAS_RIKTNING = { sv: "rörelseriktning", en: "direction of motion", de: "Bewegungsrichtung", es: "dirección del movimiento" };
+const SAKNAS_STYRNINGSFRIKTION = { sv: "verkligt friktionstal i styrningen (0,1 är antaget)", en: "actual guide friction (0.1 is assumed)", de: "tatsächliche Führungsreibung (0,1 ist angenommen)", es: "fricción real de la guía (0,1 es supuesta)" };
 
 function tal(locale: string, n: number, decimaler = 0): string {
   const t = decimaler > 0 ? n.toFixed(decimaler) : String(Math.round(n));
@@ -1242,21 +1294,21 @@ export function kraftkrav(o: {
       de: " (angenommen — Verfahrzeit angeben für eine genaue Berechnung)",
       es: " (supuesta — indique el tiempo de desplazamiento para un cálculo exacto)",
     }) : "";
-    return { forceN, metod: "dynamik", forklaring: pick(locale, {
+    return preliminar(locale, { forceN, metod: "dynamik", forklaring: pick(locale, {
       sv: `I sidled bär styrningen tyngden; axeln ska accelerera lasten och övervinna friktionen: ${tal(locale, m)} kg × ${tal(locale, prof.acc, 1)} m/s²${antagen} = ${tal(locale, fAcc)} N, plus friktion ${tal(locale, FRIKTIONSTAL_STYRNING, 1)} × ${tal(locale, m)} kg × 9,81 = ${tal(locale, fFr)} N. Summa ${tal(locale, fAcc + fFr)} N × säkerhetsfaktor ${tal(locale, sf)} = ${tal(locale, forceN)} N.${topp}`,
       en: `Horizontally the guide carries the weight; the axis must accelerate the load and overcome friction: ${tal(locale, m)} kg × ${tal(locale, prof.acc, 1)} m/s²${antagen} = ${tal(locale, fAcc)} N, plus friction ${tal(locale, FRIKTIONSTAL_STYRNING, 1)} × ${tal(locale, m)} kg × 9.81 = ${tal(locale, fFr)} N. Total ${tal(locale, fAcc + fFr)} N × safety factor ${tal(locale, sf)} = ${tal(locale, forceN)} N.${topp}`,
       de: `Horizontal trägt die Führung das Gewicht; die Achse muss die Last beschleunigen und die Reibung überwinden: ${tal(locale, m)} kg × ${tal(locale, prof.acc, 1)} m/s²${antagen} = ${tal(locale, fAcc)} N, plus Reibung ${tal(locale, FRIKTIONSTAL_STYRNING, 1)} × ${tal(locale, m)} kg × 9,81 = ${tal(locale, fFr)} N. Summe ${tal(locale, fAcc + fFr)} N × Sicherheitsfaktor ${tal(locale, sf)} = ${tal(locale, forceN)} N.${topp}`,
       es: `En horizontal la guía soporta el peso; el eje debe acelerar la carga y vencer la fricción: ${tal(locale, m)} kg × ${tal(locale, prof.acc, 1)} m/s²${antagen} = ${tal(locale, fAcc)} N, más fricción ${tal(locale, FRIKTIONSTAL_STYRNING, 1)} × ${tal(locale, m)} kg × 9,81 = ${tal(locale, fFr)} N. Total ${tal(locale, fAcc + fFr)} N × factor de seguridad ${tal(locale, sf)} = ${tal(locale, forceN)} N.${topp}`,
-    }) };
+    }) }, prof.antagen ? [SAKNAS_TID, SAKNAS_STYRNINGSFRIKTION] : [SAKNAS_STYRNINGSFRIKTION]);
   }
   const forceN = Math.round(tyngd * sf);
   if (o.isVertical) {
-    return { forceN, metod: "lyft", forklaring: pick(locale, {
-      sv: `Lyft: ${tal(locale, m)} kg × 9,81 = ${tal(locale, tyngd)} N × säkerhetsfaktor ${tal(locale, sf)} = ${tal(locale, forceN)} N (täcker acceleration och tryckfall).`,
-      en: `Lift: ${tal(locale, m)} kg × 9.81 = ${tal(locale, tyngd)} N × safety factor ${tal(locale, sf)} = ${tal(locale, forceN)} N (covers acceleration and pressure drop).`,
-      de: `Heben: ${tal(locale, m)} kg × 9,81 = ${tal(locale, tyngd)} N × Sicherheitsfaktor ${tal(locale, sf)} = ${tal(locale, forceN)} N (deckt Beschleunigung und Druckabfall ab).`,
-      es: `Elevación: ${tal(locale, m)} kg × 9,81 = ${tal(locale, tyngd)} N × factor de seguridad ${tal(locale, sf)} = ${tal(locale, forceN)} N (cubre aceleración y caída de presión).`,
-    }) };
+    return preliminar(locale, { forceN, metod: "lyft", forklaring: pick(locale, {
+      sv: `Lyft: ${tal(locale, m)} kg × 9,81 = ${tal(locale, tyngd)} N × säkerhetsfaktor ${tal(locale, sf)} = ${tal(locale, forceN)} N (antas räcka för acceleration och tryckfall).`,
+      en: `Lift: ${tal(locale, m)} kg × 9.81 = ${tal(locale, tyngd)} N × safety factor ${tal(locale, sf)} = ${tal(locale, forceN)} N (assumed to cover acceleration and pressure drop).`,
+      de: `Heben: ${tal(locale, m)} kg × 9,81 = ${tal(locale, tyngd)} N × Sicherheitsfaktor ${tal(locale, sf)} = ${tal(locale, forceN)} N (soll Beschleunigung und Druckabfall abdecken, Annahme).`,
+      es: `Elevación: ${tal(locale, m)} kg × 9,81 = ${tal(locale, tyngd)} N × factor de seguridad ${tal(locale, sf)} = ${tal(locale, forceN)} N (se supone que cubre aceleración y caída de presión).`,
+    }) }, [SAKNAS_TID, SAKNAS_RORLIG]);
   }
   const okandRiktning = !o.isHorizontal ? pick(locale, {
     sv: " Riktningen är inte angiven, så det räknas som ett lyft för säkerhets skull.",
@@ -1264,12 +1316,12 @@ export function kraftkrav(o: {
     de: " Die Richtung ist nicht angegeben, daher wird sicherheitshalber wie beim Heben gerechnet.",
     es: " La dirección no está indicada, así que se calcula como una elevación por seguridad.",
   }) : "";
-  return { forceN, metod: "tumregel", forklaring: pick(locale, {
-    sv: `Tumregel: ${tal(locale, sf)} × lastens tyngd (${tal(locale, m)} kg × 9,81 × ${tal(locale, sf)} = ${tal(locale, forceN)} N) täcker friktion, acceleration och tryckfall.${okandRiktning}`,
-    en: `Rule of thumb: ${tal(locale, sf)} × the load's weight (${tal(locale, m)} kg × 9.81 × ${tal(locale, sf)} = ${tal(locale, forceN)} N) covers friction, acceleration and pressure drop.${okandRiktning}`,
-    de: `Faustregel: ${tal(locale, sf)} × Gewichtskraft der Last (${tal(locale, m)} kg × 9,81 × ${tal(locale, sf)} = ${tal(locale, forceN)} N) deckt Reibung, Beschleunigung und Druckabfall ab.${okandRiktning}`,
-    es: `Regla práctica: ${tal(locale, sf)} × el peso de la carga (${tal(locale, m)} kg × 9,81 × ${tal(locale, sf)} = ${tal(locale, forceN)} N) cubre fricción, aceleración y caída de presión.${okandRiktning}`,
-  }) };
+  return preliminar(locale, { forceN, metod: "tumregel", forklaring: pick(locale, {
+    sv: `Tumregel: ${tal(locale, sf)} × lastens tyngd (${tal(locale, m)} kg × 9,81 × ${tal(locale, sf)} = ${tal(locale, forceN)} N) antas räcka för friktion, acceleration och tryckfall.${okandRiktning}`,
+    en: `Rule of thumb: ${tal(locale, sf)} × the load's weight (${tal(locale, m)} kg × 9.81 × ${tal(locale, sf)} = ${tal(locale, forceN)} N) is assumed to cover friction, acceleration and pressure drop.${okandRiktning}`,
+    de: `Faustregel: ${tal(locale, sf)} × Gewichtskraft der Last (${tal(locale, m)} kg × 9,81 × ${tal(locale, sf)} = ${tal(locale, forceN)} N) soll Reibung, Beschleunigung und Druckabfall abdecken (Annahme).${okandRiktning}`,
+    es: `Regla práctica: ${tal(locale, sf)} × el peso de la carga (${tal(locale, m)} kg × 9,81 × ${tal(locale, sf)} = ${tal(locale, forceN)} N) se supone que cubre fricción, aceleración y caída de presión.${okandRiktning}`,
+  }) }, [okandRiktning ? SAKNAS_RIKTNING : null, SAKNAS_FRIKTION, o.tMoveS > 0 ? null : SAKNAS_TID, SAKNAS_RORLIG].filter((x): x is typeof SAKNAS_TID => x !== null));
 }
 
 /** Säger kunden att rörelsen är horisontell, utan att den samtidigt lyfter? */
@@ -1484,6 +1536,7 @@ export function detectHazards(
   text: string,
   answers: Record<string, string>,
   locale: string,
+  tolkning: Tolkningsbeslut = {},
 ): HazardFlags {
   // Whole-line, multi-station request (weigh + identify + sort + robot/PLC).
   // The catalog can't be a single "solution" here -- consumers should surface
@@ -1534,7 +1587,7 @@ export function detectHazards(
   const requiredStrokeMm = isSystemScope ? 0
     : perAxisStrokes.length > 0 ? Math.max(...perAxisStrokes.map(a => a.stroke))
     : minStrokeMm;
-  const speedMs = extractSpeedMs(text, answers);
+  const speedMs = extractSpeedMs(text, answers, tolkning);
   const precisionMm = extractPrecisionMm(text, answers);
   // Threshold raised 0.1 -> 0.5 on 2026-09-08 after a user-reported bad answer:
   // a pallet stacker needing "±0,5 mm vid varje stopp" (35 kg, 900 mm vertical,

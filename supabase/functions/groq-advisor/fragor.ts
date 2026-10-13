@@ -54,10 +54,18 @@ export type Fraga = {
   id: string;
   label: string;
   hint?: string;
+  /** "Varför behöver vi detta?": vilket beslut svaret påverkar (manualen 4.2). */
+  varfor?: string;
   type: "choice" | "number";
   options?: string[];
   unit?: string;
 };
+
+/** Sortering eller utskjutning från ett transportband (lådsorteringstestet). */
+export function arSortering(text: string): boolean {
+  return /\bsortera\s+ut\b|\butsorter\w*|\bskjut\w*\s+av\b|\butskjut\w*|\bpush(?:er|es|ing)?\s+off\b|\breject\w*/i.test(text) &&
+    /\b(?:transportband\w*|transportör\w*|band(?:et|en)?|conveyor\w*)\b/i.test(text);
+}
 
 export type Forfragan = "rorelse" | "vridning" | "luftberedning" | "ventil" | "givare" | "slang";
 
@@ -662,6 +670,36 @@ export function reservfragor(text: string, locale: string, kod?: Kodvarden): Fra
   const flerLagen = /\d+\s*(positioner|lägen|stopp)\b|mellanläg|flera\s+(lägen|positioner)/i.test(text);
   const positionering = !stopp && (/positioner|mellanläg|flera\s+lägen|stopp\w*\s+(på|i)|exakt|precision|noggrann/i.test(text) || elektrisk);
 
+  // ── Utsortering från ett band ────────────────────────────────────────────
+  // Lådsorteringstestet 2026-10-13: bandets hastighet blev utskjutarens, och
+  // ingen fråga ställdes om tiden utskjutaren har. Frågorna här är de som
+  // ändrar komponentvalet (kraft, dämpning, tid); de som rör programmet --
+  // produktdetektering, blockerad mottagning -- följer med till PLC-delen som
+  // öppna frågor (kravbild.ts) i stället för att ställas här.
+  if (arSortering(text)) {
+    q.push({ id: "band_vid_utskjutning", type: "choice",
+      label: g(locale, "Går bandet eller står det still när lådan skjuts av?", "Is the conveyor running or stopped while the box is pushed off?"),
+      hint: g(locale, "Går bandet följer lådan med medan den skjuts, och tiden blir kort.", "If it runs, the box moves along while being pushed, and the time is short."),
+      varfor: g(locale, "Avgör hur lång tid utskjutaren har och om lådan kan vridas under utskjutningen.", "Decides how much time the pusher has and whether the box can twist while pushed."),
+      options: [g(locale, "Bandet går hela tiden", "The conveyor keeps running"), g(locale, "Bandet stannar vid utskjutning", "The conveyor stops for the push")] });
+    q.push({ id: "utskjutningstid_s", type: "number", unit: "s",
+      label: g(locale, "Hur lång tid får utskjutning och återgång ta tillsammans?", "How long may the push and return take together?"),
+      hint: g(locale, "Från att utskjutaren börjar röra sig tills den är tillbaka. Vet du inte, lämna frågan öppen.", "From the pusher starting to move until it is back. If unsure, leave it open."),
+      varfor: g(locale, "Tiden avgör kraften, dämpningen och om utskjutaren hinner tillbaka före nästa låda.", "The time decides force, cushioning and whether the pusher is back before the next box.") });
+    q.push({ id: "minsta_avstand_mm", type: "number", unit: "mm",
+      label: g(locale, "Hur kort kan avståndet mellan två lådor bli?", "How short can the gap between two boxes be?"),
+      hint: g(locale, "Från bakkanten på en låda till framkanten på nästa.", "From the rear edge of one box to the front edge of the next."),
+      varfor: g(locale, "Med varierande avstånd är det minsta avståndet som bestämmer hur fort utskjutaren måste vara tillbaka.", "With varying gaps, the smallest gap decides how quickly the pusher must be back.") });
+    q.push({ id: "utsorteringar_i_foljd", type: "choice",
+      label: g(locale, "Kan två eller fler lådor i rad behöva sorteras ut?", "Can two or more boxes in a row need to be rejected?"),
+      varfor: g(locale, "Två utsorteringar i följd med minsta avstånd är det fall som cykeltiden dimensioneras för. 15 passerande lådor per minut är inte 15 utsorteringar per minut.", "Two consecutive rejects at the minimum gap is the case the cycle time is sized for. 15 passing boxes per minute is not 15 rejects per minute."),
+      options: [g(locale, "Nej, bara enstaka lådor", "No, only single boxes"), g(locale, "Ja, två i följd", "Yes, two in a row"), g(locale, "Ja, fler än två i följd", "Yes, more than two in a row")] });
+    q.push({ id: "rorlig_massa_kg", type: "number", unit: "kg",
+      label: g(locale, "Ungefär hur mycket väger skjutplattan och det som rör sig med cylindern?", "Roughly how much do the push plate and the parts moving with the cylinder weigh?"),
+      hint: g(locale, "En uppskattning räcker.", "An estimate is enough."),
+      varfor: g(locale, "Kraften och dämpningen ska klara lådan plus de rörliga delarna.", "Force and cushioning must handle the box plus the moving parts.") });
+  }
+
   if (multi && !k.slag) {
     q.push({ id: "slag_x_sidled_mm", type: "number", unit: "mm",
       label: g(locale, "Hur lång är rörelsen i sidled?", "How long is the horizontal movement?"),
@@ -854,6 +892,7 @@ const ALLTID = new Set([
   "luft_anslutning", "luft_flode", "ventil_uppgift", "givare_uppgift", "slang_dimension", "korrosion",
   "vridvinkel", "vridmoment_nm", "havarm_mm", "atex_damm", "temperatur_lagsta", "livsmedelskontakt",
   "antal_lagen", "noggrannhet_typ", "forflyttningstid_s", "lastplacering", "styrning_axel",
+  "band_vid_utskjutning", "utskjutningstid_s", "minsta_avstand_mm", "utsorteringar_i_foljd", "rorlig_massa_kg",
 ]);
 
 /**

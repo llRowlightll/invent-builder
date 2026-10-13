@@ -27,6 +27,9 @@ import {
   kraftVid6Bar,
 } from "./scoring.ts";
 import { LANGRE_SLAG_PRO, rensaSerieslag, rensaPositionsPros } from "./prosavakt.ts";
+import { delaSvar, tolkaKravbild, type Kravbild, type Tolkningsbeslut } from "./kravbild.ts";
+import { provaTryck, tolkaKravSpanning } from "./kontroller.ts";
+import { byggResultat, utanSakerhetspastaenden } from "./resultat.ts";
 import {
   langName,
   sprakregler,
@@ -969,12 +972,13 @@ async function handleEndEffectorOptions(
 // v40: Server selects top 3 products deterministically; LLM only writes badge/why/pros/cons.
 // This eliminates hallucinated SKUs and inconsistent product selection.
 async function handleOptions(
-  description: string, answers: Record<string, string>, locale: string
+  description: string, answers: Record<string, string>, locale: string, tolkning: Tolkningsbeslut = {}
 ): Promise<Response> {
   const t0 = Date.now();
   const combinedText = description + " " + Object.values(answers).join(" ");
   const categories = detectCategories(combinedText);
-  const hazards = detectHazards(combinedText, answers, locale);
+  const hazards = detectHazards(combinedText, answers, locale, tolkning);
+  const kravbild = tolkaKravbild(description, answers, tolkning);
   // Orderkoder slås upp TIDIGT: de måste hinna påverka produktvalet, inte bara
   // texten. En uppslagen kod är den starkaste borrningsuppgift som finns --
   // kunden har namngett en exakt produkt, inte beskrivit ett behov.
@@ -1683,9 +1687,10 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
         // Structured semantics (badge) stay on the server; the model never sets them.
         return {
           ...opt,
-          why:   (typeof llmOpt.why === "string" && llmOpt.why)     ? llmOpt.why   : opt.why,
-          pros:  (Array.isArray(llmOpt.pros) && llmOpt.pros.length) ? llmOpt.pros  : opt.pros,
-          cons:  (Array.isArray(llmOpt.cons) && llmOpt.cons.length) ? llmOpt.cons  : opt.cons,
+          // Modellen skriver prosan men får aldrig påstå säkerhet (manualen 5.5).
+          why:   (typeof llmOpt.why === "string" && llmOpt.why)     ? (utanSakerhetspastaenden(llmOpt.why) || opt.why) : opt.why,
+          pros:  (Array.isArray(llmOpt.pros) && llmOpt.pros.length) ? (llmOpt.pros as unknown[]).map(x => utanSakerhetspastaenden(String(x))).filter(Boolean) : opt.pros,
+          cons:  (Array.isArray(llmOpt.cons) && llmOpt.cons.length) ? (llmOpt.cons as unknown[]).map(x => utanSakerhetspastaenden(String(x))).filter(Boolean) : opt.cons,
         };
       });
     } catch (e) { console.error("options: failed to parse LLM JSON, using grounded server defaults:", e); }
@@ -1844,10 +1849,60 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     return opt;
   });
 
+  // Kravstatus per alternativ (manualen 4.3): vilka krav som uppfylls, inte
+  // uppfylls, eller inte går att bedöma -- deterministiskt, ur samma tal som
+  // dimensioneringsstaplarna. Modellens prosa avgör ingenting här.
+  const sv = locale === "sv";
+  const tryckKrav = kravbild.krav.find(k => k.objektId === "matning" && k.egenskap === "tryck" && k.bekraftelse !== "avvisat")?.varde ?? 0;
+  const aktuatorHastighet = kravbild.krav.find(k => k.objektId === "aktuator" && k.egenskap === "hastighet" && k.bekraftelse !== "avvisat");
+  const miljoKrav = kravbild.krav.find(k => k.objektId === "maskin" && k.egenskap === "miljo" && k.bekraftelse !== "avvisat");
+  const preliminarKraft = hazards.kraftkrav?.preliminar === true;
+  finalOptions = finalOptions.map(opt => {
+    const cat = productMap.get(opt.sku as string);
+    if (!cat) return opt;
+    const status: Array<{ krav: string; utfall: string; text: string }> = [];
+    const kraft = opt.force_n as number | null;
+    if (requiredForceN > 0) {
+      const kravText = sv ? `kraft ${requiredForceN} N${preliminarKraft ? " (preliminär uppskattning)" : ""}` : `force ${requiredForceN} N${preliminarKraft ? " (preliminary estimate)" : ""}`;
+      status.push(kraft
+        ? { krav: kravText, utfall: kraft >= requiredForceN ? "uppfyllt" : "ej_uppfyllt", text: sv ? `alternativet ger ${kraft} N` : `the option gives ${kraft} N` }
+        : { krav: kravText, utfall: "kan_inte_bedomas", text: sv ? "kraften är inte känd för alternativet" : "the option's force is unknown" });
+    }
+    if (maxRequiredStroke > 0) {
+      const slag = opt.stroke_mm as number | null;
+      const konfigurerbar = isFamilyProduct(cat) || !slag;
+      const kravText = sv ? `slag/rörelse ${maxRequiredStroke} mm` : `stroke/travel ${maxRequiredStroke} mm`;
+      status.push(konfigurerbar
+        ? { krav: kravText, utfall: "konfigureras", text: sv ? "slaget väljs vid beställning" : "the stroke is chosen at order" }
+        : slag! < maxRequiredStroke
+        ? { krav: kravText, utfall: "ej_uppfyllt", text: sv ? `alternativet har ${slag} mm` : `the option has ${slag} mm` }
+        : slag! > maxRequiredStroke
+        ? { krav: kravText, utfall: "avvikelse", text: sv ? `alternativet har ${slag} mm; rörelsen måste begränsas eller bekräftas` : `the option has ${slag} mm; the travel must be limited or confirmed` }
+        : { krav: kravText, utfall: "uppfyllt", text: sv ? `alternativet har ${slag} mm` : `the option has ${slag} mm` });
+    }
+    if (tryckKrav > 0 && !isElectricActuator(cat)) {
+      const t = provaTryck(tryckKrav, cat.key_specs, sv);
+      status.push({ krav: t.krav, utfall: t.utfall === "underlag_saknas" ? "kan_inte_bedomas" : t.utfall, text: t.text });
+    }
+    if (!aktuatorHastighet && kravbild.tillampning === "sortering_utskjutning") {
+      status.push({ krav: sv ? "utskjutarens hastighet" : "pusher speed", utfall: "kan_inte_bedomas", text: sv ? "inte angiven -- bandets hastighet är inte utskjutarens" : "not stated -- the conveyor speed is not the pusher's" });
+    }
+    if (miljoKrav) {
+      status.push({ krav: sv ? `miljö (${miljoKrav.text})` : `environment (${miljoKrav.text})`, utfall: "kan_inte_bedomas", text: sv ? "automatisk kontroll stöds inte" : "no automatic check" });
+    }
+    return { ...opt, kravstatus: status };
+  });
+
   // Always append CUSTOM-SOLUTION. hazards.isFoodGrade already computes the
   // exact same isPharmaGmp-OR-food-regex composition this literal used to
   // build by hand.
-  finalOptions.push(buildCustomSolutionOption(maxRequiredStroke, locale, maxCatalogStroke, catalogCanHandle, hazards));
+  //
+  // Orsaken skiljs ut (manualen 4.3): att katalogen saknar en matchning, att
+  // underlaget inte räcker för att välja, och att kraven motsäger varandra är
+  // tre olika besked och får inte se likadana ut.
+  const saknarGrund = loadKg <= 0 && requiredForceN <= 0 && hazards.torqueNm <= 0;
+  const orsak = hazards.conflicts.length > 0 ? "kravkonflikt" : saknarGrund ? "otillrackligt_underlag" : !catalogCanHandle ? "ingen_katalogmatchning" : "alternativ";
+  finalOptions.push({ ...buildCustomSolutionOption(maxRequiredStroke, locale, maxCatalogStroke, catalogCanHandle, hazards), orsak });
 
   // When no real catalog product matched (only CUSTOM-SOLUTION remains), the LLM
   // summary tends to hallucinate that our products meet the requirement (e.g.
@@ -1908,10 +1963,15 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     required_force_n: requiredForceN > 0 ? requiredForceN : null,
     required_stroke_mm: maxRequiredStroke > 0 ? maxRequiredStroke : null,
     safety_factor: 2,
-    pressure_bar: hazards.elaxel ? null : 6,
+    // Trycket kunden angett, annars 6 bar -- märkt som antaget (manualen 3.3).
+    pressure_bar: hazards.elaxel ? null : (tryckKrav > 0 ? tryckKrav : 6),
+    pressure_assumed: hazards.elaxel ? false : !(tryckKrav > 0),
     // Hur kraftkravet räknades, i klartext (Geminis punkt 3: "Krävs 1570 N"
     // utan uträkning gick inte att granska).
     force_basis: requiredForceN > 0 ? (hazards.kraftkrav?.forklaring || null) : null,
+    // En uträknad kraft är en uppskattning, inte ett krav (lådsorteringstestet).
+    force_preliminary: requiredForceN > 0 ? preliminarKraft : false,
+    force_missing: requiredForceN > 0 ? (hazards.kraftkrav?.saknas ?? []) : [],
   };
 
   // LLM:en kvot-strypt: leverera det deterministiska resultatet i stället för
@@ -2003,13 +2063,13 @@ async function fetchPrimaryInfo(sku: string): Promise<{ category: string; boreMm
 }
 
 async function handleBom(
-  description: string, answers: Record<string, string>, primarySku: string, locale: string
+  description: string, answers: Record<string, string>, primarySku: string, locale: string, tolkning: Tolkningsbeslut = {}
 ): Promise<Response> {
   const t0 = Date.now();
-  const isSv = locale === "sv";
   const combinedText = (description ?? "") + " " + Object.values(answers).join(" ");
   const categories = detectCategories(combinedText);
-  const hazards = detectHazards(combinedText, answers, locale);
+  const hazards = detectHazards(combinedText, answers, locale, tolkning);
+  const kravbild: Kravbild = tolkaKravbild(description ?? "", answers, tolkning);
   // N identical stations (e.g. "6 identiska cylinderstationer") -- BOM-only,
   // not a hazard flag, so it isn't part of HazardFlags. Defaults to 1 (a
   // no-op multiplier inside buildMandatoryBomRows) when not stated.
@@ -2054,9 +2114,8 @@ async function handleBom(
     hazards.isRodLock                         ? "rod-lock"       : null,
   ].filter(Boolean) as string[];
 
-  const [fetchedProducts, pdfCtx, brandProducts] = await Promise.all([
+  const [fetchedProducts, brandProducts] = await Promise.all([
     fetchProducts([...new Set(bomCategories)], 30),
-    searchKnowledge(combinedText + " BOM komplett system", 5),
     // Guarantee the primary's own brand+category is represented (see
     // fetchProductsByCategoryAndBrand's comment) - only actually needed for
     // categories fetchProducts' 30-cap can plausibly exclude a brand from,
@@ -2101,117 +2160,25 @@ async function handleBom(
     kravTempC: extractRequiredMaxTemp(combinedText, answers),
     kravTempMinC: extractRequiredMinTemp(combinedText, answers),
     primarySpecs,
+    // Kraven raderna prövas mot, ur kravbilden: bara det kunden angett.
+    kravTryckBar: kravbild.krav.find(k => k.objektId === "matning" && k.egenskap === "tryck" && k.bekraftelse !== "avvisat")?.varde ?? 0,
+    kravSpanning: tolkaKravSpanning(kravbild.krav.find(k => k.objektId === "matning" && k.egenskap === "spanning" && k.bekraftelse !== "avvisat")?.text),
+    kravMiljo: kravbild.krav.find(k => k.objektId === "maskin" && k.egenskap === "miljo" && k.bekraftelse !== "avvisat")?.text ?? "",
   };
   const mandatoryBom = buildMandatoryBomRows(bomCtx);
   console.log(`[bom v49] primary=${primarySku} electric=${isElectric} vertical=${hazards.isVerticalLoad} highSpeed=${hazards.isHighSpeed} multiAxis=${hazards.isMultiAxis} mounting=${hazards.isMounting} mandatoryRows=${mandatoryBom.length}`);
 
-  // ── LLM enrichment: title + explanation + optional extras ─────────────────
-  const lang = langName(locale);
-  const axisStrokeNote = hazards.isMultiAxis && hazards.perAxisStrokes.length > 0
-    ? `Per-axis strokes: ${hazards.perAxisStrokes.map(a => `${a.axis}=${a.stroke}mm`).join(", ")}.`
-    : "";
-
-  // ── Accessory catalog for LLM ─────────────────────────────────────────────
-  // For multi-axis systems, include actuators; for single-axis, accessories only
-  const accessoryCatalog = balancedSlice(atexSafeProducts, hazards.isMultiAxis ? 30 : 20)
-    .filter(p => hazards.isMultiAxis || parseStrokeFromSpecs(p.key_specs ?? {}) === 0)
-    .slice(0, hazards.isMultiAxis ? 20 : 10)
-    .map(p => {
-      const ks = p.key_specs ?? {};
-      const s = ks.stroke_mm ? ` stroke=${String(ks.stroke_mm).replace(/\s*mm/i,"")}mm` : "";
-      const b = ks.bore_mm ? ` bore=${String(ks.bore_mm).replace(/\s*mm/i,"")}mm` : "";
-      const fam = isFamilyProduct(p) ? " [FAMILY]" : "";
-      return `${p.sku}: ${p.name} [${p.brand}/${p.category}]${s}${b}${fam}`;
-    }).join("\n");
-
-  // Build skeleton description for LLM context
-  const skeletonStr = mandatoryBom.map(r => `  SKU="${r.sku}" qty=${r.quantity} | ${r.role}`).join("\n");
-
-  const reqLines = Object.entries(answers)
-    .map(([k, v]) => { let l = k.replace(/_/g, " "); if (!hazards.isMultiAxis) l = l.replace(/\s*[xyz]$/i, "").trim(); return `${l}: ${v}`; })
-    .join(", ");
-
-  const specialConstraints = [
-    hazards.isAtex    ? (isSv ? "⛔ ATEX Zone 1/2 — inga elektriska komponenter." : "⛔ ATEX Zone 1/2 — no electric components.") : "",
-    hazards.isAtexDust ? (isSv ? "⛔ ATEX Zone 20/21/22 damm." : "⛔ ATEX Zone 20/21/22 dust.") : "",
-    hazards.isHighPrecision ? (isSv ? `⛔ Precision ±${hazards.precisionMm}mm — kulskruv obligatorisk.` : `⛔ Precision ±${hazards.precisionMm}mm — ball screw mandatory.`) : "",
-    hazards.isWashdown
-      ? ((hazards.isSpolmiljo || hazards.isFoodGrade)
-        ? "⚠️ Washdown IP69K."
-        : (isSv ? "⚠️ Korrosiv miljö — korrosionsbeständigt material. Inget IP69K-krav." : "⚠️ Corrosive environment — corrosion-resistant materials. No IP69K requirement."))
-      : "",
-    hazards.isPharmaGmp ? (isSv ? "⚠️ GMP/FDA — 316L, PTFE, EPDM." : "⚠️ GMP/FDA — 316L, PTFE, EPDM.") : "",
-    hazards.isBatteryDryroom ? (isSv ? "⛔ Dryroom — absolut Cu/Zn/Ni-förbud." : "⛔ Dryroom — Cu/Zn/Ni ban.") : "",
-    hazards.isHydraulic || hazards.isVeryHighForce ? (isSv ? "⚠️ Hydraulik/hög kraft — utanför pneumatisk katalog." : "⚠️ Hydraulic/high force — outside pneumatic catalog.") : "",
-    hazards.isHighTemp ? (isSv ? "⚠️ Hög temp >80°C — PTFE/FKM-tätning krävs." : "⚠️ High temp >80°C — PTFE/FKM seals required.") : "",
-    hazards.isOxygenClean ? (isSv ? "⛔ Syrgasmiljö — oljefria komponenter." : "⛔ Oxygen atmosphere — oil-free only.") : "",
-    hazards.isSilSafety
-      ? (hazards.sakerhetsniva
-        ? (isSv ? `⚠️ Angivet säkerhetskrav ${hazards.sakerhetsniva} — certifierad säkerhetsventil krävs.` : `⚠️ Stated safety requirement ${hazards.sakerhetsniva} — certified safety valve required.`)
-        : (isSv ? "⚠️ Säkerhetsfunktion nämnd — nivån (PL/SIL) bestäms i riskbedömningen. Ange ingen nivå själv." : "⚠️ Safety function mentioned — the level (PL/SIL) is set by the risk assessment. Do not state a level yourself."))
-      : "",
-    hazards.dynamics ? (isSv ? `📐 Rörelse-uppskattning: ~${hazards.dynamics.accel.toFixed(1)} m/s², ~${Math.round(hazards.dynamics.forceN)} N topp — säg uttryckligen att servo/motor måste dimensioneras för detta.` : `📐 Motion estimate: ~${hazards.dynamics.accel.toFixed(1)} m/s², ~${Math.round(hazards.dynamics.forceN)} N peak — state explicitly the servo/motor must be sized for this.`) : "",
-    hazards.conflicts.length ? (isSv ? `⚠️ Kravkonflikter att nämna: ${hazards.conflicts.join(" | ")}` : `⚠️ Requirement conflicts to mention: ${hazards.conflicts.join(" | ")}`) : "",
-  ].filter(Boolean).join(" ");
-
-  // LLM only writes title + explanation — no extras, no SKU selection
-  const bomSystem = `You are a senior automation engineer writing a BOM summary. All text in ${lang}.${sprakregler(locale)}
-
-BOM rows (already complete — do NOT modify):
-${skeletonStr}
-
-Your tasks:
-1. Write a concise technical title (5-8 words) describing the system
-2. Write explanation (2-3 sentences): system type, key specs, safety approach
-${specialConstraints ? `\nConstraints to mention: ${specialConstraints}` : ""}
-
-JSON: { "title": "...", "explanation": "..." }`;
-
-  // Katalogtexten om en familj börjar ofta med dess minsta storlek ("DSNU-8-…").
-  // Utan storleken här kan modellen läsa den som primärens borrning.
-  const primarNot = primarSpann != null
-    ? (primaryBoreMm > 0
-      ? ` (product family ${String(primarSpann)} mm — order it in Ø${primaryBoreMm} mm for this load; the article number is not the bore)`
-      : ` (product family ${String(primarSpann)} mm — the bore is chosen at order; do not state one)`)
-    : "";
-  const bomUser = `Application: ${description}\nRequirements: ${reqLines || "standard"}\nPrimary: ${primarySku}${primarNot}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
-
-  // ── Call LLM — if rate-limited, skip gracefully (mandatory BOM is already built) ──
-  let raw: string | null = null;
-  let wasRateLimited = false;
-  try { raw = await callGroq([{ role: "system", content: bomSystem }, { role: "user", content: bomUser }], 1000, true); }
-  catch (e) { if ((e as Error).message === "RATE_LIMITED") wasRateLimited = true; }
-
-  // Parse LLM enrichment — title + explanation ONLY, no extras.
-  // All SKU selection is now fully deterministic via buildMandatoryBomRows.
+  // ── Titel och sammanfattning: ur data, aldrig ur en modell ─────────────────
+  // Till 2026-10-13 skrev språkmodellen titel och förklaring med uppdraget
+  // "system type, key specs, safety approach". I lådsorteringstestet påstod
+  // den en intern linjär transducer och vridskydd som ingen rad hade, lovade
+  // 350 mm med en cylinder på 400 mm och skrev att säkerheten säkerställs.
+  // Nu byggs båda ur kravbilden, raderna och deras kontroller (resultat.ts),
+  // efter ATEX-filtreringen nedan. Anropet kostade dessutom ett Groq-anrop
+  // per stycklista.
+  const wasRateLimited = false;
   let title = "";
   let explanation = "";
-  if (raw) {
-    try {
-      const llm = JSON.parse(raw);
-      title = typeof llm.title === "string" ? llm.title : "";
-      explanation = typeof llm.explanation === "string" ? llm.explanation : "";
-      // extras intentionally ignored — no LLM SKU selection
-    } catch { /* ignore */ }
-  }
-
-  // Auto-generate title/explanation when LLM is unavailable
-  if (!title) {
-    title = pick(locale, {
-      sv: `${isElectric ? "Elektrisk" : "Pneumatisk"}${hazards.isVerticalLoad ? " vertikal" : ""}${hazards.isMultiAxis ? " flerraxlad" : ""} aktuator — ${primarySku}`,
-      en: `${isElectric ? "Electric" : "Pneumatic"}${hazards.isVerticalLoad ? " vertical" : ""}${hazards.isMultiAxis ? " multi-axis" : ""} actuator — ${primarySku}`,
-      de: `${isElectric ? "Elektrischer" : "Pneumatischer"}${hazards.isVerticalLoad ? " vertikaler" : ""}${hazards.isMultiAxis ? " mehrachsiger" : ""} Aktuator — ${primarySku}`,
-      es: `Actuador ${isElectric ? "eléctrico" : "neumático"}${hazards.isVerticalLoad ? " vertical" : ""}${hazards.isMultiAxis ? " multieje" : ""} — ${primarySku}`,
-    });
-  }
-  if (!explanation) {
-    explanation = pick(locale, {
-      sv: `System baserat på ${primarySku}. ${isElectric ? "Elektrisk servoaxel för precision och repeterbarhet." : "Pneumatisk cylinder med komplett luftberedning (FRL + ventil)."} ${hazards.isVerticalLoad ? (isElectric ? "Bromsmotor obligatorisk för lastsäkerhet vid strömavbrott." : "Backslagsventil förhindrar lastfall vid lufttrycksförlust.") : ""}${wasRateLimited ? " [Automatgenererad — AI tillfälligt otillgänglig]" : ""}`,
-      en: `System based on ${primarySku}. ${isElectric ? "Electric servo axis for precision and repeatability." : "Pneumatic cylinder with complete air preparation (FRL + valve)."} ${hazards.isVerticalLoad ? (isElectric ? "Brake motor mandatory for load safety on power loss." : "Check valve prevents load drop on air pressure loss.") : ""}${wasRateLimited ? " [Auto-generated — AI temporarily unavailable]" : ""}`,
-      de: `System basierend auf ${primarySku}. ${isElectric ? "Elektrische Servoachse für Präzision und Wiederholgenauigkeit." : "Pneumatikzylinder mit vollständiger Luftaufbereitung (FRL + Ventil)."} ${hazards.isVerticalLoad ? (isElectric ? "Bremsmotor zwingend erforderlich für die Lastsicherheit bei Stromausfall." : "Das Rückschlagventil verhindert ein Absinken der Last bei Luftdruckverlust.") : ""}${wasRateLimited ? " [Automatisch generiert — KI vorübergehend nicht verfügbar]" : ""}`,
-      es: `Sistema basado en ${primarySku}. ${isElectric ? "Eje servo eléctrico para precisión y repetibilidad." : "Cilindro neumático con tratamiento de aire completo (FRL + válvula)."} ${hazards.isVerticalLoad ? (isElectric ? "Motor con freno obligatorio para la seguridad de la carga ante fallo de alimentación." : "La válvula antirretorno evita la caída de la carga ante pérdida de presión de aire.") : ""}${wasRateLimited ? " [Generado automáticamente — IA temporalmente no disponible]" : ""}`,
-    });
-  }
 
   // Deterministically append sizing + conflict notes so they are GUARANTEED present
   // (even if the LLM drops them or was rate-limited). The advisor must never look
@@ -2230,7 +2197,7 @@ JSON: { "title": "...", "explanation": "..." }`;
     es: `⛔ Aviso de fuerza: la fuerza máxima calculada ~${forceShortfall.needN} N supera la fuerza nominal ~${forceShortfall.ratedN} N del actuador elegido. Elija un eje más fuerte / un diámetro mayor, reduzca la carga/aceleración o aumente el tiempo de ciclo.`,
   }));
   for (const c of hazards.conflicts) engNotes.push("⚠️ " + c);
-  if (engNotes.length) explanation += "\n\n" + engNotes.join("\n\n");
+  // engNotes läggs till efter sammanfattningen, när domen är räknad (nedan).
 
   // ── Extra validation pipeline (4 layers) ────────────────────────────────────
 
@@ -2272,9 +2239,16 @@ JSON: { "title": "...", "explanation": "..." }`;
   // lösningen då inte är beställningsbar. Att räkna ut ett svar och inte skicka
   // det är samma sak som att inte räkna ut det.
   const dom = bedomLosning(finalBom);
+  const resultat = byggResultat({
+    locale, kravbild, rows: finalBom, primarySku,
+    primaryName: products.find(p => p.sku === primarySku)?.name,
+    isElectric, kraftkrav: hazards.kraftkrav, dom,
+  });
+  title = resultat.titel;
+  explanation = resultat.text + (engNotes.length ? "\n\n" + engNotes.join("\n\n") : "");
 
   return Response.json({
-    title, explanation, bom: bomWithGroups, connections,
+    title, explanation, bom: bomWithGroups, connections, resultat,
     bestallningsklar: dom.bestallningsklar,
     blockerande: dom.blockerande,
     kontrollerat: dom.kontrollerat,
@@ -2409,8 +2383,12 @@ Deno.serve(async (req: Request) => {
     const { action, description, answers, messages, primarySku, contextQuery, locale } = body;
     const loc = locale ?? "sv";
     if (action === "questions") return handleQuestions(description ?? "", loc);
-    if (action === "options")   return handleOptions(description ?? "", answers ?? {}, loc);
-    if (action === "bom")       return handleBom(description ?? "", answers ?? {}, primarySku ?? "", loc);
+    // Tolkningsbesluten ("tolkning:<krav-id>") skiljs från svaren här, på ett
+    // ställe: detektorerna läser svaren som text och får aldrig se ett beslut
+    // som "transportband" som om kunden skrivit ordet (kravbild.ts).
+    const { svar, tolkning } = delaSvar(answers ?? {});
+    if (action === "options")   return handleOptions(description ?? "", svar, loc, tolkning);
+    if (action === "bom")       return handleBom(description ?? "", svar, primarySku ?? "", loc, tolkning);
     if (action === "chat")      return handleChat(messages ?? [], contextQuery);
     if (action === "vision")    return handleVision(body.image ?? "", loc);
     return Response.json({ error: "Unknown action" }, { status: 400, headers: CORS });
