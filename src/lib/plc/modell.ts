@@ -151,14 +151,145 @@ export interface StatusPost {
 
 export type Statusar = Record<StatusNamn, StatusPost>;
 
+// ── Steg 3–7 (fas B) ────────────────────────────────────────────────────────
+
+/** Det alla poster i steg 4–7 har gemensamt: spårbarhet och status. */
+export interface Post {
+  id: string;
+  ursprung: Ursprung;
+  /** Föreslagen tills en människa bekräftar; inaktuell när underlaget ändrats. */
+  status: Bekraftelse;
+  /** Vad posten härleddes ur: en artikel (sku), ett krav (krav-id), en signal … */
+  kalla: string;
+  /** Varför posten blivit inaktuell, i klartext. */
+  inaktuellOrsak?: string;
+  andrad: string;
+}
+
+/** Driftlägen enligt PackML (ISA-TR88.00.02): automatiskt, underhåll, manuellt. */
+export type Driftlage = "produktion" | "underhall" | "manuell";
+
+/** De fyra poster som alltid skrivs av en människa (planen: AI får fråga, inte fylla i). */
+export interface ObligatoriskaPoster {
+  spanningsbortfall: string;
+  kommunikationsbortfall: string;
+  forloradProdukt: string;
+  aterstart: string;
+}
+
+export interface Funktion {
+  beskrivning: string;
+  startvillkor: string;
+  slutvillkor: string;
+  samverkan: string;
+  operator: string;
+  varianter: string;
+  lagen: Driftlage[];
+  lagesbyte: string;
+  obligatoriska: ObligatoriskaPoster;
+}
+
+/** Fysisk I/O, kommunikationssignaler och interna variabler hålls isär. */
+export type Signaltyp = "DI" | "DO" | "AI" | "AO" | "kommunikation" | "intern";
+export type Datatyp = "BOOL" | "INT" | "DINT" | "REAL" | "WORD" | "TIME" | "";
+
+export interface Signal extends Post {
+  /** Beteckning enligt IEC 81346, t.ex. "-QM1.Y1" eller "-BG1". */
+  tagg: string;
+  namn: string;
+  beskrivning: string;
+  typ: Signaltyp;
+  datatyp: Datatyp;
+  /** Tom = okänd. Adresser hittas aldrig på; de är kända först med hårdvaran. */
+  adress: string;
+  /** Varifrån signalen kommer och vart den går, med ord. */
+  kallaText: string;
+  mottagare: string;
+  /** För utgångar: läget vid spänningsbortfall. Fylls i av en människa. */
+  felsakert: string;
+}
+
+export interface Parameter extends Post {
+  namn: string;
+  betydelse: string;
+  datatyp: Datatyp;
+  enhet: string;
+  /** Gränser och standardvärde bara när de är dokumenterade; annars tomma. */
+  min: string;
+  max: string;
+  standard: string;
+  behorighet: "operator" | "underhall" | "ingenjor" | "";
+}
+
+export interface Steg extends Post {
+  nummer: string;
+  namn: string;
+  startvillkor: string;
+  atgard: string;
+  slutvillkor: string;
+  nasta: string;
+  /** Parameterns id för stegets tidsgräns, eller tomt. */
+  tidsgrans: string;
+  felhantering: string;
+  /** Signalernas id som steget använder. */
+  signaler: string[];
+}
+
+export interface Larm extends Post {
+  nummer: string;
+  villkor: string;
+  funktion: string;
+  operatorstext: string;
+  reaktion: string;
+  aterstallning: string;
+  fortsattDrift: string;
+  /** En säkerhetsrelaterad granskningspunkt är ingen processlarmslogik. */
+  typ: "process" | "sakerhetsgranskning";
+  signaler: string[];
+  steg: string;
+}
+
+/** Testmetoderna hålls isär (IEC 62381 och planen). */
+export type Testmetod = "dokumentgranskning" | "statisk_kontroll" | "kompilering" | "simulering" | "verklig_utrustning";
+
+export interface Testfall extends Post {
+  nummer: string;
+  kravRef: string;
+  forutsattningar: string;
+  atgard: string;
+  forvantat: string;
+  metod: Testmetod;
+  faktiskt: string;
+  ansvarig: string;
+  datum: string;
+  /** Genererade testfall börjar som ej utförda; ett utfall kräver ansvarig och datum. */
+  utfall: "ej_utfort" | "godkant" | "ej_godkant";
+  /** Signalerna, stegen eller larmen testfallet prövar. */
+  avser: string[];
+}
+
 export interface Underlag {
   schemaVersion: typeof SCHEMA_VERSION;
   importerat: Importerat;
   omfattning: Omfattning;
   plattform: Plattform;
+  funktion: Funktion;
+  signaler: Signal[];
+  parametrar: Parameter[];
+  steg: Steg[];
+  larm: Larm[];
+  testfall: Testfall[];
   antaganden: TextPost[];
   oppnaFragor: TextPost[];
   statusar: Statusar;
+}
+
+export function tomFunktion(): Funktion {
+  return {
+    beskrivning: "", startvillkor: "", slutvillkor: "", samverkan: "", operator: "", varianter: "",
+    lagen: [], lagesbyte: "",
+    obligatoriska: { spanningsbortfall: "", kommunikationsbortfall: "", forloradProdukt: "", aterstart: "" },
+  };
 }
 
 /** En rad i plc_underlag, som klienten läser den. */
@@ -186,6 +317,12 @@ export function tomtUnderlag(importerat: Importerat): Underlag {
       val: null, tillverkare: "", plcModell: "", miljo: "", miljoVersion: "", sprak: [], kommunikation: [],
       drivsteg: "", bibliotek: "", standard: "", dokumentation: "", kravPaVal: "",
     },
+    funktion: tomFunktion(),
+    signaler: [],
+    parametrar: [],
+    steg: [],
+    larm: [],
+    testfall: [],
     antaganden: [],
     oppnaFragor: [],
     statusar: tommaStatusar(),
@@ -216,6 +353,15 @@ export function lasUnderlag(data: unknown): Underlag {
     ...d,
     omfattning: { ...tomt.omfattning, ...(d.omfattning ?? {}) },
     plattform: { ...tomt.plattform, ...(d.plattform ?? {}) },
+    funktion: {
+      ...tomt.funktion, ...(d.funktion ?? {}),
+      obligatoriska: { ...tomt.funktion.obligatoriska, ...(d.funktion?.obligatoriska ?? {}) },
+    },
+    signaler: d.signaler ?? [],
+    parametrar: d.parametrar ?? [],
+    steg: d.steg ?? [],
+    larm: d.larm ?? [],
+    testfall: d.testfall ?? [],
     statusar: { ...tomt.statusar, ...(d.statusar ?? {}) },
     antaganden: d.antaganden ?? [],
     oppnaFragor: d.oppnaFragor ?? [],
