@@ -592,31 +592,37 @@ function PlcProjekt() {
           {/* ── Sidfot ── */}
           <div className="mt-8 pt-4 border-t border-border flex flex-wrap items-center gap-2">
             {steg === 1 ? (
-              <Link to="/$locale/plc" params={{ locale }} className="px-4 py-2 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground hover:border-foreground/40 transition">
+              <Link to="/$locale/plc" params={{ locale }} className="flex-1 sm:flex-none text-center px-4 py-2 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground hover:border-foreground/40 transition">
                 {tx("Tillbaka", "Back")}
               </Link>
             ) : (
-              <button type="button" onClick={() => gaTillSteg(Math.min(steg - 1, 2))} className="px-4 py-2 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground hover:border-foreground/40 transition">
+              <button type="button" onClick={() => gaTillSteg(Math.min(steg - 1, 2))} className="flex-1 sm:flex-none text-center px-4 py-2 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground hover:border-foreground/40 transition">
                 {tx("Tillbaka", "Back")}
               </button>
             )}
-            <span className="flex-1" />
+            <span className="hidden sm:block flex-1" />
             {steg <= 2 && (
-              <button type="button" onClick={() => void sparaOchAvsluta()} disabled={sparstatus === "sparar"} className="px-4 py-2 rounded-md border border-primary text-primary text-sm font-medium hover:bg-primary hover:text-primary-foreground transition disabled:opacity-50">
+              <button type="button" onClick={() => void sparaOchAvsluta()} disabled={sparstatus === "sparar"} className="flex-1 sm:flex-none px-4 py-2 rounded-md border border-primary text-primary text-sm font-medium hover:bg-primary hover:text-primary-foreground transition disabled:opacity-50">
                 {tx("Spara och avsluta", "Save and exit")}
               </button>
             )}
             {steg === 1 && (
-              <button type="button" onClick={() => void fortsatt()} disabled={sparstatus === "sparar"} className="px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition disabled:opacity-50">
+              <button type="button" onClick={() => void fortsatt()} disabled={sparstatus === "sparar"} className="w-full sm:w-auto px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition disabled:opacity-50">
                 {tx("Fortsätt", "Continue")}
               </button>
             )}
             {steg === 2 && (
-              <button type="button" onClick={() => void spara()} disabled={sparstatus === "sparar" || !andrat} className="px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition disabled:opacity-50">
+              <button type="button" onClick={() => void spara()} disabled={sparstatus === "sparar" || !andrat} className="w-full sm:w-auto px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition disabled:opacity-50">
                 {tx("Spara", "Save")}
               </button>
             )}
           </div>
+          {sparstatus === "fel" && (
+            <p role="alert" className="mt-2 text-sm text-destructive text-right">
+              {tx("Underlaget kunde inte sparas.", "The documentation could not be saved.")}{" "}
+              <button type="button" onClick={() => void spara()} className="underline">{tx("Försök igen", "Try again")}</button>
+            </p>
+          )}
           {steg === 2 && (
             <p className="mt-2 text-xs text-muted-foreground text-right">
               {tx("Steg 3, funktion och driftlägen, öppnas i nästa fas.", "Step 3, function and modes, opens in the next phase.")}
@@ -896,10 +902,13 @@ function StegPlattform({ tx, underlag, andra }: { tx: Tx; underlag: Underlag; an
   function valjTillverkare(id: string) {
     const ny = hittaPlattform(id);
     const gammal = hittaPlattform(p.tillverkare);
+    // Programmeringsmiljön som registret fyllde i för förra tillverkaren byts
+    // mot den nyas, eller töms när den nya inte finns i registret. En miljö som
+    // kunden skrivit själv står kvar.
+    const ifylldAvRegistret = !p.miljo || p.miljo === gammal?.miljo;
     andra({
       tillverkare: id,
-      // Programmeringsmiljön fylls i ur registret om den är tom eller var förra tillverkarens.
-      miljo: ny && (!p.miljo || p.miljo === gammal?.miljo) ? ny.miljo : p.miljo,
+      miljo: ifylldAvRegistret ? (ny?.miljo ?? "") : p.miljo,
       // Språk och bussar som inte finns hos den nya tillverkaren tas bort.
       sprak: ny ? p.sprak.filter((s) => ny.sprak.includes(s)) : p.sprak,
       kommunikation: ny ? p.kommunikation.filter((k) => ny.kommunikation.includes(k)) : p.kommunikation,
@@ -1223,8 +1232,15 @@ function Postlista({ tx, rubrik, harledda, poster, prefix, etikett, onChange }: 
 function KonfliktRuta({ tx, konflikt, onAnvandSparad, onSparaMin }: {
   tx: Tx; konflikt: { rad: UnderlagRad; skillnader: Skillnad[] }; onAnvandSparad: () => void; onSparaMin: () => void;
 }) {
+  // Sparknapparna sitter längst ned; utan det här märker den som sparade
+  // inte att något hände. Rutan rullas fram och får fokus.
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    ref.current?.focus({ preventScroll: true });
+  }, [konflikt.rad.revision]);
   return (
-    <div role="alert" className="mt-4 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
+    <div ref={ref} tabIndex={-1} role="alert" className="mt-4 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm focus:outline-none">
       <p className="font-medium text-foreground">
         {tx(
           `Underlaget har sparats i ett annat fönster eller av någon annan (revision ${konflikt.rad.revision}). Dina ändringar är inte sparade.`,
