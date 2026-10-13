@@ -26,6 +26,7 @@ import { Route as LocaleProjectRouteImport } from './routes/$locale/project'
 import { Route as LocaleProfileRouteImport } from './routes/$locale/profile'
 import { Route as LocaleProductsRouteImport } from './routes/$locale/products'
 import { Route as LocalePrivacyRouteImport } from './routes/$locale/privacy'
+import { Route as LocalePlcRouteImport } from './routes/$locale/plc'
 import { Route as LocaleOrdersRouteImport } from './routes/$locale/orders'
 import { Route as LocaleOmOssRouteImport } from './routes/$locale/om-oss'
 import { Route as LocaleNewRouteImport } from './routes/$locale/new'
@@ -43,10 +44,12 @@ import { Route as LocaleAssembliesRouteImport } from './routes/$locale/assemblie
 import { Route as LocaleAppRouteImport } from './routes/$locale/app'
 import { Route as LocaleAdvisorRouteImport } from './routes/$locale/advisor'
 import { Route as LocaleAdminRouteImport } from './routes/$locale/admin'
+import { Route as LocalePlcIndexRouteImport } from './routes/$locale/plc.index'
 import { Route as LocaleGuiderIndexRouteImport } from './routes/$locale/guider.index'
 import { Route as LocaleConfiguratorIndexRouteImport } from './routes/$locale/configurator.index'
 import { Route as LocaleRfqRfqIdRouteImport } from './routes/$locale/rfq.$rfqId'
 import { Route as LocaleProductSkuRouteImport } from './routes/$locale/product.$sku'
+import { Route as LocalePlcProjektIdRouteImport } from './routes/$locale/plc.$projektId'
 import { Route as LocaleOffertRfqIdRouteImport } from './routes/$locale/offert.$rfqId'
 import { Route as LocaleOcOrderIdRouteImport } from './routes/$locale/oc.$orderId'
 import { Route as LocaleGuiderSlugRouteImport } from './routes/$locale/guider.$slug'
@@ -160,6 +163,11 @@ const LocalePrivacyRoute = LocalePrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocalePlcRoute = LocalePlcRouteImport.update({
+  id: '/plc',
+  path: '/plc',
+  getParentRoute: () => LocaleRoute,
+} as any)
 const LocaleOrdersRoute = LocaleOrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
@@ -245,6 +253,11 @@ const LocaleAdminRoute = LocaleAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocalePlcIndexRoute = LocalePlcIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LocalePlcRoute,
+} as any)
 const LocaleGuiderIndexRoute = LocaleGuiderIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -264,6 +277,11 @@ const LocaleProductSkuRoute = LocaleProductSkuRouteImport.update({
   id: '/product/$sku',
   path: '/product/$sku',
   getParentRoute: () => LocaleRoute,
+} as any)
+const LocalePlcProjektIdRoute = LocalePlcProjektIdRouteImport.update({
+  id: '/$projektId',
+  path: '/$projektId',
+  getParentRoute: () => LocalePlcRoute,
 } as any)
 const LocaleOffertRfqIdRoute = LocaleOffertRfqIdRouteImport.update({
   id: '/offert/$rfqId',
@@ -425,6 +443,7 @@ export interface FileRoutesByFullPath {
   '/$locale/new': typeof LocaleNewRoute
   '/$locale/om-oss': typeof LocaleOmOssRoute
   '/$locale/orders': typeof LocaleOrdersRoute
+  '/$locale/plc': typeof LocalePlcRouteWithChildren
   '/$locale/privacy': typeof LocalePrivacyRoute
   '/$locale/products': typeof LocaleProductsRoute
   '/$locale/profile': typeof LocaleProfileRoute
@@ -462,10 +481,12 @@ export interface FileRoutesByFullPath {
   '/$locale/guider/$slug': typeof LocaleGuiderSlugRoute
   '/$locale/oc/$orderId': typeof LocaleOcOrderIdRoute
   '/$locale/offert/$rfqId': typeof LocaleOffertRfqIdRoute
+  '/$locale/plc/$projektId': typeof LocalePlcProjektIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
   '/$locale/configurator/': typeof LocaleConfiguratorIndexRoute
   '/$locale/guider/': typeof LocaleGuiderIndexRoute
+  '/$locale/plc/': typeof LocalePlcIndexRoute
   '/$locale/admin/offert/$rfqId': typeof LocaleAdminOffertRfqIdRoute
   '/$locale/admin/orderbekraftelse/$orderId': typeof LocaleAdminOrderbekraftelseOrderIdRoute
   '/$locale/configurator/schema/$schemaId': typeof LocaleConfiguratorSchemaSchemaIdRoute
@@ -526,10 +547,12 @@ export interface FileRoutesByTo {
   '/$locale/guider/$slug': typeof LocaleGuiderSlugRoute
   '/$locale/oc/$orderId': typeof LocaleOcOrderIdRoute
   '/$locale/offert/$rfqId': typeof LocaleOffertRfqIdRoute
+  '/$locale/plc/$projektId': typeof LocalePlcProjektIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
   '/$locale/configurator': typeof LocaleConfiguratorIndexRoute
   '/$locale/guider': typeof LocaleGuiderIndexRoute
+  '/$locale/plc': typeof LocalePlcIndexRoute
   '/$locale/admin/offert/$rfqId': typeof LocaleAdminOffertRfqIdRoute
   '/$locale/admin/orderbekraftelse/$orderId': typeof LocaleAdminOrderbekraftelseOrderIdRoute
   '/$locale/configurator/schema/$schemaId': typeof LocaleConfiguratorSchemaSchemaIdRoute
@@ -557,6 +580,7 @@ export interface FileRoutesById {
   '/$locale/new': typeof LocaleNewRoute
   '/$locale/om-oss': typeof LocaleOmOssRoute
   '/$locale/orders': typeof LocaleOrdersRoute
+  '/$locale/plc': typeof LocalePlcRouteWithChildren
   '/$locale/privacy': typeof LocalePrivacyRoute
   '/$locale/products': typeof LocaleProductsRoute
   '/$locale/profile': typeof LocaleProfileRoute
@@ -594,10 +618,12 @@ export interface FileRoutesById {
   '/$locale/guider/$slug': typeof LocaleGuiderSlugRoute
   '/$locale/oc/$orderId': typeof LocaleOcOrderIdRoute
   '/$locale/offert/$rfqId': typeof LocaleOffertRfqIdRoute
+  '/$locale/plc/$projektId': typeof LocalePlcProjektIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
   '/$locale/configurator/': typeof LocaleConfiguratorIndexRoute
   '/$locale/guider/': typeof LocaleGuiderIndexRoute
+  '/$locale/plc/': typeof LocalePlcIndexRoute
   '/$locale/admin/offert/$rfqId': typeof LocaleAdminOffertRfqIdRoute
   '/$locale/admin/orderbekraftelse/$orderId': typeof LocaleAdminOrderbekraftelseOrderIdRoute
   '/$locale/configurator/schema/$schemaId': typeof LocaleConfiguratorSchemaSchemaIdRoute
@@ -626,6 +652,7 @@ export interface FileRouteTypes {
     | '/$locale/new'
     | '/$locale/om-oss'
     | '/$locale/orders'
+    | '/$locale/plc'
     | '/$locale/privacy'
     | '/$locale/products'
     | '/$locale/profile'
@@ -663,10 +690,12 @@ export interface FileRouteTypes {
     | '/$locale/guider/$slug'
     | '/$locale/oc/$orderId'
     | '/$locale/offert/$rfqId'
+    | '/$locale/plc/$projektId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
     | '/$locale/configurator/'
     | '/$locale/guider/'
+    | '/$locale/plc/'
     | '/$locale/admin/offert/$rfqId'
     | '/$locale/admin/orderbekraftelse/$orderId'
     | '/$locale/configurator/schema/$schemaId'
@@ -727,10 +756,12 @@ export interface FileRouteTypes {
     | '/$locale/guider/$slug'
     | '/$locale/oc/$orderId'
     | '/$locale/offert/$rfqId'
+    | '/$locale/plc/$projektId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
     | '/$locale/configurator'
     | '/$locale/guider'
+    | '/$locale/plc'
     | '/$locale/admin/offert/$rfqId'
     | '/$locale/admin/orderbekraftelse/$orderId'
     | '/$locale/configurator/schema/$schemaId'
@@ -757,6 +788,7 @@ export interface FileRouteTypes {
     | '/$locale/new'
     | '/$locale/om-oss'
     | '/$locale/orders'
+    | '/$locale/plc'
     | '/$locale/privacy'
     | '/$locale/products'
     | '/$locale/profile'
@@ -794,10 +826,12 @@ export interface FileRouteTypes {
     | '/$locale/guider/$slug'
     | '/$locale/oc/$orderId'
     | '/$locale/offert/$rfqId'
+    | '/$locale/plc/$projektId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
     | '/$locale/configurator/'
     | '/$locale/guider/'
+    | '/$locale/plc/'
     | '/$locale/admin/offert/$rfqId'
     | '/$locale/admin/orderbekraftelse/$orderId'
     | '/$locale/configurator/schema/$schemaId'
@@ -933,6 +967,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocalePrivacyRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/plc': {
+      id: '/$locale/plc'
+      path: '/plc'
+      fullPath: '/$locale/plc'
+      preLoaderRoute: typeof LocalePlcRouteImport
+      parentRoute: typeof LocaleRoute
+    }
     '/$locale/orders': {
       id: '/$locale/orders'
       path: '/orders'
@@ -1052,6 +1093,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAdminRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/plc/': {
+      id: '/$locale/plc/'
+      path: '/'
+      fullPath: '/$locale/plc/'
+      preLoaderRoute: typeof LocalePlcIndexRouteImport
+      parentRoute: typeof LocalePlcRoute
+    }
     '/$locale/guider/': {
       id: '/$locale/guider/'
       path: '/'
@@ -1079,6 +1127,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/$locale/product/$sku'
       preLoaderRoute: typeof LocaleProductSkuRouteImport
       parentRoute: typeof LocaleRoute
+    }
+    '/$locale/plc/$projektId': {
+      id: '/$locale/plc/$projektId'
+      path: '/$projektId'
+      fullPath: '/$locale/plc/$projektId'
+      preLoaderRoute: typeof LocalePlcProjektIdRouteImport
+      parentRoute: typeof LocalePlcRoute
     }
     '/$locale/offert/$rfqId': {
       id: '/$locale/offert/$rfqId'
@@ -1350,6 +1405,20 @@ const LocaleGuiderRouteWithChildren = LocaleGuiderRoute._addFileChildren(
   LocaleGuiderRouteChildren,
 )
 
+interface LocalePlcRouteChildren {
+  LocalePlcProjektIdRoute: typeof LocalePlcProjektIdRoute
+  LocalePlcIndexRoute: typeof LocalePlcIndexRoute
+}
+
+const LocalePlcRouteChildren: LocalePlcRouteChildren = {
+  LocalePlcProjektIdRoute: LocalePlcProjektIdRoute,
+  LocalePlcIndexRoute: LocalePlcIndexRoute,
+}
+
+const LocalePlcRouteWithChildren = LocalePlcRoute._addFileChildren(
+  LocalePlcRouteChildren,
+)
+
 interface LocaleRouteChildren {
   LocaleAdminRoute: typeof LocaleAdminRouteWithChildren
   LocaleAdvisorRoute: typeof LocaleAdvisorRoute
@@ -1368,6 +1437,7 @@ interface LocaleRouteChildren {
   LocaleNewRoute: typeof LocaleNewRoute
   LocaleOmOssRoute: typeof LocaleOmOssRoute
   LocaleOrdersRoute: typeof LocaleOrdersRoute
+  LocalePlcRoute: typeof LocalePlcRouteWithChildren
   LocalePrivacyRoute: typeof LocalePrivacyRoute
   LocaleProductsRoute: typeof LocaleProductsRoute
   LocaleProfileRoute: typeof LocaleProfileRoute
@@ -1407,6 +1477,7 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleNewRoute: LocaleNewRoute,
   LocaleOmOssRoute: LocaleOmOssRoute,
   LocaleOrdersRoute: LocaleOrdersRoute,
+  LocalePlcRoute: LocalePlcRouteWithChildren,
   LocalePrivacyRoute: LocalePrivacyRoute,
   LocaleProductsRoute: LocaleProductsRoute,
   LocaleProfileRoute: LocaleProfileRoute,

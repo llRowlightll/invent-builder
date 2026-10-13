@@ -74,12 +74,14 @@ function LocaleLayout() {
   const { user, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
+  const [kontoOpen, setKontoOpen] = useState(false);
   // undefined = inte läst än. Kakan läses först i webbläsaren, och tills dess
   // visas ingen banner. Förut var startläget null ("inget val"), så servern
   // ritade alltid bannern och den blinkade till vid varje sidladdning även för
   // den som redan valt (granskning 2026-10-02).
   const [cookieConsent, setCookieConsent] = useState<string | null | undefined>(undefined);
   const langRef = useRef<HTMLDivElement>(null);
+  const kontoRef = useRef<HTMLDivElement>(null);
   const listCount = useShoppingListCount();
 
   // Egen mätning: varifrån besöket kom (LinkedIn, Google, direkt). En gång per
@@ -111,10 +113,16 @@ function LocaleLayout() {
       if (langRef.current && !langRef.current.contains(e.target as Node)) {
         setLangOpen(false);
       }
+      if (kontoRef.current && !kontoRef.current.contains(e.target as Node)) {
+        setKontoOpen(false);
+      }
     }
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
+
+  // Kontomenyn stängs när man byter sida.
+  useEffect(() => setKontoOpen(false), [path]);
 
   // Bekräftelse när något läggs i korgen. Förut var den enda signalen en
   // siffra vid korgikonen, och det var lätt att tro att klicket inte gjort
@@ -153,6 +161,7 @@ function LocaleLayout() {
     { to: "/$locale/products", label: t("nav.products") },
     { to: "/$locale/replace", label: t("nav.replace") },
     { to: "/$locale/configure", label: t("nav.configurator") },
+    { to: "/$locale/plc", label: t("nav.plcKort") },
     { to: "/$locale/advisor", label: t("nav.advisor") },
     { to: "/$locale/guider", label: t("nav.guides") },
     { to: "/$locale/compare", label: t("nav.compare") },
@@ -182,14 +191,14 @@ function LocaleLayout() {
           </Link>
 
           {/* Desktop nav */}
-          <nav className="hidden lg:flex items-center gap-1 text-sm text-primary-foreground/75 ml-2">
+          <nav className="hidden xl:flex items-center gap-0.5 text-sm text-primary-foreground/75 ml-2">
             {navLinks.map((l) => (
               <Link
                 key={l.to}
                 to={l.to as never}
                 params={{ locale } as never}
                 activeProps={{ className: "bg-primary-foreground/15 text-primary-foreground" }}
-                className="px-3 py-1.5 rounded-md hover:bg-primary-foreground/10 hover:text-primary-foreground transition"
+                className="whitespace-nowrap px-2.5 py-1.5 rounded-md hover:bg-primary-foreground/10 hover:text-primary-foreground transition"
               >
                 {l.label}
               </Link>
@@ -201,7 +210,7 @@ function LocaleLayout() {
             <Link
               to="/$locale/machine-builder"
               params={{ locale }}
-              className="hidden sm:inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-gold text-primary font-semibold hover:opacity-90 transition"
+              className="hidden sm:inline-flex items-center gap-1.5 whitespace-nowrap text-xs px-3 py-1.5 rounded-md bg-gold text-primary font-semibold hover:opacity-90 transition"
             >
               ✦ {t("nav.machineBuilder")}
             </Link>
@@ -283,30 +292,56 @@ function LocaleLayout() {
                     </Link>
                   </>
                 )}
-                <Link to={"/$locale/projects" as never} params={{ locale } as never}
-                  className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
-                  {t("projects.title")}
-                </Link>
-                <Link to={"/$locale/orders" as never} params={{ locale } as never}
-                  className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
-                  {t("ordersPage.myOrders")}
-                </Link>
-                <Link to={"/$locale/profile" as never} params={{ locale } as never}
-                  className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
-                  {t("nav.profile")}
-                </Link>
-                <button
-                  onClick={async () => { await signOut(); navigate({ to: "/$locale", params: { locale } }); }}
-                  className="text-sm px-3 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10"
-                >
-                  {t("common.signOut")}
-                </button>
+                {/* Projekt, ordrar, profil och utloggning i en meny: som fyra
+                    knappar tog de så mycket plats att sidhuvudet flödade över
+                    när menyraden fick sitt sjunde val. */}
+                <div className="relative" ref={kontoRef}>
+                  <button
+                    type="button"
+                    onClick={() => setKontoOpen((o) => !o)}
+                    onKeyDown={(e) => { if (e.key === "Escape") setKontoOpen(false); }}
+                    aria-expanded={kontoOpen}
+                    aria-controls="kontomeny"
+                    className="flex items-center gap-1.5 whitespace-nowrap text-sm px-3 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10"
+                  >
+                    {t("nav.konto")}
+                    <span className="text-primary-foreground/50" aria-hidden>▾</span>
+                  </button>
+                  {kontoOpen && (
+                    <div
+                      id="kontomeny"
+                      onKeyDown={(e) => { if (e.key === "Escape") setKontoOpen(false); }}
+                      className="absolute right-0 top-full mt-1 z-50 rounded-lg border border-border bg-card shadow-lg py-1 min-w-[180px]"
+                    >
+                      <Link to={"/$locale/projects" as never} params={{ locale } as never}
+                        className="block px-3 py-1.5 text-sm text-foreground hover:bg-surface-alt">
+                        {t("projects.title")}
+                      </Link>
+                      <Link to={"/$locale/orders" as never} params={{ locale } as never}
+                        className="block px-3 py-1.5 text-sm text-foreground hover:bg-surface-alt">
+                        {t("ordersPage.myOrders")}
+                      </Link>
+                      <Link to={"/$locale/profile" as never} params={{ locale } as never}
+                        className="block px-3 py-1.5 text-sm text-foreground hover:bg-surface-alt">
+                        {t("nav.profile")}
+                      </Link>
+                      <div className="my-1 border-t border-border" />
+                      <button
+                        type="button"
+                        onClick={async () => { setKontoOpen(false); await signOut(); navigate({ to: "/$locale", params: { locale } }); }}
+                        className="w-full text-left px-3 py-1.5 text-sm text-foreground hover:bg-surface-alt"
+                      >
+                        {t("common.signOut")}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <Link
                 to="/$locale/login"
                 params={{ locale }}
-                className="hidden sm:block text-sm px-3 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10"
+                className="hidden sm:block whitespace-nowrap text-sm px-3 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10"
               >
                 {t("auth.submitLogin")}
               </Link>
@@ -314,7 +349,7 @@ function LocaleLayout() {
 
             {/* Mobile hamburger */}
             <button
-              className="lg:hidden p-2 rounded-md hover:bg-primary-foreground/10"
+              className="xl:hidden p-2 rounded-md hover:bg-primary-foreground/10"
               onClick={() => setMenuOpen((o) => !o)}
               aria-label={t("nav.menu")}
             >
@@ -327,7 +362,7 @@ function LocaleLayout() {
 
         {/* Mobile menu */}
         {menuOpen && (
-          <div className="lg:hidden border-t border-primary-foreground/15 bg-primary px-4 py-3 space-y-1">
+          <div className="xl:hidden border-t border-primary-foreground/15 bg-primary px-4 py-3 space-y-1">
             {navLinks.map((l) => (
               <Link
                 key={l.to}
@@ -363,6 +398,16 @@ function LocaleLayout() {
             <div className="pt-2 border-t border-primary-foreground/15">
               {user ? (
                 <>
+                  {/* På telefon syns inte kontomenyn i sidhuvudet; projekten och
+                      ordrarna nås härifrån. */}
+                  <Link to={"/$locale/projects" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
+                    className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
+                    {t("projects.title")}
+                  </Link>
+                  <Link to={"/$locale/orders" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
+                    className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
+                    {t("ordersPage.myOrders")}
+                  </Link>
                   <Link to={"/$locale/profile" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
                     className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                     {t("nav.profile")}
@@ -465,6 +510,7 @@ function LocaleLayout() {
               <li><Link to="/$locale/compare" params={{ locale }} className="hover:text-info">{t("nav.compare")}</Link></li>
               <li><Link to="/$locale/advisor" params={{ locale }} search={{ q: undefined }} className="hover:text-info">{t("nav.advisor")}</Link></li>
               <li><Link to="/$locale/machine-builder" params={{ locale }} className="hover:text-info">{t("nav.machineBuilder")}</Link></li>
+              <li><Link to="/$locale/plc" params={{ locale }} className="hover:text-info">{t("nav.plc")}</Link></li>
               {isAdmin && <li><Link to="/$locale/admin/import" params={{ locale }} className="hover:text-info">{t("footer.importAdmin")}</Link></li>}
             </ul>
           </div>

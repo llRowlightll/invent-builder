@@ -205,6 +205,11 @@ function MachineBuilderPage() {
   const [rfqPoNumber, setRfqPoNumber] = useState("");
   const [rfqOrgNumber, setRfqOrgNumber] = useState("");
   const [autoSaved, setAutoSaved] = useState(false);
+  // Projektet som resultatet sparats i. PLC-modulen (ingång A) öppnas på det.
+  const [projektId, setProjektId] = useState<string | null>(null);
+  // Det som senast skrevs till projektet: beskrivning, svar och stycklistans
+  // artiklar. Ändras resultatet efter sparningen uppdateras samma projekt.
+  const sparatInnehall = useRef("");
 
   useEffect(() => { loadCatalog().then(setCatalog).catch(() => {}); }, []);
 
@@ -227,10 +232,16 @@ function MachineBuilderPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Auto-save BOM as project when result step is reached (logged-in users only)
+  // Auto-save BOM as project when result step is reached (logged-in users only).
+  // Väljer användaren sedan ett annat alternativ uppdateras samma projekt i
+  // stället för att resultatet och det sparade projektet glider isär. Projektet
+  // får då en ny revision, och ett PLC-underlag som bygger på det visar att
+  // kraven ändrats.
   useEffect(() => {
-    if (step !== "result" || !user || autoSaved || bom.length === 0) return;
-    const name = bomTitle || `Maskinbyggare — ${new Date().toLocaleDateString("sv-SE")}`;
+    if (step !== "result" || !user || bom.length === 0) return;
+    const innehall = projektinnehall(description, answers, bom);
+    if (innehall === sparatInnehall.current) return;
+    sparatInnehall.current = innehall;
     const bomSnapshot = bom.map(l => ({
       sku: l.sku, role: l.role, qty: l.quantity,
       name: l.product?.name ?? l.sku,
@@ -240,19 +251,30 @@ function MachineBuilderPage() {
     // sparas då ändå via bom_lines-snapshotten, precis som förut.
     void (async () => {
       const bomId = await saveBomNormalized(user.id, bom, description, connections);
-      await supabase.from("projects").insert({
-        user_id: user.id,
-        name,
-        description: description.trim() || null,
-        locale,
-        answers,
-        bom_lines: bomSnapshot,
-        bom_id: bomId,
-      });
+      if (projektId) {
+        await supabase.from("projects").update({
+          description: description.trim() || null,
+          answers,
+          bom_lines: bomSnapshot,
+          bom_id: bomId,
+        }).eq("id", projektId);
+      } else {
+        const name = bomTitle || `Maskinbyggare — ${new Date().toLocaleDateString("sv-SE")}`;
+        const { data } = await supabase.from("projects").insert({
+          user_id: user.id,
+          name,
+          description: description.trim() || null,
+          locale,
+          answers,
+          bom_lines: bomSnapshot,
+          bom_id: bomId,
+        }).select("id").single();
+        if (data) setProjektId(data.id);
+      }
       setAutoSaved(true);
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, user]);
+  }, [step, user, bom]);
 
   // Fix 3: Ladda sparat projekt från sessionStorage (navigering från /projects)
   useEffect(() => {
@@ -268,6 +290,15 @@ function MachineBuilderPage() {
       // Fyll i beskrivning och hoppa till resultatsteget
       setDescription(proj.description ?? proj.name);
       setAnswers(proj.answers ?? {});
+      // Ett sparat projekt öppnas som sig självt: autosparningen ska inte
+      // skapa en kopia av det. Utan id (en gäst som loggat in mitt i
+      // resultatet) sparas det som ett nytt projekt.
+      if (proj.id) {
+        setProjektId(proj.id);
+        setAutoSaved(true);
+        sparatInnehall.current = projektinnehall(proj.description ?? proj.name, proj.answers ?? {},
+          (proj.bom_lines ?? []).map(l => ({ sku: l.sku, role: l.role, quantity: l.qty })));
+      }
       // Rekonstruera BOM-rader
       const loadedBom: BomLine[] = (proj.bom_lines ?? []).map(l => ({
         sku: l.sku,
@@ -390,6 +421,9 @@ function MachineBuilderPage() {
   }
 
   function restart() {
+    setProjektId(null);
+    setAutoSaved(false);
+    sparatInnehall.current = "";
     setStep("describe");
     setDescription("");
     setQuestions([]);
@@ -503,6 +537,12 @@ function MachineBuilderPage() {
           rfqSent={rfqSent}
           rfqId={rfqId}
           autoSaved={autoSaved}
+          projektId={projektId}
+          onProjektSparat={(id) => {
+            setProjektId(id);
+            setAutoSaved(true);
+            sparatInnehall.current = projektinnehall(description, answers, bom);
+          }}
           setRfqName={setRfqName}
           setRfqEmail={setRfqEmail}
           setRfqCompany={setRfqCompany}
@@ -1594,14 +1634,24 @@ function findAlternativesTiered(
   return { economic, best, compact };
 }
 
+/**
+ * Det som avgör om ett sparat projekt behöver skrivas om: beskrivningen,
+ * svaren och stycklistans artiklar. Produktnamn och katalogdata ingår inte --
+ * de fylls i efter laddning och ska inte ge projektet en ny revision.
+ */
+function projektinnehall(description: string, answers: Record<string, string>, bom: Array<{ sku: string; role: string; quantity: number }>): string {
+  return JSON.stringify({ d: description.trim(), a: answers, b: bom.map(l => [l.sku, l.role, l.quantity]) });
+}
+
 // ── Result Step ─────────────────────────────────────────────────────────────
 function ResultStep({ t, locale, title, explanation, selected, requirements, bom, dom, connections, catalog, description, answers,
-  rfqName, rfqEmail, rfqCompany, rfqPhone, rfqPoNumber, rfqOrgNumber, rfqSent, rfqId, autoSaved,
+  rfqName, rfqEmail, rfqCompany, rfqPhone, rfqPoNumber, rfqOrgNumber, rfqSent, rfqId, autoSaved, projektId, onProjektSparat,
   setRfqName, setRfqEmail, setRfqCompany, setRfqPhone, setRfqPoNumber, setRfqOrgNumber, setRfqSent, setRfqId, onRestart, onBack }: {
   t: (key: import("@/lib/i18n").TKey) => string; locale: string; title: string; explanation: string;
   selected: ActuatorOption; requirements: Requirements | null; bom: BomLine[]; dom: Dom | null; connections: BomConnection[]; catalog: ProductRow[]; description: string; answers: Record<string, string>;
   rfqName: string; rfqEmail: string; rfqCompany: string; rfqPhone: string; rfqPoNumber: string; rfqOrgNumber: string;
   rfqSent: boolean; rfqId: string; autoSaved: boolean;
+  projektId: string | null; onProjektSparat: (id: string) => void;
   setRfqName: (v: string) => void; setRfqEmail: (v: string) => void;
   setRfqCompany: (v: string) => void; setRfqPhone: (v: string) => void; setRfqPoNumber: (v: string) => void;
   setRfqOrgNumber: (v: string) => void;
@@ -1648,20 +1698,31 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
   async function saveProject() {
     if (!user || !projectName.trim()) return;
     setProjectSaving(true);
-    const bomSnapshot = activeBom.map(l => ({
-      sku: l.sku, role: l.role, qty: l.quantity,
-      name: l.product?.name ?? l.sku,
-    }));
-    const bomId = await saveBomNormalized(user.id, activeBom, projectDesc, connections);
-    await supabase.from("projects").insert({
-      user_id: user.id,
-      name: projectName.trim(),
-      description: projectDesc.trim() || null,
-      locale,
-      answers,
-      bom_lines: bomSnapshot,
-      bom_id: bomId,
-    });
+    if (projektId) {
+      // "Byt namn" på det autosparade projektet byter namn på det -- förut
+      // skapades en kopia med det nya namnet, och anteckningen ersatte
+      // maskinens beskrivning i kopian.
+      await supabase.from("projects").update({ name: projectName.trim() }).eq("id", projektId);
+    } else {
+      const bomSnapshot = activeBom.map(l => ({
+        sku: l.sku, role: l.role, qty: l.quantity,
+        name: l.product?.name ?? l.sku,
+      }));
+      // Anteckningen följer stycklistan; projektets beskrivning är maskinens,
+      // så att projektet öppnas med rätt beskrivning och PLC-modulen läser
+      // rätt krav.
+      const bomId = await saveBomNormalized(user.id, activeBom, projectDesc, connections);
+      const { data } = await supabase.from("projects").insert({
+        user_id: user.id,
+        name: projectName.trim(),
+        description: description.trim() || null,
+        locale,
+        answers,
+        bom_lines: bomSnapshot,
+        bom_id: bomId,
+      }).select("id").single();
+      if (data) onProjektSparat(data.id);
+    }
     setProjectSaving(false);
     setProjectSaved(true);
     setShowSaveModal(false);
@@ -2128,7 +2189,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
               </Link>
               {autoSaved && !projectSaved && (
                 <button
-                  onClick={() => setShowSaveModal(true)}
+                  onClick={() => { setProjectName(title || ""); setShowSaveModal(true); }}
                   className="ml-1 text-xs text-muted-foreground hover:text-foreground underline"
                 >
                   {t("projects.rename" as never)}
@@ -2151,13 +2212,64 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
         )}
       </div>
 
+      {/* Ingång A till PLC-modulen: kraven och komponenterna följer med projektet. */}
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+        <h3 className="font-semibold text-foreground">
+          {locale === "sv" ? "Komplettera maskinen med styrning och programmering" : "Complete the machine with control and programming"}
+        </h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          {locale === "sv"
+            ? "Vi återanvänder maskinens krav och komponenter. Du kompletterar endast det som saknas."
+            : "We reuse the machine's requirements and components. You only add what is missing."}
+        </p>
+        <div className="mt-3">
+          {user ? (
+            projektId ? (
+              <Link
+                to="/$locale/plc/$projektId"
+                params={{ locale: locale as Locale, projektId }}
+                className="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition"
+              >
+                {locale === "sv" ? "Lägg till PLC & programmering" : "Add PLC & programming"}
+              </Link>
+            ) : (
+              <span className="text-sm text-muted-foreground" aria-live="polite">
+                {locale === "sv" ? "Sparar projektet …" : "Saving the project …"}
+              </span>
+            )
+          ) : (
+            <Link
+              to="/$locale/login"
+              params={{ locale: locale as Locale }}
+              search={{ redirect: `/${locale}/machine-builder` }}
+              onClick={() => {
+                // Resultatet följer med genom inloggningen och sparas sedan
+                // som ett nytt projekt (inget id), så att PLC-modulen kan öppnas.
+                try {
+                  sessionStorage.setItem("mv_load_project", JSON.stringify({
+                    id: "", name: title || selected.name, description, answers, locale,
+                    bom_lines: activeBom.map(l => ({ sku: l.sku, role: l.role, qty: l.quantity, name: l.product?.name ?? l.sku })),
+                  }));
+                } catch {
+                  // sessionStorage kan vara blockerat i privat läge
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-primary text-primary text-sm font-medium hover:bg-primary hover:text-primary-foreground transition"
+            >
+              <Lock className="size-4" aria-hidden />
+              {locale === "sv" ? "Logga in och lägg till PLC & programmering" : "Sign in and add PLC & programming"}
+            </Link>
+          )}
+        </div>
+      </div>
+
       {/* Save project modal */}
       {showSaveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={() => setShowSaveModal(false)}>
           <div className="bg-card rounded-xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-foreground">{t("projects.modalTitle")}</h2>
+              <h2 className="font-semibold text-foreground">{projektId ? t("projects.rename" as never) : t("projects.modalTitle")}</h2>
               <button onClick={() => setShowSaveModal(false)} className="text-muted-foreground hover:text-foreground text-xl">✕</button>
             </div>
             <div className="space-y-3">
@@ -2171,7 +2283,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
                   className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>
-              <div>
+              {!projektId && <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Anteckning</label>
                 <textarea
                   value={projectDesc}
@@ -2180,7 +2292,7 @@ function ResultStep({ t, locale, title, explanation, selected, requirements, bom
                   rows={2}
                   className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
                 />
-              </div>
+              </div>}
             </div>
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setShowSaveModal(false)}
