@@ -1,4 +1,5 @@
 import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
+import { harLogga } from "@/lib/brand-logos";
 import { useEffect, useState } from "react";
 import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
@@ -223,7 +224,7 @@ function ProductDetail() {
 
       <div className="mt-4 grid md:grid-cols-[1fr_260px] gap-4 md:gap-6">
         <div>
-          <div className="rounded-xl overflow-hidden border border-border mb-5 aspect-[16/7] bg-[#f8f9fb] flex items-center justify-center">
+          <div className="kort overflow-hidden mb-5 aspect-[16/7] bg-[#f8f9fb] flex items-center justify-center px-6">
             <img
               src={getProductImage(product)}
               alt={categoryName(product.category.slug, locale, product.category.name)}
@@ -231,13 +232,13 @@ function ProductDetail() {
             />
           </div>
           <BrandBadge slug={product.brand.slug} name={product.brand.name} />
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{produktnamn(product, locale)}</h1>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-primary">{produktnamn(product, locale)}</h1>
           <div className="mt-2.5">
             <ArticleNumber value={product.sku} copyable locale={locale} />
           </div>
           {beskrivning(product, locale) && <p className="mt-4 text-sm text-foreground/80 leading-relaxed">{beskrivning(product, locale)}</p>}
         </div>
-        <aside className="rounded-lg border border-border bg-surface-alt p-4 space-y-3 text-sm">
+        <aside className="kort p-4 space-y-3 text-sm md:sticky md:top-20 md:self-start">
           <Row k={t("productPage.category")} v={categoryName(product.category.slug, locale, product.category.name)} />
           {product.ip_rating && <Row k="IP" v={product.ip_rating} />}
           {product.fieldbus && <Row k={t("productPage.fieldbus")} v={product.fieldbus} />}
@@ -249,10 +250,10 @@ function ProductDetail() {
               setAddedToCart(true);
               setTimeout(() => setAddedToCart(false), 2000);
             }}
-            className={`block w-full text-center mt-2 px-3 py-2 rounded-md text-sm font-semibold transition ${
+            className={`block w-full text-center mt-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-[background-color,transform] ${
               addedToCart
                 ? "bg-success/15 text-success-deep"
-                : "bg-info text-primary-foreground hover:opacity-90"
+                : "bg-cta text-cta-foreground shadow-xs hover:bg-cta-hover active:translate-y-px"
             }`}
           >
             {addedToCart ? t("productPage.addedToCart") : t("productPage.addToCart")}
@@ -261,7 +262,7 @@ function ProductDetail() {
             <Link
               to="/$locale/configurator/$family"
               params={{ locale, family: configSlug }}
-              className="flex items-center justify-center gap-2 w-full text-center mt-2 px-3 py-2 rounded-md bg-foreground text-background text-sm font-semibold hover:opacity-90 transition"
+              className="flex items-center justify-center gap-2 w-full text-center mt-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
             >
               <Settings className="size-4" aria-hidden /> {t("common.configure")}
             </Link>
@@ -270,7 +271,7 @@ function ProductDetail() {
             to="/$locale/compare"
             params={{ locale }}
             search={{ skus: product.sku }}
-            className="block text-center mt-2 px-3 py-2 rounded-md border border-border text-muted-foreground text-sm hover:border-info hover:text-info transition"
+            className="block text-center mt-2 px-3 py-2 rounded-lg border border-border bg-surface text-foreground/80 text-sm hover:border-cta/40 hover:text-foreground transition-colors"
           >
             {t("common.compare")}
           </Link>
@@ -282,7 +283,7 @@ function ProductDetail() {
                 href={lank.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full text-center mt-2 px-3 py-2 rounded-md border border-border text-sm text-foreground hover:border-info hover:text-info transition"
+                className="flex items-center justify-center gap-2 w-full text-center mt-2 px-3 py-2 rounded-lg border border-border bg-surface text-sm text-foreground hover:border-cta/40 transition-colors"
               >
                 <ExternalLink className="size-4" aria-hidden /> {lank.text}
               </a>
@@ -303,7 +304,7 @@ function ProductDetail() {
                 addToShoppingList({ id: product.id, sku: product.sku, name: produktnamn(product, locale) });
                 navigate({ to: "/$locale/shopping-list", params: { locale } });
               }}
-              className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-md border border-border text-sm text-foreground hover:border-info hover:text-info transition"
+              className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg border border-border bg-surface text-sm text-foreground hover:border-cta/40 transition-colors"
             >
               <FileText className="size-4" aria-hidden /> {t("productPage.requestQuote")}
             </button>
@@ -320,8 +321,8 @@ function ProductDetail() {
         </aside>
       </div>
 
-      <section className="mt-6 rounded-lg border border-border bg-card p-4 space-y-2 text-sm">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-3">{t("productPage.priceSection")}</h2>
+      <section className="mt-6 kort p-4 sm:p-5 space-y-2 text-sm">
+        <h2 className="text-sm font-semibold text-foreground mb-3">{t("productPage.priceSection")}</h2>
         {/* Visade "Kontakta oss" även när en uppskattning fanns. Nu visas
             uppskattningen där den finns, märkt som en sådan -- 40 % av
             katalogen delar samma 21 dagar, så siffran är inte bekräftad. */}
@@ -437,18 +438,11 @@ function ProductMini({ p, locale, as: El = "li" }: { p: ProductRow; locale: stri
 }
 
 function BrandBadge({ slug, name }: { slug: string; name: string }) {
-  const [imgOk, setImgOk] = useState(true);
-  return imgOk ? (
+  return harLogga(slug) ? (
     <div className="mb-1">
-      <img
-        src={`/brands/${slug}.svg`}
-        alt={name}
-        onError={() => setImgOk(false)}
-        className="h-7 object-contain"
-        loading="eager"
-      />
+      <img src={`/brands/${slug}.svg`} alt={name} className="h-7 object-contain" loading="eager" />
     </div>
   ) : (
-    <div className="text-xs uppercase tracking-[0.18em] text-info font-medium">{name}</div>
+    <div className="text-sm font-bold tracking-tight text-foreground">{name}</div>
   );
 }

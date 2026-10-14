@@ -440,12 +440,12 @@ function ProductsPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
         <div>
-          <h1 className="text-xl md:text-2xl font-semibold tracking-tight">{t("nav.products")}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-primary">{t("nav.products")}</h1>
           <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
             {filtered.length} {t("products.of")} {items.length} {t("products.count")}
             {familjefall && (
               <span className="ml-2 text-warning-deep">
-                — inga träffar på hela koden, visar familjen <strong>{familjefall.toUpperCase()}</strong>
+                Inga träffar på hela koden; visar familjen <strong>{familjefall.toUpperCase()}</strong>
               </span>
             )}
           </p>
@@ -453,17 +453,17 @@ function ProductsPage() {
         <Link
           to="/$locale/compare"
           params={{ locale }}
-          className="text-xs md:text-sm px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:border-info hover:text-info transition"
+          className="text-sm px-3 py-1.5 rounded-lg border border-border bg-surface text-foreground/80 shadow-xs hover:border-cta/40 hover:text-foreground transition-colors"
         >
           ⟷ {t("nav.compare")}
         </Link>
       </div>
 
       {/* AI search bar */}
-      <div className="rounded-xl border border-border bg-card p-4 mb-4">
+      <div className="arbetsyta p-4 mb-4 sm:p-5">
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-[10px] uppercase tracking-[0.18em] font-medium text-info">{t("productsPage.aiSearchLabel")}</span>
-          <span className="text-[10px] text-muted-foreground">{t("productsPage.aiSearchDesc")}</span>
+          <span className="text-xs font-semibold text-foreground">{t("productsPage.aiSearchLabel")}</span>
+          <span className="text-xs text-muted-foreground">{t("productsPage.aiSearchDesc")}</span>
         </div>
         <form onSubmit={handleAiSubmit} className="flex gap-2">
           <input
@@ -472,12 +472,12 @@ function ProductsPage() {
             onChange={(e) => setQ(e.target.value)}
             onFocus={() => setAiMode(true)}
             placeholder={t("productsPage.aiSearchPlaceholder")}
-            className="flex-1 px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
+            className="flex-1 min-w-0 h-11 px-3 rounded-lg border border-input bg-surface text-sm focus:outline-none focus:ring-2 focus:ring-cta/40"
           />
           <button
             type="submit"
             disabled={aiLoading}
-            className="px-4 py-2.5 rounded-md bg-info text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
+            className="h-11 px-4 rounded-lg bg-cta text-cta-foreground text-sm font-semibold shadow-xs hover:bg-cta-hover active:translate-y-px disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none flex items-center gap-1.5 transition-[background-color,transform]"
           >
             {aiLoading ? (
               <><span className="size-3 rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground animate-spin" />{t("productsPage.analyzing")}</>
@@ -485,7 +485,7 @@ function ProductsPage() {
           </button>
           {(aiResult || activeFilterCount > 0) && (
             <button type="button" onClick={clearAi}
-              className="px-3 py-2.5 rounded-md border border-border text-sm text-muted-foreground hover:border-info hover:text-foreground">
+              className="h-11 px-3 rounded-lg border border-border bg-surface text-sm text-muted-foreground hover:border-cta/40 hover:text-foreground">
               {t("products.clearFilters")}
             </button>
           )}
@@ -577,7 +577,7 @@ function ProductsPage() {
           const name = allBrands.find(([s]) => s === b)?.[1] ?? b;
           return (
             <button key={b} onClick={() => toggleSet(brands, b, setBrands)}
-              className="text-xs px-3 py-1.5 rounded-full bg-info/10 text-info border border-info/30 hover:bg-info/20 transition flex items-center gap-1">
+              className="text-xs px-3 py-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center gap-1">
               {name} ×
             </button>
           );
@@ -586,32 +586,32 @@ function ProductsPage() {
           const name = allCats.find(([s]) => s === c)?.[1] ?? c;
           return (
             <button key={c} onClick={() => toggleSet(cats, c, setCats)}
-              className="text-xs px-3 py-1.5 rounded-full bg-info/10 text-info border border-info/30 hover:bg-info/20 transition flex items-center gap-1">
+              className="text-xs px-3 py-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center gap-1">
               {name} ×
             </button>
           );
         })}
         {grades.size > 0 && Array.from(grades).map((g) => (
           <button key={g} onClick={() => toggleSet(grades, g, setGrades)}
-            className="text-xs px-3 py-1.5 rounded-full bg-info/10 text-info border border-info/30 hover:bg-info/20 transition flex items-center gap-1">
+            className="text-xs px-3 py-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center gap-1">
             {g === "HIGH" ? t("products.inStock") : g === "MEDIUM" ? t("products.standard") : t("products.onOrder")} ×
           </button>
         ))}
       </div>
 
       {/* Product grid */}
-      <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+      <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((p) => {
             const g = gradeOf(p);
             return (
               <li
                 key={p.id}
-                className="group rounded-lg border border-border bg-card flex flex-row sm:flex-col transition overflow-hidden hover:border-info"
+                className="kort group flex flex-row sm:flex-col overflow-hidden transition-shadow hover:shadow-md"
               >
                 {/* Liggande kort på telefon: en liten ritning bredvid texten.
                     Det stående kortet fyllde nästan hela skärmhöjden, så 842
                     artiklar blev lika många skärmar att skrolla. */}
-                <div className="relative w-28 shrink-0 sm:w-auto aspect-[4/3] sm:aspect-[3/2] overflow-hidden bg-[#f8f9fb] flex items-center justify-center">
+                <div className="relative w-28 shrink-0 sm:w-auto aspect-[4/3] sm:aspect-auto sm:h-32 overflow-hidden bg-[#f8f9fb] flex items-center justify-center sm:px-8">
                   <img
                     src={getProductImage(p)}
                     alt={categoryName(p.category.slug, locale, p.category.name)}
@@ -624,14 +624,14 @@ function ProductsPage() {
                   <Link
                     to="/$locale/product/$sku"
                     params={{ locale, sku: p.sku }}
-                    className="font-medium text-foreground hover:text-info line-clamp-2 transition"
+                    className="font-semibold text-foreground hover:text-info line-clamp-2 transition-colors"
                   >
                     {produktnamn(p, locale)}
                   </Link>
                 </div>
 
                 <div className="mt-2 flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-medium text-info">{p.brand.name}</span>
+                  <span className="text-xs font-medium text-gold-deep">{p.brand.name}</span>
                   <span className="text-xs text-muted-foreground">·</span>
                   <span className="text-xs text-muted-foreground">{categoryName(p.category.slug, locale, p.category.name)}</span>
                 </div>
@@ -642,7 +642,7 @@ function ProductsPage() {
                     {synligaSpecar(p.specs).slice(0, 3).map(([k, v]) => (
                       <span
                         key={k}
-                        className="text-[10px] bg-surface-alt px-1.5 py-0.5 rounded text-muted-foreground"
+                        className="text-[11px] bg-muted px-1.5 py-0.5 rounded-md text-muted-foreground"
                       >
                         {specEtikett(k, locale)}: {specVarde(k, v)}
                       </span>
@@ -656,14 +656,14 @@ function ProductsPage() {
 
                 <div className="mt-3 font-mono text-[11px] text-muted-foreground">{p.sku}</div>
 
-                <div className="mt-auto pt-3 border-t border-border">
+                <div className="mt-auto pt-3 border-t border-line">
                   <div className="flex items-center gap-3 mt-0">
                     <Link
                       to="/$locale/product/$sku"
                       params={{ locale, sku: p.sku }}
                       className="text-xs text-info hover:underline font-medium"
                     >
-                      {t("productsPage.datasheet")} →
+                      {t("productsPage.datasheet")}
                     </Link>
                     <button
                       onClick={() => quickAddToList(p)}

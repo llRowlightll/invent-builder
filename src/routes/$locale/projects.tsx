@@ -121,7 +121,7 @@ function ProjectsPage() {
       <div className="container-page py-20 text-center">
         <p className="text-muted-foreground mb-4">{t("projects.notLoggedIn")}</p>
         <Link to="/$locale/login" params={{ locale }}
-          className="inline-block px-6 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition">
+          className="inline-flex h-10 items-center px-6 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
           {t("auth.submitLogin")}
         </Link>
       </div>
@@ -133,17 +133,17 @@ function ProjectsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">{t("projects.title")}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-primary">{t("projects.title")}</h1>
           <p className="text-sm text-muted-foreground mt-1">{t("projects.subtitle")}</p>
         </div>
         <Link to="/$locale/machine-builder" params={{ locale }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition">
+          className="inline-flex h-10 items-center gap-2 px-4 rounded-lg bg-cta text-cta-foreground text-sm font-semibold shadow-xs hover:bg-cta-hover active:translate-y-px transition-[background-color,transform]">
           ✦ {t("nav.machineBuilder")}
         </Link>
       </div>
 
       {/* Portal tabs */}
-      <div className="flex gap-1 mb-8 border-b border-border">
+      <div className="flex gap-1 mb-8 border-b border-line">
         {[
           { to: "/$locale/projects", label: t("projects.title") },
           { to: "/$locale/orders",   label: t("ordersPage.myOrders") },
@@ -161,15 +161,15 @@ function ProjectsPage() {
       {/* Project list */}
       {loading ? (
         <div className="space-y-3">
-          {[1, 2, 3].map((i) => <div key={i} className="h-28 bg-muted rounded-xl animate-pulse" />)}
+          {[1, 2, 3].map((i) => <div key={i} className="kort h-28 animate-pulse bg-muted/60" />)}
         </div>
       ) : projects.length === 0 ? (
-        <div className="text-center py-20 border-2 border-dashed border-border rounded-xl">
+        <div className="kort text-center py-16 px-6">
           <Ruler className="size-10 mx-auto mb-3 text-muted-foreground" aria-hidden />
           <p className="text-muted-foreground text-sm">{t("projects.empty")}</p>
           <Link to="/$locale/machine-builder" params={{ locale }}
-            className="mt-4 inline-block text-sm text-primary hover:underline">
-            ✦ {t("nav.machineBuilder")} →
+            className="mt-5 inline-flex h-10 items-center gap-1.5 rounded-lg bg-cta px-4 text-sm font-semibold text-cta-foreground shadow-xs hover:bg-cta-hover active:translate-y-px transition-[background-color,transform]">
+            ✦ {t("nav.machineBuilder")}
           </Link>
         </div>
       ) : (
@@ -179,17 +179,17 @@ function ProjectsPage() {
             const isExpanded = expandedId === project.id;
 
             return (
-              <div key={project.id} className="bg-card border border-border rounded-xl overflow-hidden hover:border-primary/40 transition">
+              <div key={project.id} className="kort overflow-hidden transition-shadow hover:shadow-md">
                 {/* Header row */}
                 <div className="p-5">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-foreground truncate">{project.name}</span>
+                        <span className="font-semibold text-foreground break-words">{project.name}</span>
                         <span className="text-xs text-muted-foreground">{lines.length} {t("projects.bomLines")}</span>
                       </div>
                       {project.description && (
-                        <p className="text-sm text-muted-foreground mt-1 truncate">{project.description}</p>
+                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{project.description}</p>
                       )}
                       <p className="text-xs text-muted-foreground mt-1">
                         {t("projects.createdAt")}{" "}
@@ -203,7 +203,7 @@ function ProjectsPage() {
                       {/* Expand BOM */}
                       <button
                         onClick={() => setExpandedId(isExpanded ? null : project.id)}
-                        className="px-3 py-1.5 text-xs font-medium rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-primary/50 transition"
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border bg-surface text-foreground/80 hover:text-foreground hover:border-primary/40 transition-colors"
                       >
                         {isExpanded ? "▲ Dölj" : `▼ Produkter (${lines.length})`}
                       </button>
@@ -213,22 +213,23 @@ function ProjectsPage() {
                         <Link
                           to="/$locale/plc/$projektId"
                           params={{ locale, projektId: project.id }}
-                          className="px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition"
+                          className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
                         >
-                          {t("projects.loadProject")}
+                          {/* Den öppnas i PLC-modulen, inte i maskinbyggaren. */}
+                          {t("nav.plc")}
                         </Link>
                       ) : (
                         <>
                           <button
                             onClick={() => openProject(project)}
-                            className="px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition"
+                            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
                           >
                             {t("projects.loadProject")}
                           </button>
                           <Link
                             to="/$locale/plc/$projektId"
                             params={{ locale, projektId: project.id }}
-                            className="px-3 py-1.5 text-xs font-medium rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-primary/50 transition"
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border bg-surface text-foreground/80 hover:text-foreground hover:border-primary/40 transition-colors"
                           >
                             {t("nav.plc")}
                           </Link>
@@ -237,7 +238,7 @@ function ProjectsPage() {
                       <button
                         onClick={() => deleteProject(project.id)}
                         disabled={deleting === project.id}
-                        className="px-3 py-1.5 text-xs font-medium rounded-md border border-border text-muted-foreground hover:text-destructive hover:border-destructive transition disabled:opacity-40"
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border bg-surface text-muted-foreground hover:text-danger-deep hover:border-danger-deep/40 transition-colors disabled:opacity-40"
                       >
                         {deleting === project.id ? "..." : t("projects.deleteProject")}
                       </button>
@@ -247,14 +248,14 @@ function ProjectsPage() {
 
                 {/* Expandable BOM panel */}
                 {isExpanded && (
-                  <div className="border-t border-border bg-muted/30 px-5 py-4">
+                  <div className="border-t border-line bg-surface-alt/60 px-5 py-4 rorelse-fram">
                     {lines.length > 0 ? (
                       <>
                         <div className="space-y-2 mb-4">
                           {lines.map((line, i) => {
                             const added = addedSkus.has(line.sku);
                             return (
-                              <div key={i} className="flex items-center justify-between gap-3 text-sm py-1.5 border-b border-border/50 last:border-0">
+                              <div key={i} className="flex items-center justify-between gap-3 text-sm py-1.5 border-b border-line last:border-0">
                                 <div className="flex items-center gap-3 min-w-0">
                                   <span className="text-xs text-muted-foreground shrink-0 w-6 text-right">{line.qty}×</span>
                                   <div className="min-w-0">
@@ -287,7 +288,7 @@ function ProjectsPage() {
                         <div className="flex flex-wrap gap-2 pt-1">
                           <button
                             onClick={() => addAllToOffert(lines)}
-                            className="text-xs px-3 py-1.5 rounded-md bg-info text-primary-foreground hover:opacity-90 transition font-medium"
+                            className="text-xs px-3 py-1.5 rounded-lg bg-cta text-cta-foreground hover:bg-cta-hover transition-colors font-semibold"
                           >
                             <FileText className="size-4 inline -mt-0.5 mr-1" aria-hidden />Lägg till alla i offert
                           </button>

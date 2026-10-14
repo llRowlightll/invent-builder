@@ -17,12 +17,27 @@
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
                "Helvetica Neue", Arial, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  /* Noll är standard: panel, tabell och kort bär data och har raka hörn.
-     2px finns bara på det som klickas eller skrivs i. */
-  --radius-sm: 0px;
-  --radius-md: 2px;
-  --radius-lg: 2px;
-  --radius-xl: 4px;
+  /* Rundningsskalan (designen 2026-10-14, "mjukare former med måtta").
+     En regel, följd överallt:
+       sm   6px  -- märken och små kontroller
+       md   8px  -- knappar, fält, tabellens ram
+       lg  12px  -- kort och paneler
+       xl  16px  -- arbetsytor (maskinbyggarens och PLC-flödets huvudyta)
+       2xl 20px  -- startsidans inmatningsyta
+       full      -- pill-val (rounded-full), aldrig på en datatabell
+     Tabellceller och diagram har raka hörn: precisionen ligger i datat. */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+
+  /* Skuggor tonade mot marinblått, aldrig rent svart. Djup betyder nivå:
+     xs för kort i ett flöde, md för arbetsytan, lg för det som ligger över. */
+  --shadow-xs: 0 1px 2px 0 oklch(0.22 0.04 265 / 0.05);
+  --shadow-sm: 0 1px 2px 0 oklch(0.22 0.04 265 / 0.05), 0 1px 3px 0 oklch(0.22 0.04 265 / 0.05);
+  --shadow-md: 0 1px 2px 0 oklch(0.22 0.04 265 / 0.04), 0 6px 18px -6px oklch(0.22 0.04 265 / 0.10);
+  --shadow-lg: 0 2px 4px 0 oklch(0.22 0.04 265 / 0.04), 0 16px 40px -12px oklch(0.22 0.04 265 / 0.18);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -60,20 +75,36 @@
   --color-info-surface: var(--info-surface);
   --color-gold-surface: var(--gold-surface);
   --color-gold-deep: var(--gold-deep);
+  /* Statusens fyra nivåer (brief 2026-10-14 punkt 6). Grönt är förbehållet
+     det som faktiskt prövats och höll. */
+  --color-prelim: var(--prelim);
+  --color-prelim-surface: var(--prelim-surface);
+  --color-prelim-deep: var(--prelim-deep);
+  --color-danger-surface: var(--danger-surface);
+  --color-danger-deep: var(--danger-deep);
+  /* Den enda accenten för handling: orange, med text som klarar 4,5:1. */
+  --color-cta: var(--cta);
+  --color-cta-hover: var(--cta-hover);
+  --color-cta-foreground: var(--cta-foreground);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
 }
 
 :root {
-  --radius: 2px;
+  --radius: 8px;
 
-  /* Industrial B2B light surface */
-  --background: oklch(1 0 0);            /* #FFFFFF */
+  /* Ljus, lätt tonad sida; arbetsytorna är vita och lyfts med skugga och
+     tunna linjer i stället för hårda ramar. */
+  --background: oklch(0.982 0.005 255);  /* #F6F8FB */
   --foreground: oklch(0.22 0.04 265);    /* deep navy text */
   --card: oklch(1 0 0);
   --card-foreground: var(--foreground);
   --popover: oklch(1 0 0);
   --popover-foreground: var(--foreground);
+  --surface: oklch(1 0 0);               /* arbetsyta */
+  --line: oklch(0.22 0.04 265 / 0.08);   /* tunn avdelare inne i en yta */
 
-  --surface-alt: oklch(0.972 0.008 250); /* #F3F5F8 */
+  --surface-alt: oklch(0.965 0.008 255); /* tonad sektion */
 
   /* Navy header / primary CTA — #1F3864 */
   --primary: oklch(0.32 0.075 265);
@@ -119,6 +150,18 @@
   --gold-surface: #ffebd5;
   --gold-deep: #b3621e;
 
+  /* Preliminärt: lugnt skifferblått, varken grönt (prövat) eller orange
+     (handling). Fel: rött med egen yta. */
+  --prelim: oklch(0.58 0.06 250);
+  --prelim-surface: oklch(0.955 0.018 250);
+  --prelim-deep: oklch(0.42 0.07 252);   /* 7:1 mot vitt */
+  --danger-surface: oklch(0.965 0.025 25);
+  --danger-deep: oklch(0.5 0.19 27);     /* 5,9:1 mot vitt */
+
+  --cta: oklch(0.586 0.17 42);           /* = info: vit text klarar 4,5:1 */
+  --cta-hover: oklch(0.54 0.165 42);
+  --cta-foreground: oklch(0.99 0.005 95);
+
   --border: oklch(0.22 0.04 265 / 0.12);
   --input: oklch(0.22 0.04 265 / 0.18);
   --ring: oklch(0.62 0.17 42 / 0.5);
@@ -140,6 +183,16 @@
   --muted-foreground: oklch(0.72 0.02 260);
   --accent: oklch(0.28 0.02 265);
   --accent-foreground: var(--foreground);
+  --surface: oklch(0.22 0.02 265);
+  --line: oklch(1 0 0 / 0.08);
+  --prelim: oklch(0.7 0.06 250);
+  --prelim-surface: oklch(0.27 0.03 252);
+  --prelim-deep: oklch(0.85 0.05 250);
+  --danger-surface: oklch(0.27 0.05 25);
+  --danger-deep: oklch(0.82 0.1 25);
+  --cta: oklch(0.68 0.16 45);
+  --cta-hover: oklch(0.72 0.15 45);
+  --cta-foreground: oklch(0.18 0.02 265);
   --border: oklch(1 0 0 / 0.1);
   --input: oklch(1 0 0 / 0.15);
   --success-surface: #002811;
@@ -164,6 +217,19 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3 {
+    text-wrap: balance;
+    letter-spacing: -0.015em;
+  }
+  /* Fokus syns alltid för tangentbordet. Fält har egen ring (focus:ring);
+     allt annat som går att fokusera får en orange kontur med luft. */
+  a:focus-visible, button:focus-visible, summary:focus-visible,
+  [role="button"]:focus-visible, [role="tab"]:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--color-cta);
+    outline-offset: 2px;
   }
 }
 
@@ -172,6 +238,23 @@
   margin-inline: auto;
   padding-inline: 1.25rem;
   max-width: 1200px;
+}
+
+/* Arbetsytan: vit, mjukt rundad, lyft med skugga. En per vy -- inte runt
+   varje element. Innehållet inuti grupperas med avstånd och .avdelare. */
+@utility arbetsyta {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-line);
+}
+
+/* Ett kort i ett flöde (alternativ, stegkort): lägre nivå än arbetsytan. */
+@utility kort {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  border: 1px solid var(--color-line);
 }
 
 @utility tabular {
@@ -198,6 +281,37 @@
 @utility rorelse-steg-1 { animation-delay:  60ms; }
 @utility rorelse-steg-2 { animation-delay: 120ms; }
 @utility rorelse-steg-3 { animation-delay: 180ms; }
+
+/* Stegbyte: det nya steget glider in kort, 260 ms. Kortare än rorelse-in --
+   användaren väntar på innehållet, inte på animeringen. */
+@keyframes rorelse-fram {
+  from { opacity: 0; transform: translateY(6px); }
+}
+@utility rorelse-fram {
+  animation: rorelse-fram 260ms var(--ease-rorelse) backwards;
+}
+
+/* "Det här ändrades": en tonad yta som bleknar bort. Bara opacity animeras,
+   på ett pseudo-element, så layouten rörs aldrig. Slutläget är utan markering. */
+@keyframes rorelse-markera {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@utility rorelse-markera {
+  position: relative;
+  isolation: isolate;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -2px -4px;
+    border-radius: var(--radius-sm);
+    background: var(--color-warning-surface);
+    opacity: 0;
+    pointer-events: none;
+    z-index: -1;
+    animation: rorelse-markera 1600ms var(--ease-rorelse) forwards;
+  }
+}
 
 /* Ursprungsmedveten rörelse: Radix exponerar data-side, så en panel skalas
    från den kant den faktiskt växer ur i stället för från sin mitt. */

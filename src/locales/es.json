@@ -1,7 +1,7 @@
 {
   "common": {
     "appName": "Maskinval",
-    "tagline": "Encuentra el componente industrial correcto — rápido",
+    "tagline": "Encuentra el componente industrial correcto, rápido.",
     "loading": "Cargando…",
     "save": "Guardar",
     "cancel": "Cancelar",
@@ -275,11 +275,26 @@
     "routePromiseCta": "Ir a la lista",
     "leadEst": "aprox. {d} d",
     "leadAsk": "Plazo bajo consulta",
-    "talkToEngineer": "Hablar con un ingeniero"
+    "talkToEngineer": "Hablar con un ingeniero",
+    "heroUppdrag": "Describa lo que quiere automatizar.",
+    "heroVarde": "El constructor de máquinas interpreta los requisitos, propone componentes de ocho fabricantes y prepara documentación para control y revisión.",
+    "uppdragEtikett": "Describa la tarea",
+    "uppdragPlaceholder": "P. ej. Queremos retirar cajas de plástico de 0,5–3 kg de una cinta transportadora, hasta 15 cajas por minuto.",
+    "serUtSomArtikel": "Parece un artículo o un fabricante, así que buscamos en el catálogo.",
+    "uppdragTips": "No hace falta cuenta. Verá cómo se interpretaron los requisitos antes de elegir nada.",
+    "sokKatalog": "Buscar en el catálogo",
+    "starta": "Empezar",
+    "exempelRubrik": "Pruebe una tarea",
+    "alternativRubrik": "O empiece aquí",
+    "altErsattText": "Con el número de artículo o la placa de características obtiene el mismo artículo o uno equivalente.",
+    "altPlcText": "Documentación de programación para el control de la máquina, paso a paso.",
+    "altKonfigText": "Elija diámetro, carrera y opciones y obtenga un código de pedido.",
+    "manniskaRubrik": "La IA interpreta. Una persona responde.",
+    "manniskaText": "El constructor de máquinas comprueba los requisitos y muestra lo que falta. Las ofertas y las preguntas difíciles las responde una persona, en 1–2 días laborables."
   },
   "productsPage": {
     "aiSearchLabel": "✦ Búsqueda IA",
-    "aiSearchDesc": "— describa su aplicación",
+    "aiSearchDesc": "Describa su aplicación",
     "aiSearchPlaceholder": "p.ej. \"cilindro 50mm diámetro con 200mm carrera\"",
     "analyzing": "Analizando…",
     "filterCategory": "Categoría:",
@@ -617,7 +632,7 @@
   "machineBuilder": {
     "aiLabel": "Constructor de máquinas con IA",
     "title": "Construir su máquina",
-    "subtitle": "Describa lo que quiere construir — la IA hace las preguntas correctas, sugiere los mejores componentes y genera una lista de materiales completa.",
+    "subtitle": "Describa la tarea. El constructor de máquinas interpreta los requisitos, hace preguntas, propone componentes y muestra lo que falta.",
     "describeLabel": "Describa lo que quiere construir o automatizar:",
     "describePlaceholder": "P.ej. \"Necesito una barrera de parada que detenga cajas en una cinta transportadora. Las cajas pesan aprox. 5 kg y la cinta va a 0,5 m/s.\"",
     "cmdEnterHint": "⌘+Enter para continuar",
