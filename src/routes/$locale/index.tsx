@@ -5,16 +5,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { loadCatalog } from "@/lib/catalog";
 import { produktnamn } from "@/lib/spec-format";
 import type { ProductRow } from "@/lib/types";
-// Bakgrunden visar en märkeslös linjäraktuator. Fram till 2026-10-05 stod en
-// Siemens-drivenhet med två synliga logotyper bredvid den -- ett fabrikat
-// Maskinval inte säljer. Bilden är beskuren så att bara aktuatorn är kvar.
-import heroImg from "@/assets/hero-industrial.jpg";
-import featureImg from "@/assets/feature-component.jpg";
 import { getProductImage, getCategoryImage } from "@/lib/product-images";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { EditableText } from "@/components/EditableText";
 import { categoryName } from "@/lib/categories";
-import { ArrowRight, FileText, RefreshCw, Settings, Sparkles, Users } from "lucide-react";
+import { ArrowRight, ChevronDown, Cpu, FileText, RefreshCw, Settings, Sparkles, Users } from "lucide-react";
+import { Flodesbild } from "@/components/startsida/Flodesbild";
+import { harLogga } from "@/lib/brand-logos";
 
 export const Route = createFileRoute("/$locale/")({
   head: ({ params }) => {
@@ -62,51 +59,11 @@ export const Route = createFileRoute("/$locale/")({
 type Cat = { slug: string; name: string };
 type Brand = { slug: string; name: string };
 
-const CAT_ICONS: Record<string, string> = {
-  cylinder: "⇔",
-  "electric-actuator": "ϟ",
-  "valve-terminal": "▦",
-  valve: "◉",
-  gripper: "✦",
-  "air-preparation": "◈",
-  vacuum: "◎",
-  "linear-module": "⟶",
-  hose: "〰",
-  fitting: "⊕",
-  "speed-controller": "◑",
-  coupling: "⊗",
-  "seal-kit": "○",
-};
-
 /** "{antal} artiklar" med det levande talet, eller utan ledet om det inte gick att räkna. */
 function antalText(mall: string, antal: number | null): string {
   if (antal != null) return mall.replace("{antal}", antal.toLocaleString("sv-SE"));
   return mall.replace(/[^,.]*\{antal\}[^,.]*[,.]\s*/, "");
 }
-
-/**
- * Tre vägar in, i stället för fyra siffror.
- *
- * Statistikraden sa "846+ produkter · 8 varumärken · 23 kategorier · 24h
- * snabbast leverans". Tre av dem säger en köpare ingenting -- 846 är dessutom
- * LITET i den här branschen, Festo ensamt har tiotusentals, så att skylta med
- * det pekade på svagheten. Och "24h snabbast leverans" var ett löfte som inte
- * gick att hålla: noll leverantörer är aktiverade och sajten har aldrig
- * skickat något.
- *
- * Det här är i stället det som faktiskt är vårt, och som faktiskt är sant.
- */
-const VAGAR = [
-  // Den vanligaste frågan på en fabrik: "den här gick sönder, vad köper jag?"
-  { titel: "index.routeReplaceTitle", brod: "index.routeReplaceBody",
-    cta: "index.routeReplaceCta", to: "/$locale/replace", Ikon: RefreshCw },
-  { titel: "index.routeConfigTitle", brod: "index.routeConfigBody",
-    cta: "index.routeConfigCta", to: "/$locale/configure", Ikon: Settings },
-  { titel: "index.routeAdvisorTitle", brod: "index.routeAdvisorBody",
-    cta: "index.routeAdvisorCta", to: "/$locale/machine-builder", Ikon: Sparkles },
-  { titel: "index.routePromiseTitle", brod: "index.routePromiseBody",
-    cta: "index.routePromiseCta", to: "/$locale/shopping-list", Ikon: ArrowRight },
-] as const;
 
 function Landing() {
   const { locale } = Route.useParams();
@@ -146,175 +103,149 @@ function Landing() {
   }
 
   /**
-   * Rutan säger "Beskriv din applikation ELLER sök produkt", alltså två helt
-   * olika avsikter i ett fält. Fram till 2026-10-02 gick båda till /chat.
+   * Vart texten i uppdragsfältet leder. Ett artikelnummer eller ett par ord är
+   * en katalogsökning; en beskrivning är ett uppdrag till maskinbyggaren.
    *
-   * Det var fel åt ett håll som kostar: den som redan vet vad hen vill ha är
-   * den ENDA besökaren som kan köpa idag, och hen hamnade i den LLM-väg som
-   * dels dör när dygnskvoten tar slut, dels enligt handleChat:s egen kommentar
-   * svarade på "DSBC-50-100-PPSA-N3" med två Bosch Rexroth-cylindrar och tre
-   * påhittade tekniska påståenden. Alla fyra exempelknappar under rutan är
-   * dessutom produktsökningar -- de bevisade felet varje gång någon klickade.
-   *
-   * /products?q= är ren nyckelordsfiltrering utan ett enda modellanrop (AI-läget
-   * där kräver ?ai=), så den vägen fungerar även när kvoten är slut.
-   *
-   * Regeln är medvetet trubbig och förklarlig: ett artikelnummer, eller högst
-   * fyra ord, är en produktsökning. En mening är en beskrivning.
+   * Den som redan vet vad hen vill ha ska inte hamna i en modellväg som dör
+   * när dygnskvoten tar slut: /products?q= är ren nyckelordsfiltrering utan
+   * modellanrop. En lång mening med en orderkod i går däremot till
+   * maskinbyggaren, som läser orderkoder själv (readOrderCodes).
    */
-  function sokvagFor(text: string): "/$locale/products" | "/$locale/chat" {
+  function avsikt(text: string): "katalog" | "maskin" | null {
     const ord = text.trim().split(/\s+/).filter(Boolean);
-    return serUtSomArtikelnummer(text) || ord.length <= 4
-      ? "/$locale/products"
-      : "/$locale/chat";
+    if (ord.length === 0) return null;
+    if (ord.length <= 2 || (ord.length <= 4 && serUtSomArtikelnummer(text))) return "katalog";
+    return "maskin";
   }
 
-  function sok(text: string) {
-    const rent = text.trim();
-    if (!rent) return;
-    navigate({ to: sokvagFor(rent), params: { locale }, search: { q: rent } as never });
-  }
-
-  function onSearch(e: React.FormEvent) {
+  function starta(e: React.FormEvent) {
     e.preventDefault();
-    sok(q);
+    const text = q.trim();
+    const vart = avsikt(text);
+    if (!vart) return;
+    if (vart === "katalog") {
+      navigate({ to: "/$locale/products", params: { locale }, search: { q: text } as never });
+      return;
+    }
+    // Maskinbyggaren läser texten en gång och startar analysen (se
+    // machine-builder.tsx, "mv_starta"); en bakåtnavigering startar den inte igen.
+    try { sessionStorage.setItem("mv_starta", text); } catch { /* blockerad lagring: fältet fylls inte i */ }
+    navigate({ to: "/$locale/machine-builder", params: { locale } });
   }
+
+  const exempel = EXEMPEL[locale as "sv" | "en"] ?? EXEMPEL.en;
+  const vart = avsikt(q);
 
   return (
     <div>
-      {/* HERO */}
-      <section className="relative overflow-hidden bg-primary text-primary-foreground">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `url(${heroImg})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center 40%",
-            opacity: 0.18,
-          }}
-        />
-        <div
-          className="absolute inset-0 opacity-30"
-          style={{
-            background:
-              "radial-gradient(60% 50% at 80% 20%, color-mix(in oklab, var(--gold) 60%, transparent), transparent 70%)",
-          }}
-        />
-        <div className="container-page py-20 md:py-28 relative">
-          <div className="flex items-center gap-2 mb-4 rorelse-in">
-            <span className="text-[10px] uppercase tracking-[0.22em] text-primary-foreground/60 border border-primary-foreground/20 rounded-full px-3 py-0.5">
-              {t("index.b2bBadge")}
-            </span>
-          </div>
-          <h1 className="text-[2.75rem] md:text-[4.25rem] font-bold tracking-[-0.032em] max-w-3xl leading-[0.97] text-balance rorelse-in rorelse-steg-1">
-            <EditableText contentKey="index.heroTitle" locale={locale} fallback={t("index.heroTitle")} /><br />
-            <span className="font-normal italic" style={{ color: "var(--gold)" }}>
-              <EditableText contentKey="index.heroTitleAccent" locale={locale} fallback={t("index.heroTitleAccent")} />
-            </span>
-          </h1>
-          <p className="mt-6 text-lg text-primary-foreground/75 max-w-xl rorelse-in rorelse-steg-2">
-            <EditableText contentKey="index.heroSubtitle" locale={locale} fallback={antalText(t("index.heroSubtitle"), ld.antal)} multiline />
-          </p>
+      {/* ── Huvudyta: uppdraget ─────────────────────────────────────────── */}
+      <section className="relative overflow-hidden border-b border-line bg-gradient-to-b from-surface-alt/70 to-background">
+        <div className="container-page grid gap-10 py-12 md:py-16 lg:grid-cols-12 lg:gap-12 lg:py-20">
+          <div className="lg:col-span-7">
+            <h1 className="text-[2.25rem] leading-[1.08] font-semibold tracking-tight text-primary sm:text-5xl rorelse-in">
+              <EditableText contentKey="index.heroUppdrag" locale={locale} fallback={t("index.heroUppdrag")} />
+            </h1>
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg rorelse-in rorelse-steg-1">
+              <EditableText contentKey="index.heroVarde" locale={locale} fallback={t("index.heroVarde")} multiline />
+            </p>
 
-          <form onSubmit={onSearch} className="mt-8 flex gap-2 max-w-2xl rorelse-in rorelse-steg-3">
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={t("index.searchPlaceholder")}
-              className="flex-1 rounded-md bg-background text-foreground px-4 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-gold"
-            />
-            <button
-              type="submit"
-              className="rounded-md bg-gold text-gold-foreground px-5 py-3 text-sm font-medium transition hover:brightness-105 active:translate-y-px select-none"
-            >
-              {t("index.searchButton")}
-            </button>
-          </form>
+            <form onSubmit={starta} className="arbetsyta mt-8 rounded-2xl p-2 shadow-lg rorelse-in rorelse-steg-2">
+              <label htmlFor="uppdrag" className="sr-only">{t("index.uppdragEtikett")}</label>
+              <textarea
+                id="uppdrag"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) starta(e); }}
+                rows={3}
+                placeholder={t("index.uppdragPlaceholder")}
+                className="block w-full resize-none rounded-xl bg-transparent px-4 pt-3 pb-2 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/80 focus:outline-none"
+              />
+              <div className="flex flex-col gap-3 border-t border-line px-3 pt-3 pb-1.5 sm:flex-row sm:items-center">
+                <p className="flex-1 text-xs text-muted-foreground" aria-live="polite">
+                  {vart === "katalog" ? t("index.serUtSomArtikel") : t("index.uppdragTips")}
+                </p>
+                <button
+                  type="submit"
+                  disabled={!vart}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-cta px-5 text-[15px] font-semibold text-cta-foreground shadow-xs transition-[background-color,transform] hover:bg-cta-hover active:translate-y-px disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none"
+                >
+                  {vart === "katalog" ? t("index.sokKatalog") : t("index.starta")}
+                  <ArrowRight aria-hidden className="size-4" />
+                </button>
+              </div>
+            </form>
 
-          <div className="mt-4 flex flex-wrap gap-2 text-xs text-primary-foreground/60">
-            <span>{t("index.searchTry")}</span>
-            {["Festo DSBC cylinder", "SMC CQ2 kompakt", "Parker P1D pneumatisk", "vakuumgrepp"].map((s) => (
-              <button
-                key={s}
-                onClick={() => { setQ(s); sok(s); }}
-                className="underline underline-offset-2 hover:text-primary-foreground transition"
-              >
-                {s}
-              </button>
-            ))}
+            <div className="mt-4 rorelse-in rorelse-steg-3">
+              <p className="text-xs font-medium text-muted-foreground">{t("index.exempelRubrik")}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {exempel.map((x) => (
+                  <button
+                    key={x.kort}
+                    type="button"
+                    onClick={() => { setQ(x.text); document.getElementById("uppdrag")?.focus(); }}
+                    className="rounded-full border border-border bg-surface px-3 py-1.5 text-[13px] text-foreground/85 shadow-xs transition-colors hover:border-cta/40 hover:text-foreground"
+                  >
+                    {x.kort}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
-          {/* Vägar in */}
-          <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl rorelse-in rorelse-steg-3">
-            {VAGAR.map((v) => (
-              <Link
-                key={v.to}
-                to={v.to}
-                params={{ locale }}
-                className="group border border-primary-foreground/15 px-5 py-4 bg-primary-foreground/5 backdrop-blur-sm transition hover:bg-primary-foreground/10 hover:border-primary-foreground/30 md:hover:-translate-y-0.5"
-              >
-                <div className="flex items-center gap-2">
-                  {/* ⚙ var ett emojitecken: iPhone ritade färgemojin och struntade i guldet. */}
-                  <v.Ikon className="size-3.5 shrink-0" style={{ color: "var(--gold)" }} aria-hidden />
-                  <span className="text-[15px] font-semibold text-primary-foreground">{t(v.titel)}</span>
-                </div>
-                <p className="mt-1.5 text-[13px] leading-relaxed text-primary-foreground/60">{t(v.brod)}</p>
-                <span className="mt-2.5 inline-block text-[12px] font-medium text-primary-foreground/80 group-hover:text-primary-foreground transition">
-                  {t(v.cta)} →
-                </span>
-              </Link>
-            ))}
+          <div className="lg:col-span-5 lg:pt-2">
+            <Flodesbild locale={locale} />
           </div>
+
+        <nav aria-label={t("index.alternativRubrik")} className="border-t border-line pt-5 lg:col-span-12 rorelse-in rorelse-steg-3">
+            <p className="text-xs font-medium text-muted-foreground">{t("index.alternativRubrik")}</p>
+            <ul className="mt-2 grid gap-2 sm:grid-cols-3">
+              {ALTERNATIV.map(({ to, titel, brod, Ikon }) => (
+                <li key={to}>
+                  <Link to={to} params={{ locale }}
+                    className="group flex h-full items-start gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-surface hover:shadow-xs">
+                    <Ikon aria-hidden className="mt-0.5 size-4 shrink-0 text-gold-deep" strokeWidth={1.75} />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-foreground group-hover:text-info">{t(titel)}</span>
+                      <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">{t(brod)}</span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
         </div>
       </section>
 
-      {/* FEATURED PRODUCTS */}
+      {/* ── Utvalda komponenter ─────────────────────────────────────────── */}
       {featured.length > 0 && (
         <section className="container-page py-14">
-          <div className="flex items-end justify-between mb-6">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.18em] text-info font-medium">{t("index.featuredLabel")}</p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight">{t("index.featuredTitle")}</h2>
-            </div>
-            <Link to="/$locale/products" params={{ locale }} className="text-sm text-info hover:underline">
+          <div className="flex items-end justify-between gap-4">
+            <h2 className="text-2xl font-semibold tracking-tight text-primary">{t("index.featuredTitle")}</h2>
+            <Link to="/$locale/products" params={{ locale }} className="shrink-0 text-sm font-medium text-info hover:underline">
               {t("index.featuredAll")}
             </Link>
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className={`mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 ${featured.length === 3 ? "lg:grid-cols-3" : "lg:grid-cols-4"}`}>
             {featured.map((p) => (
               <Link
                 key={p.id}
                 to="/$locale/product/$sku"
                 params={{ locale, sku: p.sku }}
-                className="group rounded-lg border border-border bg-card hover:border-info hover:shadow-sm transition flex flex-col overflow-hidden"
+                className="kort group flex flex-col overflow-hidden transition-[box-shadow,transform] hover:shadow-md md:hover:-translate-y-0.5"
               >
-                <div className="h-40 overflow-hidden bg-[#f8f9fb] flex items-center justify-center">
-                  <img
-                    src={getProductImage(p)}
-                    alt={categoryName(p.category.slug, locale, p.category.name)}
-                    className="w-full h-full object-contain"
-                    loading="lazy"
-                  />
+                <div className="flex h-28 items-center justify-center bg-[#f8f9fb] px-6">
+                  <img src={getProductImage(p)} alt="" className="h-full w-full object-contain" loading="lazy" />
                 </div>
-                <div className="p-4 flex flex-col flex-1">
-                  <div className="text-[10px] uppercase tracking-wider text-info font-medium">{p.brand.name}</div>
-                  <div className="mt-1.5 font-medium text-foreground group-hover:text-info line-clamp-2 transition">{produktnamn(p, locale)}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">{categoryName(p.category.slug, locale, p.category.name)}</div>
-                  <div className="mt-auto pt-3 border-t border-border mt-3 flex items-center justify-between">
-                    <span className="text-[10px] text-muted-foreground">
-                      {/* Sa tidigare "På lager" vid ≤7 dagar. Det var osant:
-                          alla 887 artiklar står som availability='order' och
-                          ingenting lagerförs. Dessutom är siffran en
-                          UPPSKATTNING -- 40 % av katalogen har samma 21 dagar
-                          tvärs alla åtta fabrikat, vilket är ett ifyllnadsvärde
-                          och ingen mätning. Därför "ca", och därför frågan i
-                          stället för ett streck när värdet saknas. */}
-                      {p.lead_time_days != null
-                        ? t("index.leadEst").replace("{d}", String(p.lead_time_days))
-                        : t("index.leadAsk")}
-                    </span>
-                    <span className="text-xs text-info">{t("index.viewProduct")}</span>
-                  </div>
+                <div className="flex flex-1 flex-col p-4">
+                  <span className="text-[11px] font-medium text-gold-deep">{p.brand.name}</span>
+                  <span className="mt-1 line-clamp-2 font-medium text-foreground group-hover:text-info">{produktnamn(p, locale)}</span>
+                  <span className="mt-1 text-xs text-muted-foreground">{categoryName(p.category.slug, locale, p.category.name)}</span>
+                  <span className="mt-auto pt-3 text-xs text-muted-foreground">
+                    {/* En uppskattning, inte ett lagerbesked (inget lagerförs). */}
+                    {p.lead_time_days != null
+                      ? t("index.leadEst").replace("{d}", String(p.lead_time_days))
+                      : t("index.leadAsk")}
+                  </span>
                 </div>
               </Link>
             ))}
@@ -322,185 +253,121 @@ function Landing() {
         </section>
       )}
 
-      {/* CATEGORIES */}
-      <section className="bg-surface-alt border-y border-border">
+      {/* ── Kategorier: kompakt, en rad per familj ──────────────────────── */}
+      <section className="border-y border-line bg-surface-alt/60">
         <div className="container-page py-14">
-          <div className="flex items-end justify-between mb-6">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground font-medium">{t("index.categoriesLabel")}</p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight">{t("index.categoriesTitle")}</h2>
-            </div>
-            <Link to="/$locale/products" params={{ locale }} className="text-sm text-info hover:underline">
+          <div className="flex items-end justify-between gap-4">
+            <h2 className="text-2xl font-semibold tracking-tight text-primary">{t("index.categoriesTitle")}</h2>
+            <Link to="/$locale/products" params={{ locale }} className="shrink-0 text-sm font-medium text-info hover:underline">
               {t("index.allProducts")}
             </Link>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <ul className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {cats.map((c) => (
+              <li key={c.slug}>
+                <Link
+                  to="/$locale/products"
+                  params={{ locale }}
+                  search={{ category: c.slug }}
+                  className="group flex items-center gap-3 rounded-lg border border-transparent bg-surface px-3 py-2 shadow-xs transition-colors hover:border-cta/30"
+                >
+                  <span className="flex h-10 w-14 shrink-0 items-center justify-center">
+                    <img src={getCategoryImage(c.slug)} alt="" className="max-h-full max-w-full object-contain" loading="lazy" />
+                  </span>
+                  <span className="min-w-0 flex-1 line-clamp-2 text-sm font-medium leading-snug text-foreground group-hover:text-info">
+                    {categoryName(c.slug, locale, c.name)}
+                  </span>
+                  <ArrowRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 group-hover:text-info" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      {/* ── Fabrikaten: bara märkena ────────────────────────────────────── */}
+      <section className="container-page py-12">
+        <h2 className="text-center text-sm font-medium text-muted-foreground">
+          {totalBrands} {t("index.brandsWorking")}
+        </h2>
+        <ul className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+          {brands.map((b) => (
+            <li key={b.slug}>
               <Link
-                key={c.slug}
                 to="/$locale/products"
                 params={{ locale }}
-                search={{ category: c.slug }}
-                className="group rounded-lg border border-border bg-card hover:border-info hover:shadow-sm transition overflow-hidden relative"
+                search={{ brand: b.slug }}
+                title={`${b.name}: ${t("index.viewProducts").replace(/\s*→\s*$/, "")}`}
+                className="flex h-16 items-center justify-center rounded-lg px-3 opacity-80 grayscale transition hover:bg-surface hover:opacity-100 hover:shadow-xs hover:grayscale-0"
               >
-                <div className="aspect-[3/2] bg-[#f8f9fb] overflow-hidden flex items-center justify-center">
-                  <img
-                    src={getCategoryImage(c.slug)}
-                    alt={categoryName(c.slug, locale, c.name)}
-                    className="w-full h-full object-contain"
-                    loading="lazy"
-                  />
-                </div>
-                <div className="p-3">
-                  <div className="text-lg" style={{ color: "var(--info)" }}>{CAT_ICONS[c.slug] ?? "▣"}</div>
-                  <div className="mt-1 font-medium text-foreground group-hover:text-info transition text-sm">{categoryName(c.slug, locale, c.name)}</div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">{t("index.viewProduct")}</div>
-                </div>
+                <BrandLogo slug={b.slug} name={b.name} />
               </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* BRANDS */}
-      <section className="container-page py-12">
-        <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground text-center">
-          {totalBrands} {t("index.brandsWorking")}
-        </p>
-        <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-          {brands.map((b) => (
-            <Link
-              key={b.slug}
-              to="/$locale/products"
-              params={{ locale }}
-              search={{ brand: b.slug }}
-              className="group rounded-xl bg-card border border-border hover:border-info hover:shadow-md transition-all overflow-hidden flex flex-col"
-            >
-              <BrandLogo slug={b.slug} name={b.name} />
-              <div className="px-3 py-2.5 text-center">
-                <div className="text-xs font-semibold text-foreground group-hover:text-info transition">{b.name}</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">{t("index.viewProducts")}</div>
-              </div>
-            </Link>
+            </li>
           ))}
-        </div>
+        </ul>
       </section>
 
-      {/* FEATURE STRIP */}
-      <section className="bg-surface-alt border-y border-border">
-        <div className="container-page py-14 grid md:grid-cols-2 gap-10 items-center">
+      {/* ── Människa och maskin ─────────────────────────────────────────── */}
+      <section className="border-t border-line bg-surface">
+        <div className="container-page grid gap-8 py-14 md:grid-cols-2 md:items-center">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-info font-medium">{t("index.featureLabel")}</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight max-w-sm">{t("index.featureTitle")}</h2>
-            <p className="mt-3 text-sm text-muted-foreground max-w-md leading-relaxed">
-              {t("index.featureBody")}
-            </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link
-                to="/$locale/machine-builder"
-                params={{ locale }}
-                className="inline-flex items-center gap-1.5 text-sm px-4 py-2.5 rounded-md bg-primary text-primary-foreground hover:opacity-90 transition"
-              >
-                {t("index.startAdvisor")}
-              </Link>
-              <Link
-                to="/$locale/compare"
-                params={{ locale }}
-                search={{ skus: "" }}
-                className="inline-flex items-center gap-1.5 text-sm px-4 py-2.5 rounded-md border border-border hover:border-info transition"
-              >
-                {t("index.compareProducts")}
-              </Link>
-            </div>
-          </div>
-          <div className="relative rounded-xl overflow-hidden border border-border aspect-[4/3] bg-card">
-            <img src={featureImg} alt="Industriell komponent" className="w-full h-full object-cover opacity-80" />
-            <div className="absolute inset-0 bg-gradient-to-t from-card/80 to-transparent" />
-            <div className="absolute bottom-0 left-0 right-0 p-4">
-              <div className="text-[10px] uppercase tracking-wider text-info font-medium">{t("index.exampleProduct")}</div>
-              <div className="text-sm font-semibold text-foreground mt-0.5">Festo DSBC ISO-cylinder</div>
-              <div className="text-xs text-muted-foreground font-mono mt-0.5">DSBC-50-100-PPSA-N3</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* HUMAN + AI TRUST BAND */}
-      <section className="border-y border-border bg-card">
-        <div className="container-page py-10">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground font-medium text-center mb-7">{t("index.howLabel")}</p>
-          <div className="grid sm:grid-cols-3 gap-6 text-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="size-12 rounded-full bg-info/10 flex items-center justify-center text-2xl">✦</div>
-              <div>
-                <div className="font-semibold text-sm text-foreground">{t("index.how1Title")}</div>
-                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t("index.how1Body")}</p>
-              </div>
-            </div>
-            <div className="flex flex-col items-center gap-3">
-              <div className="size-12 rounded-full bg-success-surface/60 flex items-center justify-center"><Users className="size-5 text-success-deep" aria-hidden /></div>
-              <div>
-                <div className="font-semibold text-sm text-foreground">{t("index.how2Title")}</div>
-                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t("index.how2Body")}</p>
-              </div>
-            </div>
-            <div className="flex flex-col items-center gap-3">
-              <div className="size-12 rounded-full bg-gold/10 flex items-center justify-center"><FileText className="size-5 text-warning-deep" aria-hidden /></div>
-              <div>
-                <div className="font-semibold text-sm text-foreground">{t("index.how3Title")}</div>
-                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t("index.how3Body")}</p>
-              </div>
-            </div>
-          </div>
-          <div className="mt-8 flex justify-center">
+            <h2 className="text-2xl font-semibold tracking-tight text-primary">{t("index.manniskaRubrik")}</h2>
+            <p className="mt-3 max-w-md text-[15px] leading-relaxed text-muted-foreground">{t("index.manniskaText")}</p>
             <Link
               to="/$locale/advisor"
               params={{ locale }}
               search={{ q: undefined }}
-              className="inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-md border border-border hover:border-info hover:text-info transition"
+              className="mt-6 inline-flex h-11 items-center gap-2 rounded-lg border border-border bg-surface px-5 text-[15px] font-medium text-foreground shadow-xs transition-colors hover:border-cta/40"
             >
               {t("index.talkToEngineer")}
             </Link>
           </div>
+          <ul className="divide-y divide-line">
+            {[
+              { Ikon: Sparkles, titel: t("index.how1Title"), text: t("index.how1Body") },
+              { Ikon: Users, titel: t("index.how2Title"), text: t("index.how2Body") },
+              { Ikon: FileText, titel: t("index.how3Title"), text: t("index.how3Body") },
+            ].map(({ Ikon, titel, text }) => (
+              <li key={titel} className="flex gap-3 py-4 first:pt-0 last:pb-0">
+                <Ikon aria-hidden className="mt-0.5 size-4 shrink-0 text-gold-deep" strokeWidth={1.75} />
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{titel}</p>
+                  <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">{text}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
-      {/* CTA CARDS */}
-      <section className="container-page py-14">
-        <div className="grid md:grid-cols-3 gap-3">
-          <CtaCard
-            icon="◎"
-            title={t("index.ctaAdvisorTitle")}
-            body={t("index.ctaAdvisorBody")}
-            to="/$locale/advisor"
-            locale={locale}
-            openLabel={t("index.open")}
-          />
-          <CtaCard
-            icon="⇔"
-            title={t("index.ctaCompareTitle")}
-            body={t("index.ctaCompareBody")}
-            to="/$locale/compare"
-            locale={locale}
-            openLabel={t("index.open")}
-          />
-          <CtaCard
-            icon="✦"
-            title={t("index.ctaMachineTitle")}
-            body={t("index.ctaMachineBody")}
-            to="/$locale/machine-builder"
-            locale={locale}
-            openLabel={t("index.open")}
-          />
-        </div>
-      </section>
-
-      {/* ── FAQ — SEO-rich text + JSON-LD FAQPage schema ── */}
+      {/* ── FAQ: SEO-text och JSON-LD ───────────────────────────────────── */}
       <FaqSection locale={locale} />
-
     </div>
   );
 }
+
+/** Exempeluppdrag: korta etiketter, hela meningar i fältet. */
+const EXEMPEL: Record<"sv" | "en", Array<{ kort: string; text: string }>> = {
+  sv: [
+    { kort: "Sortera ut lådor från ett band", text: "Vi vill sortera ut plastlådor på 0,5–3 kg från ett transportband. Upp till 15 lådor per minut ska skjutas 350 mm i sidled till ett rullbord. 6 bar tryckluft, 24 V DC." },
+    { kort: "Lyfta 15 kg vertikalt", text: "Lyfta en plåtdel på 15 kg vertikalt 200 mm i en pressstation. Lasten får inte falla om tryckluften försvinner. 6 bar." },
+    { kort: "Klämma vid svetsning", text: "Klämma fast en detalj under svetsning med en horisontell rörelse på 80 mm. Svetsstänk förekommer, 6 bar tryckluft." },
+    { kort: "Plocka kartonger med vakuum", text: "Plocka kartonger på 2 kg från ett magasin med vakuumgrepp och flytta dem 300 mm till ett transportband." },
+  ],
+  en: [
+    { kort: "Reject boxes from a conveyor", text: "We want to reject plastic boxes of 0.5–3 kg from a conveyor. Up to 15 boxes a minute are pushed 350 mm sideways onto a roller table. 6 bar compressed air, 24 V DC." },
+    { kort: "Lift 15 kg vertically", text: "Lift a 15 kg sheet-metal part vertically 200 mm in a press station. The load must not drop if the air supply fails. 6 bar." },
+    { kort: "Clamp during welding", text: "Clamp a part during welding with a horizontal stroke of 80 mm. Weld spatter is present, 6 bar compressed air." },
+    { kort: "Pick cartons with vacuum", text: "Pick 2 kg cartons from a magazine with a vacuum gripper and move them 300 mm onto a conveyor." },
+  ],
+};
+
+/** Andra vägar in: ersätta en komponent, styrning och konfiguration. */
+const ALTERNATIV = [
+  { to: "/$locale/replace", titel: "index.routeReplaceTitle", brod: "index.altErsattText", Ikon: RefreshCw },
+  { to: "/$locale/plc", titel: "nav.plc", brod: "index.altPlcText", Ikon: Cpu },
+  { to: "/$locale/configure", titel: "index.routeConfigTitle", brod: "index.altKonfigText", Ikon: Settings },
+] as const;
 
 const FAQ_SV = [
   {
@@ -551,7 +418,7 @@ const FAQ_EN = [
 function FaqSection({ locale }: { locale: string }) {
   const isSv = locale === "sv";
   const faqs = isSv ? FAQ_SV : FAQ_EN;
-  const heading = isSv ? "Vanliga frågor om pneumatik & automation" : "FAQ — Pneumatics & automation";
+  const heading = isSv ? "Vanliga frågor om pneumatik och automation" : "Common questions on pneumatics and automation";
 
   const faqSchema = {
     "@context": "https://schema.org",
@@ -563,72 +430,35 @@ function FaqSection({ locale }: { locale: string }) {
     })),
   };
 
+  // Svaren ligger i <details>: hopfällda för läsaren, men i HTML:en för
+  // sökmotorn, och samma text som JSON-LD-schemat.
   return (
-    <section className="container-page py-16 max-w-3xl">
+    <section className="container-page max-w-3xl py-16">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
       />
-      <h2 className="text-2xl font-semibold text-foreground mb-8">{heading}</h2>
-      <dl className="space-y-6">
+      <h2 className="text-2xl font-semibold tracking-tight text-primary">{heading}</h2>
+      <div className="kort mt-6 divide-y divide-line">
         {faqs.map((f) => (
-          <div key={f.q} className="border-b border-border pb-6">
-            <dt className="font-medium text-foreground mb-2">{f.q}</dt>
-            <dd className="text-sm text-muted-foreground leading-relaxed">{f.a}</dd>
-          </div>
+          <details key={f.q} className="group px-5">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-[15px] font-medium text-foreground [&::-webkit-details-marker]:hidden">
+              {f.q}
+              <ChevronDown aria-hidden className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            <p className="pb-5 text-sm leading-relaxed text-muted-foreground">{f.a}</p>
+          </details>
         ))}
-      </dl>
+      </div>
     </section>
   );
 }
 
-// Official brand logos served from /public/brands/
-const BRAND_META: Record<string, { bg: string }> = {
-  "festo":         { bg: "#f8fafc" },
-  "smc":           { bg: "#f8fafc" },
-  "parker":        { bg: "#f8fafc" },
-  "bosch-rexroth": { bg: "#f8fafc" },
-  "norgren":       { bg: "#f8fafc" },
-  "metal-work":    { bg: "#ffffff" },
-  "camozzi":       { bg: "#ffffff" },
-};
-
+// Fabrikat utan loggofil (AVENTICS) visas som ordmärke, en gång.
 function BrandLogo({ slug, name }: { slug: string; name: string }) {
-  const [imgError, setImgError] = useState(false);
-  const meta = BRAND_META[slug];
-  const bg = meta?.bg ?? "#f8fafc";
-
-  return (
-    <div
-      className="h-20 flex items-center justify-center p-4 overflow-hidden"
-      style={{ background: bg }}
-    >
-      {meta && !imgError ? (
-        <img
-          src={`/brands/${slug}.svg`}
-          alt={name}
-          onError={() => setImgError(true)}
-          className="max-h-12 max-w-full object-contain"
-          loading="lazy"
-        />
-      ) : (
-        <span className="font-bold text-base tracking-tight text-foreground select-none">{name}</span>
-      )}
-    </div>
-  );
-}
-
-function CtaCard({ icon, title, body, to, locale, openLabel }: { icon: string; title: string; body: string; to: string; locale: string; openLabel: string }) {
-  return (
-    <Link
-      to={to as never}
-      params={{ locale } as never}
-      className="rounded-lg border border-border bg-card p-6 hover:border-info hover:shadow-sm transition block group"
-    >
-      <div className="text-2xl text-info">{icon}</div>
-      <h3 className="mt-3 font-semibold text-foreground group-hover:text-info transition">{title}</h3>
-      <p className="mt-2 text-sm text-muted-foreground">{body}</p>
-      <span className="mt-4 inline-block text-sm text-info">{openLabel}</span>
-    </Link>
+  return harLogga(slug) ? (
+    <img src={`/brands/${slug}.svg`} alt={name} className="max-h-9 max-w-[7.5rem] object-contain" loading="lazy" />
+  ) : (
+    <span className="select-none text-[15px] font-bold tracking-tight text-foreground">{name}</span>
   );
 }

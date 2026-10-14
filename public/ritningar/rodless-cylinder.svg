@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280">
+    <rect width="480" height="280" fill="#f8f9fb"/>
+    <!-- end caps -->
+    <rect x="58" y="132" width="26" height="56" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <rect x="396" y="132" width="26" height="56" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <!-- profile tube -->
+    <rect x="84" y="142" width="312" height="38" fill="#e5e7eb" stroke="#6b7280" stroke-width="2"/>
+    <!-- sealing band along the slot -->
+    <line x1="84" y1="149" x2="396" y2="149" stroke="#9ca3af" stroke-width="2" stroke-dasharray="8 3"/>
+    <!-- carriage -->
+    <rect x="194" y="108" width="92" height="42" rx="2" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/>
+    <circle cx="212" cy="122" r="5" fill="white" stroke="#6b7280" stroke-width="1.5"/>
+    <circle cx="268" cy="122" r="5" fill="white" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- air ports on the end caps -->
+    <rect x="65" y="122" width="12" height="11" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <rect x="403" y="122" width="12" height="11" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- travel arrows -->
+    <path d="M286 100 L318 100 M311 94 L320 100 L311 106" fill="none" stroke="#6b7280" stroke-width="1.5"/>
+    <path d="M194 100 L162 100 M169 94 L160 100 L169 106" fill="none" stroke="#6b7280" stroke-width="1.5"/>
+    <!-- centerline -->
+    <line x1="48" y1="161" x2="432" y2="161" stroke="#9ca3af" stroke-width="1" stroke-dasharray="6 3"/>
+    <text x="240" y="226" font-family="Arial,sans-serif" font-size="13" fill="#6b7280" text-anchor="middle" letter-spacing="0.5">Kolvstångslös cylinder</text>
+  </svg>

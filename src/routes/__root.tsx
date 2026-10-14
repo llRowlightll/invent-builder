@@ -75,7 +75,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Maskinval — Industrial automation, pneumatics & electric actuators" },
-      { name: "description", content: "Find the right pneumatic cylinder, electric actuator, valve or gripper — Festo, SMC, Parker, AVENTICS, Bosch Rexroth, Norgren, Metal Work, Camozzi. AI search, comparison and complete BOM in seconds." },
+      { name: "description", content: "Find the right pneumatic cylinder, electric actuator, valve or gripper — Festo, SMC, Parker, AVENTICS, Bosch Rexroth, Norgren, Metal Work, Camozzi. AI search, comparison and a bill of materials checked against your requirements." },
       { property: "og:site_name", content: "Maskinval" },
       { property: "og:title", content: "Maskinval — Industrial automation" },
       { property: "og:description", content: "Search across Festo, SMC, Parker, AVENTICS, Bosch Rexroth, Norgren, Metal Work and Camozzi. AI-driven component selector with BOM and RFQ." },
