@@ -877,6 +877,14 @@ Deno.test("hastigheten vid slaget räknas fortfarande som aktuatorns (regression
   assertEquals(extractSpeedMs(GEMINI, {}), 1);
 });
 
+Deno.test("en angiven skjuthastighet vid ett produktord tappas inte", () => {
+  assertEquals(extractSpeedMs("Skjuta paket 5 kg 300 mm med 0,8 m/s", {}), 0.8);
+  assertEquals(extractSpeedMs("cylindern ska skjuta 25 kilos lådor 0,5m sidledes med 0.3m/s", {}), 0.3);
+  assertEquals(extractSpeedMs("Pick and place 0.2 kg parts, 3 positions, 1.5 m/s, cleanroom", {}), 1.5);
+  assertEquals(extractSpeedMs("Lådorna kommer i 0,3 m/s på bandet. En cylinder skjuter ut dem.", {}), 0);
+  assertEquals(detectHazards("Skjuta paket 5 kg 300 mm med 0,8 m/s", {}, "sv").speedMs, 0.8);
+});
+
 Deno.test("användarens tolkningsbeslut avgör en hastighet utan föremål", () => {
   assertEquals(extractSpeedMs("Vi behöver 0,8 m/s.", {}), 0.8);
   assertEquals(extractSpeedMs("Vi behöver 0,8 m/s.", {}, { "tolkning-krav-hastighet-0_8": "transportband" }), 0);

@@ -9,7 +9,7 @@
 // bom-builder.ts or index.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { hastighetensFormal, hastighetsKravId, type Tolkningsbeslut } from "./kravbild.ts";
+import { hastighetensObjekt, hastighetsKravId, type Tolkningsbeslut } from "./kravbild.ts";
 import { type CatalogProduct, parseStrokeFromSpecs } from "./scoring.ts";
 
 // Found 2026-08-19: every LLM-facing "write your answer in ${lang}" instruction
@@ -649,9 +649,11 @@ export function needsBatteryDryroom(text: string): boolean {
  * den gällde. "Bandet går med 0,25 m/s" blev därför utskjutarens hastighet i
  * lådsorteringstestet, och rörelseenergin och dämpningsråden räknades på
  * bandet. Nu hoppas en hastighet över som meningen knyter till
- * transportbandet, produkten eller mottagningen (kravbild.ts). Står den inte
- * vid något föremål gäller den aktuatorn som förut -- men kravbilden visar den
- * då som en osäker tolkning, och användarens beslut (tolkning) avgör.
+ * transportbandet eller mottagningen (hastighetensObjekt i kravbild.ts). Står
+ * den vid ett produktord avgör resten av meningen: "Skjuta paket 5 kg med
+ * 0,8 m/s" är aktuatorns (den tappades en kort tid efter Fas A). Utan föremål
+ * gäller den aktuatorn som förut, men kravbilden visar den då som en osäker
+ * tolkning, och användarens beslut (tolkning) avgör.
  */
 export function extractSpeedMs(text: string, answers: Record<string, string>, tolkning: Tolkningsbeslut = {}): number {
   const svarText = Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
@@ -665,8 +667,7 @@ export function extractSpeedMs(text: string, answers: Record<string, string>, to
       continue;
     }
     const iText = (m.index ?? 0) < text.length;
-    const formal = iText ? hastighetensFormal(text, m.index ?? 0) : null;
-    if (formal === "transportband" || formal === "mottagning" || formal === "produkt") continue;
+    if (iText && hastighetensObjekt(text, m.index ?? 0) !== "aktuator") continue;
     return varde;
   }
   return 0;
