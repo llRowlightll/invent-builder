@@ -13,7 +13,7 @@
  */
 import type { BomRow } from "./bom-builder.ts";
 import { EGENSKAPSNAMN, kravetsVarde, OBJEKTNAMN, type Krav, type Kravbild } from "./kravbild.ts";
-import type { Kraftkrav } from "./signals.ts";
+import type { Griporganskrav, Kraftkrav } from "./signals.ts";
 
 export type Berakningsstatus = "ej_utford" | "preliminar" | "underlag_otillrackligt" | "utford" | "inaktuell";
 
@@ -93,6 +93,11 @@ export function byggResultat(o: {
   /** Primärens kategori (slug). Ett gripdon eller en sugkopp som primär är
    *  ingen cylinder, och principen ska inte kalla den det. */
   primaryCategory?: string;
+  /** Primärens specifikationer: en ejektor eller ett elgripdon är något annat. */
+  primarySpecs?: Record<string, unknown>;
+  /** Kraften griporganet prövas mot (griporgansKrav). Med ett griporgan som
+   *  primär är det den, inte lyftkraften, som är lösningens beräkning. */
+  griporgan?: Griporganskrav;
 }): Resultat {
   const sv = o.locale === "sv";
   const kb = o.kravbild;
@@ -105,15 +110,20 @@ export function byggResultat(o: {
   const tillbehor = sv
     ? `${harVentil ? " med styrventil" : ""}${harBeredning ? " och luftberedning" : ""}`
     : `${harVentil ? " with control valve" : ""}${harBeredning ? " and air preparation" : ""}`;
+  // En ejektor i vakuumkategorin är ingen sugkopp, och ett gripdon med
+  // spänning är elektriskt (granskningen 2026-10-14).
+  const namnOchTyp = `${o.primaryName ?? ""} ${o.primarySpecs?.type ?? ""} ${o.primarySpecs?.gripper_type ?? ""}`.toLowerCase();
+  const ejektor = greppPrimar === "vacuum" && /eject|ejektor|venturi/.test(namnOchTyp);
+  const elgripdon = greppPrimar === "gripper" && (o.primarySpecs?.voltage != null || /\belectric|elektrisk/.test(namnOchTyp));
   const princip = greppPrimar === "gripper"
-    ? (sv ? `Pneumatiskt gripdon${tillbehor}` : `Pneumatic gripper${tillbehor}`)
+    ? (elgripdon ? (sv ? "Elektriskt gripdon" : "Electric gripper") : (sv ? `Pneumatiskt gripdon${tillbehor}` : `Pneumatic gripper${tillbehor}`))
     : greppPrimar === "vacuum"
-    ? (sv ? "Vakuumgrepp med sugkoppar" : "Vacuum grip with suction cups")
+    ? (ejektor ? (sv ? "Vakuumalstring med ejektor" : "Vacuum generation with an ejector") : (sv ? "Vakuumgrepp med sugkoppar" : "Vacuum grip with suction cups"))
     : (o.isElectric
       ? (sv ? "Elektrisk axel med drivsteg och motor" : "Electric axis with drive and motor")
       : (sv ? `Pneumatisk cylinder${tillbehor}` : `Pneumatic cylinder${tillbehor}`));
   const titel = greppPrimar
-    ? (sv ? `${greppPrimar === "gripper" ? "Pneumatiskt grepp" : "Vakuumgrepp"} — ${o.primarySku}` : `${greppPrimar === "gripper" ? "Pneumatic grip" : "Vacuum grip"} — ${o.primarySku}`)
+    ? (sv ? `${greppPrimar === "gripper" ? (elgripdon ? "Elektriskt grepp" : "Pneumatiskt grepp") : "Vakuumgrepp"} — ${o.primarySku}` : `${greppPrimar === "gripper" ? (elgripdon ? "Electric grip" : "Pneumatic grip") : "Vacuum grip"} — ${o.primarySku}`)
     : sv
     ? `${o.isElectric ? "Elektrisk" : "Pneumatisk"} ${sortering ? "utskjutare för utsortering" : "rörelse"} — ${o.primarySku}`
     : `${o.isElectric ? "Electric" : "Pneumatic"} ${sortering ? "reject pusher" : "motion"} — ${o.primarySku}`;
@@ -135,7 +145,30 @@ export function byggResultat(o: {
   // Beräkningar.
   const berakningar: Berakning[] = [];
   const kk = o.kraftkrav;
-  if (kk && kk.metod !== "ingen" && kk.forceN > 0) {
+  const g = o.griporgan;
+  if (greppPrimar && g) {
+    // Ett griporgan räknas på gripkraften. Lyftkraften stod här förut, och
+    // "Kraft: 981 N" visades bredvid en gripdonsrad som krävde ≈ 5000 N
+    // (granskningen 2026-10-14). Lyftet ingår inte i griporganets lösning.
+    const namn = greppPrimar === "gripper" ? (sv ? "Gripkraft" : "Grip force") : (sv ? "Håll-kraft" : "Holding force");
+    berakningar.push(g.n > 0
+      ? {
+          id: "berakning-gripkraft", namn,
+          status: g.angiven ? "utford" : "preliminar",
+          resultat: `${g.n} N`,
+          metod: g.angiven
+            ? (sv ? "Angiven kraft, används som den är." : "Stated force, used as is.")
+            : greppPrimar === "gripper"
+            ? (sv ? "Tumregel: lastens massa × 100 N vid friktionsgrepp med två backar." : "Rule of thumb: load mass × 100 N for a two-jaw friction grip.")
+            : (sv ? "Lastens tyngd × 2 i säkerhet." : "Load weight × 2 for safety."),
+          saknas: [],
+        }
+      : {
+          id: "berakning-gripkraft", namn, status: "underlag_otillrackligt", resultat: null,
+          metod: sv ? "Varken lastens massa eller kraften är angiven." : "Neither the load's mass nor the force is stated.",
+          saknas: [sv ? "lastens massa eller gripkraften" : "load mass or grip force"],
+        });
+  } else if (kk && kk.metod !== "ingen" && kk.forceN > 0) {
     berakningar.push({
       id: "berakning-kraft",
       namn: sv ? "Kraft" : "Force",
@@ -167,11 +200,11 @@ export function byggResultat(o: {
 
   const k = o.dom.kontrollerat;
   const kontrolltext = sv
-    ? `Kontroller: ${k.verifierade} av ${k.rader} rader kontrollerade mot angivna krav` +
+    ? `Kontroller: ${k.verifierade} av ${k.rader} rader höll mot angivna krav` +
       `${k.med_luckor ? `, ${k.med_luckor} med krav som inte kunde prövas (underlag saknas eller automatisk kontroll stöds inte)` : ""}` +
       `${k.ej_tillampligt ? `, ${k.ej_tillampligt} där inget angivet krav gäller` : ""}` +
       `${k.blockerande ? `, ${k.blockerande} som måste åtgärdas före beställning` : ""}.`
-    : `Checks: ${k.verifierade} of ${k.rader} rows checked against stated requirements` +
+    : `Checks: ${k.verifierade} of ${k.rader} rows passed against stated requirements` +
       `${k.med_luckor ? `, ${k.med_luckor} with requirements that could not be checked (data missing or no automatic check)` : ""}` +
       `${k.ej_tillampligt ? `, ${k.ej_tillampligt} where no stated requirement applies` : ""}` +
       `${k.blockerande ? `, ${k.blockerande} that must be resolved before ordering` : ""}.`;

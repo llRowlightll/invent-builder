@@ -927,10 +927,40 @@ fi
 
 # Test 44: Ett gripdon som inte når kravet får aldrig heta "Rätt storlek"
 # (sajtkritiken 2026-10-14). "Lyfta lådor 50 kg ... med gripdon" gav 170 N
-# märkt "Rätt storlek" mot ≈5000 N, och lyftet nämndes inte.
-echo "  [44] Gripdon under kravet → 'Räcker inte', lyftet sägs ut..."
+# märkt "Rätt storlek" mot ≈5000 N, och lyftet nämndes inte. Kontrollen ligger
+# i en egen fil och tål att katalogen får starkare gripdon.
+echo "  [44] Gripdon mot kravet ≈ 5000 N, lyftet sägs ut..."
 R=$(call_options "Lyfta lådor 50 kg med gripdon, personal arbetar under lasten" '{}')
-check "T44 gripdon märks efter kravet" "$R" "Räcker inte.*Lyftet ingår inte|Lyftet ingår inte.*Räcker inte" "Rätt storlek"
+if is_rate_limited "$R"; then
+  echo "  ⚠️  T44 [SKIP — rate limited]"; ((SKIP++))
+else
+  T44=$(echo "$R" | python3 "$(dirname "$0")/lib/t44-gripdon.py" options 2>&1)
+  if [[ -z "$T44" ]]; then
+    echo "  ✅ T44 gripdon märks efter kravet"; ((PASS++))
+  else
+    echo "  ❌ T44 gripdon märks efter kravet"
+    echo "     fel: $T44"
+    FAILURES+=("T44 gripdon märks efter kravet"); ((FAIL++))
+  fi
+fi
+
+# Test 45: Stycklistan för samma lyft med en gripdonsserie som primär. Lyftet
+# ingår inte och blockerar; greppet ska hålla vid tryckfall; ingen cylinders
+# backventil eller stångbroms sitter på gripdonet (granskningen 2026-10-14).
+echo "  [45] Stycklista med gripdon som primär → lyftet blockerar..."
+R=$(call_bom "Lyfta lådor 50 kg med gripdon, personal arbetar under lasten" '{}' "FESTO-HGPT-B")
+if is_rate_limited "$R"; then
+  echo "  ⚠️  T45 [SKIP — rate limited]"; ((SKIP++))
+else
+  T45=$(echo "$R" | python3 "$(dirname "$0")/lib/t44-gripdon.py" bom 2>&1)
+  if [[ -z "$T45" ]]; then
+    echo "  ✅ T45 gripdonets stycklista"; ((PASS++))
+  else
+    echo "  ❌ T45 gripdonets stycklista"
+    echo "     fel: $T45"
+    FAILURES+=("T45 gripdonets stycklista"); ((FAIL++))
+  fi
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""

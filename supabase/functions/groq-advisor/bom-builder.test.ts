@@ -992,11 +992,104 @@ Deno.test("ett gripdon som primär prövas mot gripkraften, och lyftet blockerar
   assert(!rows.some((r) => r.kind === "check_valve"), "backventilen hör till en lyftande cylinder");
   assert(!rows.some((r) => r.kind === "rod_lock" && r.sku !== "SPECIFY"));
   // ... men lyftet och dess fallskydd står kvar som ett blockerande krav.
-  const lyft = rows.find((r) => /Lyftande aktuator med fallskydd/.test(r.role));
+  const lyft = rows.find((r) => /Lyftet ingår inte/.test(r.role));
   assert(lyft, "lyftraden saknas");
   assertEquals(lyft.verifiering, "ej_uppfyllt");
   assert(!/Ingen artikel i katalogen/.test(lyft.verifieringsskal ?? ""), "katalogen har lyftcylindrar; påståendet vore falskt");
   assertEquals(bedomLosning(rows).bestallningsklar, false);
+  // Raden är en anmärkning, ingen stångbroms: den kopplas inte till gripdonet
+  // (granskningen 2026-10-14).
+  assertEquals(lyft.kind, "warning");
+  const i = rows.indexOf(lyft);
+  assert(!deriveBomConnections(rows).some((c) => c.fromIndex === i || c.toIndex === i), "lyftraden kopplad");
+  // Greppet ska också hålla vid tryckfall.
+  const grepp = rows.find((r) => /Greppet ska hålla vid tryckfall/.test(r.role));
+  assertEquals(grepp?.verifiering, "kraver_verifiering");
+});
+
+// ── Granskningen 2026-10-14, omgång 2 ────────────────────────────────────────
+
+const GRIPDON_OK = { clamping_force: "6000 N", operating_pressure: "2–8 bar" };
+
+Deno.test("'får inte falla vid tryckfall' utan vertikal last försvinner inte för ett gripdon", () => {
+  const h = detectHazards("Gripdon för 5 kg detaljer, detaljen får inte falla vid tryckfall. 6 bar.", {}, "sv");
+  assert(!h.isVerticalLoad && h.isRodLock);
+  const rows = buildMandatoryBomRows(bomCtx({ ...h, kravTryckBar: 6, primarySku: "G1", primaryCategory: "gripper", primarySpecs: GRIPDON_OK }));
+  const grepp = rows.find((r) => /Greppet ska hålla vid tryckfall/.test(r.role));
+  assertEquals(grepp?.verifiering, "kraver_verifiering");
+  assert(!rows.some((r) => r.kind === "rod_lock"), "ingen stångbroms på ett gripdon");
+  assertEquals(bedomLosning(rows).bestallningsklar, false);
+  // En sugkopp får samma krav på vakuumet.
+  const v = buildMandatoryBomRows(bomCtx({ ...h, primarySku: "V1", primaryCategory: "vacuum" }));
+  assert(v.some((r) => /Vakuumet ska hålla vid tryckfall/.test(r.role) && r.verifiering === "kraver_verifiering"));
+});
+
+Deno.test("fleraxligt med Z-axel: lyftet ingår och behåller sitt fallskydd", () => {
+  const h = detectHazards("Plocka detaljer 5 kg ur en låda med gripdon och lyfta upp dem, flytta i sidled", { slag_x_sidled_mm: "600", slag_z_hojd_mm: "150" }, "sv");
+  assert(h.isMultiAxis && h.isVerticalLoad, JSON.stringify(h.perAxisStrokes));
+  const rows = buildMandatoryBomRows(bomCtx({ ...h, primarySku: "G1", primaryCategory: "gripper", primarySpecs: GRIPDON_OK }));
+  assert(rows.some((r) => /Z-axel/.test(r.role) && r.kind === "actuator"), rows.map((r) => r.role).join(" | "));
+  assert(rows.some((r) => r.kind === "check_valve"), "Z-axelns backventil saknas");
+  assert(!rows.some((r) => /Lyftet ingår inte/.test(r.role)), "lyftet ingår ju");
+  assert(!/axel/.test(rows[0].role), `gripdonet är ingen axel: ${rows[0].role}`);
+});
+
+Deno.test("ATEX: ett gripdon utan ATEX-märkning blir inte grönt för att gripkraften räcker", () => {
+  const h = detectHazards("Gripa detaljer 5 kg i ATEX zon 1. 6 bar.", {}, "sv");
+  assert(h.isAtex);
+  const rows = buildMandatoryBomRows(bomCtx({ ...h, kravTryckBar: 6, primarySku: "G1", primaryCategory: "gripper", primarySpecs: GRIPDON_OK }));
+  assertEquals(rows[0].verifiering, "kraver_verifiering");
+  assert(rows[0].kontroller?.some((k) => k.krav === "ATEX" && k.utfall === "underlag_saknas"));
+});
+
+Deno.test("okänd gripkraft eller okänt krav ger aldrig en grön gripdonsrad", () => {
+  const h = detectHazards("Gripa lådor 20 kg. 6 bar.", {}, "sv");
+  const utanKraft = buildMandatoryBomRows(bomCtx({ ...h, kravTryckBar: 6, primarySku: "G1", primaryCategory: "gripper", primarySpecs: { operating_pressure: "2–8 bar" } }));
+  assertEquals(utanKraft[0].verifiering, "kraver_verifiering");
+  assert(/Gripkraften kan inte prövas/.test(utanKraft[0].verifieringsskal ?? ""));
+  const tomma = buildMandatoryBomRows(bomCtx({ ...h, primarySku: "G1", primaryCategory: "gripper", primarySpecs: {} }));
+  assertEquals(tomma[0].verifiering, "kraver_verifiering");
+  const utanMassa = detectHazards("Gripdon för detaljer. 6 bar.", {}, "sv");
+  const okantKrav = buildMandatoryBomRows(bomCtx({ ...utanMassa, kravTryckBar: 6, primarySku: "G1", primaryCategory: "gripper", primarySpecs: GRIPDON_OK }));
+  assertEquals(okantKrav[0].verifiering, "kraver_verifiering");
+  assert(/varken lastens massa eller gripkraften/.test(okantKrav[0].verifieringsskal ?? ""), okantKrav[0].verifieringsskal);
+});
+
+Deno.test("ett gripdon som inte räcker sägs ut även när temperaturuppgiften saknas", () => {
+  const h = detectHazards("Gripa lådor 50 kg vid 90 °C. 6 bar.", {}, "sv");
+  const rows = buildMandatoryBomRows(bomCtx({ ...h, kravTempC: 90, primarySku: "G1", primaryCategory: "gripper", primarySpecs: { clamping_force: "170 N" } }));
+  assertEquals(rows[0].verifiering, "ej_uppfyllt");
+  assert(/gripkraft/.test(rows[0].verifieringsskal ?? ""), rows[0].verifieringsskal);
+});
+
+Deno.test("hållkraft under lastens tyngd sänker inte kravet", () => {
+  const h = detectHazards("Gripdon för 50kg låda, hållkraft 200 N. 6 bar.", {}, "sv");
+  const rows = buildMandatoryBomRows(bomCtx({ ...h, primarySku: "G1", primaryCategory: "gripper", primarySpecs: { clamping_force: "508 N" } }));
+  assertEquals(rows[0].verifiering, "ej_uppfyllt");
+});
+
+Deno.test("en gripdonsserie som räcker i största storleken konfigureras efter gripkraften", () => {
+  const h = detectHazards("Gripa lådor 50 kg. 6 bar.", {}, "sv");
+  const rows = buildMandatoryBomRows(bomCtx({
+    ...h, primarySku: "FESTO-HGPT-B", primaryCategory: "gripper", primaryIsFamilyProd: true, primaryBoreMm: 16,
+    primarySpecs: { sizes: "16, 20, 25, 35, 40, 50, 63, 80", gripping_force_closing_N: "106–6300 N" },
+  }));
+  assertEquals(rows[0].verifiering, "kraver_konfiguration");
+  assert(/minst 5000 N/.test(rows[0].verifieringsskal ?? ""), rows[0].verifieringsskal);
+  assert(!/Ø16/.test(`${rows[0].reason} ${rows[0].verifieringsskal}`), "storleken väljs efter gripkraften, inte en borrning");
+});
+
+Deno.test("ett befintligt lyft blockerar inte, men prövas inte heller", () => {
+  const h = detectHazards("Gripdonet sitter på en Z-axel som redan har stångbroms och lyfter 5 kg.", {}, "sv");
+  assert(h.isVerticalLoad && h.befintligtLyft);
+  const rows = buildMandatoryBomRows(bomCtx({ ...h, primarySku: "G1", primaryCategory: "gripper", primarySpecs: GRIPDON_OK }));
+  assertEquals(rows.find((r) => /Lyftet ingår inte/.test(r.role))?.verifiering, "stods_inte");
+});
+
+Deno.test("cylindertillbehör hör inte till ett gripdon", () => {
+  const h = detectHazards("Parallellgripare som griper 1 kg detaljer i en monteringsstation, snabb, styrd, 6 bar", {}, "sv");
+  const rows = buildMandatoryBomRows(bomCtx({ ...h, isGuided: true, isHighSpeed: true, isMounting: true, primarySku: "G1", primaryCategory: "gripper", primarySpecs: GRIPDON_OK }));
+  assert(!rows.some((r) => r.kind === "mount" || r.kind === "shock_absorber"), rows.map((r) => r.role).join(" | "));
 });
 
 Deno.test("ett gripdon som når kravet prövas och godkänns på primärens råa specar", () => {

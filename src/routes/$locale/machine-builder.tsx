@@ -2248,7 +2248,11 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
           {dom?.kontrollerat && (
             <span className={dom.kontrollerat.verifierade === 0 ? "text-warning-deep" : ""}>
               · {dom.kontrollerat.verifierade} {t("machineBuilder.ofTotal")} {dom.kontrollerat.rader} {t("machineBuilder.ofRowsChecked")}
-              {dom.kontrollerat.verifierade === 0 && ` — ${t("machineBuilder.nothingChecked")}`}
+              {/* "Inga krav" bara när inget prövades alls: en rad som föll
+                  mot ett krav är prövad (granskningen 2026-10-14). */}
+              {dom.kontrollerat.verifierade === 0 && dom.kontrollerat.blockerande === 0 &&
+                (dom.kontrollerat.med_luckor ?? 0) === 0 && (dom.kontrollerat.underlag_saknas ?? 0) === 0 &&
+                ` — ${t("machineBuilder.nothingChecked")}`}
               {(dom.kontrollerat.med_luckor ?? 0) > 0 && (locale === "sv"
                 ? ` · ${dom.kontrollerat.med_luckor} med krav som inte kunde prövas`
                 : ` · ${dom.kontrollerat.med_luckor} with requirements that could not be checked`)}

@@ -636,7 +636,7 @@
     "notOrderReady": "Diese Lösung ist nicht bestellbereit",
     "notOrderReadyHelp": "Melden Sie sich bei uns, wir gehen die Alternativen gemeinsam durch — fordern Sie unten ein Angebot an, einer unserer Techniker antwortet.",
     "ofTotal": "von",
-    "ofRowsChecked": "Zeilen gegen angegebene Anforderungen geprüft",
+    "ofRowsChecked": "Zeilen bestanden gegen angegebene Anforderungen",
     "nothingChecked": "keine angegebenen Anforderungen zum Prüfen",
     "enterValue": "Wert eingeben",
     "findComponents": "Komponenten finden →",

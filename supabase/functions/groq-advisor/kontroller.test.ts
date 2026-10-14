@@ -39,10 +39,27 @@ Deno.test("spänningen prövas mot artikeln", () => {
 });
 
 Deno.test("gripkraften prövas mot kravet; utan uppgift saknas underlag", () => {
-  assertEquals(provaGripkraft(5000, false, 170, true).utfall, "ej_uppfyllt");
-  assertEquals(provaGripkraft(5000, false, 170, true).text, "artikeln ger ≈ 170 N");
-  assert(/tumregel/.test(provaGripkraft(5000, false, 170, true).krav));
-  assertEquals(provaGripkraft(100, true, 170, true).utfall, "uppfyllt");
-  assertEquals(provaGripkraft(100, true, 170, true).krav, "gripkraft 100 N");
-  assertEquals(provaGripkraft(100, true, 0, true).utfall, "underlag_saknas");
+  const tumregel = { n: 5000, angiven: false, tumregelN: 5000, angivetN: 0 };
+  const angiven = { n: 100, angiven: true, tumregelN: 0, angivetN: 100 };
+  assertEquals(provaGripkraft(tumregel, 170, true).utfall, "ej_uppfyllt");
+  assertEquals(provaGripkraft(tumregel, 170, true).text, "artikeln ger ≈ 170 N");
+  assert(/tumregel/.test(provaGripkraft(tumregel, 170, true).krav));
+  assertEquals(provaGripkraft(angiven, 170, true).utfall, "uppfyllt");
+  assertEquals(provaGripkraft(angiven, 170, true).krav, "gripkraft 100 N");
+  assertEquals(provaGripkraft(angiven, 0, true).utfall, "underlag_saknas");
+});
+
+// Granskningen 2026-10-14: ett gripdon utan krav att pröva mot var grönt på
+// trycket, och en angiven kraft under tumregeln gällde utan ett ord.
+Deno.test("gripkraft utan krav saknar underlag; en angiven kraft under tumregeln sägs ut", () => {
+  const ingen = provaGripkraft({ n: 0, angiven: false, tumregelN: 0, angivetN: 0 }, 600, true);
+  assertEquals([ingen.utfall, ingen.text], ["underlag_saknas", "varken lastens massa eller gripkraften är angiven"]);
+  const lag = provaGripkraft({ n: 600, angiven: true, tumregelN: 5000, angivetN: 600 }, 800, true);
+  assertEquals(lag.utfall, "uppfyllt");
+  assert(/lägre än tumregeln för friktionsgrepp \(≈ 5000 N\) och räcker bara med formgrepp/.test(lag.text), lag.text);
+  const hall = provaGripkraft({ n: 5000, angiven: false, tumregelN: 5000, angivetN: 200 }, 508, true);
+  assertEquals(hall.utfall, "ej_uppfyllt");
+  assert(/den angivna hållkraften 200 N är lägre/.test(hall.krav), hall.krav);
+  const serie = provaGripkraft({ n: 5000, angiven: false, tumregelN: 5000, angivetN: 0 }, 6300, true, true);
+  assertEquals([serie.utfall, serie.text], ["uppfyllt", "serien ger ≈ 6300 N i största storleken"]);
 });
