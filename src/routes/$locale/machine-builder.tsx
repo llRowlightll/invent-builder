@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { Machine3DSceneProps } from "@/components/Machine3DScene";
 const Machine3DScene = lazy(() =>
   import("@/components/Machine3DScene").then(m => ({ default: m.Machine3DScene }))
@@ -13,12 +13,18 @@ import type { ProductRow } from "@/lib/types";
 import { callAdvisor } from "@/lib/advisor-client";
 import { saveBomNormalized, loadBomNormalized } from "@/lib/bom-store";
 import { usableForceN, LOAD_SAFETY_FACTOR } from "@/lib/physics";
-import { Award, Camera, Lock, Package, RefreshCw, Ruler, Save, Settings } from "lucide-react";
+import { Award, Camera, Cpu, Lock, Package, RefreshCw, Ruler, Save, Settings } from "lucide-react";
 import { getProductImage } from "@/lib/product-images";
 import { Tolkningspanel } from "@/components/maskin/Tolkningspanel";
 import { Resultatstatus, type ResultatData } from "@/components/maskin/Resultatstatus";
 import { delaSvar } from "../../../supabase/functions/groq-advisor/kravbild.ts";
 import { logga } from "@/lib/matning";
+import { Stegnavigering, type StegTillstand } from "@/components/design/Stegnavigering";
+import { Projektpanel, type Sparstatus } from "@/components/design/Projektpanel";
+import { byggProjektoversikt } from "@/lib/design/projektoversikt";
+import { Statusmarke, Statusprick } from "@/components/design/Statusmarke";
+import { ALLVAR, allvarligast, radensText, radensTillstand, radStatus, utfalletsText, utfalletsTillstand, type Tillstand } from "@/lib/design/status";
+import { categoryName } from "@/lib/categories";
 
 /** Namnet på sidans språk för rader som kan sakna katalogprodukt. */
 const visatNamn = (p: ProductRow | null | undefined, locale: string) => (p ? produktnamn(p, locale) : undefined);
@@ -355,6 +361,22 @@ function MachineBuilderPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Uppdraget från startsidan: läses en gång och startar analysen direkt, så
+  // att besökaren inte skriver och trycker två gånger. En bakåtnavigering
+  // startar den inte igen (nyckeln tas bort när den lästs).
+  useEffect(() => {
+    let start: string | null = null;
+    try {
+      start = sessionStorage.getItem("mv_starta");
+      if (start) sessionStorage.removeItem("mv_starta");
+    } catch { /* blockerad lagring */ }
+    if (start?.trim()) {
+      setDescription(start);
+      void handleDescribe(start);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function enrichWithCatalog<T extends { sku: string; product?: ProductRow }>(items: T[]): T[] {
     return items.map(item => ({
       ...item,
@@ -363,12 +385,12 @@ function MachineBuilderPage() {
   }
 
   // Step 1 → questions
-  async function handleDescribe() {
-    if (!description.trim()) return;
+  async function handleDescribe(text: string = description) {
+    if (!text.trim()) return;
     setError("");
     setStep("q_loading");
     try {
-      const data = await advisorCall({ action: "questions", description, locale });
+      const data = await advisorCall({ action: "questions", description: text, locale });
       // Never advance to the questions step with nothing to answer: `allAnswered`
       // requires questions.length > 0, so an empty list disables the continue
       // button forever and strands the user with no error and no way forward.
@@ -469,28 +491,87 @@ function MachineBuilderPage() {
     setError("");
   }
 
+  // ── Projektöversikten och stegen ────────────────────────────────────────
+  // Kravbilden räknas i webbläsaren ur samma modul som motorn (kravbild.ts),
+  // så panelen visar vad som uppfattats redan medan beskrivningen skrivs.
+  const lamnasOppen = isSv ? "Lämnas öppen" : "Left open";
+  const vetInte = t("machineBuilder.dontKnow");
+  const uppskjuten = useDeferredValue(description);
+  const oversikt = useMemo(() => byggProjektoversikt({
+    locale, description: uppskjuten, answers,
+    fragor: questions.map(q => ({ id: q.id, label: q.label })), lamnasOppen, vetInte,
+    requirements: step === "options" || step === "bom_loading" || step === "result" ? requirements : null,
+    valt: step === "result" || step === "bom_loading" ? selected : null,
+    blockerande: step === "result" ? dom?.blockerande : undefined,
+  }), [locale, uppskjuten, answers, questions, lamnasOppen, vetInte, step, requirements, selected, dom]);
+
+  const ORDNING: Record<Step, number> = { describe: 0, q_loading: 0, questions: 1, o_loading: 1, options: 2, bom_loading: 2, result: 3 };
+  const nu = ORDNING[step] ?? 0;
+  const lage = (i: number, saknas: boolean, konflikt: boolean): StegTillstand =>
+    i === nu ? "aktivt" : i > nu ? "last" : konflikt ? "konflikt" : saknas ? "saknas" : "klart";
+  const fragorSaknas = questions.some(q => answers[q.id] === lamnasOppen || answers[q.id] === vetInte);
+  const valtUppfyllerInte = (selected?.kravstatus ?? []).some(k => k.utfall === "ej_uppfyllt");
+  // Ett valt alternativ med krav som avviker eller inte gick att bedöma är
+  // valt, men inte klart: steget visar att uppgifter saknas.
+  const valtSaknar = (selected?.kravstatus ?? []).some(k => k.utfall === "kan_inte_bedomas" || k.utfall === "avvikelse");
+  const stegLista = [
+    { id: "describe", namn: t("machineBuilder.stepDescribe"), tillstand: lage(0, false, false) },
+    { id: "questions", namn: t("machineBuilder.stepQuestions"), tillstand: lage(1, fragorSaknas, false) },
+    { id: "options", namn: t("machineBuilder.stepSelect"), tillstand: lage(2, valtSaknar, valtUppfyllerInte) },
+    { id: "result", namn: t("machineBuilder.stepResult"), tillstand: lage(3, false, oversikt.antal.konflikter > 0) },
+  ];
+  function gaTillSteg(id: string) {
+    if (id === "describe") setStep("describe");
+    else if (id === "questions" && questions.length) setStep("questions");
+    else if (id === "options" && options.length) setStep("options");
+  }
+
+  const sparstatus: Sparstatus = !user
+    ? {
+        lage: "osparat",
+        text: isSv ? "Inte sparat. Logga in för att spara projektet." : "Not saved. Sign in to save the project.",
+        atgard: <Link to="/$locale/login" params={{ locale }} className="font-medium text-info hover:underline">{t("auth.submitLogin")}</Link>,
+      }
+    : projektId && autoSaved
+    ? { lage: "sparat", text: isSv ? "Sparat i projektet" : "Saved to the project" }
+    : step === "result"
+    ? { lage: "sparar", text: isSv ? "Sparar …" : "Saving …" }
+    : { lage: "osparat", text: isSv ? "Sparas som projekt när resultatet är klart." : "Saved as a project once the result is ready." };
+
+  const panel = {
+    rubrik: isSv ? "Projektöversikt" : "Project overview",
+    beskrivning: step === "describe" ? undefined : description.trim(),
+    sparstatus,
+    sektioner: oversikt.sektioner.map(sek => ({ ...sek, poster: sek.poster.map(p => ({ ...p })) })),
+    locale,
+    sammanfattning: oversikt.sammanfattning,
+    tomText: isSv ? "Börja skriva, så visas det maskinbyggaren uppfattar här." : "Start typing and what the machine builder picks up appears here.",
+  };
+
   return (
-    <div className="container-page py-4 max-w-4xl">
-      {/* Header — compact */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight flex items-center gap-2">
-            <span className="text-info text-sm">✦</span>
-            {t("machineBuilder.title")}
-          </h1>
-          <p className="text-xs text-muted-foreground max-w-xl mt-0.5">
-            {t("machineBuilder.subtitle")}
-          </p>
-        </div>
+    <div className="container-page py-6 md:py-8">
+      <div className="max-w-3xl">
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-primary">
+          <span className="text-info text-base" aria-hidden>✦</span>
+          {t("machineBuilder.title")}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t("machineBuilder.subtitle")}</p>
       </div>
 
-      {/* Progress bar */}
-      <StepIndicator step={step} t={t} />
+      <Stegnavigering steg={stegLista} onValj={gaTillSteg} locale={locale} etikett={isSv ? "Maskinbyggarens steg" : "Machine builder steps"} className="mt-5" />
 
-      {error && (
-        <div className="my-4 px-4 py-3 rounded-md bg-destructive/10 text-destructive text-sm">{error}</div>
-      )}
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="min-w-0">
+          <Projektpanel variant="mobil" {...panel} />
 
+          {error && (
+            <div role="alert" className="mb-4 flex items-start gap-3 rounded-lg border border-danger-deep/20 bg-danger-surface px-4 py-3 text-sm text-danger-deep">
+              <span aria-hidden className="mt-px font-semibold">!</span>
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div key={step} className="rorelse-fram">
       {/* ── Step: Describe ── */}
       {step === "describe" && (
         <DescribeStep
@@ -498,12 +579,12 @@ function MachineBuilderPage() {
           locale={locale}
           description={description}
           setDescription={setDescription}
-          onSubmit={handleDescribe}
+          onSubmit={() => handleDescribe()}
         />
       )}
 
       {/* ── Step: Loading questions ── */}
-      {step === "q_loading" && <LoadingCard message={t("machineBuilder.analysingApp")} />}
+      {step === "q_loading" && <LoadingCard message={t("machineBuilder.analysingApp")} form="fragor" locale={locale} />}
 
       {/* ── Step: Questions ── */}
       {step === "questions" && (
@@ -521,7 +602,7 @@ function MachineBuilderPage() {
       )}
 
       {/* ── Step: Loading options ── */}
-      {step === "o_loading" && <LoadingCard message={t("machineBuilder.searchingComponents")} />}
+      {step === "o_loading" && <LoadingCard message={t("machineBuilder.searchingComponents")} form="alternativ" locale={locale} />}
 
       {/* ── Step: Options ── */}
       {step === "options" && (
@@ -537,7 +618,7 @@ function MachineBuilderPage() {
       )}
 
       {/* ── Step: Loading BOM ── */}
-      {step === "bom_loading" && <LoadingCard message={t("machineBuilder.buildingBom")} />}
+      {step === "bom_loading" && <LoadingCard message={t("machineBuilder.buildingBom")} form="resultat" locale={locale} />}
 
       {/* ── Step: Result ── */}
       {step === "result" && selected && (
@@ -582,47 +663,11 @@ function MachineBuilderPage() {
           onBack={() => setStep("options")}
         />
       )}
-    </div>
-  );
-}
-
-// ── Step Indicator ──────────────────────────────────────────────────────────
-function StepIndicator({ step, t }: { step: Step; t: (key: import("@/lib/i18n").TKey) => string }) {
-  const steps = [
-    { key: "describe", label: t("machineBuilder.stepDescribe") },
-    { key: "questions", label: t("machineBuilder.stepQuestions") },
-    { key: "options", label: t("machineBuilder.stepSelect") },
-    { key: "result", label: t("machineBuilder.stepResult") },
-  ];
-  const order: Record<string, number> = {
-    describe: 0, q_loading: 0,
-    questions: 1, o_loading: 1,
-    options: 2, bom_loading: 2,
-    result: 3,
-  };
-  const current = order[step] ?? 0;
-
-  return (
-    <div className="flex items-center gap-0 mb-4">
-      {steps.map((s, i) => (
-        <div key={s.key} className="flex items-center flex-1 last:flex-none">
-          <div className="flex flex-col items-center gap-0.5">
-            <div className={`size-6 rounded-full flex items-center justify-center text-[10px] font-semibold transition-colors ${
-              i < current ? "bg-info text-primary-foreground" :
-              i === current ? "bg-primary text-primary-foreground" :
-              "bg-muted text-muted-foreground"
-            }`}>
-              {i < current ? "✓" : i + 1}
-            </div>
-            <span className={`text-[9px] uppercase tracking-wider hidden sm:block ${
-              i === current ? "text-foreground font-medium" : "text-muted-foreground"
-            }`}>{s.label}</span>
           </div>
-          {i < steps.length - 1 && (
-            <div className={`flex-1 h-0.5 mx-1.5 mb-3 transition-colors ${i < current ? "bg-info" : "bg-border"}`} />
-          )}
         </div>
-      ))}
+
+        <Projektpanel variant="sida" {...panel} />
+      </div>
     </div>
   );
 }
@@ -672,21 +717,22 @@ function DescribeStep({ t, locale, description, setDescription, onSubmit }: {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-4">
-        <label className="block text-sm font-medium text-foreground mb-2">
+    <div className="space-y-6">
+      <div className="arbetsyta p-2">
+        <label htmlFor="mb-beskrivning" className="block px-3 pt-2 text-sm font-medium text-foreground">
           {t("machineBuilder.describeLabel")}
         </label>
         <textarea
+          id="mb-beskrivning"
           value={description}
           onChange={e => setDescription(e.target.value)}
           onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") onSubmit(); }}
           placeholder={t("machineBuilder.describePlaceholder")}
-          rows={3}
+          rows={5}
           autoFocus
-          className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50 resize-none"
+          className="mt-1 block w-full resize-y rounded-xl bg-transparent px-3 py-2 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/80 focus:outline-none"
         />
-        <div className="mt-2 flex items-center gap-2 flex-wrap">
+        <div className="flex flex-wrap items-center gap-2 border-t border-line px-3 pt-3 pb-1.5">
           <input
             ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden
             onChange={e => onPickImages(e.target.files)}
@@ -695,9 +741,9 @@ function DescribeStep({ t, locale, description, setDescription, onSubmit }: {
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={imgBusy || thumbs.length >= 3}
-            className="px-3 py-1.5 rounded-lg border border-input text-xs font-medium text-muted-foreground hover:border-info hover:text-foreground disabled:opacity-40 transition flex items-center gap-1.5"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-xs transition-colors hover:border-cta/40 hover:text-foreground disabled:opacity-40"
           >
-            {imgBusy ? t("machineBuilder.analysingImage") : <><Camera className="size-4 inline -mt-0.5 mr-1" aria-hidden />{t("machineBuilder.uploadImage")}</>}
+            {imgBusy ? t("machineBuilder.analysingImage") : <><Camera className="size-3.5" aria-hidden />{t("machineBuilder.uploadImage")}</>}
           </button>
           {thumbs.map((src, i) => (
             <span key={i} className="relative inline-block">
@@ -710,31 +756,32 @@ function DescribeStep({ t, locale, description, setDescription, onSubmit }: {
               >×</button>
             </span>
           ))}
-          <span className="text-[11px] text-muted-foreground">{imgError || t("machineBuilder.imageHint")}</span>
-        </div>
-        <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
-          <span className="text-[11px] text-muted-foreground">{t("machineBuilder.cmdEnterHint")}</span>
+          {/* Tipset får en egen rad på smal skärm i stället för att pressas
+              till en smal spalt mellan knapparna. */}
+          <span className="order-last w-full text-[11px] text-muted-foreground sm:order-none sm:w-auto sm:min-w-0 sm:flex-1">{imgError || t("machineBuilder.imageHint")}</span>
+          <span className="ml-auto hidden text-[11px] text-muted-foreground [@media(hover:hover)]:sm:inline">{t("machineBuilder.cmdEnterHint")}</span>
           <button
             onClick={onSubmit}
             disabled={!description.trim() || imgBusy}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition flex items-center gap-2"
+            className="ml-auto inline-flex h-10 items-center gap-2 rounded-lg bg-cta px-4 text-sm font-semibold text-cta-foreground shadow-xs transition-[background-color,transform] hover:bg-cta-hover active:translate-y-px disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none"
           >
             {t("machineBuilder.analyse")}
           </button>
         </div>
       </div>
 
-      {/* Examples */}
+      {/* Exempel: ett klick fyller fältet, inget skickas förrän användaren vill. */}
       <div>
-        <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground mb-3">{t("machineBuilder.tryExample")}</p>
-        <div className="flex flex-col gap-2">
+        <p className="text-xs font-medium text-muted-foreground">{t("machineBuilder.tryExample")}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
           {examples.map(ex => (
             <button
               key={ex}
+              type="button"
               onClick={() => setDescription(ex)}
-              className="text-left text-sm px-4 py-2.5 rounded-lg border border-border text-muted-foreground hover:border-info hover:text-foreground hover:bg-card transition"
+              className="rounded-full border border-border bg-surface px-3 py-1.5 text-left text-[13px] text-foreground/85 shadow-xs transition-colors hover:border-cta/40 hover:text-foreground"
             >
-              <span className="text-info mr-2">→</span>{ex}
+              {ex}
             </button>
           ))}
         </div>
@@ -831,6 +878,7 @@ function QuestionsStep({ t, locale, description, summary, questions, answers, se
     setAnswers({ ...answers, [q.id]: vetInte });
   }
 
+  const kvar = questions.filter(q => !answers[q.id]).length;
   const allAnswered = questions.length > 0 && questions.every(q => {
     const val = answers[q.id];
     if (val === undefined || val === "") return false;
@@ -846,21 +894,21 @@ function QuestionsStep({ t, locale, description, summary, questions, answers, se
   return (
     <div className="space-y-4">
       {summary && (
-        <div className="rounded-xl border border-info/30 bg-info/5 px-4 py-3 text-sm text-foreground flex gap-3">
-          <span className="text-info shrink-0 mt-0.5">✦</span>
+        <div className="flex gap-3 rounded-lg bg-surface-alt px-4 py-3 text-sm text-foreground">
+          <span className="mt-0.5 shrink-0 text-info" aria-hidden>✦</span>
           <span>{summary}</span>
         </div>
       )}
 
       <Tolkningspanel locale={locale} description={description} answers={answers} setAnswers={setAnswers} />
 
-      <div className="rounded-xl border border-border bg-card p-6 space-y-6">
-        <div className="text-sm font-medium text-foreground">
+      <div className="arbetsyta divide-y divide-line">
+        <h2 className="px-5 py-4 text-sm font-semibold text-foreground sm:px-6">
           {t("machineBuilder.answerQuestions")}
-        </div>
+        </h2>
 
         {questions.map((q, i) => (
-          <div key={q.id}>
+          <div key={q.id} className="px-5 py-5 sm:px-6">
             <div className="flex items-start gap-2 mb-3">
               <span className="size-5 rounded-full bg-primary/10 text-primary text-[10px] flex items-center justify-center shrink-0 mt-0.5 font-semibold">{i + 1}</span>
               <div>
@@ -885,10 +933,11 @@ function QuestionsStep({ t, locale, description, summary, questions, answers, se
                       <button
                         key={opt}
                         onClick={() => valjAlternativ(q, opt)}
-                        className={`px-3 py-1.5 rounded-lg border text-sm transition ${
+                        aria-pressed={vald}
+                        className={`px-3.5 py-1.5 rounded-full border text-sm transition-colors ${
                           vald
-                            ? "border-info bg-info/10 text-info font-medium"
-                            : "border-border text-muted-foreground hover:border-info hover:text-foreground"
+                            ? "border-primary bg-primary text-primary-foreground font-medium shadow-xs"
+                            : "border-border bg-surface text-foreground/80 hover:border-primary/40 hover:text-foreground"
                         }`}
                       >
                         {vald && <span className="mr-1">✓</span>}
@@ -898,10 +947,11 @@ function QuestionsStep({ t, locale, description, summary, questions, answers, se
                   })}
                   <button
                     onClick={() => valjVetInte(q)}
-                    className={`px-3 py-1.5 rounded-lg border text-sm transition ${
+                    aria-pressed={!egnaSvar.has(q.id) && answers[q.id] === vetInte}
+                    className={`px-3.5 py-1.5 rounded-full border text-sm transition-colors ${
                       !egnaSvar.has(q.id) && answers[q.id] === vetInte
-                        ? "border-info bg-info/10 text-info font-medium"
-                        : "border-dashed border-border text-muted-foreground hover:border-info hover:text-foreground"
+                        ? "border-primary bg-primary text-primary-foreground font-medium shadow-xs"
+                        : "border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
                     }`}
                   >
                     {!egnaSvar.has(q.id) && answers[q.id] === vetInte && <span className="mr-1">✓</span>}
@@ -910,10 +960,10 @@ function QuestionsStep({ t, locale, description, summary, questions, answers, se
                   <button
                     onClick={() => vaxlaEgetSvar(q)}
                     aria-expanded={egnaSvar.has(q.id)}
-                    className={`px-3 py-1.5 rounded-lg border text-sm transition ${
+                    className={`px-3.5 py-1.5 rounded-full border text-sm transition-colors ${
                       egnaSvar.has(q.id)
-                        ? "border-info bg-info/10 text-info font-medium"
-                        : "border-dashed border-border text-muted-foreground hover:border-info hover:text-foreground"
+                        ? "border-primary bg-primary text-primary-foreground font-medium shadow-xs"
+                        : "border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
                     }`}
                   >
                     {egnaSvar.has(q.id) && <span className="mr-1">✓</span>}
@@ -922,10 +972,10 @@ function QuestionsStep({ t, locale, description, summary, questions, answers, se
                   <button
                     onClick={() => lamnaOppen(q)}
                     aria-pressed={!egnaSvar.has(q.id) && answers[q.id] === lamnasOppen}
-                    className={`px-3 py-1.5 rounded-lg border text-sm transition ${
+                    className={`px-3.5 py-1.5 rounded-full border text-sm transition-colors ${
                       !egnaSvar.has(q.id) && answers[q.id] === lamnasOppen
-                        ? "border-info bg-info/10 text-info font-medium"
-                        : "border-dashed border-border text-muted-foreground hover:border-info hover:text-foreground"
+                        ? "border-primary bg-primary text-primary-foreground font-medium shadow-xs"
+                        : "border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
                     }`}
                   >
                     {!egnaSvar.has(q.id) && answers[q.id] === lamnasOppen && <span className="mr-1">✓</span>}
@@ -970,10 +1020,11 @@ function QuestionsStep({ t, locale, description, summary, questions, answers, se
                       {q.unit && <span className="text-sm text-muted-foreground">{q.unit}</span>}
                       <button
                         onClick={() => valjVetInte(q)}
-                        className={`px-3 py-1.5 rounded-lg border text-sm transition ${
+                        aria-pressed={raw === vetInte}
+                        className={`px-3.5 py-1.5 rounded-full border text-sm transition-colors ${
                           raw === vetInte
-                            ? "border-info bg-info/10 text-info font-medium"
-                            : "border-dashed border-border text-muted-foreground hover:border-info hover:text-foreground"
+                            ? "border-primary bg-primary text-primary-foreground font-medium shadow-xs"
+                            : "border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
                         }`}
                       >
                         {raw === vetInte && <span className="mr-1">✓</span>}
@@ -982,10 +1033,10 @@ function QuestionsStep({ t, locale, description, summary, questions, answers, se
                       <button
                         onClick={() => lamnaOppen(q)}
                         aria-pressed={raw === lamnasOppen}
-                        className={`px-3 py-1.5 rounded-lg border text-sm transition ${
+                        className={`px-3.5 py-1.5 rounded-full border text-sm transition-colors ${
                           raw === lamnasOppen
-                            ? "border-info bg-info/10 text-info font-medium"
-                            : "border-dashed border-border text-muted-foreground hover:border-info hover:text-foreground"
+                            ? "border-primary bg-primary text-primary-foreground font-medium shadow-xs"
+                            : "border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
                         }`}
                       >
                         {raw === lamnasOppen && <span className="mr-1">✓</span>}
@@ -1005,33 +1056,31 @@ function QuestionsStep({ t, locale, description, summary, questions, answers, se
         ))}
       </div>
 
-      <div className="flex items-center justify-between">
-        <button onClick={onBack} className="text-sm text-muted-foreground hover:text-foreground transition">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <button onClick={onBack} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
           ← {t("machineBuilder.back")}
         </button>
-        <button
-          onClick={onSubmit}
-          disabled={!allAnswered}
-          className="px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition"
-        >
-          {t("machineBuilder.findComponents")}
-        </button>
+        <div className="flex items-center gap-3">
+          {/* En avstängd knapp säger varför (rorelse-skillen). */}
+          {!allAnswered && kvar > 0 && (
+            <span className="text-xs text-muted-foreground" aria-live="polite">
+              {isSv ? `${kvar} ${kvar === 1 ? "fråga" : "frågor"} kvar` : `${kvar} ${kvar === 1 ? "question" : "questions"} left`}
+            </span>
+          )}
+          <button
+            onClick={onSubmit}
+            disabled={!allAnswered}
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-cta px-5 text-sm font-semibold text-cta-foreground shadow-xs transition-[background-color,transform] hover:bg-cta-hover active:translate-y-px disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none"
+          >
+            {t("machineBuilder.findComponents")}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
 // ── Options Step ────────────────────────────────────────────────────────────
-// Kravstatus per alternativ (manualen 4.3). Texten bär beskedet; färgen är
-// bara ett stöd, så att statusen går att läsa utan att se färger.
-const UTFALL: Record<string, { sv: string; en: string; ikon: string; stil: string }> = {
-  uppfyllt: { sv: "uppfylls", en: "met", ikon: "✓", stil: "text-success-deep" },
-  ej_uppfyllt: { sv: "uppfylls inte", en: "not met", ikon: "✗", stil: "text-destructive" },
-  avvikelse: { sv: "avviker", en: "deviates", ikon: "≠", stil: "text-warning-deep" },
-  konfigureras: { sv: "konfigureras vid order", en: "configured at order", ikon: "⚙", stil: "text-muted-foreground" },
-  kan_inte_bedomas: { sv: "kan inte bedömas", en: "cannot be assessed", ikon: "?", stil: "text-warning-deep" },
-};
-
 const KUNDLOSNING_ORSAK: Record<string, [string, string]> = {
   ingen_katalogmatchning: ["Ingen artikel i katalogen matchar kraven.", "No catalogue item matches the requirements."],
   otillrackligt_underlag: ["Underlaget räcker inte för att välja: last eller kraft saknas.", "Not enough data to choose: load or force is missing."],
@@ -1044,117 +1093,127 @@ function OptionsStep({ t, locale, summary, options, requirements, onSelect, onBa
   requirements: Requirements | null; onSelect: (o: ActuatorOption) => void; onBack: () => void;
 }) {
   const isSv = locale === "sv";
-  const BADGE_COLORS: Record<string, string> = {
-    "Bästa valet": "bg-success-surface text-success-deep",
-    "Best choice": "bg-success-surface text-success-deep",
-    "Alternativ": "bg-muted text-muted-foreground",
-    "Alternative": "bg-muted text-muted-foreground",
-    "Alternativa": "bg-muted text-muted-foreground",
-    "Premium alternativ": "bg-purple-100 text-purple-700",
-    "Premium option": "bg-purple-100 text-purple-700",
+  const tx = (sv: string, en: string) => (isSv ? sv : en);
+
+  // Ett kravutfall mot en uppskattning är preliminärt, inte grönt (brief punkt 6).
+  const kravTillstand = (k: { krav: string; utfall: string }): Tillstand =>
+    k.utfall === "uppfyllt" && /preliminär|preliminary/i.test(k.krav) ? "preliminart" : utfalletsTillstand(k.utfall);
+  const helhetText: Record<string, [string, string]> = {
+    uppfyllerInte: ["Uppfyller inte ett krav", "Does not meet a requirement"],
+    komplettering: ["Kräver komplettering", "Needs completion"],
+    preliminart: ["Preliminärt uppfyllt", "Preliminarily met"],
+    bekraftat: ["Uppfyller prövade krav", "Meets checked requirements"],
   };
+  const helhet = (o: ActuatorOption): Tillstand => allvarligast((o.kravstatus ?? []).map(kravTillstand)) ?? "ejProvat";
+  // Rekommendationen: första katalogalternativet som inte bryter ett krav.
+  const rekommenderad = options.find(o => o.sku !== "CUSTOM-SOLUTION" && helhet(o) !== "uppfyllerInte")?.sku;
+
+  // Det alternativen prövas mot, med enhet och grund.
+  const grund: Array<{ text: string; tillstand?: Tillstand; tag?: string }> = [];
+  if (requirements?.load_kg) grund.push({ text: `${tx("Last", "Load")} ${requirements.load_kg} kg` });
+  if (requirements?.required_force_n) grund.push({ text: `${tx("Kraft", "Force")} ${requirements.required_force_n} N`, ...(requirements.force_preliminary ? { tillstand: "preliminart" as const, tag: tx("uppskattning", "estimate") } : {}) });
+  if (requirements?.required_stroke_mm) grund.push({ text: `${tx("Slag", "Stroke")} ${requirements.required_stroke_mm} mm` });
+  if (requirements?.required_torque_nm) grund.push({ text: `${tx("Vridmoment", "Torque")} ${requirements.required_torque_nm} Nm` });
+  if (requirements?.required_rotation_deg) grund.push({ text: `${tx("Vinkel", "Angle")} ${requirements.required_rotation_deg}°` });
+  if (requirements?.pressure_bar) grund.push({ text: `${tx("Tryck", "Pressure")} ${String(requirements.pressure_bar).replace(".", isSv ? "," : ".")} bar`, ...(requirements.pressure_assumed ? { tillstand: "preliminart" as const, tag: tx("antaget", "assumed") } : {}) });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {summary && (
-        <div className="rounded-xl border border-info/30 bg-info/5 px-4 py-3 text-sm flex gap-3">
-          <span className="text-info shrink-0 mt-0.5">✦</span>
+        <div className="flex gap-3 rounded-lg bg-surface-alt px-4 py-3 text-sm text-foreground">
+          <span className="mt-0.5 shrink-0 text-info" aria-hidden>✦</span>
           <span>{summary}</span>
         </div>
       )}
 
-      <p className="text-sm text-muted-foreground font-medium">
-        {t("machineBuilder.selectMain")}
-      </p>
+      <div>
+        <h2 className="text-base font-semibold text-foreground">{t("machineBuilder.selectMain")}</h2>
+        {grund.length > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-muted-foreground">
+            <span>{tx("Prövas mot:", "Checked against:")}</span>
+            {grund.map(g => (
+              <span key={g.text} className="inline-flex items-center gap-1.5 text-foreground">
+                {g.text}
+                {g.tillstand && <Statusmarke tillstand={g.tillstand} text={g.tag} locale={locale} />}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {options.map(opt => {
           const isCustom = opt.sku === "CUSTOM-SOLUTION";
 
           if (isCustom) {
             return (
-              <button
-                key="CUSTOM-SOLUTION"
-                onClick={() => onSelect(opt)}
-                className="w-full text-left rounded-xl border-2 border-gold/40 bg-gold/5 hover:border-gold hover:shadow-md transition-all p-5 group"
-              >
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-gold/20 text-warning-deep">
-                      Kundlösning
-                    </span>
-                    <span className="font-semibold text-foreground group-hover:text-warning-deep transition">{opt.name}</span>
+              <article key="CUSTOM-SOLUTION" className="kort border-dashed p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-base font-semibold text-foreground">{opt.name}</h3>
+                    {opt.orsak && KUNDLOSNING_ORSAK[opt.orsak] && (
+                      <p className="mt-0.5 text-[13px] font-medium text-foreground/80">{KUNDLOSNING_ORSAK[opt.orsak][isSv ? 0 : 1]}</p>
+                    )}
                   </div>
-                  <span className="text-warning-deep text-sm font-medium shrink-0">
-                    Skicka förfrågan →
-                  </span>
+                  <Statusmarke tillstand="forslag" text={tx("Kundlösning", "Custom solution")} locale={locale} />
                 </div>
-                {opt.orsak && KUNDLOSNING_ORSAK[opt.orsak] && (
-                  <p className="mt-2 text-xs font-medium text-foreground">{KUNDLOSNING_ORSAK[opt.orsak][isSv ? 0 : 1]}</p>
-                )}
-                <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{opt.why}</p>
-                <div className="mt-3 grid sm:grid-cols-2 gap-3">
-                  <div>
-                    {opt.pros?.map((p, i) => (
-                      <div key={i} className="text-xs text-warning-deep flex items-center gap-1 mt-1">
-                        <span>✓</span> {p}
-                      </div>
-                    ))}
-                  </div>
-                  <div>
-                    {opt.cons?.map((c, i) => (
-                      <div key={i} className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                        <span>—</span> {c}
-                      </div>
-                    ))}
-                  </div>
+                <p className="mt-3 text-sm leading-relaxed text-foreground/85">{opt.why}</p>
+                {(opt.pros?.length || opt.cons?.length) ? (
+                  <ul className="mt-3 grid gap-1 text-[13px] text-muted-foreground sm:grid-cols-2">
+                    {opt.pros?.map((p, i) => <li key={`p${i}`}>✓ {p}</li>)}
+                    {opt.cons?.map((c, i) => <li key={`c${i}`}>· {c}</li>)}
+                  </ul>
+                ) : null}
+                <div className="mt-4 flex justify-end border-t border-line pt-4">
+                  <button
+                    type="button"
+                    onClick={() => onSelect(opt)}
+                    className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold shadow-xs transition-[background-color,transform] active:translate-y-px ${rekommenderad ? "border border-border bg-surface text-foreground hover:border-cta/40" : "bg-cta text-cta-foreground hover:bg-cta-hover"}`}
+                  >
+                    {tx("Skicka förfrågan", "Send a request")} →
+                  </button>
                 </div>
-              </button>
+              </article>
             );
           }
 
+          const status = [...(opt.kravstatus ?? [])].sort((x, y) => ALLVAR.indexOf(kravTillstand(x)) - ALLVAR.indexOf(kravTillstand(y)));
+          const h = helhet(opt);
+          const arRek = opt.sku === rekommenderad;
+          const namn = opt.product ? produktnamn(opt.product, locale) : opt.name;
+          const funktion = opt.product
+            ? [categoryName(opt.product.category.slug, locale, opt.product.category.name), opt.product.brand.name].filter(Boolean).join(" · ")
+            : "";
+
           return (
-            <button
-              key={opt.sku}
-              onClick={() => onSelect(opt)}
-              className="w-full text-left rounded-xl border-2 border-border bg-card hover:border-info hover:shadow-md transition-all p-5 group"
-            >
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${BADGE_COLORS[opt.badge] ?? "bg-muted text-muted-foreground"}`}>
-                    {opt.badge}
-                  </span>
-                  <span className="font-semibold text-foreground group-hover:text-info transition">{opt.name}</span>
-                  <span className="font-mono text-xs text-muted-foreground">{opt.sku}</span>
+            <article key={opt.sku} aria-labelledby={`alt-${opt.sku}`} className={`kort p-5 ${arRek ? "ring-1 ring-cta/30" : ""}`}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 id={`alt-${opt.sku}`} className="break-words text-base font-semibold text-foreground">{namn}</h3>
+                    {opt.badge && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">{opt.badge}</span>}
+                  </div>
+                  <p className="mt-0.5 text-[13px] text-muted-foreground">
+                    {funktion && <>{funktion} · </>}<span className="font-mono text-xs">{opt.sku}</span>
+                  </p>
                 </div>
-                <span className="text-info text-sm font-medium shrink-0">
-                  {t("machineBuilder.select")}
-                </span>
+                <Statusmarke tillstand={h} text={helhetText[h] ? helhetText[h][isSv ? 0 : 1] : undefined} locale={locale} />
               </div>
 
-              {/* Specs */}
-              {(opt.bore_mm || opt.stroke_mm || opt.force_n) && (
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {opt.bore_mm ? <SpecChip label="Bore" value={`${opt.bore_mm} mm`} /> : null}
-                  {!requirements?.required_stroke_mm && opt.stroke_mm ? <SpecChip label="Stroke" value={`${opt.stroke_mm} mm`} /> : null}
-                  {!requirements?.required_force_n && opt.force_n ? <SpecChip label={opt.bore_mm ? "Force @ 6 bar" : "Force"} value={`${opt.force_n} N`} /> : null}
-                </div>
-              )}
-
-              {/* Calculated dimensioning — required vs available */}
-              <DimensioningPanel locale={locale} requirements={requirements} option={opt} />
-
-              {opt.kravstatus && opt.kravstatus.length > 0 && (
-                <ul className="mt-3 space-y-0.5 text-xs" aria-label={isSv ? "Krav som prövats" : "Requirements checked"}>
-                  {opt.kravstatus.map((k, i) => {
-                    const u = UTFALL[k.utfall] ?? UTFALL.kan_inte_bedomas;
+              {/* Kravuppfyllelsen: det som inte håller först. */}
+              {status.length > 0 && (
+                <ul className="mt-4 grid gap-x-6 gap-y-1.5 text-[13px] sm:grid-cols-2" aria-label={tx("Krav som prövats", "Requirements checked")}>
+                  {status.map((k, i) => {
+                    const ts = kravTillstand(k);
                     return (
-                      <li key={i} className="flex gap-1.5">
-                        <span aria-hidden className={`${u.stil} w-3 shrink-0 text-center`}>{u.ikon}</span>
-                        <span>
+                      <li key={i} className="flex items-start gap-2">
+                        <Statusprick tillstand={ts} className="mt-[7px]" />
+                        <span className="min-w-0">
                           <span className="text-foreground">{k.krav}</span>
-                          {": "}<span className={`font-medium ${u.stil}`}>{isSv ? u.sv : u.en}</span>
-                          {k.text && <span className="text-muted-foreground"> — {k.text}</span>}
+                          <span className={ts === "uppfyllerInte" ? "font-medium text-danger-deep" : ts === "komplettering" ? "text-warning-deep" : "text-muted-foreground"}>
+                            {": "}{utfalletsText(k.utfall, locale)}
+                          </span>
+                          {k.text && <span className="block text-xs text-muted-foreground">{k.text}</span>}
                         </span>
                       </li>
                     );
@@ -1162,33 +1221,56 @@ function OptionsStep({ t, locale, summary, options, requirements, onSelect, onBa
                 </ul>
               )}
 
-              {/* Why */}
-              <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{opt.why}</p>
+              {/* Motiveringen, nära valet. */}
+              <p className="mt-4 text-sm leading-relaxed text-foreground/85">{opt.why}</p>
 
-              {/* Pros / Cons */}
-              <div className="mt-3 grid sm:grid-cols-2 gap-3">
-                <div>
-                  {opt.pros?.map((p, i) => (
-                    <div key={i} className="text-xs text-success-deep flex items-center gap-1 mt-1">
-                      <span className="text-success">✓</span> {p}
+              <details className="group mt-3">
+                <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-[13px] font-medium text-info hover:underline [&::-webkit-details-marker]:hidden">
+                  {tx("Tekniska detaljer", "Technical details")}
+                  <span aria-hidden className="transition-transform group-open:rotate-90">›</span>
+                </summary>
+                <div className="mt-3 space-y-3">
+                  {(opt.bore_mm || opt.stroke_mm || opt.force_n) && (
+                    <div className="flex flex-wrap gap-2">
+                      {opt.bore_mm ? <SpecChip label={tx("Borrning", "Bore")} value={`${opt.bore_mm} mm`} /> : null}
+                      {opt.stroke_mm ? <SpecChip label={tx("Slag", "Stroke")} value={`${opt.stroke_mm} mm`} /> : null}
+                      {opt.force_n ? <SpecChip label={opt.bore_mm ? tx("Kraft vid 6 bar", "Force at 6 bar") : tx("Kraft", "Force")} value={`${opt.force_n} N`} /> : null}
                     </div>
-                  ))}
-                </div>
-                <div>
-                  {opt.cons?.map((c, i) => (
-                    <div key={i} className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                      <span className="text-muted-foreground">—</span> {c}
+                  )}
+                  <DimensioningPanel locale={locale} requirements={requirements} option={opt} bordered={false} />
+                  {(opt.pros?.length || opt.cons?.length) ? (
+                    <div className="grid gap-3 text-[13px] sm:grid-cols-2">
+                      <ul className="space-y-1">
+                        {opt.pros?.map((p, i) => <li key={i} className="text-foreground/85">✓ {p}</li>)}
+                      </ul>
+                      <ul className="space-y-1">
+                        {opt.cons?.map((c, i) => <li key={i} className="text-muted-foreground">· {c}</li>)}
+                      </ul>
                     </div>
-                  ))}
+                  ) : null}
                 </div>
+              </details>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+                <span className="text-xs text-muted-foreground">
+                  {arRek ? tx("Rekommenderas: inget prövat krav underkänns.", "Recommended: no checked requirement fails.")
+                    : h === "uppfyllerInte" ? tx("Kan väljas, men ett krav uppfylls inte.", "Can be chosen, but a requirement is not met.") : ""}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onSelect(opt)}
+                  className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold shadow-xs transition-[background-color,border-color,transform] active:translate-y-px ${arRek ? "bg-cta text-cta-foreground hover:bg-cta-hover" : "border border-border bg-surface text-foreground hover:border-cta/40"}`}
+                >
+                  {t("machineBuilder.select")}
+                </button>
               </div>
-            </button>
+            </article>
           );
         })}
       </div>
 
       <div className="flex items-center justify-start pt-1">
-        <button onClick={onBack} className="text-sm text-muted-foreground hover:text-foreground transition">
+        <button onClick={onBack} className="text-sm text-muted-foreground transition-colors hover:text-foreground">
           ← {t("machineBuilder.back")}
         </button>
       </div>
@@ -1198,8 +1280,8 @@ function OptionsStep({ t, locale, summary, options, requirements, onSelect, onBa
 
 function SpecChip({ label, value }: { label: string; value: string }) {
   return (
-    <span className="text-[11px] bg-muted px-2 py-1 rounded-md text-muted-foreground">
-      <span className="text-foreground font-medium">{value}</span> {label}
+    <span className="rounded-md bg-muted px-2 py-1 text-[11px] text-muted-foreground">
+      <span className="font-medium text-foreground tabular-nums">{value}</span> {label}
     </span>
   );
 }
@@ -1223,10 +1305,12 @@ function SpecChip({ label, value }: { label: string; value: string }) {
  * `overskottAr` säger vilket av de två som gäller.
  */
 function DimensioningBar({ label, required, available, unit, requiredLabel, availableLabel,
-                           overskottAr = "marginal", avvikelseNot }: {
+                           overskottAr = "marginal", avvikelseNot, preliminar = false }: {
   label: string; required: number; available: number; unit: string;
   requiredLabel: string; availableLabel: string;
   overskottAr?: "marginal" | "avvikelse"; avvikelseNot?: string;
+  /** Kravet är en uppskattning: marginalen visas skifferblå, aldrig grön. */
+  preliminar?: boolean;
 }) {
   const max = Math.max(required, available, 1) * 1.05; // headroom so the bar isn't edge-to-edge
   const availPct = Math.min((available / max) * 100, 100);
@@ -1238,9 +1322,9 @@ function DimensioningBar({ label, required, available, unit, requiredLabel, avai
   const overskott = required > 0 && available > required * 1.02;
   const avviker = overskottAr === "avvikelse" && overskott;
 
-  const ton = !meets ? "fel" : avviker ? "avvikelse" : "ok";
-  const textFarg = ton === "fel" ? "text-destructive" : ton === "avvikelse" ? "text-warning-deep" : "text-success-deep";
-  const stapelFarg = ton === "fel" ? "bg-destructive/70" : ton === "avvikelse" ? "bg-warning" : "bg-success";
+  const ton = !meets ? "fel" : avviker ? "avvikelse" : preliminar ? "preliminar" : "ok";
+  const textFarg = ton === "fel" ? "text-danger-deep" : ton === "avvikelse" ? "text-warning-deep" : ton === "preliminar" ? "text-prelim-deep" : "text-success-deep";
+  const stapelFarg = ton === "fel" ? "bg-danger-deep/70" : ton === "avvikelse" ? "bg-warning" : ton === "preliminar" ? "bg-prelim" : "bg-success";
 
   return (
     <div className="min-w-[160px] flex-1">
@@ -1300,6 +1384,7 @@ function DimensioningPanel({ locale, requirements, option, bordered = true }: {
             // En uträknad kraft är en uppskattning, inte ett krav (lådsorteringstestet).
             requiredLabel={requirements.force_preliminary ? (isSv ? "Uppskattning" : "Estimate") : (isSv ? "Krävs" : "Required")}
             availableLabel={isSv ? "Ger" : "Delivers"}
+            preliminar={requirements.force_preliminary === true}
           />
           {/* Uträkningen bakom kravet, så att den går att granska. */}
           {requirements.force_basis && (
@@ -1346,60 +1431,10 @@ function DimensioningPanel({ locale, requirements, option, bordered = true }: {
 }
 
 // ── Verifieringsstatus, gemensam presentation ───────────────────────────────
-/**
- * Serverns statusvärden är stabila nycklar; det här är texten människor läser.
- * En enda karta för tabellen, CSV:n och PDF:en, så att en rad inte kan heta tre
- * olika saker i de tre artefakter som når samma kund.
- */
-const STATUSTEXT: Record<string, string> = {
-  // Sedan 2026-10-13 (manualen 5.6): "Inga krav att pröva" är ersatt av vad
-  // som faktiskt gäller för raden. inga_krav finns kvar för äldre svar.
-  verifierad: "Kontrollerat mot angivna krav",
-  inga_krav: "Ej kontrollerat",
-  underlag_saknas: "Underlag saknas",
-  stods_inte: "Automatisk kontroll stöds inte",
-  ej_tillampligt: "Ej tillämpligt",
-  delvis: "Delvis kontrollerat",
-  kraver_verifiering: "Kräver verifiering",
-  kraver_konfiguration: "Kräver konfiguration",
-  avvikelse: "Avvikelse",
-  ej_uppfyllt: "Ej uppfyllt",
-  ej_godkand: "Ej godkänd",
-};
+// Texten och nivån för varje status kommer från src/lib/design/status.ts: en
+// enda tabell för tabellen, CSV:n och PDF:en, så att en rad inte kan heta tre
+// olika saker i de tre artefakter som når samma kund.
 const BLOCKERANDE_STATUS = new Set(["kraver_verifiering", "ej_uppfyllt", "ej_godkand"]);
-const KONTROLLUTFALL: Record<string, string> = {
-  uppfyllt: "uppfylls",
-  ej_uppfyllt: "uppfylls inte",
-  underlag_saknas: "underlag saknas",
-  stods_inte: "automatisk kontroll stöds inte",
-};
-
-/**
- * Tre lägen, inte två. "Inga krav att pröva" får inte vara grönt: grönt läses
- * som ett godkännande, och ingenting har godkänts. Det får inte vara orange
- * heller -- ingenting är fel. Neutralt är det enda ärliga.
- */
-function statusStil(v: string): string {
-  // Underkänt och okänt är olika besked och ska se olika ut. Till 2026-10-02
-  // fick alla blockerande statusar samma gula färg, så "den här klarar
-  // bevisat inte miljön" och "vi vet inte" gick inte att skilja på en blick.
-  if (v === "ej_uppfyllt" || v === "ej_godkand") return "bg-destructive/10 text-destructive";
-  if (BLOCKERANDE_STATUS.has(v)) return "bg-warning-surface text-warning-deep";
-  if (v === "underlag_saknas" || v === "stods_inte" || v === "avvikelse" || v === "delvis") return "bg-warning-surface/60 text-warning-deep";
-  if (v === "verifierad") return "bg-success-surface text-success-deep";
-  return "bg-muted text-muted-foreground";
-}
-const statusText = (v?: string) => (v ? STATUSTEXT[v] ?? v : "");
-
-/**
- * Radens status som den ska läsas. En rad där något prövades men ett annat
- * krav saknade underlag är "delvis kontrollerad", inte kontrollerad -- annars
- * säger etiketten mer än kontrollerna (ventilen: tryck prövat, 24 V DC inte).
- */
-function radStatus(l: { verifiering?: string; kontroller?: Array<{ utfall: string }> }): string | undefined {
-  if (l.verifiering === "verifierad" && (l.kontroller ?? []).some(k => k.utfall === "underlag_saknas" || k.utfall === "stods_inte")) return "delvis";
-  return l.verifiering;
-}
 
 /** PDF:en byggs som HTML-sträng. Allt som stoppas in måste escapas. */
 function esc(v: unknown): string {
@@ -1421,7 +1456,7 @@ function exportBomCsv(bom: BomLine[], title: string) {
   const cit = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const rows = bom.map(l =>
     [l.sku, cit(l.product?.name ?? ""), l.quantity, cit(l.role), cit(l.reason),
-     cit(statusText(radStatus(l))), cit(l.verifieringsskal ?? "")].join(",")
+     cit(radensText(radStatus(l), "sv")), cit(l.verifieringsskal ?? "")].join(",")
   );
   const blob = new Blob([header + "\n" + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -1431,6 +1466,11 @@ function exportBomCsv(bom: BomLine[], title: string) {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/** PDF:ens färgklass per nivå. Delvis prövat är inte grönt (status.ts). */
+const PDF_KLASS: Partial<Record<Tillstand, string>> = {
+  bekraftat: "status-ok", komplettering: "status-block", uppfyllerInte: "status-fel", ejProvat: "status-neutral",
+};
 
 function exportBomPdf(bom: BomLine[], title: string, explanation: string, selected: ActuatorOption, dom: Dom | null) {
   const rows = bom.map(l => {
@@ -1442,7 +1482,7 @@ function exportBomPdf(bom: BomLine[], title: string, explanation: string, select
       <td style="text-align:center">${esc(l.quantity)}</td>
       <td>${esc(l.role)}</td>
       <td>${esc(l.reason)}</td>
-      <td>${l.verifiering ? `<span class="status ${l.verifiering === "ej_uppfyllt" || l.verifiering === "ej_godkand" ? "status-fel" : blockerar ? "status-block" : l.verifiering === "verifierad" ? "status-ok" : "status-neutral"}">${esc(statusText(radStatus(l)))}</span>` : ""}${
+      <td>${l.verifiering ? `<span class="status ${PDF_KLASS[radensTillstand(radStatus(l))] ?? "status-neutral"}">${esc(radensText(radStatus(l), "sv"))}</span>` : ""}${
         l.verifieringsskal ? `<div class="skal">${esc(l.verifieringsskal)}</div>` : ""}</td>
     </tr>`;
   }).join("");
@@ -1953,11 +1993,9 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
   return (
     <div className="space-y-6">
       {/* Title */}
-      <div className="rounded-xl border border-info/30 bg-info/5 px-5 py-4">
-        <div className="text-[11px] uppercase tracking-[0.14em] text-info font-medium mb-1">
-          {t("machineBuilder.yourSolution")}
-        </div>
-        <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+      <div className="arbetsyta px-5 py-5 sm:px-6">
+        <p className="text-xs font-medium text-muted-foreground">{t("machineBuilder.yourSolution")}</p>
+        <h2 className="mt-1 text-xl font-semibold tracking-tight text-primary">{title}</h2>
         {/* Med strukturerat resultat visas princip och kravbild här och resten
             i statusdelen nedan; ett öppnat projekt har bara texten. */}
         <p className="mt-2 text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
@@ -1969,10 +2007,10 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
 
       {/* Calculated dimensioning — required vs available, for the chosen actuator */}
       {requirements && (requirements.required_force_n != null || requirements.required_stroke_mm != null) && (
-        <div className="rounded-xl border border-border bg-card px-5 py-4">
-          <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground font-medium mb-3">
-            {locale === "sv" ? "Dimensionering — " : "Dimensioning — "}{selected.name}
-          </div>
+        <div className="kort px-5 py-4">
+          <h3 className="mb-3 text-sm font-semibold text-foreground">
+            {locale === "sv" ? "Dimensionering: " : "Dimensioning: "}<span className="font-normal text-muted-foreground">{selected.name}</span>
+          </h3>
           <DimensioningPanel locale={locale} requirements={requirements} option={selected} bordered={false} />
         </div>
       )}
@@ -1981,8 +2019,8 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
       <BomSystemView bom={bom} connections={connections} selected={selected} locale={locale} />
 
       {/* BOM Table */}
-      <div className="rounded-xl border border-border overflow-hidden">
-        <div className="px-4 py-3 bg-muted/40 border-b border-border flex items-start sm:items-center justify-between flex-wrap gap-2">
+      <div className="arbetsyta overflow-hidden">
+        <div className="px-4 py-3 border-b border-line flex items-start sm:items-center justify-between flex-wrap gap-2 sm:px-5">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="text-sm font-semibold">{t("machineBuilder.bomTitle")}</div>
             {/* Alternatives toggle */}
@@ -2032,7 +2070,7 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
             ihop är det att prata med en människa som ÄR nästa steg, inte en
             vägg. */}
         {dom && !dom.bestallningsklar && (
-          <div className="mx-4 mb-4 rounded-lg border border-warning/40 bg-warning-surface px-4 py-3">
+          <div className="mx-4 my-4 rounded-lg border border-warning-deep/20 bg-warning-surface px-4 py-3 sm:mx-5" role="status">
             <div className="flex items-start gap-2">
               <span className="text-warning-deep shrink-0 mt-0.5" aria-hidden>⚠</span>
               <div className="space-y-2 min-w-0">
@@ -2042,8 +2080,8 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
                 <ul className="space-y-1.5">
                   {dom.blockerande.map((b, i) => (
                     <li key={`${b.sku}-${i}`} className="text-[13px] text-foreground">
-                      <span className="tabular font-medium">{b.sku}</span>
-                      <span className="text-muted-foreground"> — {b.role}: </span>
+                      <span className="tabular font-medium">{b.sku === "SPECIFY" ? "—" : b.sku}</span>
+                      <span className="text-muted-foreground"> {b.role}: </span>
                       {b.skal}
                     </li>
                   ))}
@@ -2058,13 +2096,13 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border bg-muted/20">
+              <tr className="border-b border-line bg-surface-alt/60">
                 <th className="w-12 px-2 py-2.5" aria-label="Bild" />
-                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">SKU</th>
-                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("machineBuilder.nameCol")}</th>
-                <th className="text-center px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("machineBuilder.qtyCol")}</th>
-                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("machineBuilder.roleCol")}</th>
-                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">{t("machineBuilder.reasonCol")}</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">SKU</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t("machineBuilder.nameCol")}</th>
+                <th className="text-center px-4 py-2.5 text-xs font-medium text-muted-foreground">{t("machineBuilder.qtyCol")}</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t("machineBuilder.roleCol")}</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground hidden xl:table-cell">{t("machineBuilder.reasonCol")}</th>
               </tr>
             </thead>
             <tbody>
@@ -2074,8 +2112,8 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
 
                 return (
                   <>
-                    <tr key={i} className={`border-b border-border last:border-0 transition ${
-                      isSwapped ? "bg-success-surface/30" : i % 2 === 0 ? "" : "bg-muted/10"
+                    <tr key={i} className={`border-b border-line last:border-0 align-top transition-colors ${
+                      isSwapped ? "bg-success-surface/30" : ""
                     }`}>
                       <td className="px-2 py-2 w-12">
                         {/* Samma ritning som katalogen visar för produkten. Förut fick
@@ -2138,14 +2176,20 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
                           banner ovanför -- ordet "verifierad" nådde aldrig skärmen. */}
                       <td className="px-4 py-3 text-sm text-muted-foreground">
                         <div>{line.role}</div>
+                        {line.reason && (
+                          <details className="mt-1 text-xs xl:hidden">
+                            <summary className="cursor-pointer text-info hover:underline w-fit">{t("machineBuilder.reasonCol")}</summary>
+                            <p className="mt-1 max-w-xs text-muted-foreground">{line.reason}</p>
+                          </details>
+                        )}
                         {line.verifiering && (
                           <div className="mt-1">
-                            <span
+                            <Statusmarke
+                              tillstand={radensTillstand(radStatus(line))}
+                              text={radensText(radStatus(line), locale)}
                               title={line.verifieringsskal ?? undefined}
-                              className={`inline-block rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] ${statusStil(radStatus(line) ?? "")}`}
-                            >
-                              {statusText(radStatus(line))}
-                            </span>
+                              locale={locale}
+                            />
                             {line.verifieringsskal && (
                               <details className="mt-1 text-xs">
                                 <summary className="cursor-pointer text-info hover:underline w-fit">{locale === "sv" ? "Vad som prövats" : "What was checked"}</summary>
@@ -2154,7 +2198,7 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
                                   <ul className="mt-1 space-y-0.5">
                                     {line.kontroller.map((k, i) => (
                                       <li key={i} className="text-muted-foreground">
-                                        <span className="text-foreground">{k.krav}</span>: {KONTROLLUTFALL[k.utfall] ?? k.utfall}{k.text ? ` — ${k.text}` : ""}
+                                        <span className="text-foreground">{k.krav}</span>: {utfalletsText(k.utfall, locale)}{k.text ? ` (${k.text})` : ""}
                                       </li>
                                     ))}
                                   </ul>
@@ -2164,7 +2208,7 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">{line.reason}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground hidden xl:table-cell">{line.reason}</td>
                     </tr>
 
                     {/* Tiered alternatives row */}
@@ -2262,61 +2306,57 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
       </div>
 
       {/* RFQ */}
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="kort p-5 sm:p-6">
         <h3 className="font-semibold text-foreground mb-1">{t("machineBuilder.sendQuote")}</h3>
         <p className="text-sm text-muted-foreground mb-4">
           {t("machineBuilder.sendQuoteBody")}
         </p>
         {rfqSent ? (
-          <div className="rounded-lg bg-success-surface text-success-deep px-4 py-4 space-y-1">
+          <div className="rounded-lg border border-success/30 bg-success-surface text-success-deep px-4 py-4 space-y-1 rorelse-fram" role="status">
             <div className="font-semibold text-sm">✓ {t("machineBuilder.quoteThankYou")}</div>
             {rfqId && (
               <div className="text-xs opacity-80">
-                Referens: <span className="font-mono font-semibold">{rfqId}</span> — vi återkommer inom 1–2 arbetsdagar.
+                Referens: <span className="font-mono font-semibold">{rfqId}</span>. Vi återkommer inom 1–2 arbetsdagar.
               </div>
             )}
           </div>
         ) : (
           <div className="space-y-3">
+            {/* Synliga etiketter ovanför fälten; platshållaren är bara ett exempel.
+                Samma fält i samma ordning som förut. */}
             <div className="grid sm:grid-cols-2 gap-3">
-              <input
-                value={rfqName}
-                onChange={e => setRfqName(e.target.value)}
-                placeholder={t("machineBuilder.yourNamePlaceholder")}
-                className="px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
-              />
-              <input
-                value={rfqEmail}
-                onChange={e => setRfqEmail(e.target.value)}
-                placeholder={t("machineBuilder.emailPlaceholder")}
-                type="email"
-                className="px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
-              />
-              <input
-                value={rfqCompany}
-                onChange={e => setRfqCompany(e.target.value)}
-                placeholder="Företag (valfritt)"
-                className="px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
-              />
-              <input
-                value={rfqPhone}
-                onChange={e => setRfqPhone(e.target.value)}
-                placeholder="Telefon (valfritt)"
-                type="tel"
-                className="px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
-              />
-              <input
-                value={rfqPoNumber}
-                onChange={e => setRfqPoNumber(e.target.value)}
-                placeholder={t("ordersPage.poNumber") + " (valfritt — t.ex. från SAP/Ariba)"}
-                className="px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50 font-mono"
-              />
-              <input
-                value={rfqOrgNumber}
-                onChange={e => setRfqOrgNumber(e.target.value)}
-                placeholder="Organisationsnummer (valfritt — t.ex. 556000-0000)"
-                className="px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-info/50 font-mono"
-              />
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-muted-foreground">{t("machineBuilder.yourNamePlaceholder")}</span>
+                <input autoComplete="name" value={rfqName} onChange={e => setRfqName(e.target.value)}
+                  className="h-11 w-full px-3 rounded-lg border border-input bg-surface text-sm focus:outline-none focus:ring-2 focus:ring-cta/40" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-muted-foreground">{t("machineBuilder.emailPlaceholder")}</span>
+                <input type="email" autoComplete="email" value={rfqEmail} onChange={e => setRfqEmail(e.target.value)}
+                  className="h-11 w-full px-3 rounded-lg border border-input bg-surface text-sm focus:outline-none focus:ring-2 focus:ring-cta/40" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-muted-foreground">{locale === "sv" ? "Företag (valfritt)" : "Company (optional)"}</span>
+                <input autoComplete="organization" value={rfqCompany} onChange={e => setRfqCompany(e.target.value)}
+                  className="h-11 w-full px-3 rounded-lg border border-input bg-surface text-sm focus:outline-none focus:ring-2 focus:ring-cta/40" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-muted-foreground">{locale === "sv" ? "Telefon (valfritt)" : "Phone (optional)"}</span>
+                <input type="tel" autoComplete="tel" value={rfqPhone} onChange={e => setRfqPhone(e.target.value)}
+                  className="h-11 w-full px-3 rounded-lg border border-input bg-surface text-sm focus:outline-none focus:ring-2 focus:ring-cta/40" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-muted-foreground">{t("ordersPage.poNumber")} {locale === "sv" ? "(valfritt)" : "(optional)"}</span>
+                <input value={rfqPoNumber} onChange={e => setRfqPoNumber(e.target.value)}
+                  placeholder={locale === "sv" ? "t.ex. från SAP eller Ariba" : "e.g. from SAP or Ariba"}
+                  className="h-11 w-full px-3 rounded-lg border border-input bg-surface text-sm focus:outline-none focus:ring-2 focus:ring-cta/40 font-mono" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-muted-foreground">{locale === "sv" ? "Organisationsnummer (valfritt)" : "Company registration number (optional)"}</span>
+                <input value={rfqOrgNumber} onChange={e => setRfqOrgNumber(e.target.value)}
+                  placeholder="556000-0000"
+                  className="h-11 w-full px-3 rounded-lg border border-input bg-surface text-sm focus:outline-none focus:ring-2 focus:ring-cta/40 font-mono" />
+              </label>
             </div>
             {/* Honeypot — hidden from real users via CSS, not `type="hidden"`,
                 so form-filling bots that read layout still find and fill it. */}
@@ -2333,7 +2373,7 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
             <button
               onClick={submitRfq}
               disabled={!rfqName.trim() || !rfqEmail.trim() || rfqLoading}
-              className="w-full sm:w-auto px-6 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition"
+              className="w-full sm:w-auto inline-flex h-11 items-center justify-center px-6 rounded-lg bg-cta text-cta-foreground text-sm font-semibold shadow-xs hover:bg-cta-hover active:translate-y-px disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none transition-[background-color,transform]"
             >
               {rfqLoading ? t("shoppingList.sending") : t("machineBuilder.sendButton")}
             </button>
@@ -2345,7 +2385,7 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
       <div className="flex items-center gap-3 flex-wrap pt-1">
         {user ? (
           (projectSaved || autoSaved) ? (
-            <span className="inline-flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
+            <span className="inline-flex items-center gap-1.5 text-sm text-success-deep font-medium" role="status">
               ✓ {autoSaved && !projectSaved ? t("projects.autoSaved" as never) : t("projects.saved")}
               <Link to="/$locale/projects" params={{ locale } as never} className="underline text-info">
                 → {t("projects.title")}
@@ -2376,7 +2416,11 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
       </div>
 
       {/* Ingång A till PLC-modulen: kraven och komponenterna följer med projektet. */}
-      <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+      <div className="kort flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:p-6">
+        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/[0.06] text-primary" aria-hidden>
+          <Cpu className="size-5" strokeWidth={1.75} />
+        </span>
+        <div className="min-w-0 flex-1">
         <h3 className="font-semibold text-foreground">
           {locale === "sv" ? "Komplettera maskinen med styrning och programmering" : "Complete the machine with control and programming"}
         </h3>
@@ -2391,7 +2435,7 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
               <Link
                 to="/$locale/plc/$projektId"
                 params={{ locale: locale as Locale, projektId }}
-                className="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition"
+                className="inline-flex h-10 items-center px-4 rounded-lg bg-primary text-primary-foreground text-sm font-semibold shadow-xs hover:bg-primary/90 active:translate-y-px transition-[background-color,transform]"
               >
                 {locale === "sv" ? "Lägg till PLC & programmering" : "Add PLC & programming"}
               </Link>
@@ -2417,20 +2461,21 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
                   // sessionStorage kan vara blockerat i privat läge
                 }
               }}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-primary text-primary text-sm font-medium hover:bg-primary hover:text-primary-foreground transition"
+              className="inline-flex h-10 items-center gap-1.5 px-4 rounded-lg border border-primary/30 bg-surface text-primary text-sm font-semibold shadow-xs hover:border-primary/60 transition-colors"
             >
               <Lock className="size-4" aria-hidden />
               {locale === "sv" ? "Logga in och lägg till PLC & programmering" : "Sign in and add PLC & programming"}
             </Link>
           )}
         </div>
+        </div>
       </div>
 
       {/* Save project modal */}
       {showSaveModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-primary/30 backdrop-blur-sm p-4"
           onClick={() => setShowSaveModal(false)}>
-          <div className="bg-card rounded-xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+          <div role="dialog" aria-modal="true" className="bg-surface rounded-xl shadow-lg w-full max-w-md p-6 rorelse-fram" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-foreground">{projektId ? t("projects.rename" as never) : t("projects.modalTitle")}</h2>
               <button onClick={() => setShowSaveModal(false)} className="text-muted-foreground hover:text-foreground text-xl">✕</button>
@@ -3431,19 +3476,45 @@ function labelAt(
 }
 
 // ── Loading Card ────────────────────────────────────────────────────────────
-function LoadingCard({ message }: { message: string }) {
+/**
+ * Laddningsläget har samma form som det som kommer: frågor, alternativ eller
+ * resultat. Meddelandet läses upp (aria-live) och säger ungefär hur länge det
+ * brukar ta, så att väntan inte ser ut som ett fel. Pulsen stängs av vid
+ * reducerad rörelse (styles.css).
+ */
+function LoadingCard({ message, form = "fragor", locale }: { message: string; form?: "fragor" | "alternativ" | "resultat"; locale: string }) {
+  const sv = locale === "sv";
+  const rad = (w: string) => <div className={`h-3 rounded-full bg-muted animate-pulse ${w}`} />;
   return (
-    <div className="rounded-xl border border-border bg-card p-12 flex flex-col items-center gap-4">
-      <div className="flex gap-1.5">
-        {[0, 1, 2].map(i => (
-          <div
-            key={i}
-            className="size-2.5 rounded-full bg-info animate-bounce"
-            style={{ animationDelay: `${i * 0.15}s` }}
-          />
-        ))}
+    <div className="space-y-4" aria-busy="true">
+      <div role="status" aria-live="polite" className="flex items-center gap-3 rounded-lg bg-surface-alt px-4 py-3 text-sm text-foreground">
+        <span aria-hidden className="size-2 shrink-0 rounded-full bg-cta animate-pulse" />
+        <span>{message}</span>
+        <span className="ml-auto text-xs text-muted-foreground">{sv ? "brukar ta 5–15 s" : "usually 5–15 s"}</span>
       </div>
-      <p className="text-sm text-muted-foreground">{message}</p>
+      {form === "alternativ" ? (
+        [0, 1, 2].map(i => (
+          <div key={i} className="kort space-y-3 p-5">
+            <div className="flex items-center justify-between gap-4">{rad("w-1/2")}<div className="h-5 w-28 rounded-full bg-muted animate-pulse" /></div>
+            <div className="grid gap-2 sm:grid-cols-2">{rad("w-3/4")}{rad("w-2/3")}{rad("w-1/2")}{rad("w-3/5")}</div>
+            {rad("w-full")}
+          </div>
+        ))
+      ) : form === "resultat" ? (
+        <>
+          <div className="arbetsyta space-y-3 p-6">{rad("w-1/3")}{rad("w-2/3")}{rad("w-full")}</div>
+          <div className="kort space-y-2 p-5">{[0, 1, 2, 3, 4].map(i => <div key={i}>{rad(i % 2 ? "w-5/6" : "w-full")}</div>)}</div>
+        </>
+      ) : (
+        <div className="arbetsyta divide-y divide-line">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="space-y-3 px-6 py-5">
+              {rad("w-2/5")}
+              <div className="flex gap-2">{[0, 1, 2].map(j => <div key={j} className="h-8 w-28 rounded-full bg-muted animate-pulse" />)}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
