@@ -13,6 +13,7 @@
  * egen kolumn (RPC:n lägger ihop dem: "0.1–0.7 MPa"); voltage "24 V DC",
  * "24 VDC / 100 VAC", "24 VDC ±10 %", "200 VAC".
  */
+import type { Griporganskrav } from "./signals.ts";
 
 export interface Tryckspann {
   min: number | null;
@@ -90,6 +91,42 @@ export function provaTryck(kravBar: number, specar: Record<string, unknown> | un
     return { krav, utfall: "ej_uppfyllt", text: sv ? `artikeln kräver ${anges}` : `the item requires ${anges}` };
   }
   return { krav, utfall: "uppfyllt", text: sv ? `artikeln klarar ${anges}` : `the item is rated ${anges}` };
+}
+
+/**
+ * Ett griporgans gripkraft mot kravet (griporgansKrav i signals.ts). Utan
+ * uppgift i katalogen: underlag saknas, aldrig ett tyst godkännande. Utan
+ * krav (varken massa eller kraft angiven) likaså: ett gripdon som inte kan
+ * prövas mot något är inte prövat (granskningen 2026-10-14).
+ *
+ * `serie`: artikeln är en serie med flera storlekar, och `artikelN` är den
+ * största storlekens kraft. Räcker den, väljs storleken vid order.
+ */
+export function provaGripkraft(k: Griporganskrav, artikelN: number, sv: boolean, serie = false): Kontroll {
+  if (!(k.n > 0)) {
+    return {
+      krav: sv ? "gripkraft" : "grip force", utfall: "underlag_saknas",
+      text: sv ? "varken lastens massa eller gripkraften är angiven" : "neither the load's mass nor the grip force is stated",
+    };
+  }
+  const krav = k.angiven
+    ? (sv ? `gripkraft ${k.n} N` : `grip force ${k.n} N`)
+    : k.angivetN > 0
+    ? (sv ? `gripkraft ≈ ${k.n} N (tumregel: vikt × 100; den angivna hållkraften ${k.angivetN} N är lägre)` : `grip force ≈ ${k.n} N (rule of thumb: weight × 100; the stated holding force ${k.angivetN} N is lower)`)
+    : (sv ? `gripkraft ≈ ${k.n} N (tumregel: vikt × 100 vid friktionsgrepp)` : `grip force ≈ ${k.n} N (rule of thumb: weight × 100 for a friction grip)`);
+  if (!(artikelN > 0)) {
+    return { krav, utfall: "underlag_saknas", text: sv ? "katalogen anger ingen gripkraft för artikeln" : "the catalogue gives no grip force for the item" };
+  }
+  const n = Math.round(artikelN);
+  // En angiven gripkraft under tumregeln gäller (ett formgrepp kan klara sig
+  // med mindre), men det sägs ut.
+  const formgrepp = k.angiven && k.tumregelN > k.n
+    ? (sv ? `; den angivna kraften är lägre än tumregeln för friktionsgrepp (≈ ${k.tumregelN} N) och räcker bara med formgrepp` : `; the stated force is below the friction-grip rule of thumb (≈ ${k.tumregelN} N) and only suffices with a form-fit grip`)
+    : "";
+  const text = serie
+    ? (sv ? `serien ger ≈ ${n} N i största storleken` : `the series gives ≈ ${n} N in its largest size`)
+    : (sv ? `artikeln ger ≈ ${n} N` : `the item gives ≈ ${n} N`);
+  return { krav, utfall: n >= k.n ? "uppfyllt" : "ej_uppfyllt", text: text + formgrepp };
 }
 
 export function provaSpanning(krav: Spanning, specar: Record<string, unknown> | undefined, sv: boolean): Kontroll {

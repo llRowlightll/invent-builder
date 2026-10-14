@@ -10,9 +10,9 @@
 // are called.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { provaSpanning, provaTryck, SPANNINGSSATTA, TRYCKSATTA, type Kontroll, type Spanning } from "./kontroller.ts";
-import { type CatalogProduct, arBorrningsspann, isBeltDrivenProduct, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
-import { type HazardFlags, pick, isPneumaticByDrive, isNonArticulatingActuator, tolkaTempSpann } from "./signals.ts";
+import { provaGripkraft, provaSpanning, provaTryck, SPANNINGSSATTA, TRYCKSATTA, type Kontroll, type Spanning } from "./kontroller.ts";
+import { type CatalogProduct, arBorrningsspann, isAtexCapableProduct, isBeltDrivenProduct, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
+import { type HazardFlags, griporgansKrav, pick, isPneumaticByDrive, isNonArticulatingActuator, tolkaTempSpann } from "./signals.ts";
 
 export function buildCustomSolutionOption(
   minStroke: number, locale: string, maxCatalogStroke: number, catalogCanHandle: boolean,
@@ -302,6 +302,9 @@ export interface BomCtx extends HazardFlags {
   kravSpanning?: Spanning | null;
   /** Miljön kunden beskrivit (kravbilden), t.ex. "torr, lätt damm". */
   kravMiljo?: string;
+  /** Primärens kategori (slug). "gripper"/"vacuum" när kunden valt griporganet
+   *  som huvudkomponent; då är det inte en lyftande cylinder. */
+  primaryCategory?: string;
 }
 
 /**
@@ -487,15 +490,28 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   const uc = unitCount > 0 ? unitCount : 1;
   const rows: BomRow[] = [];
 
+  // Primären är ett griporgan (gripdon eller sugkopp), ingen lyftande cylinder.
+  // Lyftet ingår då bara om stycklistan själv har en lyftande axel: en
+  // fleraxlig lösning med Z-axel. Till 2026-10-14 togs fallskyddet bort från
+  // en sådan Z-axel, och en rad påstod att lyftet inte ingick (granskningen).
+  const primarArGriporgan = ctx.primaryCategory === "gripper" || ctx.primaryCategory === "vacuum";
+  const lyftaxel = primarArGriporgan && isMultiAxis && perAxisStrokes.length >= 2 && perAxisStrokes.some(a => a.axis === "Z");
+  const lyftetIngar = !primarArGriporgan || lyftaxel;
+
   // ── 1. Primary actuator (ALWAYS first) ───────────────────────────
   // In a multi-axis job the primary covers the LONGEST-stroke axis — label rows by
   // axis so X/Z are never ambiguous (and "primary" isn't just "first parsed").
-  const primaryAxisIdx = perAxisStrokes.length
+  const primaryAxisIdx = perAxisStrokes.length && !primarArGriporgan
     ? perAxisStrokes.reduce((best, a, i, arr) => (a.stroke > arr[best].stroke ? i : best), 0)
     : -1;
   const primaryAxisLabel = (isMultiAxis && primaryAxisIdx >= 0) ? perAxisStrokes[primaryAxisIdx].axis.toUpperCase() : "";
-  const famStorlek = primarArFamiljespann(ctx) ? primaryBoreMm : 0;
-  const famNote = primaryIsFamilyProd && famStorlek > 0 ? pick(locale, {
+  const famStorlek = primarArFamiljespann(ctx) && !primarArGriporgan ? primaryBoreMm : 0;
+  const famNote = primaryIsFamilyProd && primarArGriporgan ? pick(locale, {
+    sv: " ⚠️ Produktfamilj — välj storleken efter gripkraften och ange komplett beställningskod vid order.",
+    en: " ⚠️ Product family — choose the size by grip force and specify the full ordering code when ordering.",
+    de: " ⚠️ Produktfamilie — Größe nach Greifkraft wählen und vollständigen Bestellcode bei der Bestellung angeben.",
+    es: " ⚠️ Familia de productos — elija el tamaño según la fuerza de agarre e indique el código de pedido completo al realizar el pedido.",
+  }) : primaryIsFamilyProd && famStorlek > 0 ? pick(locale, {
     sv: ` ⚠️ Produktfamilj — beställ i Ø${famStorlek}, minsta storlek i serien som ger den kraft som krävs. Ange komplett beställningskod (borrning + slag + varianter) vid order.`,
     en: ` ⚠️ Product family — order it in Ø${famStorlek}, the smallest size in the series that gives the required force. Specify the full ordering code (bore + stroke + variants) when ordering.`,
     de: ` ⚠️ Produktfamilie — in Ø${famStorlek} bestellen, die kleinste Größe der Serie, die die erforderliche Kraft liefert. Vollständigen Bestellcode (Bohrung + Hub + Varianten) bei der Bestellung angeben.`,
@@ -515,7 +531,11 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   rows.push({
     sku: primarySku, quantity: uc,
     kind: "actuator",
-    role: pick(locale, { sv: "Primär aktuator", en: "Primary actuator", de: "Primäraktuator", es: "Actuador primario" })
+    role: (primarArGriporgan
+      ? (ctx.primaryCategory === "vacuum"
+        ? pick(locale, { sv: "Griporgan — vakuum", en: "End effector — vacuum", de: "Greiforgan — Vakuum", es: "Efector final — vacío" })
+        : pick(locale, { sv: "Griporgan — gripdon", en: "End effector — gripper", de: "Greiforgan — Greifer", es: "Efector final — pinza" }))
+      : pick(locale, { sv: "Primär aktuator", en: "Primary actuator", de: "Primäraktuator", es: "Actuador primario" }))
       + (primaryAxisLabel ? pick(locale, { sv: ` — ${primaryAxisLabel}-axel`, en: ` — ${primaryAxisLabel}-axis`, de: ` — ${primaryAxisLabel}-Achse`, es: ` — eje ${primaryAxisLabel}` }) : ""),
     reason: pick(locale, { sv: "Vald primär aktuator", en: "Selected primary actuator", de: "Ausgewählter Primäraktuator", es: "Actuador primario seleccionado" }) + famNote,
   });
@@ -643,7 +663,11 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   }
 
   // ── 3. Check valve (vertical pneumatic) ──────────────────────────
-  if (isVerticalLoad && isPneumatic) {
+  // Backventil och stångbroms hör till den lyftande cylindern: primären, eller
+  // Z-axeln när primären är ett griporgan. Utan lyftande axel får griporganet
+  // dem inte (till 2026-10-14 fick ett gripdon en stångbroms i Ø32); lyftet
+  // blir då en egen rad nedan, så att kravet står kvar.
+  if (isVerticalLoad && isPneumatic && lyftetIngar) {
     const cvMatch = findCatalogProductByType("check-valve", products);
     rows.push({
       sku: cvMatch?.sku ?? "SPECIFY", quantity: uc,
@@ -669,8 +693,9 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   // lock holds the load through a broken hose or e-stop venting. Same matching
   // rule as mountings: a real SKU only when its bore equals the primary's,
   // otherwise SPECIFY with the required Ø called out — never a mismatched lock.
-  if (isRodLock && isPneumatic) {
-    const pBore = primarBorrning(ctx);
+  if (isRodLock && isPneumatic && lyftetIngar) {
+    // Griporganets borrning är inte lyftaxelns: storleken anges då i klartext.
+    const pBore = primarArGriporgan ? 0 : primarBorrning(ctx);
     const boreTxt = pBore > 0 ? `Ø${pBore}` : pick(locale, { sv: "cylinderns borrning", en: "the cylinder's bore", de: "die Zylinderbohrung", es: "el diámetro del cilindro" });
     const lock = products.find(p =>
       p.category === "rod-lock" && pBore > 0 &&
@@ -705,7 +730,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   // Bär den en pressplatta eller ett verktyg krävs antingen en STYRD cylinder
   // (katalogen har 118, t.ex. Bosch Rexroth GPC-BV) eller en separat
   // linjärstyrning. Är den primära redan styrd behövs ingenting.
-  if (isGuided && isPneumatic) {
+  if (isGuided && isPneumatic && !primarArGriporgan) {
     const primaryProd = products.find(p => p.sku === primarySku);
     const primaryArStyrd = primaryProd ? isNonArticulatingActuator(primaryProd) : false;
     if (!primaryArStyrd) {
@@ -929,7 +954,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
         es: "El servo frena el eje en cada parada. Se recomiendan topes finales mecánicos o amortiguadores como protección ante un fallo de control o una parada de emergencia, dimensionados para la masa y la velocidad de la carga. Compruebe también que el accionamiento puede frenar dentro de la carrera del eje.",
       }),
     });
-  } else if (isHighSpeed) {
+  } else if (isHighSpeed && !primarArGriporgan) {
     const saMatch = findCatalogProductByType("shock-absorber", products);
     rows.push({
       sku: saMatch?.sku ?? "SPECIFY", quantity: 2 * uc,
@@ -1106,7 +1131,9 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   // A mounting whose bore differs from the cylinder physically does not fit. We
   // only emit a real SKU when its bore equals the primary's; otherwise SPECIFY
   // with the required Ø called out (recommend, never force a mismatched part).
-  if (isMounting || isArticulated) {
+  // Inte för ett griporgan: "monteringsstation" är ingen begäran om ett
+  // cylinderfäste, och fästet ska passa en borrning griporganet inte har.
+  if ((isMounting || isArticulated) && !primarArGriporgan) {
     const pBore = primarBorrning(ctx);
     const boreTxt = pBore > 0 ? `Ø${pBore}` : pick(locale, { sv: "cylinderns borrning", en: "the cylinder's bore", de: "die Zylinderbohrung", es: "el diámetro del cilindro" });
     const mounts = products.filter(p =>
@@ -1355,7 +1382,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     // Vertical ATEX still needs an anti-drop device. It can't be electric (forbidden
     // in the zone) and the standard check-valve row is gated on isPneumatic (which
     // excludes ATEX), so add an explicit ATEX-rated load-holding row here.
-    if (isVerticalLoad) {
+    if (isVerticalLoad && lyftetIngar) {
       rows.push({
         sku: "SPECIFY", quantity: uc,
         kind: "rod_lock",
@@ -1377,6 +1404,78 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
         en: "ATEX/IECEx REQUIREMENT: cylinder, sensors, valve and accessories must be marked for the zone/gas group/temperature class. No standard 24 V sensors without ATEX approval. Verify equipotential grounding and document per Directive 2014/34/EU.",
         de: "ATEX/IECEx-ANFORDERUNG: Zylinder, Sensoren, Ventil und Zubehör müssen für die jeweilige Zone/Gasgruppe/Temperaturklasse gekennzeichnet sein. Keine Standard-24-V-Sensoren ohne ATEX-Zulassung. Potentialausgleichserdung prüfen und gemäß Richtlinie 2014/34/EU dokumentieren.",
         es: "REQUISITO ATEX/IECEx: el cilindro, los sensores, la válvula y los accesorios deben estar marcados para la zona/grupo de gas/clase de temperatura correspondiente. Ningún sensor estándar de 24 V sin homologación ATEX. Verifique la conexión equipotencial a tierra y documente conforme a la Directiva 2014/34/UE.",
+      }),
+    });
+  }
+
+  // Primären är griporganet och lasten lyfts, men stycklistan har ingen
+  // lyftande axel: lyftet ingår inte. Det blir en blockerande rad, inte en tyst
+  // lucka -- lösningen är inte beställningsklar förrän lyftet är valt. Raden är
+  // en anmärkning ("warning"), ingen komponent: den kopplas inte till
+  // griporganet och får inga stångbromsar som alternativ (granskningen
+  // 2026-10-14). Har kunden redan ett lyft blockerar den inte, men det prövas
+  // inte heller.
+  if (primarArGriporgan && isVerticalLoad && !lyftaxel) {
+    rows.push({
+      sku: "SPECIFY", quantity: uc, kind: "warning",
+      role: pick(locale, { sv: "⚠️ Lyftet ingår inte: lyftande aktuator med fallskydd", en: "⚠️ The lift is not included: lifting actuator with fall protection", de: "⚠️ Der Hub ist nicht enthalten: Hubaktuator mit Absturzsicherung", es: "⚠️ La elevación no está incluida: actuador de elevación con protección contra caídas" }),
+      reason: pick(locale, {
+        sv: "Lösningen är griporganet; lyftet ingår inte. Den lyftande aktuatorn och dess fallskydd (pilotstyrd backventil, fjäderbelastad stångbroms) väljs separat, efter lyfthöjd och total massa inklusive griporganet.",
+        en: "The solution is the end effector; the lift is not included. The lifting actuator and its fall protection (pilot check valve, spring-applied rod lock) are chosen separately, for the stroke and the total mass including the end effector.",
+        de: "Die Lösung ist der Endeffektor; der Hub ist nicht enthalten. Der Hubaktuator und seine Absturzsicherung (entsperrbares Rückschlagventil, federbetätigte Kolbenstangenbremse) werden separat gewählt, nach Hub und Gesamtmasse einschließlich Endeffektor.",
+        es: "La solución es el efector final; la elevación no está incluida. El actuador de elevación y su protección contra caídas (válvula antirretorno pilotada, bloqueo de vástago por resorte) se eligen por separado, según la carrera y la masa total incluido el efector.",
+      }),
+      ...(ctx.befintligtLyft
+        ? {
+            verifiering: "stods_inte" as const,
+            verifieringsskal: pick(locale, {
+              sv: "Beskrivningen anger ett befintligt lyft. Kontrollera att det och dess fallskydd bär lasten inklusive griporganet; det prövas inte här.",
+              en: "The description states an existing lift. Check that it and its fall protection carry the load including the end effector; this is not checked here.",
+              de: "Die Beschreibung nennt einen vorhandenen Hub. Prüfen, dass er samt Absturzsicherung die Last einschließlich Greiforgan trägt; das wird hier nicht geprüft.",
+              es: "La descripción indica una elevación existente. Compruebe que ella y su protección contra caídas soportan la carga incluido el efector; aquí no se comprueba.",
+            }),
+          }
+        : { verifiering: "ej_uppfyllt" as const, verifieringsskal: pick(locale, {
+            sv: "Lyftet ingår inte i lösningen. Välj den lyftande aktuatorn och dess fallskydd före beställning.",
+            en: "The lift is not part of the solution. Choose the lifting actuator and its fall protection before ordering.",
+            de: "Der Hub ist nicht Teil der Lösung. Hubaktuator und Absturzsicherung vor der Bestellung wählen.",
+            es: "La elevación no forma parte de la solución. Elija el actuador de elevación y su protección contra caídas antes de pedir.",
+          }) }),
+    });
+  }
+
+  // Lasten får inte falla och primären är griporganet: kravet gäller också
+  // greppet. Ett dubbelverkande gripdon tappar kraften när luften försvinner,
+  // och en ejektor slutar suga. Till 2026-10-14 försvann kravet när lasten inte
+  // var vertikal ("detaljen får inte falla vid tryckfall"), och lösningen blev
+  // beställningsklar (granskningen).
+  if (primarArGriporgan && (isVerticalLoad || isRodLock)) {
+    const vakuum = ctx.primaryCategory === "vacuum";
+    const sakring = String(ctx.primarySpecs?.gripping_force_backup ?? "").trim();
+    rows.push({
+      sku: "SPECIFY", quantity: uc, kind: "warning",
+      role: vakuum
+        ? pick(locale, { sv: "⚠️ Vakuumet ska hålla vid tryckfall", en: "⚠️ The vacuum must hold on loss of air", de: "⚠️ Das Vakuum muss bei Druckausfall halten", es: "⚠️ El vacío debe mantenerse ante la pérdida de aire" })
+        : pick(locale, { sv: "⚠️ Greppet ska hålla vid tryckfall", en: "⚠️ The grip must hold on loss of air", de: "⚠️ Der Griff muss bei Druckausfall halten", es: "⚠️ El agarre debe mantenerse ante la pérdida de aire" }),
+      reason: vakuum
+        ? pick(locale, {
+            sv: "En ejektor slutar suga när tryckluften försvinner, och lasten släpper. Använd en ejektor med backventil och vakuumbehållare, eller en vakuumpump med reservoar, och räkna med läckage genom kopparna.",
+            en: "An ejector stops generating vacuum when the compressed air is lost, and the load is released. Use an ejector with a check valve and a vacuum reservoir, or a vacuum pump with a reservoir, and allow for leakage through the cups.",
+            de: "Ein Ejektor erzeugt kein Vakuum mehr, wenn die Druckluft ausfällt, und die Last fällt. Ejektor mit Rückschlagventil und Vakuumbehälter oder eine Vakuumpumpe mit Speicher verwenden und Leckage durch die Sauger einplanen.",
+            es: "Un eyector deja de generar vacío cuando falta el aire comprimido, y la carga se suelta. Utilice un eyector con válvula antirretorno y depósito de vacío, o una bomba de vacío con depósito, y tenga en cuenta las fugas por las ventosas.",
+          })
+        : pick(locale, {
+            sv: `Ett dubbelverkande gripdon tappar gripkraften när luften försvinner. Välj ett gripdon med fjäderbelastad greppkraftssäkring, eller en pilotstyrd backventil på den anslutning som håller greppet.${sakring ? ` Serien finns med greppkraftssäkring (${sakring}); välj det utförandet.` : ""}`,
+            en: `A double-acting gripper loses its grip force when the air is lost. Choose a gripper with spring-loaded gripping-force retention, or a pilot-operated check valve on the port that holds the grip.${sakring ? ` The series is available with gripping-force retention (${sakring}); choose that version.` : ""}`,
+            de: `Ein doppeltwirkender Greifer verliert bei Luftausfall seine Greifkraft. Greifer mit federunterstützter Greifkraftsicherung wählen oder ein entsperrbares Rückschlagventil am greifenden Anschluss.${sakring ? ` Die Baureihe gibt es mit Greifkraftsicherung (${sakring}); diese Ausführung wählen.` : ""}`,
+            es: `Una pinza de doble efecto pierde la fuerza de agarre cuando falta el aire. Elija una pinza con retención de la fuerza de agarre por resorte, o una válvula antirretorno pilotada en la conexión que mantiene el agarre.${sakring ? ` La serie existe con retención de la fuerza de agarre (${sakring}); elija esa versión.` : ""}`,
+          }),
+      verifiering: "kraver_verifiering",
+      verifieringsskal: pick(locale, {
+        sv: "Inte prövat mot artikeln. Bekräfta hur greppet hålls vid tryckfall före beställning.",
+        en: "Not checked against the item. Confirm how the grip is held on loss of air before ordering.",
+        de: "Nicht gegen den Artikel geprüft. Vor der Bestellung bestätigen, wie der Griff bei Druckausfall gehalten wird.",
+        es: "No comprobado frente al artículo. Confirme cómo se mantiene el agarre ante la pérdida de aire antes de pedir.",
       }),
     });
   }
@@ -1414,23 +1513,51 @@ export function firstNumAbs(v: unknown): number {
   return m ? Math.abs(parseFloat(m[0].replace(",", "."))) : 0;
 }
 
+/**
+ * Gripkraften katalogen anger, i N. 0 när den är okänd. För en serie är det
+ * den MINSTA storlekens kraft (första talet i spannet); se gripperForceMaxN.
+ *
+ * Läses inte (granskningen 2026-10-14): force_n, som i normaliserade specar
+ * ofta är kolvkraften räknad ur borrningen; max_jaw_force_Fz, den största
+ * tillåtna lasten på backarna; och gripping_force_n, som är kraft per finger
+ * vid 0,5 MPa i fritext. Ingen av dem är gripdonets gripkraft.
+ */
 export function gripperForceN(s: Record<string, unknown>): number {
-  if (s.clamping_force != null) return firstNumAbs(s.clamping_force);
-  if (s.grip_force_kgf != null) return firstNumAbs(s.grip_force_kgf) * 9.81;
-  if (s.gripping_force_N != null) return firstNumAbs(s.gripping_force_N);
-  if (s.gripping_force_closing_N != null) return firstNumAbs(s.gripping_force_closing_N);
-  if (s.max_jaw_force_Fz != null) return firstNumAbs(s.max_jaw_force_Fz);
-  return 0;
+  const nyckel = gripkraftsnyckel(s);
+  if (!nyckel) return 0;
+  return firstNumAbs(s[nyckel]) * (nyckel === "grip_force_kgf" ? 9.81 : 1);
+}
+
+/** Den största kraften en serie når: sista talet i spannet "106–6300". */
+export function gripperForceMaxN(s: Record<string, unknown>): number {
+  const nyckel = gripkraftsnyckel(s);
+  if (!nyckel) return 0;
+  const tal = [...String(s[nyckel] ?? "").matchAll(/\d+(?:[.,]\d+)?/g)].map((m) => parseFloat(m[0].replace(",", ".")));
+  return tal.length ? Math.max(...tal) * (nyckel === "grip_force_kgf" ? 9.81 : 1) : 0;
+}
+
+function gripkraftsnyckel(s: Record<string, unknown>): string | null {
+  // grip_force_5bar_N gäller vid 5 bar, lägre än vid 6: kravet prövas försiktigt.
+  for (const k of ["clamping_force", "grip_force_kgf", "gripping_force_N", "gripping_force_closing_N", "grip_force_5bar_N"]) {
+    if (s[k] != null && String(s[k]).trim() !== "") return k;
+  }
+  return null;
+}
+
+/** En serie med flera storlekar: en storlekslista eller en kraft som spann. */
+export function arGripdonsserie(s: Record<string, unknown>): boolean {
+  const nyckel = gripkraftsnyckel(s);
+  return /,/.test(String(s.sizes ?? "")) || (nyckel != null && /\d\s*[–—-]\s*\d/.test(String(s[nyckel])));
 }
 
 export function gripperTypeOf(p: CatalogProduct): "parallel" | "angular" | "radial" {
   const blob = `${p.key_specs?.gripper_type ?? ""} ${p.key_specs?.type ?? ""} ${p.name}`.toLowerCase();
-  if (/radial|3-?jaw|three-?jaw|self-?center|tre-?back|treback|centrer/.test(blob)) return "radial";
+  if (/radial|3[\s-]?jaw|three[\s-]?jaw|self-?center|tre[\s-]?back|treback|centrer|3[\s-]?finger/.test(blob)) return "radial";
   if (/angle|angular|hinged|vinkel/.test(blob)) return "angular";
   return "parallel";
 }
 
-export const isGripperFamily = (p: CatalogProduct) => /,/.test(String(p.key_specs?.sizes ?? ""));
+export const isGripperFamily = (p: CatalogProduct) => arGripdonsserie(p.key_specs ?? {});
 
 /**
  * Härleder maskingrafen ur stycklistan.
@@ -1523,6 +1650,45 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
       ? primarySpecs
       : products.find(p => p.sku === r.sku)?.key_specs;
     const spann = specar ? tolkaTempSpann(specar) : undefined;
+    const sv = locale === "sv";
+
+    // ── Griporganet (sedan 2026-10-14) ─────────────────────────────────────
+    // Ett gripdon som primär väljs efter gripkraften, och den prövas FÖRST.
+    // Till 2026-10-14 avbröt en saknad temperaturuppgift raden innan
+    // gripkraften prövades: raden nämnde bara temperaturen, fast gripdonet
+    // inte räckte (granskningen). En serie prövas i sin största storlek.
+    const primarGriporgan = r.sku === primarySku && (ctx.primaryCategory === "gripper" || ctx.primaryCategory === "vacuum");
+    const serie = primarGriporgan && ctx.primaryCategory === "gripper" && arGripdonsserie(specar ?? {});
+    const gripKrav = griporgansKrav("gripper", ctx);
+    const gripKontroll = primarGriporgan && ctx.primaryCategory === "gripper"
+      ? provaGripkraft(gripKrav, serie ? gripperForceMaxN(specar ?? {}) : gripperForceN(specar ?? {}), sv, serie)
+      : undefined;
+    if (gripKontroll?.utfall === "ej_uppfyllt") {
+      r.kontroller = [gripKontroll];
+      r.verifiering = "ej_uppfyllt";
+      r.verifieringsskal = sv
+        ? `Kravet ${gripKontroll.krav} uppfylls inte: ${gripKontroll.text}. Artikeln måste bytas före beställning.`
+        : `The requirement ${gripKontroll.krav} is not met: ${gripKontroll.text}. The item must be replaced before ordering.`;
+      continue;
+    }
+    // ATEX: ett griporgan väljs inte ur en ATEX-filtrerad lista, som en
+    // cylinder gör. Utan ATEX-märkning i katalogen får det inte användas i
+    // zonen. Till 2026-10-14 blev raden grön så snart gripkraften räckte.
+    if (primarGriporgan && (ctx.isAtex || ctx.isAtexDust) &&
+        !isAtexCapableProduct({ sku: r.sku, name: products.find(p => p.sku === r.sku)?.name ?? "", category: ctx.primaryCategory ?? "", brand: "", key_specs: specar ?? {} })) {
+      r.kontroller = [
+        { krav: "ATEX", utfall: "underlag_saknas", text: sv ? "katalogen anger ingen ATEX-märkning för artikeln" : "the catalogue gives no ATEX marking for the item" },
+        ...(gripKontroll ? [gripKontroll] : []),
+      ];
+      r.verifiering = "kraver_verifiering";
+      r.verifieringsskal = pick(locale, {
+        sv: "ATEX: katalogen anger ingen ATEX-märkning för artikeln. Den får inte användas i zonen utan ett intyg för zonen; kontrollera före beställning.",
+        en: "ATEX: the catalogue gives no ATEX marking for the item. It must not be used in the zone without a certificate for the zone; check before ordering.",
+        de: "ATEX: der Katalog nennt keine ATEX-Kennzeichnung für den Artikel. Ohne Bescheinigung für die Zone darf er dort nicht eingesetzt werden; vor der Bestellung prüfen.",
+        es: "ATEX: el catálogo no indica marcado ATEX para el artículo. No debe usarse en la zona sin un certificado para la zona; compruébelo antes de pedir.",
+      });
+      continue;
+    }
 
     // Vad som FAKTISKT prövades mot ett angivet krav. Tom lista betyder att
     // ingenting prövades -- och då får raden inte kallas verifierad.
@@ -1605,10 +1771,15 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
     // ── Tryck, spänning och miljö (sedan 2026-10-13) ───────────────────────
     // Kraven kommer ur kravbilden: det kunden faktiskt angett. Ingen uppgift
     // i katalogen ger "underlag saknas", aldrig ett tyst godkännande.
-    const sv = locale === "sv";
     const kontroller: Kontroll[] = [];
     const pneumatiskRad = TRYCKSATTA.has(r.kind) || (r.kind === "actuator" && !ctx.isElectric);
     if ((ctx.kravTryckBar ?? 0) > 0 && pneumatiskRad) kontroller.push(provaTryck(ctx.kravTryckBar!, specar, sv));
+    // GRIPKRAFT (sedan 2026-10-14). Ett gripdon som primär prövas mot kraften
+    // det ska hålla. Till dess prövades bara trycket, och ett gripdon på 170 N
+    // märktes "Kontrollerat mot angivna krav" för en last på 50 kg där
+    // resultatet självt räknade fram 981 N. Specarna är primärens egna, råa
+    // (fetchPrimaryInfo) -- gripkraften står där som clamping_force m.fl.
+    if (gripKontroll) kontroller.push(gripKontroll);
     if (ctx.kravSpanning && SPANNINGSSATTA.has(r.kind)) kontroller.push(provaSpanning(ctx.kravSpanning, specar, sv));
     if (ctx.kravMiljo && (r.kind === "actuator" || r.kind === "valve" || r.kind === "valve_terminal" || r.kind === "sensor")) {
       kontroller.push({
@@ -1630,6 +1801,27 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
     const utanUnderlag = kontroller.filter(k => k.utfall === "underlag_saknas").map(k => k.krav);
     const ejAutomatiskt = kontroller.filter(k => k.utfall === "stods_inte").map(k => k.krav);
 
+    // Gripkraften är det gripdonet väljs efter. Går den inte att pröva är
+    // raden inte verifierad, hur väl trycket än stämmer: till 2026-10-14 blev
+    // ett gripdon med okänd gripkraft grönt på trycket (granskningen).
+    if (gripKontroll?.utfall === "underlag_saknas") {
+      r.verifiering = "kraver_verifiering";
+      r.verifieringsskal = (sv
+        ? `Gripkraften kan inte prövas: ${gripKontroll.text}. Gripdonet väljs efter gripkraften; kontrollera mot databladet före beställning.`
+        : `The grip force cannot be checked: ${gripKontroll.text}. The gripper is chosen by grip force; check the datasheet before ordering.`)
+        + (provat.length ? (sv ? ` Kontrollerat: ${provat.join("; ")}.` : ` Checked: ${provat.join("; ")}.`) : "");
+      continue;
+    }
+
+    // En serie gripdon räcker i sin största storlek: storleken väljs vid order.
+    if (serie && gripKontroll?.utfall === "uppfyllt") {
+      r.verifiering = "kraver_konfiguration";
+      r.verifieringsskal = sv
+        ? `Raden avser en serie med flera storlekar, inte en enskild artikel; ${gripKontroll.text}. Välj den storlek som ger minst ${gripKrav.n} N och ange komplett typkod före order.`
+        : `This row refers to a series with several sizes, not a single item; ${gripKontroll.text}. Choose the size that gives at least ${gripKrav.n} N and specify the complete type code before ordering.`;
+      continue;
+    }
+
     // SLAGET AVVIKER FRÅN DEN ÖNSKADE RÖRELSEN (lådsorteringstestet: vald
     // cylinder med 400 mm slag, sammanfattningen lovade 350 mm). Vanligt och
     // ofta rätt -- med ett ställbart ändstopp -- men det är ett val som någon
@@ -1638,7 +1830,7 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
     // väljs slaget, och det fångas av familjekontrollen nedan.
     const arFamilj = [specar?.bore_mm, specar?.bore_range].some(arBorrningsspann) ||
       /\d\s*[–—-]\s*\d/.test(String(specar?.stroke_range ?? "")) || /\d\s*[–—-]\s*\d/.test(String(specar?.stroke_mm ?? ""));
-    if (r.kind === "actuator" && r.sku === primarySku && requiredStrokeMm > 0 && specar && !arFamilj) {
+    if (r.kind === "actuator" && r.sku === primarySku && requiredStrokeMm > 0 && specar && !arFamilj && !primarGriporgan) {
       const slag = firstNumAbs(specar.stroke_mm);
       if (slag > requiredStrokeMm) {
         r.verifiering = "avvikelse";
@@ -1670,7 +1862,9 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
     // den -- inte välja åt kunden och tiga. Villkoret är datadrivet: bara
     // produkter som HAR ett slagmått har en slaglängd att sakna. En
     // vridenhet har en vinkel i stället och berörs inte.
-    if (r.kind === "actuator" && requiredStrokeMm === 0 && specar &&
+    // Ett griporgans slagmått är backarnas, inte rörelsens, och texten nedan
+    // ("klarar kraften") stämmer inte för det.
+    if (r.kind === "actuator" && requiredStrokeMm === 0 && specar && !primarGriporgan &&
         (specar.stroke_mm != null || specar.stroke_range != null)) {
       r.verifiering = "kraver_verifiering";
       r.verifieringsskal = pick(locale, {
@@ -1708,7 +1902,7 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
     const borrSpann = [specar?.bore_mm, specar?.bore_range].find(arBorrningsspann);
     if (specar && (borrSpann != null || arSpann(specar.stroke_range))) {
       // Är raden primären och storleken vald för lasten säger vi vilken.
-      const storlek = r.sku === primarySku && borrSpann != null && ctx.primaryBoreMm > 0 ? ctx.primaryBoreMm : 0;
+      const storlek = r.sku === primarySku && !primarGriporgan && borrSpann != null && ctx.primaryBoreMm > 0 ? ctx.primaryBoreMm : 0;
       const spann = String(borrSpann ?? specar.stroke_range);
       r.verifiering = "kraver_konfiguration";
       r.verifieringsskal = pick(locale, {

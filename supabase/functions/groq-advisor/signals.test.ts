@@ -2,6 +2,7 @@
 // Run: deno test supabase/functions/groq-advisor/signals.test.ts
 import { assert, assertEquals } from "jsr:@std/assert@^1";
 import {
+  griporgansKrav, onskadGripdonstyp, harBefintligtLyft,
   angivenSakerhetsniva, needsSpolmiljo,
   extractGripForceN, extractHoldingForceN, extractLoadKg, needsEsdSafe,
   detectHazards, needsFoodGrade,
@@ -902,4 +903,69 @@ Deno.test("en uträknad kraft är en preliminär uppskattning med det som saknas
   // En kraft kunden angett är ett krav, ingen uppskattning.
   const angiven = kraftkrav({ locale: "sv", statedForceN: 3000, loadKg: 0, isVertical: false, isHorizontal: true, elaxel: false, strokeMm: 0, tMoveS: 0, speedMs: 0 });
   assertEquals([angiven.metod, angiven.preliminar], ["angiven", undefined]);
+});
+
+Deno.test("griporganets krav: det angivna, annars tumregeln ur massan", () => {
+  assertEquals(griporgansKrav("gripper", { gripForceN: 0, holdingForceN: 0, loadKg: 50 }), { n: 5000, angiven: false, tumregelN: 5000, angivetN: 0 });
+  assertEquals(griporgansKrav("gripper", { gripForceN: 120, holdingForceN: 0, loadKg: 50 }), { n: 120, angiven: true, tumregelN: 5000, angivetN: 120 });
+  assertEquals(griporgansKrav("gripper", { gripForceN: 0, holdingForceN: 0, loadKg: 0.1 }), { n: 20, angiven: false, tumregelN: 20, angivetN: 0 });
+  assertEquals(griporgansKrav("vacuum", { gripForceN: 0, holdingForceN: 0, loadKg: 4 }), { n: 78, angiven: false, tumregelN: 78, angivetN: 0 });
+  assertEquals(griporgansKrav("gripper", { gripForceN: 0, holdingForceN: 0, loadKg: 0 }), { n: 0, angiven: false, tumregelN: 0, angivetN: 0 });
+  assertEquals(onskadGripdonstyp("Treback för runda detaljer"), "radial");
+  assertEquals(onskadGripdonstyp("Vinkelgripare"), "angular");
+  assertEquals(onskadGripdonstyp("Lyfta lådor med gripdon"), "parallel");
+  assertEquals(onskadGripdonstyp("Parallellgripare som griper 1 kg cylindriska detaljer"), "parallel");
+  assertEquals(onskadGripdonstyp("Gripa cylindriska detaljer"), "radial");
+  // Granskningen 2026-10-14: ett lösryckt "parallellt" är ingen typ.
+  assertEquals(onskadGripdonstyp("Radialgripare, detaljerna ligger parallellt på bandet"), "radial");
+  assertEquals(onskadGripdonstyp("Treback-gripdon för två parallella linjer"), "radial");
+  assertEquals(onskadGripdonstyp("Vinkelgripare för runda detaljer"), "angular");
+  // En angiven hållkraft är gripdonets krav när massan är okänd.
+  assertEquals(griporgansKrav("gripper", { gripForceN: 0, holdingForceN: 200, loadKg: 0 }), { n: 200, angiven: true, tumregelN: 0, angivetN: 200 });
+});
+
+// Granskningen 2026-10-14: "Gripdon för 50kg låda, hållkraft 200 N" sänkte
+// kravet från 5000 N till 200 N, under lådans egen tyngd (≈ 490 N), och ett
+// gripdon på 508 N blev "Rätt storlek". En uttalad gripkraft gäller däremot
+// som den är: den är backarnas och kan gälla ett formgrepp.
+Deno.test("hållkraft höjer bara kravet; en uttalad gripkraft gäller som den är", () => {
+  assertEquals(griporgansKrav("gripper", { gripForceN: 0, holdingForceN: 200, loadKg: 50 }), { n: 5000, angiven: false, tumregelN: 5000, angivetN: 200 });
+  assertEquals(griporgansKrav("gripper", { gripForceN: 0, holdingForceN: 8000, loadKg: 50 }), { n: 8000, angiven: true, tumregelN: 5000, angivetN: 8000 });
+  assertEquals(griporgansKrav("gripper", { gripForceN: 600, holdingForceN: 0, loadKg: 50 }).n, 600);
+  assertEquals(griporgansKrav("vacuum", { gripForceN: 0, holdingForceN: 50, loadKg: 5 }), { n: 98, angiven: false, tumregelN: 98, angivetN: 50 });
+});
+
+// Granskningen 2026-10-14: kN, kgf och "klämma med" lästes inte, och "50 kgf"
+// blev en last på 50 kg.
+Deno.test("gripkraft i kN, kgf och som 'klämma med'; kgf är ingen vikt", () => {
+  assertEquals(extractGripForceN("Gripdon, gripkraft 2 kN, 6 bar", {}), 2000);
+  assertEquals(extractGripForceN("Gripdon som ska klämma med 300 N", {}), 300);
+  assertEquals(extractGripForceN("Greifer, Greifkraft 1,5 kN", {}), 1500);
+  assertEquals(Math.round(extractGripForceN("Gripdon med gripkraft 50 kgf", {})), 491);
+  assertEquals(extractHoldingForceN("Sugkoppar, hållkraft 1,2 kN", {}), 1200);
+  assertEquals(extractLoadKg("Gripdon med gripkraft 50 kgf", {}), 0);
+  assertEquals(extractLoadKg("Gripdon för 50 kg låda", {}), 50);
+});
+
+Deno.test("gripdonstypen efter ett byte, och tre backar med mellanslag", () => {
+  assertEquals(onskadGripdonstyp("Vi har vinkelgripare idag men vill byta till parallellgripare"), "parallel");
+  assertEquals(onskadGripdonstyp("byta ut vinkelgriparen mot en parallellgripare"), "parallel");
+  assertEquals(onskadGripdonstyp("parallellgripare i stället för vinkelgripare"), "parallel");
+  assertEquals(onskadGripdonstyp("gripdon med tre backar för axlar"), "radial");
+  assertEquals(onskadGripdonstyp("3 jaw gripper for shafts"), "radial");
+});
+
+Deno.test("orientering och lyftöglor är ingen vertikal last; ett befintligt lyft känns igen", () => {
+  assert(!needsVerticalLoad("Gripdon flyttar lådor med ovansidan uppåt till bandet"));
+  assert(!needsVerticalLoad("Detaljen har lyftöglor och flyttas sidledes"));
+  assert(needsVerticalLoad("Lyfta lådor 50 kg med gripdon"));
+  assert(needsVerticalLoad("cylinder monterad med kolvstången uppåt"));
+  assert(harBefintligtLyft("Gripdon på en befintlig lyftanordning med fallskydd"));
+  assert(harBefintligtLyft("Gripdonet sitter på en Z-axel som redan har stångbroms"));
+  assert(!harBefintligtLyft("Lyfta lådor 50 kg med gripdon"));
+});
+
+Deno.test("radialgripare är ett uttalat gripdon", () => {
+  assertEquals(detectEndEffectorIntent("Radialgripare för axlar, gripkraft 1200 N"), "gripper");
+  assert(endEffectorExplicitlyAsked("Radialgripare för axlar"));
 });

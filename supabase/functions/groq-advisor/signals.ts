@@ -514,9 +514,28 @@ export function sagerHorisontell(text: string): boolean {
   return /\bhorisontell?\b|\bhorisontal\b|\bhorizontal\b|\bliggande\b|\bi\s?plan(et)?\b|\bwaagerecht\b|\bhorizontale?\b/i.test(text);
 }
 
-export function needsVerticalLoad(text: string): boolean {
-  if (sagerHorisontell(text)) return false;
+export function needsVerticalLoad(textMedOrientering: string): boolean {
+  if (sagerHorisontell(textMedOrientering)) return false;
+  // Ord som ser vertikala ut men beskriver något annat (granskningen
+  // 2026-10-14): "med ovansidan uppåt" är hur detaljen ligger, och
+  // "lyftöglor" är fästpunkter. Sedan lyftet blev en blockerande rad för ett
+  // griporgan stoppade de beställningen.
+  const text = textMedOrientering.replace(
+    /\b(?:ovan|under|fram|bak)?sidan\s+(?:uppåt|nedåt)\b|\b(?:etiketten|locket|öppningen|texten|märkningen)\s+(?:uppåt|nedåt)\b|\blyft(?:ögl|ör|handtag)\w*/gi,
+    " ",
+  );
   return /\blyft|\bhissa\b|\bhäng.*last\b|\blast.*häng\b|\bvertikal|\bcylinder.*vertikal\b|\bz[.-]?axel\b|\bz[.-]?axis\b|\bpress.*ner\b|\bpress.*ned\b|\bnedåt\b|\buppåt\b|\bvertical.*load\b|\bhanging.*load\b|\bsuspended.*load\b|\blifting.*cyl\b|\bcylinder.*lyft\b|\bz[.-]?achse\b|\bheben\b|\bhebt\b|\bhängende\s?last\b|\bnach\s?unten\b|\bnach\s?oben\b|\belevar\b|\blevantar\b|\bcarga\s?suspendida\b|\bcarga\s?colgante\b|\beje\s?z\b|\bhacia\s?abajo\b|\bhacia\s?arriba\b/i.test(text);
+}
+
+/**
+ * Kunden har redan lyftet: "befintlig lyftanordning med fallskydd", "på en
+ * Z-axel som redan har stångbroms". Då ingår lyftet inte i ett griporgans
+ * lösning, men det är inte heller en lucka som stoppar beställningen
+ * (granskningen 2026-10-14).
+ */
+export function harBefintligtLyft(text: string): boolean {
+  return /\b(?:befintlig\w*|existerande|redan\s+(?:har|finns|monterad\w*|installerad\w*)|finns\s+redan|existing|already\s+(?:has|have|fitted|installed))\b[^.]{0,60}?(?:\blyft\w*|\bz[.-]?ax\w*|\bhiss\w*|\blift\w*|\bhoist\w*)/i.test(text)
+    || /(?:\blyft\w*|\bz[.-]?ax\w*|\bhiss\w*|\blift\w*|\bhoist\w*)[^.]{0,40}?\b(?:som\s+redan|redan\s+har|that\s+already|already\s+has)\b/i.test(text);
 }
 
 /**
@@ -937,7 +956,10 @@ export function calcMinBoreMm(loadKg: number, pressureBar = 6, statedForceN = 0)
 /** Extract mass/load in kg from free text + answers. */
 export function extractLoadKg(text: string, answers: Record<string, string>): number {
   const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
-  const kgMatch = allText.match(/(\d+(?:[.,]\d+)?)\s*kg/i);
+  // Inte "kgf": "gripkraft 50 kgf" är en kraft. Den lästes som en last på 50 kg,
+  // och tumregeln gav ett krav på 5000 N i stället för ≈ 490 N (granskningen
+  // 2026-10-14).
+  const kgMatch = allText.match(/(\d+(?:[.,]\d+)?)\s*kg(?!f)/i);
   if (kgMatch) return parseFloat(kgMatch[1].replace(",", "."));
   // Maskinbyggarens sifferfält skickar talet utan enhet: {last_kg: "12"}.
   // Hittat 2026-10-11: vikten kunden svarat lästes aldrig, eftersom "last_kg 12"
@@ -1010,9 +1032,7 @@ export function extractStatedForceN(text: string, answers: Record<string, string
  */
 export function extractGripForceN(text: string, answers: Record<string, string>): number {
   const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
-  const m = allText.match(/(?:greppkraft|gripkraft|klämkraft|klamkraft|grip(?:ping)?\s*force|clamping\s*force|greifkraft|klemmkraft|fuerza\s*de\s*agarre|fuerza\s*de\s*sujeci[oó]n)[^\d]{0,10}(\d+(?:[.,]\d+)?)\s*N\b/i)
-    || allText.match(/(\d+(?:[.,]\d+)?)\s*N\b[^\d]{0,15}(?:greppkraft|gripkraft|klämkraft|klamkraft|grip(?:ping)?\s*force|clamping\s*force|greifkraft|klemmkraft)/i);
-  return m ? parseFloat(m[1].replace(",", ".")) : 0;
+  return kraftEfterOrd(allText, GRIPKRAFTSORD, GRIPKRAFTSORD_EFTER);
 }
 
 /**
@@ -1022,9 +1042,25 @@ export function extractGripForceN(text: string, answers: Record<string, string>)
  */
 export function extractHoldingForceN(text: string, answers: Record<string, string>): number {
   const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
-  const m = allText.match(/(?:håll[-\s]?kraft|hallkraft|hold(?:ing)?\s*force|haltekraft|fuerza\s*de\s*(?:sujeci[oó]n|retenci[oó]n))[^\d]{0,10}(\d+(?:[.,]\d+)?)\s*N\b/i)
-    || allText.match(/(\d+(?:[.,]\d+)?)\s*N\b[^\d]{0,15}(?:håll[-\s]?kraft|hallkraft|hold(?:ing)?\s*force|haltekraft)/i);
-  return m ? parseFloat(m[1].replace(",", ".")) : 0;
+  return kraftEfterOrd(allText, HALLKRAFTSORD, HALLKRAFTSORD);
+}
+
+// Hittat 2026-10-14 (granskningen): "gripkraft 2 kN", "Greifkraft 1,5 kN" och
+// "ska klämma med 300 N" lästes inte alls. Gripdonet prövades då mot ingenting,
+// och ett gripdon på 600 N blev grönt fast kunden krävt 2000 N.
+const GRIPKRAFTSORD = String.raw`(?:greppkraft|gripkraft|klämkraft|klamkraft|grip(?:ping)?\s*force|clamping\s*force|greifkraft|klemmkraft|fuerza\s*de\s*agarre|fuerza\s*de\s*sujeci[oó]n|kläm\w*\s+(?:med|på)|grip(?:a|er|s)?\s+med|greppa?\s+med|clamp(?:s|ing)?\s+with|grip(?:s|ping)?\s+with)`;
+const GRIPKRAFTSORD_EFTER = String.raw`(?:greppkraft|gripkraft|klämkraft|klamkraft|grip(?:ping)?\s*force|clamping\s*force|greifkraft|klemmkraft)`;
+const HALLKRAFTSORD = String.raw`(?:håll[-\s]?kraft|hallkraft|hold(?:ing)?\s*force|haltekraft|fuerza\s*de\s*(?:sujeci[oó]n|retenci[oó]n))`;
+const KRAFTTAL = String.raw`(\d+(?:[.,]\d+)?)\s*(kN|N|kgf|kp)\b`;
+
+/** Kraften efter (eller före) ett kraftord, i newton: kN, N, kgf och kp. */
+function kraftEfterOrd(text: string, fore: string, efter: string): number {
+  const m = text.match(new RegExp(`${fore}[^\\d]{0,10}${KRAFTTAL}`, "i")) ??
+    text.match(new RegExp(`${KRAFTTAL}[^\\d]{0,15}${efter}`, "i"));
+  if (!m) return 0;
+  const n = parseFloat(m[1].replace(",", "."));
+  const enhet = m[2].toLowerCase();
+  return enhet === "kn" ? n * 1000 : enhet === "kgf" || enhet === "kp" ? n * 9.81 : n;
 }
 
 export function extractTorqueNm(text: string, answers: Record<string, string>): number {
@@ -1381,7 +1417,9 @@ export function detectEndEffectorIntent(text: string): "gripper" | "vacuum" | nu
   // "parallellgrepp" och "vinkelgrepp" saknades till 2026-10-02: bara
   // -gripare-formerna fanns, trots att -grepp är minst lika vanligt på
   // svenska. "Vi ska gripa en detalj med ett parallellgrepp" gav null.
-  const gripperAsk = /gripdon|parallellgrip(are|grepp)?|parallellgrepp|vinkelgrip(are|grepp)?|vinkelgrepp|tregrepp|treback|griparback|\bgripper\b|\bgripare\b|\bgrepp(et|en)?\b|klämback|gripa\s+(och|tag|fast|om)|griper\s+(om|fast|tag|och)/i.test(t);
+  // "radialgripare" saknades till 2026-10-14: "parallell-" och "vinkel-" fanns,
+  // och en radialbegäran fick ejektorer ur cylindervägen (granskningen).
+  const gripperAsk = /gripdon|parallellgrip(are|grepp)?|parallellgrepp|vinkelgrip(are|grepp)?|vinkelgrepp|radialgrip(are|grepp)?|radialgrepp|tregrepp|treback|griparback|\bgripper\b|\bgripare\b|\bgrepp(et|en)?\b|klämback|gripa\s+(och|tag|fast|om)|griper\s+(om|fast|tag|och)/i.test(t);
   // Fragile, flat parts imply vacuum even without the word (glass / PCB / thin sheet).
   const fragileFlat = /\bglas\b|glasskiv|\bwafer\b|kretskort|\bpcb\b|tunn(a|t)?\s*pl(å|a)t|folie|laminat|solcell|\bdisplay\b|\blins(er)?\b/i.test(t)
                       && /plock|lyft|grepp|gripa|hanter|flytta/i.test(t);
@@ -1409,7 +1447,88 @@ export function detectEndEffectorIntent(text: string): "gripper" | "vacuum" | nu
 export function endEffectorExplicitlyAsked(text: string): boolean {
   const t = text.toLowerCase();
   return /vakuumgrepp|vakuumgripare|sugkopp|sugkoppar|suction.?cup|ejektor|vakuum.{0,12}(plock|grepp|lyft|hanter)/i.test(t)
-    || /gripdon|parallellgrip(are|grepp)?|parallellgrepp|vinkelgrip(are|grepp)?|vinkelgrepp|griparback|\bgripper\b|\bgripare\b|klämback/i.test(t);
+    || /gripdon|parallellgrip(are|grepp)?|parallellgrepp|vinkelgrip(are|grepp)?|vinkelgrepp|radialgrip(are|grepp)?|radialgrepp|griparback|\bgripper\b|\bgripare\b|klämback/i.test(t);
+}
+
+/**
+ * Gripdonstypen texten ber om: parallell (standard), vinkel eller radial (tre
+ * backar). En uttalad typ -- ett gripdonsord som "parallellgripare" eller
+ * "treback" -- går före en härledd ("runda detaljer"). Står flera uttalade
+ * typer gäller den som nämns först. Ett lösryckt "parallellt" är ingen typ:
+ * "Radialgripare, detaljerna ligger parallellt" är en radialbegäran.
+ * Delas av alternativen och stycklistan.
+ *
+ * Ett byte vänder ordningen (granskningen 2026-10-14): i "vi har
+ * vinkelgripare idag men vill byta till parallellgripare" är det den senare
+ * kunden vill ha, och i "parallellgripare i stället för vinkelgripare" den
+ * förra.
+ */
+export function onskadGripdonstyp(text: string): "parallel" | "angular" | "radial" {
+  const t = text.toLowerCase();
+  const TYPER: Array<{ typ: "parallel" | "angular" | "radial"; re: RegExp }> = [
+    { typ: "parallel", re: /parallell(?:grip\w*|grepp\w*)|parallel\s*grip\w*/ },
+    { typ: "angular", re: /vinkelgrip\w*|vinkelgrepp\w*|angular\s*grip\w*|angle\s*grip\w*/ },
+    { typ: "radial", re: /radialgrip\w*|radial\s*grip\w*|tre[\s-]?back\w*|3[\s-]?back\w*|3[\s-]?jaw|three[\s-]?jaw|tre[\s-]?finger\w*|3[\s-]?finger\w*/ },
+  ];
+  const forstaTyp = (del: string) => {
+    const uttalade = TYPER.map(({ typ, re }) => ({ typ, pos: re.exec(del)?.index ?? -1 })).filter((x) => x.pos >= 0);
+    return uttalade.length ? uttalade.sort((a, b) => a.pos - b.pos)[0].typ : null;
+  };
+  const istallet = /\bi\s?stället\s+för\b|\binstead\s+of\b|\banstatt\b|\ben\s+(?:lugar|vez)\s+de\b/.exec(t);
+  if (istallet) {
+    const fore = forstaTyp(t.slice(0, istallet.index));
+    if (fore) return fore;
+  }
+  // "byta till X", "byta ut Y mot X", "ersätta Y med X", "vill ha X": X står efter.
+  const byte = /\b(?:byt(?:a|as|er)?|ersätt\w*)\s+(?:[^.]{0,40}?\s)?(?:till|mot|med)\b|\bvill\s+ha\b|\bswitch(?:ing)?\s+to\b|\breplac\w*\s+(?:[^.]{0,40}?\s)?with\b|\bwechseln\s+zu\b|\bcambiar\s+a\b/.exec(t);
+  if (byte) {
+    const efter = forstaTyp(t.slice(byte.index + byte[0].length));
+    if (efter) return efter;
+  }
+  const uttalad = forstaTyp(t);
+  if (uttalad) return uttalad;
+  return /radial|självcentr|sjalvcentr|centrer|\brunda?\b|cylindrisk/.test(t) ? "radial"
+    : /vinkel|angular|\bangle\b|hinged/.test(t) ? "angular" : "parallel";
+}
+
+/**
+ * Kraften ett griporgan ska klara: den angivna, annars en tumregel ur lastens
+ * massa. Delas av alternativen (handleEndEffectorOptions) och stycklistan
+ * (griporganets rad och kontrollen av den), så att båda prövar mot samma tal.
+ *
+ * Gripdon: vikt × 100 N -- friktionsgrepp med två backar, friktionstal runt
+ * 0,1–0,2 och marginal för acceleration. Sugkopp: vikt × 9,81 × 2.
+ * 0 när varken kraft eller massa är känd.
+ *
+ * En uttalad GRIPKRAFT på ett gripdon gäller som den är: den är backarnas
+ * kraft och kundens val, och ett formgrepp klarar sig med mindre än
+ * tumregeln. "Hållkraft" är tvetydigt -- lastens kraft eller griporganets --
+ * och med känd massa får den bara höja kravet. "Gripdon för 50 kg låda,
+ * hållkraft 200 N" (lådan väger ≈ 490 N) gav annars ett gripdon på 508 N märkt
+ * "Rätt storlek" (granskningen 2026-10-14). Samma regel för en sugkopp.
+ */
+export interface Griporganskrav {
+  /** Kraften griporganet prövas mot, i N. 0 när den är okänd. */
+  n: number;
+  /** Kravet är kundens eget tal, inte tumregeln. */
+  angiven: boolean;
+  /** Tumregeln ur lastens massa, 0 när massan är okänd. */
+  tumregelN: number;
+  /** Kraften kunden angav, även när tumregeln vann. 0 om ingen angavs. */
+  angivetN: number;
+}
+
+export function griporgansKrav(
+  typ: "gripper" | "vacuum", h: { gripForceN: number; holdingForceN: number; loadKg: number },
+): Griporganskrav {
+  const tumregelN = h.loadKg > 0 ? Math.round(typ === "gripper" ? Math.max(h.loadKg * 100, 20) : h.loadKg * 9.81 * 2) : 0;
+  if (typ === "gripper" && h.gripForceN > 0) {
+    const n = Math.round(h.gripForceN);
+    return { n, angiven: true, tumregelN, angivetN: n };
+  }
+  const angivetN = Math.round(typ === "gripper" ? h.holdingForceN : (h.holdingForceN || h.gripForceN));
+  if (angivetN > 0 && angivetN >= tumregelN) return { n: angivetN, angiven: true, tumregelN, angivetN };
+  return { n: tumregelN, angiven: false, tumregelN, angivetN };
 }
 
 /**
@@ -1458,6 +1577,9 @@ export function needsFoodGrade(text: string): boolean {
 export interface HazardFlags {
   /** Spolning/tvätt (IP69K-krav), till skillnad från bara korrosiv miljö. */
   isSpolmiljo?: boolean;
+  /** Kunden har redan ett lyft (en Z-axel, en lyftanordning) som griporganet
+   *  sitter på. Lyftet ingår då inte, men det saknas inte heller. */
+  befintligtLyft?: boolean;
   /** Den PL/SIL-nivå kunden angett, eller null. */
   sakerhetsniva?: string | null;
   // Routing / scope
@@ -1641,6 +1763,7 @@ export function detectHazards(
     isAtex, isAtexDust, isVerticalLoad, isHighTemp, isLowTemp, isHydraulic, isVeryHighForce,
     isOxygenClean, isEsdSafe, isHighCycle, isHighSpeed, isSilSafety, isOutdoor, isPharmaGmp,
     isSpolmiljo: needsSpolmiljo(text), sakerhetsniva: angivenSakerhetsniva(text),
+    befintligtLyft: harBefintligtLyft(text),
     isFoodGrade, isBatteryDryroom, isRodLock, isWashdown, isEndPosDetect, isArticulated,
     isMounting, isGuided, isLowCost, is24x7, isDirtyEnv, isHighPrecision, minBoreMm,
     requiredMaxTempC, minStrokeMm, perAxisStrokes, requiredStrokeMm, speedMs, precisionMm,

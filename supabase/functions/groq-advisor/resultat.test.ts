@@ -53,7 +53,7 @@ Deno.test("slagavvikelsen står som öppen konfiguration och lovar inte 350 mm",
 
 Deno.test("kontrollerna och luckorna står i sammanfattningen", () => {
   const r = sorteringsresultat();
-  assert(/Kontroller: 1 av 4 rader kontrollerade mot angivna krav, 2 med krav som inte kunde prövas/.test(r.text), r.text);
+  assert(/Kontroller: 1 av 4 rader höll mot angivna krav, 2 med krav som inte kunde prövas/.test(r.text), r.text);
   assertEquals(r.status.kompatibilitetKontrollerad, false);
   assertEquals(r.status.underlagKomplett, false);
   assertEquals(r.status.dimensioneringUtford, false);
@@ -75,4 +75,39 @@ Deno.test("modellens säkerhetspåståenden tas bort ur prosan, resten står kva
   );
   assertEquals(utanSakerhetspastaenden("Safety is ensured by the valve. Good stroke."), "Good stroke.");
   assertEquals(utanSakerhetspastaenden("Kort slag och hög kraft."), "Kort slag och hög kraft.");
+});
+
+Deno.test("ett gripdon som primär kallas inte cylinder", () => {
+  const kb = tolkaKravbild("Lyfta lådor 50 kg med gripdon");
+  const rader: BomRow[] = [
+    { sku: "MW-P1-32", quantity: 1, kind: "actuator", role: "Primär aktuator", reason: "" },
+    { sku: "FE-MFH", quantity: 1, kind: "valve", role: "Magnetventil", reason: "" },
+  ];
+  const r = byggResultat({ locale: "sv", kravbild: kb, rows: rader, primarySku: "MW-P1-32", isElectric: false, dom: bedomLosning(rader), primaryCategory: "gripper" });
+  assertEquals(r.princip, "Pneumatiskt gripdon med styrventil");
+  assert(/^Pneumatiskt grepp/.test(r.titel), r.titel);
+  // Utan kategori är primären en cylinder, som förut.
+  const r2 = byggResultat({ locale: "sv", kravbild: kb, rows: rader, primarySku: "MW-P1-32", isElectric: false, dom: bedomLosning(rader) });
+  assertEquals(r2.princip, "Pneumatisk cylinder med styrventil");
+});
+
+// Granskningen 2026-10-14: resultatet visade lyftkraften ("Kraft: 981 N")
+// bredvid en gripdonsrad som krävde ≈ 5000 N, och kallade en ejektor för
+// sugkoppar.
+Deno.test("ett griporgan räknas på gripkraften, och en ejektor kallas ejektor", () => {
+  const kb = tolkaKravbild("Lyfta lådor 50 kg med gripdon");
+  const h = detectHazards("Lyfta lådor 50 kg med gripdon", {}, "sv");
+  const rader: BomRow[] = [{ sku: "MW-P1-32", quantity: 1, kind: "actuator", role: "Griporgan — gripdon", reason: "" }];
+  const r = byggResultat({
+    locale: "sv", kravbild: kb, rows: rader, primarySku: "MW-P1-32", isElectric: false, kraftkrav: h.kraftkrav,
+    dom: bedomLosning(rader), primaryCategory: "gripper", griporgan: { n: 5000, angiven: false, tumregelN: 5000, angivetN: 0 },
+  });
+  assertEquals(r.berakningar.map((b) => [b.id, b.resultat, b.status]), [["berakning-gripkraft", "5000 N", "preliminar"]]);
+  assert(/Gripkraft: 5000 N \(preliminär uppskattning\)/.test(r.text), r.text);
+  assert(!/Kraft: 981 N/.test(r.text));
+  const ej = byggResultat({
+    locale: "sv", kravbild: kb, rows: rader, primarySku: "FESTO-VN", primaryName: "VN Venturi ejector", isElectric: false,
+    dom: bedomLosning(rader), primaryCategory: "vacuum", primarySpecs: { type: "Venturi ejector (basic)" },
+  });
+  assertEquals(ej.princip, "Vakuumalstring med ejektor");
 });
