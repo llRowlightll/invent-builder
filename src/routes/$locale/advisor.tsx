@@ -37,7 +37,7 @@ export const Route = createFileRoute("/$locale/advisor")({
     return {
       meta: [
         { title: `Produktrådgivare — ${t("common.appName")}` },
-        { name: "description", content: "Beskriv din applikation och få en komplett komponentlista rekommenderad av AI — cylinder, ventil, anslutningar och mer, anpassad efter dina krav." },
+        { name: "description", content: locale === "sv" ? "Beskriv din applikation så föreslår AI komponenter ur katalogen, till exempel cylinder, ventil och anslutningar, utifrån dina krav." : "Describe your application and AI suggests components from the catalogue, such as cylinder, valve and fittings, based on your requirements." },
         { property: "og:url", content: `${SITE}/${locale}/advisor` },
       ],
       links: [

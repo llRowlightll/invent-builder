@@ -99,8 +99,8 @@ export const GUIDES: Guide[] = [
       },
     ],
     cta: {
-      sv: "Beskriv din rörelse så dimensionerar AI-rådgivaren cylindern åt dig — med komplett stycklista.",
-      en: "Describe your motion and the AI advisor will size the cylinder for you — with a complete bill of materials.",
+      sv: "Beskriv din rörelse så föreslår AI-rådgivaren cylindrar ur katalogen.",
+      en: "Describe your motion and the AI advisor will suggest cylinders from the catalogue.",
     },
     ctaTo: "advisor",
   },
