@@ -925,6 +925,13 @@ else
   fi
 fi
 
+# Test 44: Ett gripdon som inte når kravet får aldrig heta "Rätt storlek"
+# (sajtkritiken 2026-10-14). "Lyfta lådor 50 kg ... med gripdon" gav 170 N
+# märkt "Rätt storlek" mot ≈5000 N, och lyftet nämndes inte.
+echo "  [44] Gripdon under kravet → 'Räcker inte', lyftet sägs ut..."
+R=$(call_options "Lyfta lådor 50 kg med gripdon, personal arbetar under lasten" '{}')
+check "T44 gripdon märks efter kravet" "$R" "Räcker inte.*Lyftet ingår inte|Lyftet ingår inte.*Räcker inte" "Rätt storlek"
+
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════"

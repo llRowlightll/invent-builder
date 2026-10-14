@@ -92,6 +92,21 @@ export function provaTryck(kravBar: number, specar: Record<string, unknown> | un
   return { krav, utfall: "uppfyllt", text: sv ? `artikeln klarar ${anges}` : `the item is rated ${anges}` };
 }
 
+/**
+ * Ett griporgans gripkraft mot kravet (griporgansKrav i signals.ts). Utan
+ * uppgift i katalogen: underlag saknas, aldrig ett tyst godkännande.
+ */
+export function provaGripkraft(kravN: number, angiven: boolean, artikelN: number, sv: boolean): Kontroll {
+  const krav = angiven
+    ? (sv ? `gripkraft ${kravN} N` : `grip force ${kravN} N`)
+    : (sv ? `gripkraft ≈ ${kravN} N (tumregel: vikt × 100 vid friktionsgrepp)` : `grip force ≈ ${kravN} N (rule of thumb: weight × 100 for a friction grip)`);
+  if (!(artikelN > 0)) {
+    return { krav, utfall: "underlag_saknas", text: sv ? "katalogen anger ingen gripkraft för artikeln" : "the catalogue gives no grip force for the item" };
+  }
+  const n = Math.round(artikelN);
+  return { krav, utfall: n >= kravN ? "uppfyllt" : "ej_uppfyllt", text: sv ? `artikeln ger ≈ ${n} N` : `the item gives ≈ ${n} N` };
+}
+
 export function provaSpanning(krav: Spanning, specar: Record<string, unknown> | undefined, sv: boolean): Kontroll {
   const kravText = `${String(krav.volt).replace(".", sv ? "," : ".")} V${krav.typ ? " " + krav.typ : ""}`;
   const anges = tolkaSpanningar(specar?.voltage);

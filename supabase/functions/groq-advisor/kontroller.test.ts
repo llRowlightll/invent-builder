@@ -1,6 +1,6 @@
 /// <reference lib="deno.ns" />
-import { assertEquals } from "jsr:@std/assert@^1";
-import { provaSpanning, provaTryck, tolkaSpanningar, tolkaTryckBar } from "./kontroller.ts";
+import { assert, assertEquals } from "jsr:@std/assert@^1";
+import { provaGripkraft, provaSpanning, provaTryck, tolkaSpanningar, tolkaTryckBar } from "./kontroller.ts";
 
 Deno.test("tryck i katalogens format läses som bar", () => {
   assertEquals(tolkaTryckBar("10"), { min: null, max: 10 });
@@ -36,4 +36,13 @@ Deno.test("spänningen prövas mot artikeln", () => {
   assertEquals(provaSpanning(dc24, { voltage: "24 VDC / 100 VAC" }, true).utfall, "uppfyllt");
   assertEquals(provaSpanning(dc24, { voltage: "200 VAC" }, true).utfall, "ej_uppfyllt");
   assertEquals(provaSpanning(dc24, {}, true).utfall, "underlag_saknas");
+});
+
+Deno.test("gripkraften prövas mot kravet; utan uppgift saknas underlag", () => {
+  assertEquals(provaGripkraft(5000, false, 170, true).utfall, "ej_uppfyllt");
+  assertEquals(provaGripkraft(5000, false, 170, true).text, "artikeln ger ≈ 170 N");
+  assert(/tumregel/.test(provaGripkraft(5000, false, 170, true).krav));
+  assertEquals(provaGripkraft(100, true, 170, true).utfall, "uppfyllt");
+  assertEquals(provaGripkraft(100, true, 170, true).krav, "gripkraft 100 N");
+  assertEquals(provaGripkraft(100, true, 0, true).utfall, "underlag_saknas");
 });

@@ -1413,6 +1413,49 @@ export function endEffectorExplicitlyAsked(text: string): boolean {
 }
 
 /**
+ * Gripdonstypen texten ber om: parallell (standard), vinkel eller radial (tre
+ * backar). En uttalad typ -- ett gripdonsord som "parallellgripare" eller
+ * "treback" -- går före en härledd ("runda detaljer"). Står flera uttalade
+ * typer gäller den som nämns först. Ett lösryckt "parallellt" är ingen typ:
+ * "Radialgripare, detaljerna ligger parallellt" är en radialbegäran.
+ * Delas av alternativen och stycklistan.
+ */
+export function onskadGripdonstyp(text: string): "parallel" | "angular" | "radial" {
+  const t = text.toLowerCase();
+  const uttalade: Array<{ typ: "parallel" | "angular" | "radial"; pos: number }> = [];
+  const forsta = (re: RegExp) => { const m = re.exec(t); return m ? m.index : -1; };
+  const par = forsta(/parallell(?:grip\w*|grepp\w*)|parallel\s*grip\w*/);
+  const vin = forsta(/vinkelgrip\w*|vinkelgrepp\w*|angular\s*grip\w*|angle\s*grip\w*/);
+  const rad = forsta(/radialgrip\w*|radial\s*grip\w*|tre-?back\w*|treback\w*|3-?back\w*|3-?jaw|three-?jaw/);
+  if (par >= 0) uttalade.push({ typ: "parallel", pos: par });
+  if (vin >= 0) uttalade.push({ typ: "angular", pos: vin });
+  if (rad >= 0) uttalade.push({ typ: "radial", pos: rad });
+  if (uttalade.length) return uttalade.sort((a, b) => a.pos - b.pos)[0].typ;
+  return /radial|självcentr|sjalvcentr|centrer|\brunda?\b|cylindrisk/.test(t) ? "radial"
+    : /vinkel|angular|\bangle\b|hinged/.test(t) ? "angular" : "parallel";
+}
+
+/**
+ * Kraften ett griporgan ska klara: den angivna, annars en tumregel ur lastens
+ * massa. Delas av alternativen (handleEndEffectorOptions) och stycklistan
+ * (griporganets rad och kontrollen av den), så att båda prövar mot samma tal.
+ *
+ * Gripdon: vikt × 100 N -- friktionsgrepp med två backar, friktionstal runt
+ * 0,1–0,2 och marginal för acceleration. Sugkopp: vikt × 9,81 × 2.
+ * 0 när varken kraft eller massa är känd.
+ */
+export function griporgansKrav(
+  typ: "gripper" | "vacuum", h: { gripForceN: number; holdingForceN: number; loadKg: number },
+): { n: number; angiven: boolean } {
+  // En angiven kraft gäller griporganet oavsett vilket ord kunden använt:
+  // "hållkraft 200 N" på ett gripdon är dess krav, inte noll.
+  const angiven = typ === "gripper" ? (h.gripForceN || h.holdingForceN) : (h.holdingForceN || h.gripForceN);
+  if (angiven > 0) return { n: Math.round(angiven), angiven: true };
+  if (!(h.loadKg > 0)) return { n: 0, angiven: false };
+  return { n: Math.round(typ === "gripper" ? Math.max(h.loadKg * 100, 20) : h.loadKg * 9.81 * 2), angiven: false };
+}
+
+/**
  * Food-grade / food-industry material or lubrication requirement (NSF-H1,
  * EHEDG, direct food contact). Consolidates two regexes that had drifted
  * apart across two call sites in index.ts (handleQuestions vs. handleOptions)

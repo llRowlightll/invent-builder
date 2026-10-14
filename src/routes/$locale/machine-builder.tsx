@@ -2247,7 +2247,7 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
               utan den här raden läser kunden tystnaden som ett godkännande. */}
           {dom?.kontrollerat && (
             <span className={dom.kontrollerat.verifierade === 0 ? "text-warning-deep" : ""}>
-              · {dom.kontrollerat.verifierade} {t("machineBuilder.ofRowsChecked")} {dom.kontrollerat.rader}
+              · {dom.kontrollerat.verifierade} {t("machineBuilder.ofTotal")} {dom.kontrollerat.rader} {t("machineBuilder.ofRowsChecked")}
               {dom.kontrollerat.verifierade === 0 && ` — ${t("machineBuilder.nothingChecked")}`}
               {(dom.kontrollerat.med_luckor ?? 0) > 0 && (locale === "sv"
                 ? ` · ${dom.kontrollerat.med_luckor} med krav som inte kunde prövas`

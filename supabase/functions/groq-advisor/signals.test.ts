@@ -2,6 +2,7 @@
 // Run: deno test supabase/functions/groq-advisor/signals.test.ts
 import { assert, assertEquals } from "jsr:@std/assert@^1";
 import {
+  griporgansKrav, onskadGripdonstyp,
   angivenSakerhetsniva, needsSpolmiljo,
   extractGripForceN, extractHoldingForceN, extractLoadKg, needsEsdSafe,
   detectHazards, needsFoodGrade,
@@ -902,4 +903,23 @@ Deno.test("en uträknad kraft är en preliminär uppskattning med det som saknas
   // En kraft kunden angett är ett krav, ingen uppskattning.
   const angiven = kraftkrav({ locale: "sv", statedForceN: 3000, loadKg: 0, isVertical: false, isHorizontal: true, elaxel: false, strokeMm: 0, tMoveS: 0, speedMs: 0 });
   assertEquals([angiven.metod, angiven.preliminar], ["angiven", undefined]);
+});
+
+Deno.test("griporganets krav: det angivna, annars tumregeln ur massan", () => {
+  assertEquals(griporgansKrav("gripper", { gripForceN: 0, holdingForceN: 0, loadKg: 50 }), { n: 5000, angiven: false });
+  assertEquals(griporgansKrav("gripper", { gripForceN: 120, holdingForceN: 0, loadKg: 50 }), { n: 120, angiven: true });
+  assertEquals(griporgansKrav("gripper", { gripForceN: 0, holdingForceN: 0, loadKg: 0.1 }), { n: 20, angiven: false });
+  assertEquals(griporgansKrav("vacuum", { gripForceN: 0, holdingForceN: 0, loadKg: 4 }), { n: 78, angiven: false });
+  assertEquals(griporgansKrav("gripper", { gripForceN: 0, holdingForceN: 0, loadKg: 0 }), { n: 0, angiven: false });
+  assertEquals(onskadGripdonstyp("Treback för runda detaljer"), "radial");
+  assertEquals(onskadGripdonstyp("Vinkelgripare"), "angular");
+  assertEquals(onskadGripdonstyp("Lyfta lådor med gripdon"), "parallel");
+  assertEquals(onskadGripdonstyp("Parallellgripare som griper 1 kg cylindriska detaljer"), "parallel");
+  assertEquals(onskadGripdonstyp("Gripa cylindriska detaljer"), "radial");
+  // Granskningen 2026-10-14: ett lösryckt "parallellt" är ingen typ.
+  assertEquals(onskadGripdonstyp("Radialgripare, detaljerna ligger parallellt på bandet"), "radial");
+  assertEquals(onskadGripdonstyp("Treback-gripdon för två parallella linjer"), "radial");
+  assertEquals(onskadGripdonstyp("Vinkelgripare för runda detaljer"), "angular");
+  // En angiven hållkraft är gripdonets krav.
+  assertEquals(griporgansKrav("gripper", { gripForceN: 0, holdingForceN: 200, loadKg: 0 }), { n: 200, angiven: true });
 });

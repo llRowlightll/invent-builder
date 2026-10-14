@@ -76,3 +76,17 @@ Deno.test("modellens säkerhetspåståenden tas bort ur prosan, resten står kva
   assertEquals(utanSakerhetspastaenden("Safety is ensured by the valve. Good stroke."), "Good stroke.");
   assertEquals(utanSakerhetspastaenden("Kort slag och hög kraft."), "Kort slag och hög kraft.");
 });
+
+Deno.test("ett gripdon som primär kallas inte cylinder", () => {
+  const kb = tolkaKravbild("Lyfta lådor 50 kg med gripdon");
+  const rader: BomRow[] = [
+    { sku: "MW-P1-32", quantity: 1, kind: "actuator", role: "Primär aktuator", reason: "" },
+    { sku: "FE-MFH", quantity: 1, kind: "valve", role: "Magnetventil", reason: "" },
+  ];
+  const r = byggResultat({ locale: "sv", kravbild: kb, rows: rader, primarySku: "MW-P1-32", isElectric: false, dom: bedomLosning(rader), primaryCategory: "gripper" });
+  assertEquals(r.princip, "Pneumatiskt gripdon med styrventil");
+  assert(/^Pneumatiskt grepp/.test(r.titel), r.titel);
+  // Utan kategori är primären en cylinder, som förut.
+  const r2 = byggResultat({ locale: "sv", kravbild: kb, rows: rader, primarySku: "MW-P1-32", isElectric: false, dom: bedomLosning(rader) });
+  assertEquals(r2.princip, "Pneumatisk cylinder med styrventil");
+});

@@ -973,3 +973,51 @@ Deno.test("absolut noggrannhet med kuggrem ger linjärt mätsystem; utskjutande 
   assert(!rep.some((r) => /Linjärt mätsystem/.test(r.role)));
 });
 
+
+// ── Gripdon som primär (sajtkritiken 2026-10-14) ────────────────────────────
+// I drift gav "Lyfta lådor 50 kg vertikalt 400 mm" med svaret "Med gripdon som
+// klämmer" ett gripdon på 170 N som primär aktuator, märkt "Kontrollerat mot
+// angivna krav", med backventil och stångbroms Ø32 på gripdonet.
+Deno.test("ett gripdon som primär prövas mot gripkraften, och lyftet blockerar i stället för att försvinna", () => {
+  const h = detectHazards("Lyfta lådor 50 kg med gripdon, lasten får inte falla, personal arbetar under, stångbroms krävs. 6 bar.", {}, "sv");
+  assert(h.isVerticalLoad);
+  const rows = buildMandatoryBomRows(bomCtx({
+    ...h, kravTryckBar: 6,
+    primarySku: "MW-P1-32", primaryCategory: "gripper", primarySpecs: { clamping_force: 170, operating_pressure: "2-8 bar" },
+  }));
+  assertEquals(rows[0].verifiering, "ej_uppfyllt");
+  assert(rows[0].kontroller?.some((k) => /gripkraft/.test(k.krav) && k.utfall === "ej_uppfyllt"), JSON.stringify(rows[0].kontroller));
+  assert(/uppfylls inte/.test(rows[0].verifieringsskal ?? ""), rows[0].verifieringsskal);
+  // Inga cylinderrader på gripdonet ...
+  assert(!rows.some((r) => r.kind === "check_valve"), "backventilen hör till en lyftande cylinder");
+  assert(!rows.some((r) => r.kind === "rod_lock" && r.sku !== "SPECIFY"));
+  // ... men lyftet och dess fallskydd står kvar som ett blockerande krav.
+  const lyft = rows.find((r) => /Lyftande aktuator med fallskydd/.test(r.role));
+  assert(lyft, "lyftraden saknas");
+  assertEquals(lyft.verifiering, "ej_uppfyllt");
+  assert(!/Ingen artikel i katalogen/.test(lyft.verifieringsskal ?? ""), "katalogen har lyftcylindrar; påståendet vore falskt");
+  assertEquals(bedomLosning(rows).bestallningsklar, false);
+});
+
+Deno.test("ett gripdon som når kravet prövas och godkänns på primärens råa specar", () => {
+  const h = detectHazards("Gripa lådor 50 kg i en fixtur. 6 bar.", {}, "sv");
+  assert(!h.isVerticalLoad);
+  const rows = buildMandatoryBomRows(bomCtx({
+    ...h, kravTryckBar: 6,
+    primarySku: "GRIP-6000", primaryCategory: "gripper", primarySpecs: { clamping_force: 6000, operating_pressure: "2-8 bar" },
+  }));
+  assert(rows[0].kontroller?.some((k) => /gripkraft/.test(k.krav) && k.utfall === "uppfyllt"), JSON.stringify(rows[0].kontroller));
+  assert(!rows.some((r) => /Lyftande aktuator/.test(r.role)), "inget lyft beskrivet");
+});
+
+Deno.test("kolvkraften i force_n är ingen gripkraft", () => {
+  // Normaliserade specar räknar force_n ur borrningen; den får inte läsas som
+  // gripdonets kraft (granskningen 2026-10-14).
+  const h = detectHazards("Gripa lådor 20 kg. 6 bar.", {}, "sv");
+  const rows = buildMandatoryBomRows(bomCtx({
+    ...h, kravTryckBar: 6,
+    primarySku: "GRIP-X", primaryCategory: "gripper", primarySpecs: { force_n: 754, bore_mm: 40, operating_pressure: "2-8 bar" },
+  }));
+  const k = rows[0].kontroller?.find((x) => /gripkraft/.test(x.krav));
+  assertEquals(k?.utfall, "underlag_saknas");
+});

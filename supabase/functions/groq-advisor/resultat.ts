@@ -90,6 +90,9 @@ export function byggResultat(o: {
   isElectric: boolean;
   kraftkrav?: Kraftkrav;
   dom: Dom;
+  /** Primärens kategori (slug). Ett gripdon eller en sugkopp som primär är
+   *  ingen cylinder, och principen ska inte kalla den det. */
+  primaryCategory?: string;
 }): Resultat {
   const sv = o.locale === "sv";
   const kb = o.kravbild;
@@ -97,13 +100,21 @@ export function byggResultat(o: {
   const harVentil = komponenter.some((r) => r.kind === "valve" || r.kind === "valve_terminal");
   const harBeredning = komponenter.some((r) => r.kind === "frl");
   const sortering = kb.tillampning === "sortering_utskjutning";
+  const greppPrimar = o.primaryCategory === "gripper" ? "gripper" : o.primaryCategory === "vacuum" ? "vacuum" : null;
 
-  const princip = o.isElectric
-    ? (sv ? "Elektrisk axel med drivsteg och motor" : "Electric axis with drive and motor")
-    : (sv
-      ? `Pneumatisk cylinder${harVentil ? " med styrventil" : ""}${harBeredning ? " och luftberedning" : ""}`
-      : `Pneumatic cylinder${harVentil ? " with control valve" : ""}${harBeredning ? " and air preparation" : ""}`);
-  const titel = sv
+  const tillbehor = sv
+    ? `${harVentil ? " med styrventil" : ""}${harBeredning ? " och luftberedning" : ""}`
+    : `${harVentil ? " with control valve" : ""}${harBeredning ? " and air preparation" : ""}`;
+  const princip = greppPrimar === "gripper"
+    ? (sv ? `Pneumatiskt gripdon${tillbehor}` : `Pneumatic gripper${tillbehor}`)
+    : greppPrimar === "vacuum"
+    ? (sv ? "Vakuumgrepp med sugkoppar" : "Vacuum grip with suction cups")
+    : (o.isElectric
+      ? (sv ? "Elektrisk axel med drivsteg och motor" : "Electric axis with drive and motor")
+      : (sv ? `Pneumatisk cylinder${tillbehor}` : `Pneumatic cylinder${tillbehor}`));
+  const titel = greppPrimar
+    ? (sv ? `${greppPrimar === "gripper" ? "Pneumatiskt grepp" : "Vakuumgrepp"} — ${o.primarySku}` : `${greppPrimar === "gripper" ? "Pneumatic grip" : "Vacuum grip"} — ${o.primarySku}`)
+    : sv
     ? `${o.isElectric ? "Elektrisk" : "Pneumatisk"} ${sortering ? "utskjutare för utsortering" : "rörelse"} — ${o.primarySku}`
     : `${o.isElectric ? "Electric" : "Pneumatic"} ${sortering ? "reject pusher" : "motion"} — ${o.primarySku}`;
 

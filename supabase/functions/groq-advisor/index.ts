@@ -28,7 +28,7 @@ import {
 } from "./scoring.ts";
 import { LANGRE_SLAG_PRO, rensaSerieslag, rensaPositionsPros } from "./prosavakt.ts";
 import { delaSvar, tolkaKravbild, type Kravbild, type Tolkningsbeslut } from "./kravbild.ts";
-import { provaTryck, tolkaKravSpanning } from "./kontroller.ts";
+import { provaGripkraft, provaTryck, tolkaKravSpanning } from "./kontroller.ts";
 import { byggResultat, utanSakerhetspastaenden } from "./resultat.ts";
 import {
   langName,
@@ -55,6 +55,8 @@ import {
   type HazardFlags,
   detectEndEffectorIntent,
   endEffectorExplicitlyAsked,
+  griporgansKrav,
+  onskadGripdonstyp,
   extractRequiredMaxTemp,
   extractRequiredMinTemp,
 } from "./signals.ts";
@@ -774,9 +776,11 @@ async function handleQuestions(description: string, locale: string): Promise<Res
 
 async function handleEndEffectorOptions(
   intent: "gripper" | "vacuum", text: string, hazards: HazardFlags, loadKg: number,
-  locale: string, t0: number,
+  locale: string, t0: number, kravbild: Kravbild,
 ): Promise<Response> {
   const t = text.toLowerCase();
+  const sv = locale === "sv";
+  const tryckKrav = kravbild.krav.find(k => k.objektId === "matning" && k.egenskap === "tryck" && k.bekraftelse !== "avvisat")?.varde ?? 0;
   // Found 2026-08-28 (audit): this function used to hardcode ALL 7 hazard
   // flags to false and call none of their real detectors -- the worst
   // offender of the hazard-blindness pattern found across the file (see
@@ -812,14 +816,25 @@ async function handleEndEffectorOptions(
     // (text was already combinedText, which already folds answers in), this
     // just keeps this handler on the same single source of truth as the
     // rest of the refactor instead of a second, redundant computation.
-    const explicitHoldN = hazards.holdingForceN;
-    const reqN = explicitHoldN > 0 ? explicitHoldN : (loadKg > 0 ? loadKg * 9.81 * 2 : 0); // 2× safety
+    const vakuumKrav = griporgansKrav("vacuum", { gripForceN: hazards.gripForceN, holdingForceN: hazards.holdingForceN, loadKg });
+    const explicitHoldN = vakuumKrav.angiven ? vakuumKrav.n : 0;
+    const reqN = vakuumKrav.n; // 2× säkerhet ur massan, eller den angivna
+    const kravText = vakuumKrav.angiven
+      ? (sv ? `håll-kraft ${reqN} N` : `holding force ${reqN} N`)
+      : (sv ? `håll-kraft ≈ ${reqN} N (vikt × 9,81 × 2)` : `holding force ≈ ${reqN} N (weight × 9.81 × 2)`);
     const options: Array<Record<string, unknown>> = picks.map((p, i) => {
       const d = dia(p);
       const holdN = Math.round(Math.PI * (d / 2) ** 2 * 0.04); // ≈ -0.6 bar usable
       const mat = p.key_specs?.material ? `Material: ${p.key_specs.material}. ` : "";
+      // Flera koppar delar på lasten, så en liten kopp är inget underkännande:
+      // antalet väljs vid konstruktionen och står i klartext.
+      const kravstatus = reqN > 0 && holdN > 0
+        ? [holdN >= reqN
+            ? { krav: kravText, utfall: "uppfyllt", text: sv ? `en kopp ger ≈ ${holdN} N (uppskattning)` : `one cup gives ≈ ${holdN} N (estimate)` }
+            : { krav: kravText, utfall: "konfigureras", text: sv ? `en kopp ger ≈ ${holdN} N; ≈ ${Math.ceil(reqN / holdN)} koppar behövs (uppskattning)` : `one cup gives ≈ ${holdN} N; ≈ ${Math.ceil(reqN / holdN)} cups are needed (estimate)` }]
+        : [{ krav: sv ? "håll-kraft" : "holding force", utfall: "kan_inte_bedomas", text: reqN > 0 ? (sv ? "koppens håll-kraft är inte känd" : "the cup's holding force is unknown") : (sv ? "lastens massa är inte angiven" : "the load's mass is not stated") }];
       return {
-        sku: p.sku, name: p.name,
+        sku: p.sku, name: p.name, kravstatus,
         badge: pick(locale, {
           sv: ["Liten kopp", "Mellan", "Stor kopp"], en: ["Small cup", "Medium", "Large cup"],
           de: ["Kleiner Sauger", "Mittel", "Großer Sauger"], es: ["Ventosa pequeña", "Media", "Ventosa grande"],
@@ -876,49 +891,70 @@ async function handleEndEffectorOptions(
   }
 
   // gripper
-  const wantType: "parallel" | "angular" | "radial" =
-      /radial|3-?back|treback|tre-?back|självcentr|sjalvcentr|centrer|\brunda?\b|cylindrisk/.test(t) ? "radial"
-    : /vinkel|angular|\bangle\b|hinged/.test(t) ? "angular" : "parallel";
+  const wantType = onskadGripdonstyp(t);
   const prods = await fetchEndEffectorProducts("gripper", 60);
   const typed = prods.filter(p => gripperTypeOf(p) === wantType);
   const pool = typed.length ? typed : prods;
   const concrete = pool.filter(p => !isGripperFamily(p) && gripperForceN(p.key_specs ?? {}) > 0);
   const ranked = (concrete.length ? concrete : pool.filter(p => gripperForceN(p.key_specs ?? {}) > 0))
     .sort((a, b) => gripperForceN(a.key_specs ?? {}) - gripperForceN(b.key_specs ?? {}));
-  // An explicitly stated grip force is a direct, already-usable spec -- use
-  // it as-is rather than reinterpreting it as a weight to reconvert (see
-  // extractGripForceN's comment for the bug this fixes: a stated "100N" grip
-  // force was falling into extractLoadKg's generic N-to-kg fallback, then
-  // getting multiplied by 100 again by the rule of thumb below -- a ~10×
-  // inflated, wrong requirement derived from a number the customer already
-  // gave directly). Reads hazards.gripForceN (computed once, upstream)
-  // instead of calling extractGripForceN(text, {}) again here -- behavior
-  // is unchanged (text was already combinedText, which already folds
-  // answers in), this just keeps this handler on the same single source of
-  // truth as the rest of the refactor instead of a second, redundant
-  // computation.
-  const explicitGripN = hazards.gripForceN;
-  const reqN = explicitGripN > 0 ? explicitGripN : (loadKg > 0 ? Math.max(loadKg * 100, 20) : 0); // rule of thumb ≈ weight × 100 N
-  let picks: CatalogProduct[];
-  if (reqN > 0 && ranked.length) {
-    const adequate = ranked.filter(p => gripperForceN(p.key_specs ?? {}) >= reqN);
-    picks = (adequate.length ? adequate : ranked.slice(-3)).slice(0, 3);
-  } else {
-    picks = (ranked.length ? ranked : pool).slice(0, 3);
-  }
+  // Avrundat på ett ställe: märket och kravstatusen prövar samma tal (ett
+  // gripdon på 99,6 N fick "Räcker inte: 100 av 100 N" bredvid "uppfylls").
+  const kraftAv = (p: CatalogProduct) => Math.round(gripperForceN(p.key_specs ?? {}));
+  // Kravet delas med stycklistan (griporgansKrav), och en angiven gripkraft
+  // används som den är -- se extractGripForceN för felet då "100N" tolkades
+  // som en vikt och multiplicerades med 100 igen.
+  //
+  // Hittat 2026-10-14 (sajtkritiken): när inget gripdon räckte valdes de tre
+  // starkaste, och de fick ändå märkena "Rätt storlek", "Marginal" och
+  // "Reserv". Ett gripdon på 170 N föreslogs som rätt storlek för en last på
+  // 50 kg, medan texten ovanför sa ≈5000 N. Nu prövas varje alternativ mot
+  // kravet, och räcker inget står kundlösningen först.
+  const krav = griporgansKrav("gripper", { gripForceN: hazards.gripForceN, holdingForceN: hazards.holdingForceN, loadKg });
+  const explicitGripN = krav.angiven ? krav.n : 0;
+  const reqN = krav.n;
+  const adequate = reqN > 0 ? ranked.filter(p => kraftAv(p) >= reqN) : [];
+  const racker = adequate.length > 0;
+  const picks: CatalogProduct[] = reqN > 0 && ranked.length
+    ? (racker ? adequate.slice(0, 3) : ranked.slice(-3).reverse())
+    : (ranked.length ? ranked : pool).slice(0, 3);
   const options: Array<Record<string, unknown>> = picks.map((p, i) => {
-    const fN = Math.round(gripperForceN(p.key_specs ?? {}));
+    const fN = kraftAv(p);
     const jaw = p.key_specs?.jaw_stroke_per_side ?? p.key_specs?.stroke_per_jaw;
     const gt = p.key_specs?.gripper_type ?? pick(locale, { sv: "Gripdon", en: "Gripper", de: "Greifer", es: "Pinza" });
+    const kravstatus: Array<{ krav: string; utfall: string; text: string }> = [];
+    if (reqN > 0) {
+      const k = provaGripkraft(reqN, krav.angiven, fN, sv);
+      kravstatus.push({ krav: k.krav, utfall: k.utfall === "underlag_saknas" ? "kan_inte_bedomas" : k.utfall, text: k.text });
+    } else {
+      kravstatus.push({ krav: sv ? "gripkraft" : "grip force", utfall: "kan_inte_bedomas", text: sv ? "lastens massa är inte angiven" : "the load's mass is not stated" });
+    }
+    if (tryckKrav > 0 && p.key_specs?.operating_pressure != null) {
+      const k = provaTryck(tryckKrav, p.key_specs, sv);
+      kravstatus.push({ krav: k.krav, utfall: k.utfall === "underlag_saknas" ? "kan_inte_bedomas" : k.utfall, text: k.text });
+    }
+    const brytArAnnat = kravstatus.some(k => k.utfall === "ej_uppfyllt") && fN >= reqN;
     return {
       sku: p.sku, name: p.name,
-      badge: pick(locale, {
-        sv: ["Rätt storlek", "Marginal", "Reserv (mer kraft)"], en: ["Right size", "Tighter", "Reserve (more force)"],
-        de: ["Passende Größe", "Knapper", "Reserve (mehr Kraft)"], es: ["Tamaño adecuado", "Ajustado", "Reserva (más fuerza)"],
-      })[i] ?? "",
+      badge: fN <= 0
+        ? pick(locale, { sv: "Gripkraft ej angiven", en: "Grip force not stated", de: "Greifkraft nicht angegeben", es: "Fuerza de agarre no indicada" })
+        : reqN <= 0
+        ? pick(locale, { sv: `Gripkraft ≈ ${fN} N`, en: `Grip force ≈ ${fN} N`, de: `Greifkraft ≈ ${fN} N`, es: `Fuerza de agarre ≈ ${fN} N` })
+        : brytArAnnat
+        ? pick(locale, { sv: "Uppfyller inte alla krav", en: "Does not meet every requirement", de: "Erfüllt nicht alle Anforderungen", es: "No cumple todos los requisitos" })
+        : racker
+        ? (pick(locale, {
+            sv: ["Rätt storlek", "Mer marginal", "Mest marginal"], en: ["Right size", "More margin", "Most margin"],
+            de: ["Passende Größe", "Mehr Reserve", "Meiste Reserve"], es: ["Tamaño adecuado", "Más margen", "Máximo margen"],
+          })[i] ?? "")
+        : pick(locale, {
+            sv: `Räcker inte: ${fN} av ≈ ${reqN} N`, en: `Too weak: ${fN} of ≈ ${reqN} N`,
+            de: `Zu schwach: ${fN} von ≈ ${reqN} N`, es: `Insuficiente: ${fN} de ≈ ${reqN} N`,
+          }),
       bore_mm: firstNumAbs(p.key_specs?.bore_mm) || null,
       stroke_mm: null,
       force_n: fN || null,
+      kravstatus,
       why: pick(locale, {
         sv: `${gt}${fN ? `, gripkraft ≈ ${fN} N` : ""}${jaw ? `, backslag ${jaw} mm/sida` : ""}. Dimensioneras på gripkraft mot detaljens vikt och friktion.`,
         en: `${gt}${fN ? `, grip force ≈ ${fN} N` : ""}${jaw ? `, jaw stroke ${jaw} mm/side` : ""}. Sized by grip force vs. part weight and friction.`,
@@ -935,6 +971,27 @@ async function handleEndEffectorOptions(
       }),
     };
   });
+  const starkastN = ranked.length ? kraftAv(ranked[ranked.length - 1]) : 0;
+  // Påståendet gäller den typ som söktes, inte hela katalogen: en radialbegäran
+  // med ett starkt parallellgripdon i lager får inte heta "inget i katalogen".
+  const typNamn = typed.length
+    ? (pick(locale, {
+        sv: { parallel: "parallellgripdon", angular: "vinkelgripdon", radial: "radialgripdon" },
+        en: { parallel: "parallel gripper", angular: "angle gripper", radial: "radial gripper" },
+        de: { parallel: "Parallelgreifer", angular: "Winkelgreifer", radial: "Radialgreifer" },
+        es: { parallel: "pinza paralela", angular: "pinza angular", radial: "pinza radial" },
+      }) as Record<string, string>)[wantType]
+    : pick(locale, { sv: "gripdon", en: "gripper", de: "Greifer", es: "pinza" });
+  if (reqN > 0 && ranked.length && !racker) {
+    const bas = buildCustomSolutionOption(0, locale, 0, false, customCtx);
+    const greppText = pick(locale, {
+      sv: `Inget ${typNamn} i katalogen når ≈ ${reqN} N; det starkaste ger ≈ ${starkastN} N. Ett formgrepp, där backarna bär lasten underifrån i stället för att klämma, kräver betydligt mindre kraft.`,
+      en: `No ${typNamn} in the catalogue reaches ≈ ${reqN} N; the strongest gives ≈ ${starkastN} N. A form-fit grip, where the jaws carry the load from below instead of clamping, needs far less force.`,
+      de: `Kein ${typNamn} im Katalog erreicht ≈ ${reqN} N; der stärkste liefert ≈ ${starkastN} N. Ein Formschlussgriff, bei dem die Backen die Last von unten tragen statt zu klemmen, braucht deutlich weniger Kraft.`,
+      es: `Ninguna ${typNamn} del catálogo alcanza ≈ ${reqN} N; la más fuerte da ≈ ${starkastN} N. Un agarre por forma, en el que las mordazas soportan la carga desde abajo en lugar de apretar, necesita mucha menos fuerza.`,
+    });
+    options.unshift({ ...bas, why: [greppText, bas.why].filter(Boolean).join(" "), orsak: "ingen_katalogmatchning" });
+  }
   const typeLabels: Record<string, Record<string, string>> = {
     sv: { parallel: "parallellgripdon", angular: "vinkelgripdon", radial: "radial-/3-backsgripdon" },
     en: { parallel: "parallel grippers", angular: "angle grippers", radial: "radial / 3-jaw grippers" },
@@ -957,11 +1014,37 @@ async function handleEndEffectorOptions(
         es: ` Para ~${loadKg} kg, una regla práctica razonable es ≈ ${Math.round(reqN)} N de fuerza de agarre (≈ peso × 100; ajustar según fricción y aceleración).`,
       })
     : "";
+  const raknarInte = reqN > 0 && ranked.length > 0 && !racker
+    ? pick(locale, {
+        sv: ` Inget ${typNamn} i katalogen räcker (det starkaste ger ≈ ${starkastN} N), så kundlösningen står först.`,
+        en: ` No ${typNamn} in the catalogue is strong enough (the strongest gives ≈ ${starkastN} N), so the custom solution comes first.`,
+        de: ` Kein ${typNamn} im Katalog reicht aus (der stärkste liefert ≈ ${starkastN} N), daher steht die Kundenlösung an erster Stelle.`,
+        es: ` Ninguna ${typNamn} del catálogo es suficiente (la más fuerte da ≈ ${starkastN} N), por eso la solución a medida va primero.`,
+      })
+    : "";
+  // Ett lyft i beskrivningen ingår inte i ett gripdonsförslag; det sägs ut i
+  // stället för att försvinna (sajtkritiken 2026-10-14).
+  const lyftetIngarInte = hazards.isVerticalLoad
+    ? pick(locale, {
+        sv: " Lyftet ingår inte i förslaget: den lyftande aktuatorn och dess fallskydd väljs separat, för lasten inklusive gripdonet.",
+        en: " The lift is not part of this proposal: the lifting actuator and its fall protection are chosen separately, for the load including the gripper.",
+        de: " Der Hub ist nicht Teil dieses Vorschlags: der Hubaktuator und seine Absturzsicherung werden separat gewählt, für die Last einschließlich Greifer.",
+        es: " La elevación no forma parte de esta propuesta: el actuador de elevación y su protección contra caídas se eligen por separado, para la carga incluida la pinza.",
+      })
+    : "";
+  const atexCaveat = hazards.isAtex || hazards.isAtexDust
+    ? pick(locale, {
+        sv: " ⚠️ ATEX: gripdonen i katalogen har ingen ATEX-märkning i specifikationerna. Begär offert med zonen angiven.",
+        en: " ⚠️ ATEX: the grippers in the catalogue have no ATEX marking in their specifications. Request a quote stating the zone.",
+        de: " ⚠️ ATEX: die Greifer im Katalog haben keine ATEX-Kennzeichnung in den Spezifikationen. Angebot mit Angabe der Zone anfordern.",
+        es: " ⚠️ ATEX: las pinzas del catálogo no tienen marcado ATEX en sus especificaciones. Solicite una oferta indicando la zona.",
+      })
+    : "";
   const summary = pick(locale, {
-    sv: `Det här är en gripapplikation — gripdon dimensioneras på gripkraft, inte cylinderslag.${need} Förslagen är ${typeLabel}.${esdCaveat}`,
-    en: `This is a gripping application — grippers are sized by grip force, not cylinder stroke.${need} The options are ${typeLabel}.${esdCaveat}`,
-    de: `Dies ist eine Greifanwendung — Greifer werden nach Greifkraft dimensioniert, nicht nach Zylinderhub.${need} Die Vorschläge sind ${typeLabel}.${esdCaveat}`,
-    es: `Esta es una aplicación de agarre — las pinzas se dimensionan según la fuerza de agarre, no la carrera del cilindro.${need} Las opciones son ${typeLabel}.${esdCaveat}`,
+    sv: `Det här är en gripapplikation — gripdon dimensioneras på gripkraft, inte cylinderslag.${need} Förslagen är ${typeLabel}.${raknarInte}${lyftetIngarInte}${esdCaveat}${atexCaveat}`,
+    en: `This is a gripping application — grippers are sized by grip force, not cylinder stroke.${need} The options are ${typeLabel}.${raknarInte}${lyftetIngarInte}${esdCaveat}${atexCaveat}`,
+    de: `Dies ist eine Greifanwendung — Greifer werden nach Greifkraft dimensioniert, nicht nach Zylinderhub.${need} Die Vorschläge sind ${typeLabel}.${raknarInte}${lyftetIngarInte}${esdCaveat}${atexCaveat}`,
+    es: `Esta es una aplicación de agarre — las pinzas se dimensionan según la fuerza de agarre, no la carrera del cilindro.${need} Las opciones son ${typeLabel}.${raknarInte}${lyftetIngarInte}${esdCaveat}${atexCaveat}`,
   });
   if (!options.length) options.push(buildCustomSolutionOption(0, locale, 0, false, customCtx) as Record<string, unknown>);
   logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: options[0]?.sku ?? null, option_count: options.length }, true);
@@ -1317,7 +1400,7 @@ async function handleOptions(
   // tyst leverera en cylinder i stället är sämre än att leda med greppet.
   const endEffector = detectEndEffectorIntent(combinedText);
   if (endEffector && (endEffectorExplicitlyAsked(combinedText) || (!isMultiAxis && !isSystemScope))) {
-    return await handleEndEffectorOptions(endEffector, combinedText, hazards, loadKg, locale, t0);
+    return await handleEndEffectorOptions(endEffector, combinedText, hazards, loadKg, locale, t0, kravbild);
   }
 
   if (minBoreMm > 0) console.log(`[options] load=${loadKg}kg → minBore=${minBoreMm}mm`);
@@ -2156,6 +2239,7 @@ async function handleBom(
   const bomCtx: BomCtx = {
     ...hazards,
     primarySku, primaryIsFamilyProd, isElectric, locale,
+    primaryCategory,
     products: atexSafeProducts, primaryBoreMm, primaryBrand, unitCount,
     kravTempC: extractRequiredMaxTemp(combinedText, answers),
     kravTempMinC: extractRequiredMinTemp(combinedText, answers),
@@ -2242,7 +2326,7 @@ async function handleBom(
   const resultat = byggResultat({
     locale, kravbild, rows: finalBom, primarySku,
     primaryName: products.find(p => p.sku === primarySku)?.name,
-    isElectric, kraftkrav: hazards.kraftkrav, dom,
+    isElectric, kraftkrav: hazards.kraftkrav, dom, primaryCategory,
   });
   title = resultat.titel;
   explanation = resultat.text + (engNotes.length ? "\n\n" + engNotes.join("\n\n") : "");
