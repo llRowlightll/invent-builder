@@ -864,5 +864,20 @@
     "laddar": "Loading the catalogue …",
     "tangent": "Press / to search",
     "stang": "Close"
+  },
+  "snabborder": {
+    "oppna": "Paste a list of article numbers",
+    "rubrik": "Quick order",
+    "hjalp": "One line per item: article number or order code, and quantity. Paste straight from Excel or a BOM.",
+    "las": "Read list",
+    "sammanfattning": "Catalogue items: {a} · Order codes in series we carry: {s} · To verify: {o}",
+    "serie": "{f} series – exact code goes with the quote",
+    "slag": "stroke",
+    "okand": "Unknown code – we verify it in the quote",
+    "okandNamn": "Item to verify",
+    "inget": "No line could be read. Enter one article number per line.",
+    "andra": "Edit list",
+    "lagg": "Add {n} lines to cart",
+    "lagda": "{n} lines added to the cart."
   }
 }

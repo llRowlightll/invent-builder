@@ -864,5 +864,20 @@
     "laddar": "Laddar katalogen …",
     "tangent": "Tryck / för att söka",
     "stang": "Stäng"
+  },
+  "snabborder": {
+    "oppna": "Klistra in en lista med artikelnummer",
+    "rubrik": "Snabborder",
+    "hjalp": "En rad per artikel: artikelnummer eller orderkod, och antal. Klistra in direkt från Excel eller en stycklista.",
+    "las": "Läs listan",
+    "sammanfattning": "Artiklar i katalogen: {a} · Orderkoder i serier vi har: {s} · Att kontrollera: {o}",
+    "serie": "Serie {f} – exakt kod följer med i offerten",
+    "slag": "slag",
+    "okand": "Okänd kod – vi kontrollerar den i offerten",
+    "okandNamn": "Artikel att kontrollera",
+    "inget": "Ingen rad gick att läsa. Skriv ett artikelnummer per rad.",
+    "andra": "Ändra listan",
+    "lagg": "Lägg {n} rader i korgen",
+    "lagda": "{n} rader lades i korgen."
   }
 }
