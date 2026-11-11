@@ -1,5 +1,8 @@
 import { createFileRoute, Link, useBlocker, useNavigate } from "@tanstack/react-router";
 import { STEG } from "@/lib/plc/steg";
+import { plcStegLagen } from "@/lib/plc/steglagen";
+import { Stegnavigering } from "@/components/design/Stegnavigering";
+import { Statusprick } from "@/components/design/Statusmarke";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { harleddaFragor, saknas, skillnader, type HarleddFraga, type SaknasKod, type Skillnad } from "@/lib/plc/kontroll";
@@ -9,16 +12,23 @@ import {
 } from "@/lib/plc/lagring";
 import {
   LEVERANSINNEHALL, nyttId, tomtUnderlag,
-  type Arbete, type ImporteratKrav, type Leverans, type Leveransinnehall, type Omfattning, type Plattform,
+  type Arbete, type Funktion, type ImporteratKrav, type Leverans, type Leveransinnehall, type Omfattning, type Plattform,
   type PlattformsVal, type TextPost, type Underlag, type UnderlagRad, arAldreImport,
 } from "@/lib/plc/modell";
 import { hittaPlattform, mojligheter, PLATTFORMAR } from "@/lib/plc/plattformar";
+import { kontrolleraSignaler, markeraInaktuella } from "@/lib/plc/harledning";
+import { Steg3Funktion } from "@/components/plc/Steg3Funktion";
+import { Steg4Signaler } from "@/components/plc/Steg4Signaler";
+import { Steg5Sekvens } from "@/components/plc/Steg5Sekvens";
+import { Steg6Larm } from "@/components/plc/Steg6Larm";
+import { Steg7Test } from "@/components/plc/Steg7Test";
+import { Steg8Leverans } from "@/components/plc/Steg8Leverans";
 import { EGENSKAPSNAMN, OBJEKTNAMN, type ObjektTyp } from "../../../supabase/functions/groq-advisor/kravbild.ts";
 
 /**
  * Ett projekts programmeringsunderlag, i åtta steg (planen "Plan för
- * PLC-modulen"). Fas 1: steg 1 Omfattning och steg 2 Plattform. Steg 3–8
- * syns i stegväljaren men öppnas i senare faser.
+ * PLC-modulen"). Fas 1 gav steg 1 Omfattning och steg 2 Plattform; Fas B
+ * steg 3–8. Vilka steg som finns står i lib/plc/steg.ts.
  *
  * Varje steg har en egen adress (?steg=2), så att tillbaka-knappen och
  * direktlänkar fungerar. Underlaget sparas när man går vidare eller avslutar,
@@ -305,6 +315,13 @@ function PlcProjekt() {
   function andraPlattform(del: Partial<Plattform>) {
     setUtkast((u) => (u ? { ...u, plattform: { ...u.plattform, ...del } } : u));
   }
+  function andraFunktion(del: Partial<Funktion>) {
+    setUtkast((u) => (u ? { ...u, funktion: { ...u.funktion, ...del } } : u));
+  }
+  /** Sätter en av listorna i steg 4–7. */
+  function satt<K extends "signaler" | "parametrar" | "steg" | "larm" | "testfall">(nyckel: K, varde: Underlag[K]) {
+    setUtkast((u) => (u ? { ...u, [nyckel]: varde } : u));
+  }
   function andraLista(lista: "antaganden" | "oppnaFragor", ny: TextPost[]) {
     setUtkast((u) => (u ? { ...u, [lista]: ny } : u));
   }
@@ -389,14 +406,18 @@ function PlcProjekt() {
       const nytt = importeraKrav(p);
       setProjekt(p);
       const omtolkade = arAldreImport(utkast.importerat);
+      const komponenter = jamforKomponenter(utkast.importerat.komponenter, nytt.komponenter);
       setKravandringar({
         fran: utkast.importerat.kallrevision,
         till: nytt.kallrevision,
         krav: omtolkade ? [] : jamforKrav(utkast.importerat.krav, nytt.krav),
-        komponenter: jamforKomponenter(utkast.importerat.komponenter, nytt.komponenter),
+        komponenter,
         omtolkade,
       });
-      setUtkast({ ...utkast, importerat: nytt });
+      // Ändringar fortplantar sig: signaler på en ändrad artikel, och stegen,
+      // larmen och testfallen som bygger på dem, blir inaktuella (planen).
+      setUtkast(markeraInaktuella({ ...utkast, importerat: nytt }, komponenter.map((k) => k.sku),
+        `Stycklistan ändrad i maskinprojektets revision ${nytt.kallrevision}`));
     } finally {
       setHamtarKrav(false);
     }
@@ -464,6 +485,7 @@ function PlcProjekt() {
   }
 
   const stegInfo = STEG[steg - 1];
+  const stegLagen = plcStegLagen(utkast, steg);
   const kravInaktuella = projekt.revision > utkast.importerat.kallrevision;
 
   return (
@@ -476,7 +498,7 @@ function PlcProjekt() {
       </nav>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold text-foreground break-words">{projekt.name}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-primary break-words">{projekt.name}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>{projekt.typ === "befintlig_maskin" ? tx("Befintlig maskin", "Existing machine") : tx("Från maskinbyggaren", "From the machine builder")}</span>
             <span>{tx("Underlag rev.", "Documentation rev.")} {rad.revision}</span>
@@ -498,7 +520,7 @@ function PlcProjekt() {
       </div>
 
       {/* Varningen döljs aldrig: underlaget är ett utkast att granska. */}
-      <p className="mt-4 rounded-md border border-warning/40 bg-warning-surface px-3 py-2 text-xs text-warning-deep">
+      <p className="mt-4 rounded-lg border border-warning-deep/15 bg-warning-surface/70 px-3 py-2 text-xs text-warning-deep">
         ⚠️ {tx(
           "Underlag. Inte godkänt för maskindrift. Riskbedömning, säkerhetsfunktioner och validering ligger hos maskintillverkaren.",
           "Documentation only. Not approved for machine operation. Risk assessment, safety functions and validation remain with the machine manufacturer.",
@@ -549,44 +571,14 @@ function PlcProjekt() {
 
       {kravandringar && <KravandringRuta tx={tx} locale={locale} andringar={kravandringar} />}
 
-      {/* ── Stegväljare ── */}
-      <p className="md:hidden mt-6 text-sm font-medium text-foreground">
-        {tx(`Steg ${steg} av 8`, `Step ${steg} of 8`)} · {tx(stegInfo.sv, stegInfo.en)}
-      </p>
-      <ol className="hidden md:grid grid-cols-8 gap-1 mt-6" aria-label={tx("Steg", "Steps")}>
-        {STEG.map((s) => {
-          const aktiv = s.nr === steg;
-          const innehall = (
-            <>
-              <span className={`flex items-center justify-center size-6 rounded-full text-[11px] font-semibold ${aktiv ? "bg-primary text-primary-foreground" : s.finns ? "bg-muted text-foreground" : "bg-muted/60 text-muted-foreground"}`}>
-                {s.nr}
-              </span>
-              <span className={`text-[11px] leading-tight text-center ${aktiv ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                {tx(s.sv, s.en)}
-              </span>
-              {!s.finns && <span className="text-[10px] text-muted-foreground/80">{tx("Kommer", "Coming")}</span>}
-            </>
-          );
-          return (
-            <li key={s.nr}>
-              {s.finns ? (
-                <button
-                  type="button"
-                  onClick={() => gaTillSteg(s.nr)}
-                  aria-current={aktiv ? "step" : undefined}
-                  className="w-full flex flex-col items-center gap-1 rounded-md px-1 py-2 hover:bg-muted/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
-                >
-                  {innehall}
-                </button>
-              ) : (
-                <div aria-disabled="true" aria-current={aktiv ? "step" : undefined} className="w-full flex flex-col items-center gap-1 px-1 py-2 opacity-70">
-                  {innehall}
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ol>
+      {/* ── Stegen: samma navigering som maskinbyggaren, med lägen ur underlaget ── */}
+      <Stegnavigering
+        steg={STEG.map((s, i) => ({ id: String(s.nr), namn: tx(s.sv, s.en), tillstand: stegLagen[i] }))}
+        onValj={(id) => gaTillSteg(Number(id))}
+        locale={locale}
+        etikett={tx("Underlagets steg", "Documentation steps")}
+        className="mt-6"
+      />
 
       <div className="mt-6 grid lg:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
         <section className="min-w-0" aria-labelledby="steg-rubrik">
@@ -596,42 +588,37 @@ function PlcProjekt() {
 
           {steg === 1 && <StegOmfattning tx={tx} locale={locale} underlag={utkast} kravInaktuella={kravInaktuella} andra={andraOmfattning} />}
           {steg === 2 && <StegPlattform tx={tx} underlag={utkast} andra={andraPlattform} />}
-          {steg > 2 && (
-            <div className="mt-4 rounded-lg border border-dashed border-border bg-card p-5">
-              <p className="text-sm text-foreground">{tx(stegInfo.innehallSv, stegInfo.innehallEn)}</p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {tx(
-                  "Steget byggs i nästa fas av modulen. Det du fyller i steg 1 och 2 är sparat och följer med.",
-                  "This step is built in the next phase of the module. What you fill in for steps 1 and 2 is saved and carries over.",
-                )}
-              </p>
-            </div>
-          )}
+          {steg === 3 && <Steg3Funktion tx={tx} underlag={utkast} andra={andraFunktion} />}
+          {steg === 4 && <Steg4Signaler tx={tx} underlag={utkast} sattSignaler={(v) => satt("signaler", v)} sattParametrar={(v) => satt("parametrar", v)} />}
+          {steg === 5 && <Steg5Sekvens tx={tx} underlag={utkast} sattSteg={(v) => satt("steg", v)} andraFunktion={andraFunktion} />}
+          {steg === 6 && <Steg6Larm tx={tx} underlag={utkast} sattLarm={(v) => satt("larm", v)} />}
+          {steg === 7 && <Steg7Test tx={tx} underlag={utkast} sattTest={(v) => satt("testfall", v)} />}
+          {steg === 8 && <Steg8Leverans tx={tx} locale={locale} underlag={utkast} projektnamn={projekt.name} revision={rad.revision} />}
 
           {/* ── Sidfot ── */}
-          <div className="mt-8 pt-4 border-t border-border flex flex-wrap items-center gap-2">
+          <div className="mt-8 pt-4 border-t border-line flex flex-wrap items-center gap-2">
             {steg === 1 ? (
-              <Link to="/$locale/plc" params={{ locale }} className="flex-1 sm:flex-none text-center px-4 py-2 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground hover:border-foreground/40 transition">
+              <Link to="/$locale/plc" params={{ locale }} className="flex-1 sm:flex-none text-center px-4 py-2 rounded-lg border border-border bg-surface text-sm text-foreground/80 shadow-xs hover:text-foreground hover:border-foreground/30 transition-colors">
                 {tx("Tillbaka", "Back")}
               </Link>
             ) : (
-              <button type="button" onClick={() => gaTillSteg(Math.min(steg - 1, 2))} className="flex-1 sm:flex-none text-center px-4 py-2 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground hover:border-foreground/40 transition">
+              <button type="button" onClick={() => gaTillSteg(steg - 1)} className="flex-1 sm:flex-none text-center px-4 py-2 rounded-lg border border-border bg-surface text-sm text-foreground/80 shadow-xs hover:text-foreground hover:border-foreground/30 transition-colors">
                 {tx("Tillbaka", "Back")}
               </button>
             )}
             <span className="hidden sm:block flex-1" />
-            {steg <= 2 && (
-              <button type="button" onClick={() => void sparaOchAvsluta()} disabled={sparstatus === "sparar"} className="flex-1 sm:flex-none px-4 py-2 rounded-md border border-primary text-primary text-sm font-medium hover:bg-primary hover:text-primary-foreground transition disabled:opacity-50">
+            {(
+              <button type="button" onClick={() => void sparaOchAvsluta()} disabled={sparstatus === "sparar"} className="flex-1 sm:flex-none px-4 py-2 rounded-lg border border-primary/30 bg-surface text-primary text-sm font-semibold shadow-xs hover:border-primary/60 transition-colors disabled:opacity-50">
                 {tx("Spara och avsluta", "Save and exit")}
               </button>
             )}
-            {steg === 1 && (
-              <button type="button" onClick={() => void fortsatt()} disabled={sparstatus === "sparar"} className="w-full sm:w-auto px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition disabled:opacity-50">
+            {steg < 8 && (
+              <button type="button" onClick={() => void fortsatt()} disabled={sparstatus === "sparar"} className="w-full sm:w-auto px-5 py-2 rounded-lg bg-cta text-cta-foreground text-sm font-semibold shadow-xs hover:bg-cta-hover active:translate-y-px transition-[background-color,transform] disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none">
                 {tx("Fortsätt", "Continue")}
               </button>
             )}
-            {steg === 2 && (
-              <button type="button" onClick={() => void spara()} disabled={sparstatus === "sparar" || !andrat} className="w-full sm:w-auto px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition disabled:opacity-50">
+            {steg === 8 && (
+              <button type="button" onClick={() => void spara()} disabled={sparstatus === "sparar" || !andrat} className="w-full sm:w-auto px-5 py-2 rounded-lg bg-cta text-cta-foreground text-sm font-semibold shadow-xs hover:bg-cta-hover active:translate-y-px transition-[background-color,transform] disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none">
                 {tx("Spara", "Save")}
               </button>
             )}
@@ -642,15 +629,10 @@ function PlcProjekt() {
               <button type="button" onClick={() => void spara()} className="underline">{tx("Försök igen", "Try again")}</button>
             </p>
           )}
-          {steg === 2 && (
-            <p className="mt-2 text-xs text-muted-foreground text-right">
-              {tx("Steg 3, funktion och driftlägen, öppnas i nästa fas.", "Step 3, function and modes, opens in the next phase.")}
-            </p>
-          )}
         </section>
 
         {/* ── Projektöversikt ── */}
-        <aside className="lg:sticky lg:top-20 rounded-xl border border-border bg-card" aria-labelledby="oversikt-rubrik">
+        <aside className="kort lg:sticky lg:top-20" aria-labelledby="oversikt-rubrik">
           <button
             type="button"
             onClick={() => setOversiktOppen((o) => !o)}
@@ -1108,12 +1090,20 @@ function Projektoversikt({ tx, locale, projekt, underlag, onVisaMaskinprojekt, a
   const luckor = saknas(underlag);
   const harledda = harleddaFragor(underlag);
   const komponenter = underlag.importerat.komponenter;
-  const rubrik = "text-xs font-semibold uppercase tracking-wide text-muted-foreground";
+  const rubrik = "text-[13px] font-medium text-foreground";
+  // Långa listor fälls ihop; det som kräver handling (saknas, konflikter,
+  // öppna frågor) står öppet. Samma uttryck som maskinbyggarens översikt.
+  const summering = "flex cursor-pointer list-none items-center gap-2 text-[13px] font-medium text-foreground [&::-webkit-details-marker]:hidden";
 
   return (
     <div className="space-y-5 text-sm pt-2">
-      <section>
-        <h3 className={rubrik}>{tx("Krav", "Requirements")} ({underlag.importerat.krav.length})</h3>
+      <details className="group">
+        <summary className={summering}>
+          <Statusprick tillstand="forslag" />
+          <span className="flex-1">{tx("Krav", "Requirements")}</span>
+          <span className="tabular-nums text-xs text-muted-foreground">{underlag.importerat.krav.length}</span>
+          <span aria-hidden className="text-muted-foreground transition-transform group-open:rotate-180">⌄</span>
+        </summary>
         {underlag.importerat.krav.length === 0 ? (
           <p className="mt-1 text-muted-foreground">{tx("Inga hämtade krav.", "No fetched requirements.")}</p>
         ) : (
@@ -1126,10 +1116,15 @@ function Projektoversikt({ tx, locale, projekt, underlag, onVisaMaskinprojekt, a
             ))}
           </ul>
         )}
-      </section>
+      </details>
 
-      <section>
-        <h3 className={rubrik}>{tx("Komponenter", "Components")} ({komponenter.length})</h3>
+      <details className="group">
+        <summary className={summering}>
+          <Statusprick tillstand="ejProvat" />
+          <span className="flex-1">{tx("Komponenter", "Components")}</span>
+          <span className="tabular-nums text-xs text-muted-foreground">{komponenter.length}</span>
+          <span aria-hidden className="text-muted-foreground transition-transform group-open:rotate-180">⌄</span>
+        </summary>
         {komponenter.length === 0 ? (
           <p className="mt-1 text-muted-foreground">
             {projekt.typ === "befintlig_maskin"
@@ -1149,10 +1144,10 @@ function Projektoversikt({ tx, locale, projekt, underlag, onVisaMaskinprojekt, a
             ))}
           </ul>
         )}
-      </section>
+      </details>
 
       <section>
-        <h3 className={rubrik}>{tx("Saknas", "Missing")} ({luckor.length})</h3>
+        <h3 className={`${rubrik} flex items-center gap-2`}><Statusprick tillstand="komplettering" />{tx("Saknas", "Missing")} <span className="ml-auto tabular-nums text-xs font-normal text-muted-foreground">{luckor.length}</span></h3>
         {luckor.length === 0 ? (
           <p className="mt-1 text-muted-foreground">{tx("Steg 1 och 2 är ifyllda.", "Steps 1 and 2 are filled in.")}</p>
         ) : (
@@ -1170,8 +1165,23 @@ function Projektoversikt({ tx, locale, projekt, underlag, onVisaMaskinprojekt, a
       </section>
 
       <section>
-        <h3 className={rubrik}>{tx("Konflikter", "Conflicts")}</h3>
-        <p className="mt-1 text-muted-foreground">{tx("Kontrolleras från steg 4, när signalerna finns.", "Checked from step 4, once the signals exist.")}</p>
+        <h3 className={`${rubrik} flex items-center gap-2`}><Statusprick tillstand="uppfyllerInte" />{tx("Konflikter", "Conflicts")}</h3>
+        {underlag.signaler.length === 0 ? (
+          <p className="mt-1 text-muted-foreground">{tx("Kontrolleras från steg 4, när signalerna finns.", "Checked from step 4, once the signals exist.")}</p>
+        ) : (() => {
+          const fel = kontrolleraSignaler(underlag.signaler);
+          const inaktuella = [underlag.signaler, underlag.steg, underlag.larm, underlag.testfall].flat().filter((x) => x.status === "inaktuell").length;
+          return fel.length === 0 && inaktuella === 0 ? (
+            <p className="mt-1 text-muted-foreground">{tx("Inga i I/O-listan.", "None in the I/O list.")}</p>
+          ) : (
+            <ul className="mt-1 space-y-0.5">
+              {fel.map((f, i) => <li key={i} className="text-danger-deep">{f.text}</li>)}
+              {inaktuella > 0 && (
+                <li className="text-danger-deep">{tx(`${inaktuella} poster är inaktuella efter en ändring i maskinprojektet.`, `${inaktuella} entries are outdated after a change in the machine project.`)}</li>
+              )}
+            </ul>
+          );
+        })()}
       </section>
 
       <Postlista
@@ -1235,7 +1245,7 @@ function Postlista({ tx, rubrik, harledda, poster, prefix, etikett, onChange }: 
   }
   return (
     <section>
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{rubrik} ({harledda.length + poster.length})</h3>
+      <h3 className="flex items-center gap-2 text-[13px] font-medium text-foreground">{rubrik} ({harledda.length + poster.length})</h3>
       <ul className="mt-1 space-y-1">
         {harledda.map((h) => <li key={h} className="text-foreground">{h}</li>)}
         {poster.map((p) => (
