@@ -323,7 +323,7 @@ function Rad({ p, kandidat, etikett, locale, original, x, lagd, onLagg }: {
   const varde = (rad: ProductRow, k: string) => {
     if (k === "stroke_mm" && kandidat?.typ === "serie" && rad === p) return x.serie(kandidat.maxSlagMm);
     const s = rad.specs?.[k];
-    return s ? specVarde(k, s) : "–";
+    return s ? specVarde(k, s, locale) : "–";
   };
   return (
     <tr className={`border-t border-border ${etikett ? "bg-info-surface/40" : ""}`}>

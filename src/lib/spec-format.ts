@@ -8,6 +8,7 @@
  * Det här är den enda platsen som bestämmer hur en spec ser ut, så att
  * produktsida, jämförelse och katalogkort säger samma sak.
  */
+import { svensktVarde } from "./specvarden-sv";
 
 type Sprak = "sv" | "en";
 const ETIKETT: Record<string, [sv: string, en: string]> = {
@@ -137,9 +138,14 @@ export function specEtikett(key: string, locale: string): string {
   return ord.charAt(0).toUpperCase() + ord.slice(1);
 }
 
-/** Värde med enhet -- en gång. Saknas enheten tas den ur nyckelnamnet. */
-export function specVarde(key: string, v: { value: unknown; unit: string | null }): string {
+/**
+ * Värde med enhet -- en gång. Saknas enheten tas den ur nyckelnamnet.
+ * På svenska översätts katalogens engelska värden när hela värdet går att
+ * översätta (specvarden-sv.ts); annars visas originalet.
+ */
+export function specVarde(key: string, v: { value: unknown; unit: string | null }, locale?: string): string {
   let txt = String(v.value ?? "").trim();
+  if (locale === "sv") txt = svensktVarde(txt) ?? txt;
   const enhet = v.unit ?? ENHET_UR_NYCKEL.find(([m]) => m.test(key))?.[1] ?? null;
   if (enhet && /\d$/.test(txt) && !txt.toLowerCase().endsWith(enhet.toLowerCase())) txt += " " + enhet;
   return txt;

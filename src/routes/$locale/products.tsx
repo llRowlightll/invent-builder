@@ -720,7 +720,7 @@ function ProductsPage() {
                         key={k}
                         className="text-[11px] bg-muted px-1.5 py-0.5 rounded-md text-muted-foreground"
                       >
-                        {specEtikett(k, locale)}: {specVarde(k, v)}
+                        {specEtikett(k, locale)}: {specVarde(k, v, locale)}
                       </span>
                     ))}
                   </div>
