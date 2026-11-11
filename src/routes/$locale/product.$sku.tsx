@@ -326,6 +326,9 @@ function ProductDetail() {
         {/* Visade "Kontakta oss" även när en uppskattning fanns. Nu visas
             uppskattningen där den finns, märkt som en sådan -- 40 % av
             katalogen delar samma 21 dagar, så siffran är inte bekräftad. */}
+        {/* Inga priser finns ännu (inga prislistor). Raden säger det i stället
+            för att rutan "Pris & leverans" står utan pris (2026-11-11). */}
+        <Row k={t("productPage.priceRow")} v={t("productPage.priceOnQuote")} />
         <Row
           k={t("productPage.estimatedDelivery")}
           v={product.lead_time_days != null
@@ -352,7 +355,7 @@ function ProductDetail() {
           {/* Källan för ett värde är ingen egenskap -- den hör hemma som not. */}
           {kallor(product.specs, locale).map((kl) => (
             <p key={kl.egenskap} className="mt-2 text-xs text-muted-foreground">
-              {isSv ? "Källa" : "Source"}, {kl.egenskap.toLowerCase()}: {kl.text}
+              {isSv ? "Källa" : "Source"}, {kl.egenskap.toLowerCase()}: {kl.text.replace(/\s*(?:Kunskapsbasen|Knowledge base)\s+\d{4}-\d{2}-\d{2}\.?\s*$/i, "")}
             </p>
           ))}
         </section>
