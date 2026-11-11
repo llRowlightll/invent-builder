@@ -166,7 +166,7 @@ function makeSpecGroups(t: ReturnType<typeof makeT>): SpecGroup[] {
 }
 
 // Build a unique list of rows (merge rows with same label, remove rows where all products return "—")
-function buildRows(group: SpecGroup, compared: ProductRow[]): Array<{ label: string; cells: string[]; isDifferent: boolean }> {
+function buildRows(group: SpecGroup, compared: ProductRow[], locale?: string): Array<{ label: string; cells: string[]; isDifferent: boolean }> {
   // Group rows by label so e.g. bore_mm + bore_diameter_mm + bore_diameter all merge into one "Borrdiameter" row
   type RowDef = SpecRowDef & { _label: string };
   const byLabel = new Map<string, RowDef[]>();
@@ -193,7 +193,7 @@ function buildRows(group: SpecGroup, compared: ProductRow[]): Array<{ label: str
           if (v && v !== "—") return v;
         } else {
           const s = p.specs[def.key];
-          if (s) return specVarde(def.key, s);
+          if (s) return specVarde(def.key, s, locale);
         }
       }
       return "—";
@@ -217,7 +217,7 @@ function extraRows(compared: ProductRow[], groupedKeys: Set<string>, locale: str
     if (groupedKeys.has(k)) return;
     const cells = compared.map((p) => {
       const s = p.specs[k];
-      return s ? specVarde(k, s) : "—";
+      return s ? specVarde(k, s, locale) : "—";
     });
     if (cells.every((c) => c === "—")) return;
     const isDifferent = new Set(cells).size > 1;
@@ -302,7 +302,7 @@ function ComparePage() {
     if (!compared.length) return 0;
     let n = 0;
     SPEC_GROUPS.forEach((g) => {
-      buildRows(g, compared).forEach((r) => { if (r.isDifferent) n++; });
+      buildRows(g, compared, locale).forEach((r) => { if (r.isDifferent) n++; });
     });
     extraRows(compared, GROUPED_SPEC_KEYS, locale).forEach((r) => { if (r.isDifferent) n++; });
     return n;
@@ -312,7 +312,7 @@ function ComparePage() {
   function downloadCSV() {
     if (!compared.length) return;
     const allRows: Array<{ label: string; cells: string[] }> = [];
-    SPEC_GROUPS.forEach((g) => buildRows(g, compared).forEach((r) => allRows.push(r)));
+    SPEC_GROUPS.forEach((g) => buildRows(g, compared, locale).forEach((r) => allRows.push(r)));
     extraRows(compared, GROUPED_SPEC_KEYS, locale).forEach((r) => allRows.push(r));
 
     const header = ["Specifikation", ...compared.map((p) => `${p.brand.name} – ${p.name} (${p.sku})`)];
@@ -559,7 +559,7 @@ function ComparePage() {
 
             {/* Spec rows */}
             {SPEC_GROUPS.map((group) => {
-              const rows = buildRows(group, compared).filter((r) => {
+              const rows = buildRows(group, compared, locale).filter((r) => {
                 if (r.isDifferent) return true;           // always show differences
                 return showIdentical && !diffOnly;         // show identical only if checkbox on and not "diff-only"
               });

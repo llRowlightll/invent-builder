@@ -936,7 +936,7 @@ function ProductCard({
         <div className="mt-2 flex flex-wrap gap-1">
           {synligaSpecar(p.specs).slice(0, 2).map(([k, v]) => (
             <span key={k} className="text-[10px] bg-surface-alt px-1.5 py-0.5 rounded text-muted-foreground">
-              {specEtikett(k, locale)}: {specVarde(k, v)}
+              {specEtikett(k, locale)}: {specVarde(k, v, locale)}
             </span>
           ))}
         </div>

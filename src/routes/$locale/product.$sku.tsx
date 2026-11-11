@@ -223,7 +223,7 @@ function ProductDetail() {
       additionalProperty: synligaSpecar(product.specs).map(([k, v]) => ({
         "@type": "PropertyValue",
         name: specEtikett(k, locale),
-        value: specVarde(k, v),
+        value: specVarde(k, v, locale),
       })),
     }),
   };
@@ -361,7 +361,7 @@ function ProductDetail() {
               {synligaSpecar(product.specs).map(([k, v]) => (
                 <tr key={k} className="border-b border-border last:border-0 odd:bg-surface-alt/50">
                   <td className="p-3 text-muted-foreground w-1/2">{specEtikett(k, locale)}</td>
-                  <td className="p-3 font-medium">{specVarde(k, v)}</td>
+                  <td className="p-3 font-medium">{specVarde(k, v, locale)}</td>
                 </tr>
               ))}
             </tbody>
