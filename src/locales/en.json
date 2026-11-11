@@ -306,7 +306,10 @@
     "noResultsAi": "No products matched the AI search. Try adjusting your description.",
     "noResultsManual": "No products matched. Adjust filters or search term.",
     "addToList": "Add to cart",
-    "added": "Added"
+    "added": "Added",
+    "filterBore": "Bore",
+    "filterStd": "Standard",
+    "filterBoreNote": "A series counts when the size is available in it. Stroke is chosen on the product page."
   },
   "chatPage": {
     "leadSv": "Describe what you need — I search the full catalog and explain why.",
@@ -431,7 +434,8 @@
     "requestQuote": "Request quote",
     "askAi": "Unsure? Ask the AI engineer",
     "contactForDelivery": "Contact us for lead time",
-    "orderAvailable": "Order"
+    "orderAvailable": "Order",
+    "hittaLiknande": "All {vad} across brands"
   },
   "rfqPage": {
     "title": "Quote Request",

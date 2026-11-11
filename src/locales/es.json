@@ -306,7 +306,10 @@
     "noResultsAi": "Ningún producto coincidió con la búsqueda IA. Intente ajustar su descripción.",
     "noResultsManual": "Ningún producto coincidió. Ajuste los filtros o el término de búsqueda.",
     "addToList": "Añadir al carrito",
-    "added": "Añadido"
+    "added": "Añadido",
+    "filterBore": "Diámetro",
+    "filterStd": "Norma",
+    "filterBoreNote": "Una serie cuenta cuando el tamaño está disponible en ella. La carrera se elige en la página del producto."
   },
   "chatPage": {
     "leadSv": "Describa lo que necesita — busco en todo el catálogo y explico por qué.",
@@ -431,7 +434,8 @@
     "requestQuote": "Solicitar oferta",
     "askAi": "¿Dudas? Pregunta al ingeniero IA",
     "contactForDelivery": "Consultar plazo de entrega",
-    "orderAvailable": "Pedir"
+    "orderAvailable": "Pedir",
+    "hittaLiknande": "Todos los {vad} de todas las marcas"
   },
   "rfqPage": {
     "title": "Solicitud de oferta",

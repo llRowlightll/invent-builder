@@ -306,7 +306,10 @@
     "noResultsAi": "Keine Produkte haben der KI-Suche entsprochen. Versuchen Sie, Ihre Beschreibung anzupassen.",
     "noResultsManual": "Keine Produkte gefunden. Filter oder Suchbegriff anpassen.",
     "addToList": "In den Warenkorb",
-    "added": "Hinzugefügt"
+    "added": "Hinzugefügt",
+    "filterBore": "Kolbendurchmesser",
+    "filterStd": "Norm",
+    "filterBoreNote": "Eine Serie zählt, wenn die Größe darin verfügbar ist. Hub wird auf der Produktseite gewählt."
   },
   "chatPage": {
     "leadSv": "Beschreiben Sie, was Sie benötigen — ich durchsuche den gesamten Katalog und erkläre warum.",
@@ -431,7 +434,8 @@
     "requestQuote": "Angebot anfragen",
     "askAi": "Unsicher? KI-Ingenieur fragen",
     "contactForDelivery": "Lieferzeit auf Anfrage",
-    "orderAvailable": "Bestellen"
+    "orderAvailable": "Bestellen",
+    "hittaLiknande": "Alle {vad} aller Hersteller"
   },
   "rfqPage": {
     "title": "Angebotsanfrage",

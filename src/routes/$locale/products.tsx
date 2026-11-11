@@ -12,6 +12,7 @@ import { SITE, hreflangLinks } from "@/lib/site";
 import { categoryName } from "@/lib/categories";
 import { beskrivning, kallor, produktnamn, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
 import { matcharFraga } from "@/lib/sokord";
+import { cylinderstandard, harBorrning } from "@/lib/likvardiga";
 import { logga } from "@/lib/matning";
 import { FileText } from "lucide-react";
 
@@ -23,6 +24,10 @@ export const Route = createFileRoute("/$locale/products")({
     category: z.string().optional(),
     brand: z.string().optional(),
     ai: z.string().optional(),
+    /** Borrningar, kommaseparerade: "8,10". */
+    borr: z.string().optional(),
+    /** Cylinderstandard: "ISO 6432". */
+    std: z.string().optional(),
   }),
   // Surface the active category/brand filters to head() so the page gets a
   // unique, filter-specific <title> + meta description (better CTR), and fetch
@@ -225,6 +230,9 @@ const CATEGORY_SEO: Record<string, { sv: string; en: string }> = {
 };
 
 type Grade = "HIGH" | "MEDIUM" | "LOW";
+/** Borrningar enligt ISO 3320 -- de storlekar filtret erbjuder. */
+const ISO_BORRNINGAR = [2.5, 4, 6, 8, 10, 12, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 320];
+
 function gradeOf(p: ProductRow): Grade {
   const lt = p.lead_time_days ?? 99;
   if (p.availability === "stock" || lt <= 7) return "HIGH";
@@ -248,6 +256,9 @@ function ProductsPage() {
   const [q, setQ] = useState(search.q ?? search.ai ?? "");
   const [brands, setBrands] = useState<Set<string>>(new Set(search.brand ? [search.brand] : []));
   const [cats, setCats] = useState<Set<string>>(new Set(search.category ? [search.category] : []));
+  const lasBorr = (v?: string) => new Set((v ?? "").split(",").map(Number).filter((n) => Number.isFinite(n) && n > 0));
+  const [borr, setBorr] = useState<Set<number>>(lasBorr(search.borr));
+  const [stds, setStds] = useState<Set<string>>(new Set(search.std ? [search.std] : []));
   const [grades, setGrades] = useState<Set<Grade>>(new Set());
   const [aiMode, setAiMode] = useState(!!search.ai);
   const [aiResult, setAiResult] = useState<AiSearchResult | null>(null);
@@ -267,6 +278,21 @@ function ProductsPage() {
       runAiSearch(search.ai);
     }
   }, []);
+
+  // Adressen kan ändras utan att sidan laddas om -- sökrutan i sidhuvudet och
+  // "Hitta liknande" navigerar hit med nya parametrar. Utan detta låg den gamla
+  // sökningen kvar. Första renderingen läser parametrarna i useState ovan.
+  const forstaRendering = useRef(true);
+  useEffect(() => {
+    if (forstaRendering.current) { forstaRendering.current = false; return; }
+    setAiResult(null);
+    setQ(search.q ?? search.ai ?? "");
+    setBrands(new Set(search.brand ? [search.brand] : []));
+    setCats(new Set(search.category ? [search.category] : []));
+    setBorr(lasBorr(search.borr));
+    setStds(new Set(search.std ? [search.std] : []));
+    if (search.ai) runAiSearch(search.ai);
+  }, [search.q, search.ai, search.brand, search.category, search.borr, search.std]);
 
   async function runAiSearch(query: string) {
     if (!query.trim()) return;
@@ -297,6 +323,8 @@ function ProductsPage() {
     setAiMode(false);
     setBrands(new Set());
     setCats(new Set());
+    setBorr(new Set());
+    setStds(new Set());
     setQ("");
     inputRef.current?.focus();
   }
@@ -323,11 +351,14 @@ function ProductsPage() {
     return /^[a-z]{2,}\d*$/i.test(forsta) ? forsta.toLowerCase() : null;
   }
 
-  const { rader: filtered, familjefall } = useMemo(() => {
-    if (!items) return { rader: [] as ProductRow[], familjefall: null as string | null };
+  const { rader: filtered, familjefall, borrFacett, stdFacett } = useMemo(() => {
+    if (!items) return { rader: [] as ProductRow[], familjefall: null as string | null, borrFacett: [] as [number, number][], stdFacett: [] as [string, number][] };
 
-    const filtrera = (ql: string) => items.filter((p) => {
+    const filtrera = (ql: string, utan?: "borr" | "std") => items.filter((p) => {
       if (brands.size && !brands.has(p.brand.slug)) return false;
+      // Borrning: en serie räknas när storleken finns i den (lista eller intervall).
+      if (utan !== "borr" && borr.size && ![...borr].some((d) => harBorrning(p.specs?.bore_mm?.value, d))) return false;
+      if (utan !== "std" && stds.size && !stds.has(cylinderstandard(p.specs?.standard?.value) ?? "")) return false;
       if (cats.size && !cats.has(p.category.slug)) return false;
       if (grades.size && !grades.has(gradeOf(p))) return false;
 
@@ -391,16 +422,28 @@ function ProductsPage() {
       }
     }
 
+    // Antal per värde, som Festo och RS visar. Varje facett räknas utan sitt
+    // eget filter, så att Ø10 inte visar 0 bara för att Ø8 är valt.
+    const sokt = familjefall ?? ql;
+    const forBorr = filtrera(sokt, "borr");
+    const borrFacett = ISO_BORRNINGAR
+      .map((d) => [d, forBorr.filter((p) => harBorrning(p.specs?.bore_mm?.value, d)).length] as [number, number])
+      .filter(([, n]) => n > 0);
+    const forStd = filtrera(sokt, "std");
+    const stdFacett = (["ISO 6432", "ISO 15552", "ISO 21287"] as const)
+      .map((s) => [s, forStd.filter((p) => cylinderstandard(p.specs?.standard?.value) === s).length] as [string, number])
+      .filter(([, n]) => n > 0);
+
     // When AI returned ranked SKUs, sort those to the top
     if (aiResult?.ranked_skus?.length) {
       const rankMap = new Map(aiResult.ranked_skus.map((sku, i) => [sku, i]));
       return {
         rader: [...base].sort((a, b) => (rankMap.get(a.sku) ?? 9999) - (rankMap.get(b.sku) ?? 9999)),
-        familjefall,
+        familjefall, borrFacett, stdFacett,
       };
     }
-    return { rader: base, familjefall };
-  }, [items, q, brands, cats, grades, aiResult]);
+    return { rader: base, familjefall, borrFacett, stdFacett };
+  }, [items, q, brands, cats, grades, borr, stds, aiResult]);
 
   function toggleSet<T>(set: Set<T>, val: T, setter: (s: Set<T>) => void) {
     const n = new Set(set);
@@ -428,7 +471,7 @@ function ProductsPage() {
     </div>
   );
 
-  const activeFilterCount = brands.size + cats.size + grades.size;
+  const activeFilterCount = brands.size + cats.size + grades.size + borr.size + stds.size;
 
   return (
     <div className="container-page py-6 md:py-8">
@@ -572,7 +615,40 @@ function ProductsPage() {
           </div>
         </AccordionFilter>
 
+        {borrFacett.length >= 2 && (
+          <AccordionFilter label={t("productsPage.filterBore")} count={borr.size}>
+            <div className="grid grid-cols-3 gap-x-3 gap-y-1.5 p-3 min-w-[15rem]">
+              {borrFacett.map(([d, n]) => (
+                <Check key={d} label={`Ø${d}  (${n})`} checked={borr.has(d)} onChange={() => toggleSet(borr, d, setBorr)} />
+              ))}
+            </div>
+            <p className="px-3 pb-3 text-[11px] leading-snug text-muted-foreground max-w-[16rem]">{t("productsPage.filterBoreNote")}</p>
+          </AccordionFilter>
+        )}
+
+        {stdFacett.length >= 1 && (
+          <AccordionFilter label={t("productsPage.filterStd")} count={stds.size}>
+            <div className="space-y-1.5 p-3">
+              {stdFacett.map(([sd, n]) => (
+                <Check key={sd} label={`${sd}  (${n})`} checked={stds.has(sd)} onChange={() => toggleSet(stds, sd, setStds)} />
+              ))}
+            </div>
+          </AccordionFilter>
+        )}
+
         {/* Active filter chips */}
+        {[...borr].sort((a, b) => a - b).map((d) => (
+          <button key={`b${d}`} onClick={() => toggleSet(borr, d, setBorr)}
+            className="text-xs px-3 py-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center gap-1">
+            Ø{d} ×
+          </button>
+        ))}
+        {[...stds].map((sd) => (
+          <button key={sd} onClick={() => toggleSet(stds, sd, setStds)}
+            className="text-xs px-3 py-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center gap-1">
+            {sd} ×
+          </button>
+        ))}
         {brands.size > 0 && Array.from(brands).map((b) => {
           const name = allBrands.find(([s]) => s === b)?.[1] ?? b;
           return (
