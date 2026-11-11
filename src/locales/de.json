@@ -850,5 +850,19 @@
     "notLoggedIn": "Anmelden, um Projekte zu speichern",
     "autoSaved": "Als Projekt gespeichert",
     "rename": "Umbenennen"
+  },
+  "snabbsok": {
+    "knapp": "Suchen",
+    "placeholder": "Artikelnummer, Serie, Hersteller oder Begriff …",
+    "artiklar": "Artikel",
+    "kategorier": "Kategorien",
+    "fabrikat": "Hersteller",
+    "visaAlla": "Alle {n} Treffer anzeigen",
+    "ingaTraffar": "Keine Artikel passen zu \"{q}\".",
+    "familjefall": "Keine Artikelnummer \"{q}\" im Katalog – zeige die Serie {fam}.",
+    "beskriv": "Maschine stattdessen beschreiben – Maschine bauen",
+    "laddar": "Katalog wird geladen …",
+    "tangent": "/ drücken zum Suchen",
+    "stang": "Schließen"
   }
 }

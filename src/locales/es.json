@@ -850,5 +850,19 @@
     "notLoggedIn": "Inicia sesión para guardar proyectos",
     "autoSaved": "Guardado automáticamente",
     "rename": "Renombrar"
+  },
+  "snabbsok": {
+    "knapp": "Buscar",
+    "placeholder": "Referencia, serie, marca o término …",
+    "artiklar": "Productos",
+    "kategorier": "Categorías",
+    "fabrikat": "Marcas",
+    "visaAlla": "Ver los {n} resultados",
+    "ingaTraffar": "Ningún producto coincide con \"{q}\".",
+    "familjefall": "No existe la referencia \"{q}\" en el catálogo – mostrando la serie {fam}.",
+    "beskriv": "Describe la máquina – Construir máquina",
+    "laddar": "Cargando el catálogo …",
+    "tangent": "Pulsa / para buscar",
+    "stang": "Cerrar"
   }
 }

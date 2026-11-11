@@ -850,5 +850,19 @@
     "notLoggedIn": "Logga in för att spara projekt",
     "autoSaved": "Autosparat som projekt",
     "rename": "Byt namn"
+  },
+  "snabbsok": {
+    "knapp": "Sök",
+    "placeholder": "Artikelnummer, serie, fabrikat eller fackord …",
+    "artiklar": "Artiklar",
+    "kategorier": "Kategorier",
+    "fabrikat": "Fabrikat",
+    "visaAlla": "Visa alla {n} träffar",
+    "ingaTraffar": "Inga artiklar matchar \"{q}\".",
+    "familjefall": "Inget artikelnummer \"{q}\" i katalogen – visar serien {fam}.",
+    "beskriv": "Beskriv maskinen i stället – Bygg maskin",
+    "laddar": "Laddar katalogen …",
+    "tangent": "Tryck / för att söka",
+    "stang": "Stäng"
   }
 }

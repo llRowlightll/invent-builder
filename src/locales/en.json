@@ -850,5 +850,19 @@
     "notLoggedIn": "Log in to save projects",
     "autoSaved": "Auto-saved as project",
     "rename": "Rename"
+  },
+  "snabbsok": {
+    "knapp": "Search",
+    "placeholder": "Article number, series, brand or term …",
+    "artiklar": "Products",
+    "kategorier": "Categories",
+    "fabrikat": "Brands",
+    "visaAlla": "Show all {n} results",
+    "ingaTraffar": "No products match \"{q}\".",
+    "familjefall": "No article number \"{q}\" in the catalogue – showing the {fam} series.",
+    "beskriv": "Describe the machine instead – Build machine",
+    "laddar": "Loading the catalogue …",
+    "tangent": "Press / to search",
+    "stang": "Close"
   }
 }
