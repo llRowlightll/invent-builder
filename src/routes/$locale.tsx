@@ -173,16 +173,16 @@ function LocaleLayout() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="sticky top-0 z-30 border-b border-line bg-surface/90 backdrop-blur-md supports-[backdrop-filter]:bg-surface/80">
+      <header className="bg-primary text-primary-foreground sticky top-0 z-30 shadow-sm">
         <div className="container-page flex items-center gap-4 h-16">
           {/* Logo */}
           <Link
             to="/$locale"
             params={{ locale }}
-            className="font-bold tracking-tight flex items-center gap-2 text-primary shrink-0"
+            className="font-bold tracking-tight flex items-center gap-2 text-primary-foreground shrink-0"
           >
             <span
-              className="inline-flex items-center justify-center size-7 rounded-md bg-gold text-primary text-xs font-black shadow-xs"
+              className="inline-flex items-center justify-center size-6 rounded bg-gold text-primary text-[11px] font-black"
               aria-hidden
             >
               M
@@ -191,14 +191,14 @@ function LocaleLayout() {
           </Link>
 
           {/* Desktop nav */}
-          <nav className="hidden xl:flex items-center gap-0.5 text-sm text-muted-foreground ml-2">
+          <nav className="hidden xl:flex items-center gap-0.5 text-sm text-primary-foreground/75 ml-2">
             {navLinks.map((l) => (
               <Link
                 key={l.to}
                 to={l.to as never}
                 params={{ locale } as never}
-                activeProps={{ className: "bg-primary/[0.07] text-primary font-medium" }}
-                className="whitespace-nowrap px-2.5 py-1.5 rounded-md hover:bg-muted hover:text-foreground transition-colors"
+                activeProps={{ className: "bg-primary-foreground/15 text-primary-foreground" }}
+                className="whitespace-nowrap px-2.5 py-1.5 rounded-md hover:bg-primary-foreground/10 hover:text-primary-foreground transition"
               >
                 {l.label}
               </Link>
@@ -210,7 +210,7 @@ function LocaleLayout() {
             <Link
               to="/$locale/machine-builder"
               params={{ locale }}
-              className="hidden sm:inline-flex items-center gap-1.5 whitespace-nowrap text-[13px] px-3.5 py-2 rounded-lg bg-cta text-cta-foreground font-semibold shadow-xs hover:bg-cta-hover active:translate-y-px transition-[background-color,transform]"
+              className="hidden sm:inline-flex items-center gap-1.5 whitespace-nowrap text-xs px-3 py-1.5 rounded-md bg-gold text-primary font-semibold hover:opacity-90 transition"
             >
               ✦ {t("nav.machineBuilder")}
             </Link>
@@ -219,10 +219,10 @@ function LocaleLayout() {
             <Link
               to="/$locale/shopping-list"
               params={{ locale }}
-              className="relative hidden sm:flex items-center justify-center size-9 rounded-lg hover:bg-muted transition-colors"
+              className="relative hidden sm:flex items-center justify-center size-8 rounded-md hover:bg-primary-foreground/10 transition"
               title={t("nav.shoppingList")}
             >
-              <ShoppingCart className="size-4 text-foreground/70" aria-hidden />
+              <ShoppingCart className="size-4 text-primary-foreground/80" aria-hidden />
               {listCount > 0 && (
                 <span className="absolute -top-1 -right-1 inline-flex items-center justify-center size-4 rounded-full bg-gold text-primary text-[9px] font-black leading-none">
                   {listCount > 99 ? "99+" : listCount}
@@ -234,11 +234,11 @@ function LocaleLayout() {
             <div className="relative" ref={langRef}>
               <button
                 onClick={() => setLangOpen((o) => !o)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs text-foreground/80 hover:text-foreground hover:bg-muted transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-primary-foreground/25 text-xs text-primary-foreground/90 hover:text-primary-foreground hover:bg-primary-foreground/10 transition"
               >
                 <span>{LOCALE_META[locale as Locale]?.flag ?? "🌐"}</span>
                 <span className="font-medium">{LOCALE_META[locale as Locale]?.label ?? locale.toUpperCase()}</span>
-                <span className="text-muted-foreground">▾</span>
+                <span className="text-primary-foreground/50">▾</span>
               </button>
               {langOpen && (
                 <div className="absolute right-0 top-full mt-1 z-50 rounded-lg border border-border bg-card shadow-lg py-1 min-w-[120px]">
@@ -269,25 +269,25 @@ function LocaleLayout() {
                       className={`text-xs px-2.5 py-1.5 rounded-md border font-medium transition ${
                         isEditMode
                           ? "bg-gold text-primary border-gold"
-                          : "border-border hover:bg-muted text-muted-foreground"
+                          : "border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80"
                       }`}
                     >
                       {isEditMode ? "✎ EDIT PÅ" : "✎ EDIT"}
                     </button>
                   <Link to={"/$locale/admin/dashboard" as never} params={{ locale } as never}
-                      className="text-xs px-2.5 py-1.5 rounded-md border border-border hover:bg-muted text-muted-foreground">
+                      className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
                       Admin ◈
                     </Link>
                     <Link to={"/$locale/admin/rfq" as never} params={{ locale } as never}
-                      className="text-xs px-2.5 py-1.5 rounded-md border border-border hover:bg-muted text-muted-foreground">
+                      className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
                       RFQ
                     </Link>
                     <Link to={"/$locale/admin/crm" as never} params={{ locale } as never}
-                      className="text-xs px-2.5 py-1.5 rounded-md border border-border hover:bg-muted text-muted-foreground">
+                      className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
                       CRM
                     </Link>
                     <Link to={"/$locale/admin/claims" as never} params={{ locale } as never}
-                      className="text-xs px-2.5 py-1.5 rounded-md border border-border hover:bg-muted text-muted-foreground">
+                      className="text-xs px-2.5 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10 text-primary-foreground/80">
                       Reklam.
                     </Link>
                   </>
@@ -302,10 +302,10 @@ function LocaleLayout() {
                     onKeyDown={(e) => { if (e.key === "Escape") setKontoOpen(false); }}
                     aria-expanded={kontoOpen}
                     aria-controls="kontomeny"
-                    className="flex items-center gap-1.5 whitespace-nowrap text-sm px-3 py-1.5 rounded-lg border border-border text-foreground hover:bg-muted transition-colors"
+                    className="flex items-center gap-1.5 whitespace-nowrap text-sm px-3 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10"
                   >
                     {t("nav.konto")}
-                    <span className="text-muted-foreground" aria-hidden>▾</span>
+                    <span className="text-primary-foreground/50" aria-hidden>▾</span>
                   </button>
                   {kontoOpen && (
                     <div
@@ -341,7 +341,7 @@ function LocaleLayout() {
               <Link
                 to="/$locale/login"
                 params={{ locale }}
-                className="hidden sm:block whitespace-nowrap text-sm px-3 py-1.5 rounded-lg border border-border text-foreground hover:bg-muted transition-colors"
+                className="hidden sm:block whitespace-nowrap text-sm px-3 py-1.5 rounded-md border border-primary-foreground/25 hover:bg-primary-foreground/10"
               >
                 {t("auth.submitLogin")}
               </Link>
@@ -349,27 +349,27 @@ function LocaleLayout() {
 
             {/* Mobile hamburger */}
             <button
-              className="xl:hidden p-2.5 rounded-lg hover:bg-muted"
+              className="xl:hidden p-2 rounded-md hover:bg-primary-foreground/10"
               onClick={() => setMenuOpen((o) => !o)}
               aria-label={t("nav.menu")}
             >
-              <span className="block w-4 h-0.5 rounded-full bg-foreground mb-1" />
-              <span className="block w-4 h-0.5 rounded-full bg-foreground mb-1" />
-              <span className="block w-4 h-0.5 rounded-full bg-foreground" />
+              <span className="block w-4 h-0.5 bg-primary-foreground mb-1" />
+              <span className="block w-4 h-0.5 bg-primary-foreground mb-1" />
+              <span className="block w-4 h-0.5 bg-primary-foreground" />
             </button>
           </div>
         </div>
 
         {/* Mobile menu */}
         {menuOpen && (
-          <div className="xl:hidden border-t border-line bg-surface px-4 py-3 space-y-1 rorelse-fram">
+          <div className="xl:hidden border-t border-primary-foreground/15 bg-primary px-4 py-3 space-y-1">
             {navLinks.map((l) => (
               <Link
                 key={l.to}
                 to={l.to as never}
                 params={{ locale } as never}
                 onClick={() => setMenuOpen(false)}
-                className="block px-3 py-2.5 rounded-lg text-sm text-foreground/80 hover:bg-muted hover:text-foreground"
+                className="block px-3 py-2 rounded-md text-sm text-primary-foreground/80 hover:bg-primary-foreground/10 hover:text-primary-foreground"
               >
                 {l.label}
               </Link>
@@ -378,7 +378,7 @@ function LocaleLayout() {
               to="/$locale/machine-builder"
               params={{ locale }}
               onClick={() => setMenuOpen(false)}
-              className="block px-3 py-2.5 rounded-lg text-sm font-semibold text-info hover:bg-muted"
+              className="block px-3 py-2 rounded-md text-sm font-semibold text-gold hover:bg-primary-foreground/10"
             >
               ✦ {t("nav.machineBuilder")}
             </Link>
@@ -386,7 +386,7 @@ function LocaleLayout() {
               to="/$locale/shopping-list"
               params={{ locale }}
               onClick={() => setMenuOpen(false)}
-              className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-foreground/80 hover:bg-muted hover:text-foreground"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-primary-foreground/80 hover:bg-primary-foreground/10 hover:text-primary-foreground"
             >
               <ShoppingCart className="size-4 inline -mt-0.5 mr-1.5" aria-hidden />{t("nav.shoppingList")}
               {listCount > 0 && (
@@ -395,63 +395,63 @@ function LocaleLayout() {
                 </span>
               )}
             </Link>
-            <div className="pt-2 border-t border-line">
+            <div className="pt-2 border-t border-primary-foreground/15">
               {user ? (
                 <>
                   {/* På telefon syns inte kontomenyn i sidhuvudet; projekten och
                       ordrarna nås härifrån. */}
                   <Link to={"/$locale/projects" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
-                    className="block px-3 py-2 text-sm text-foreground/80 hover:text-foreground">
+                    className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                     {t("projects.title")}
                   </Link>
                   <Link to={"/$locale/orders" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
-                    className="block px-3 py-2 text-sm text-foreground/80 hover:text-foreground">
+                    className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                     {t("ordersPage.myOrders")}
                   </Link>
                   <Link to={"/$locale/profile" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
-                    className="block px-3 py-2 text-sm text-foreground/80 hover:text-foreground">
+                    className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                     {t("nav.profile")}
                   </Link>
                   <Link to={"/$locale/claims" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
-                    className="block px-3 py-2 text-sm text-foreground/80 hover:text-foreground">
+                    className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                     {t("claimsPage.title")}
                   </Link>
                   {isAdmin && (
                     <>
                       <Link to={"/$locale/admin/dashboard" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
-                        className="block px-3 py-2 text-sm text-foreground/80 hover:text-foreground">
+                        className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                         Admin dashboard
                       </Link>
                       <Link to={"/$locale/admin/rfq" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
-                        className="block px-3 py-2 text-sm text-foreground/80 hover:text-foreground">
+                        className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                         RFQ
                       </Link>
                       <Link to={"/$locale/admin/orders" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
-                        className="block px-3 py-2 text-sm text-foreground/80 hover:text-foreground">
+                        className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                         Orderhantering
                       </Link>
                       <Link to={"/$locale/admin/claims" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
-                        className="block px-3 py-2 text-sm text-foreground/80 hover:text-foreground">
+                        className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                         Reklamationer
                       </Link>
                       <Link to={"/$locale/admin/products" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
-                        className="block px-3 py-2 text-sm text-foreground/80 hover:text-foreground">
+                        className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                         Produkter
                       </Link>
                       <Link to={"/$locale/admin/crm" as never} params={{ locale } as never} onClick={() => setMenuOpen(false)}
-                        className="block px-3 py-2 text-sm text-foreground/80 hover:text-foreground">
+                        className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                         CRM
                       </Link>
                     </>
                   )}
                   <button onClick={async () => { await signOut(); navigate({ to: "/$locale", params: { locale } }); setMenuOpen(false); }}
-                    className="block w-full text-left px-3 py-2 text-sm text-foreground/80 hover:text-foreground">
+                    className="block w-full text-left px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                     {t("common.signOut")}
                   </button>
                 </>
               ) : (
                 <Link to="/$locale/login" params={{ locale }} onClick={() => setMenuOpen(false)}
-                  className="block px-3 py-2 text-sm text-foreground/80 hover:text-foreground">
+                  className="block px-3 py-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
                   {t("auth.submitLogin")}
                 </Link>
               )}
@@ -496,44 +496,44 @@ function LocaleLayout() {
         </div>
       )}
 
-      <footer className="mt-16 bg-primary py-10 text-primary-foreground/70">
-        <div className="container-page grid sm:grid-cols-3 gap-6 text-xs text-primary-foreground/70">
+      <footer className="border-t border-border py-8">
+        <div className="container-page grid sm:grid-cols-3 gap-6 text-xs text-muted-foreground">
           <div>
-            <div className="font-semibold text-primary-foreground mb-2">{t("common.appName")}</div>
+            <div className="font-semibold text-foreground mb-2">{t("common.appName")}</div>
             <p className="leading-relaxed">{t("common.tagline")}</p>
           </div>
           <div>
-            <div className="font-medium text-primary-foreground mb-2">{t("footer.tools")}</div>
+            <div className="font-medium text-foreground mb-2">{t("footer.tools")}</div>
             <ul className="space-y-1">
-              <li><Link to="/$locale/products" params={{ locale }} className="hover:text-gold">{t("nav.products")}</Link></li>
-              <li><Link to="/$locale/chat" params={{ locale }} search={{} as never} className="hover:text-gold">{t("nav.chat")}</Link></li>
-              <li><Link to="/$locale/compare" params={{ locale }} className="hover:text-gold">{t("nav.compare")}</Link></li>
-              <li><Link to="/$locale/advisor" params={{ locale }} search={{ q: undefined }} className="hover:text-gold">{t("nav.advisor")}</Link></li>
-              <li><Link to="/$locale/machine-builder" params={{ locale }} className="hover:text-gold">{t("nav.machineBuilder")}</Link></li>
-              <li><Link to="/$locale/plc" params={{ locale }} className="hover:text-gold">{t("nav.plc")}</Link></li>
-              {isAdmin && <li><Link to="/$locale/admin/import" params={{ locale }} className="hover:text-gold">{t("footer.importAdmin")}</Link></li>}
+              <li><Link to="/$locale/products" params={{ locale }} className="hover:text-info">{t("nav.products")}</Link></li>
+              <li><Link to="/$locale/chat" params={{ locale }} search={{} as never} className="hover:text-info">{t("nav.chat")}</Link></li>
+              <li><Link to="/$locale/compare" params={{ locale }} className="hover:text-info">{t("nav.compare")}</Link></li>
+              <li><Link to="/$locale/advisor" params={{ locale }} search={{ q: undefined }} className="hover:text-info">{t("nav.advisor")}</Link></li>
+              <li><Link to="/$locale/machine-builder" params={{ locale }} className="hover:text-info">{t("nav.machineBuilder")}</Link></li>
+              <li><Link to="/$locale/plc" params={{ locale }} className="hover:text-info">{t("nav.plc")}</Link></li>
+              {isAdmin && <li><Link to="/$locale/admin/import" params={{ locale }} className="hover:text-info">{t("footer.importAdmin")}</Link></li>}
             </ul>
           </div>
           <div>
-            <div className="font-medium text-primary-foreground mb-2">{t("footer.brands")}</div>
+            <div className="font-medium text-foreground mb-2">{t("footer.brands")}</div>
             <p className="leading-relaxed">Festo · SMC · Parker · AVENTICS · Bosch Rexroth · Norgren · Metal Work · Camozzi</p>
             <p className="mt-2 text-[11px]">{t("footer.productTypes")}</p>
           </div>
         </div>
-        <div className="container-page mt-8 pt-5 border-t border-primary-foreground/15 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-primary-foreground/60">
-          <span>© {new Date().getFullYear()} {t("common.appName")}. {t("footer.copyright")}</span>
+        <div className="container-page mt-6 pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-muted-foreground">
+          <span>© {new Date().getFullYear()} {t("common.appName")} — {t("footer.copyright")}</span>
           <div className="flex flex-wrap gap-4 justify-center sm:justify-end">
-            <Link to="/$locale/om-oss" params={{ locale }} className="hover:text-gold transition">{t("footer.about")}</Link>
-            <Link to="/$locale/privacy" params={{ locale }} className="hover:text-gold transition">{t("footer.privacy")}</Link>
-            <Link to="/$locale/terms" params={{ locale }} className="hover:text-gold transition">{t("footer.terms")}</Link>
-            {user && <Link to="/$locale/claims" params={{ locale }} className="hover:text-gold transition">{t("claimsPage.title")}</Link>}
+            <Link to="/$locale/om-oss" params={{ locale }} className="hover:text-info transition">{t("footer.about")}</Link>
+            <Link to="/$locale/privacy" params={{ locale }} className="hover:text-info transition">{t("footer.privacy")}</Link>
+            <Link to="/$locale/terms" params={{ locale }} className="hover:text-info transition">{t("footer.terms")}</Link>
+            {user && <Link to="/$locale/claims" params={{ locale }} className="hover:text-info transition">{t("claimsPage.title")}</Link>}
             <button
               onClick={() => { document.cookie = "mv_cookie_consent=; Max-Age=0; Path=/"; setCookieConsent(null); }}
-              className="hover:text-gold transition cursor-pointer"
+              className="hover:text-info transition cursor-pointer"
             >
               {t("cookies.manage")}
             </button>
-            <a href="mailto:info@maskinval.se" className="hover:text-gold transition">{t("footer.contact")}</a>
+            <a href="mailto:info@maskinval.se" className="hover:text-info transition">{t("footer.contact")}</a>
           </div>
         </div>
       </footer>
