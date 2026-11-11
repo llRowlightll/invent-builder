@@ -13,6 +13,7 @@ import { useEditMode } from "@/lib/edit-mode-context";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { ShoppingCart } from "lucide-react";
+import { Snabbsok } from "@/components/Snabbsok";
 import { delningsbildMeta } from "@/lib/site";
 import { besoksKalla, logga } from "@/lib/matning";
 
@@ -206,6 +207,9 @@ function LocaleLayout() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            {/* Sökförslag medan man skriver, från varje sida (snabbsok.ts) */}
+            <Snabbsok locale={locale} />
+
             {/* Build machine CTA */}
             <Link
               to="/$locale/machine-builder"
