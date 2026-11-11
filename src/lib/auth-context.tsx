@@ -52,22 +52,23 @@ export function useAuth() {
   return useContext(Ctx);
 }
 
-const ADMIN_EMAIL = "alexandrooden@gmail.com";
-
-/** Returns true if the current user is an admin (by email or app_metadata role). */
+/**
+ * Admin avgörs av rollen i kontots app_metadata, som bara servern kan sätta.
+ * En hårdkodad privat Gmail-adress stod här till 2026-11-11 -- i ett publikt
+ * repo, och utan funktion: adminkontot har rollen både i app_metadata och i
+ * user_roles. Databasens RLS är det som faktiskt skyddar; det här styr bara
+ * vilka sidor som visas.
+ */
 export function useIsAdmin(): boolean {
   const { user } = useAuth();
-  return (
-    user?.email === ADMIN_EMAIL ||
-    user?.app_metadata?.role === "admin"
-  );
+  return user?.app_metadata?.role === "admin";
 }
 
 /** Returns { isAdmin, authLoading } — use authLoading to avoid flash-redirect before auth is ready. */
 export function useAdminGuard(): { isAdmin: boolean; authLoading: boolean } {
   const { user, loading } = useAuth();
   return {
-    isAdmin: user?.email === ADMIN_EMAIL || user?.app_metadata?.role === "admin",
+    isAdmin: user?.app_metadata?.role === "admin",
     authLoading: loading,
   };
 }

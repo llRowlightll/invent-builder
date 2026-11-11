@@ -94,6 +94,8 @@ function PrivacyPage() {
           <ul className="mt-2 space-y-1 list-disc list-inside text-foreground/70">
             <li><strong className="text-foreground">Supabase Inc.</strong> — databasinfrastruktur (USA, Standard Contractual Clauses)</li>
             <li><strong className="text-foreground">Cloudflare Inc.</strong> — hosting och CDN (USA, Standard Contractual Clauses)</li>
+            <li><strong className="text-foreground">Resend Inc.</strong> — utskick av e-post, till exempel bekräftelser på offertförfrågningar och ordrar (USA)</li>
+            <li><strong className="text-foreground">Zoho</strong> — e-postlådan info@maskinval.se (datacenter i EU)</li>
             <li><strong className="text-foreground">Groq Inc.</strong> — AI-bearbetning av frågor i AI-ingenjören, maskinbyggaren och katalogsökningen (USA, Standard Contractual Clauses)</li>
             <li><strong className="text-foreground">Anthropic PBC</strong> — AI-tolkning av uppladdade bilder och dokument (USA)</li>
             <li><strong className="text-foreground">PostNord AB</strong> — fraktbokning (Sverige)</li>
