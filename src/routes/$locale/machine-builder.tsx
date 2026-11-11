@@ -2252,6 +2252,7 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
                   mot ett krav är prövad (granskningen 2026-10-14). */}
               {dom.kontrollerat.verifierade === 0 && dom.kontrollerat.blockerande === 0 &&
                 (dom.kontrollerat.med_luckor ?? 0) === 0 && (dom.kontrollerat.underlag_saknas ?? 0) === 0 &&
+                (dom.kontrollerat.konfiguration ?? 0) === 0 &&
                 ` — ${t("machineBuilder.nothingChecked")}`}
               {(dom.kontrollerat.med_luckor ?? 0) > 0 && (locale === "sv"
                 ? ` · ${dom.kontrollerat.med_luckor} med krav som inte kunde prövas`

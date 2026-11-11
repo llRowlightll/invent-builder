@@ -1114,3 +1114,16 @@ Deno.test("kolvkraften i force_n är ingen gripkraft", () => {
   const k = rows[0].kontroller?.find((x) => /gripkraft/.test(x.krav));
   assertEquals(k?.utfall, "underlag_saknas");
 });
+
+Deno.test("fleraxligt med Z-axel: fallskyddet sitter på Z-axeln, inte på gripdonet", () => {
+  const h = detectHazards("Plocka detaljer 5 kg ur en låda med gripdon och lyfta upp dem, flytta i sidled, lasten får inte falla", { slag_x_sidled_mm: "600", slag_z_hojd_mm: "150" }, "sv");
+  const rows = buildMandatoryBomRows(bomCtx({ ...h, primarySku: "G1", primaryCategory: "gripper", primarySpecs: GRIPDON_OK }));
+  const z = rows.findIndex((r) => /Z-axel/.test(r.role));
+  assert(z > 0, rows.map((r) => r.role).join(" | "));
+  const kopplingar = deriveBomConnections(rows);
+  for (const kind of ["check_valve", "rod_lock"]) {
+    const i = rows.findIndex((r) => r.kind === kind);
+    assert(i >= 0, kind + " saknas");
+    assert(kopplingar.some((c) => c.fromIndex === i && c.toIndex === z && c.relation === "mounted_on"), `${kind} sitter inte på Z-axeln: ${JSON.stringify(kopplingar.filter((c) => c.fromIndex === i))}`);
+  }
+});

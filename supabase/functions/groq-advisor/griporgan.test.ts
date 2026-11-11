@@ -119,3 +119,17 @@ Deno.test("sugkoppar: ett angivet antal prövas per kopp", () => {
   assertEquals(status(r.options.find((o) => o.sku === "C30")!)[0].utfall, "ej_uppfyllt");
   assertEquals(status(r.options.find((o) => o.sku === "C80")!)[0].utfall, "uppfyllt");
 });
+
+Deno.test("koppantal: bara sugkoppar, inte en takt eller kaffe", () => {
+  assertEquals(angivetKoppantal("Plocka 40 koppar per minut"), 0);
+  assertEquals(angivetKoppantal("Pick 30 suction cups per minute"), 0);
+  assertEquals(angivetKoppantal("lyfta 3 koppar kaffe"), 0);
+  assertEquals(angivetKoppantal("4 sugkoppar håller plåten"), 4);
+});
+
+Deno.test("fleraxligt med Z-axel: alternativen säger inte att lyftet saknas", () => {
+  const text = "Plocka detaljer 5 kg ur en låda med gripdon och lyfta upp dem, flytta i sidled";
+  const hazards = detectHazards(text, { slag_x_sidled_mm: "600", slag_z_hojd_mm: "150" }, "sv");
+  const r = byggGripdonsalternativ([MELLAN], { text, hazards, loadKg: 5, locale: "sv", tryckKrav: 0 });
+  assert(!/Lyftet ingår inte/.test(r.summary), r.summary);
+});

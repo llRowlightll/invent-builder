@@ -519,9 +519,10 @@ export function needsVerticalLoad(textMedOrientering: string): boolean {
   // Ord som ser vertikala ut men beskriver något annat (granskningen
   // 2026-10-14): "med ovansidan uppåt" är hur detaljen ligger, och
   // "lyftöglor" är fästpunkter. Sedan lyftet blev en blockerande rad för ett
-  // griporgan stoppade de beställningen.
+  // griporgan stoppade de beställningen. Bara efter "med": "pressar locket
+  // nedåt" är en rörelse och ska förbli vertikal (tredje granskningen).
   const text = textMedOrientering.replace(
-    /\b(?:ovan|under|fram|bak)?sidan\s+(?:uppåt|nedåt)\b|\b(?:etiketten|locket|öppningen|texten|märkningen)\s+(?:uppåt|nedåt)\b|\blyft(?:ögl|ör|handtag)\w*/gi,
+    /(?<![\wåäö])med\s+(?:(?:ovan|under|fram|bak)?sidan|etiketten|locket|öppningen|texten|märkningen)\s+(?:uppåt|nedåt)(?![\wåäö])|(?<![\wåäö])lyft(?:ögl|ör|handtag)[\wåäö]*/gi,
     " ",
   );
   return /\blyft|\bhissa\b|\bhäng.*last\b|\blast.*häng\b|\bvertikal|\bcylinder.*vertikal\b|\bz[.-]?axel\b|\bz[.-]?axis\b|\bpress.*ner\b|\bpress.*ned\b|\bnedåt\b|\buppåt\b|\bvertical.*load\b|\bhanging.*load\b|\bsuspended.*load\b|\blifting.*cyl\b|\bcylinder.*lyft\b|\bz[.-]?achse\b|\bheben\b|\bhebt\b|\bhängende\s?last\b|\bnach\s?unten\b|\bnach\s?oben\b|\belevar\b|\blevantar\b|\bcarga\s?suspendida\b|\bcarga\s?colgante\b|\beje\s?z\b|\bhacia\s?abajo\b|\bhacia\s?arriba\b/i.test(text);
@@ -534,8 +535,12 @@ export function needsVerticalLoad(textMedOrientering: string): boolean {
  * (granskningen 2026-10-14).
  */
 export function harBefintligtLyft(text: string): boolean {
-  return /\b(?:befintlig\w*|existerande|redan\s+(?:har|finns|monterad\w*|installerad\w*)|finns\s+redan|existing|already\s+(?:has|have|fitted|installed))\b[^.]{0,60}?(?:\blyft\w*|\bz[.-]?ax\w*|\bhiss\w*|\blift\w*|\bhoist\w*)/i.test(text)
-    || /(?:\blyft\w*|\bz[.-]?ax\w*|\bhiss\w*|\blift\w*|\bhoist\w*)[^.]{0,40}?\b(?:som\s+redan|redan\s+har|that\s+already|already\s+has)\b/i.test(text);
+  // Ordet ska beskriva själva lyftet: "befintlig produktionslinje där gripdonet
+  // ska lyfta" eller "lådor som redan har etiketter" är inget befintligt lyft
+  // (tredje granskningen 2026-10-14).
+  const LYFT = String.raw`(?:lyft\w*|lyftanordning\w*|z[.-]?ax(?:el|eln|lar|is)\w*|hiss\w*|lift(?:er|ing)?|hoist\w*)`;
+  return new RegExp(String.raw`(?<![\wåäö])(?:befintliga?|existerande|nuvarande|existing)\s+(?:\w+\s+)?${LYFT}`, "i").test(text)
+    || new RegExp(String.raw`(?<![\wåäö])${LYFT}\s+(?:som\s+redan\s+(?:har|finns|sitter|är)|(?:that|which)\s+already)`, "i").test(text);
 }
 
 /**
@@ -1468,7 +1473,8 @@ export function onskadGripdonstyp(text: string): "parallel" | "angular" | "radia
   const TYPER: Array<{ typ: "parallel" | "angular" | "radial"; re: RegExp }> = [
     { typ: "parallel", re: /parallell(?:grip\w*|grepp\w*)|parallel\s*grip\w*/ },
     { typ: "angular", re: /vinkelgrip\w*|vinkelgrepp\w*|angular\s*grip\w*|angle\s*grip\w*/ },
-    { typ: "radial", re: /radialgrip\w*|radial\s*grip\w*|tre[\s-]?back\w*|3[\s-]?back\w*|3[\s-]?jaw|three[\s-]?jaw|tre[\s-]?finger\w*|3[\s-]?finger\w*/ },
+    // Inte "yttre backar" eller "3 backar med flaskor" (backar = lådor).
+    { typ: "radial", re: /radialgrip\w*|radial\s*grip\w*|(?<![a-zåäö])tre-?back\w*|(?<!\d)3-back\w*|3[\s-]?jaw|three[\s-]?jaw|(?:gripdon|gripare|gripper)\s+med\s+(?:tre|3)\s+(?:backar|fingrar)/ },
   ];
   const forstaTyp = (del: string) => {
     const uttalade = TYPER.map(({ typ, re }) => ({ typ, pos: re.exec(del)?.index ?? -1 })).filter((x) => x.pos >= 0);
@@ -1521,7 +1527,7 @@ export interface Griporganskrav {
 export function griporgansKrav(
   typ: "gripper" | "vacuum", h: { gripForceN: number; holdingForceN: number; loadKg: number },
 ): Griporganskrav {
-  const tumregelN = h.loadKg > 0 ? Math.round(typ === "gripper" ? Math.max(h.loadKg * 100, 20) : h.loadKg * 9.81 * 2) : 0;
+  const tumregelN = h.loadKg > 0 ? Math.max(1, Math.round(typ === "gripper" ? Math.max(h.loadKg * 100, 20) : h.loadKg * 9.81 * 2)) : 0;
   if (typ === "gripper" && h.gripForceN > 0) {
     const n = Math.round(h.gripForceN);
     return { n, angiven: true, tumregelN, angivetN: n };

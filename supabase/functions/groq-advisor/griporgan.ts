@@ -71,8 +71,9 @@ function esdNot(h: HazardFlags, locale: string): string {
     : "";
 }
 
-function atexNot(h: HazardFlags, locale: string, vad: "gripdon" | "vakuum"): string {
+function atexNot(h: HazardFlags, locale: string, vad: "gripdon" | "vakuum", pool: CatalogProduct[] = []): string {
   if (!(h.isAtex || h.isAtexDust)) return "";
+  if (pool.some(isAtexCapableProduct)) return "";
   return vad === "gripdon"
     ? pick(locale, {
         sv: " ⚠️ ATEX: gripdonen i katalogen har ingen ATEX-märkning i specifikationerna. Begär offert med zonen angiven.",
@@ -93,6 +94,8 @@ function atexNot(h: HazardFlags, locale: string, vad: "gripdon" | "vakuum"): str
 // samma dag också för sugkoppar, vars stycklista redan stoppade på lyftet.
 function lyftetIngarInte(h: HazardFlags, locale: string): string {
   if (!h.isVerticalLoad) return "";
+  // Ett fleraxligt jobb med Z-axel har lyftet i stycklistan (samma villkor som där).
+  if (h.isMultiAxis && h.perAxisStrokes.length >= 2 && h.perAxisStrokes.some((a) => a.axis === "Z")) return "";
   return h.befintligtLyft
     ? pick(locale, {
         sv: " Lyftet ingår inte i förslaget: kontrollera att det befintliga lyftet och dess fallskydd bär lasten inklusive griporganet.",
@@ -110,7 +113,9 @@ function lyftetIngarInte(h: HazardFlags, locale: string): string {
 
 /** Antalet koppar kunden angett ("4 sugkoppar"), 0 när inget anges. */
 export function angivetKoppantal(text: string): number {
-  const m = text.match(/(\d+)\s*(?:st\.?\s*)?(?:sugkopp(?:ar)?|koppar|suction\s*cups|cups|saugn[äa]pfe|sauger|ventosas)\b/i);
+  // Bara sugkoppar: "40 koppar per minut" är en takt och "3 koppar kaffe" ingen
+  // konstruktion (tredje granskningen 2026-10-14).
+  const m = text.match(/(\d+)\s*(?:st\.?\s*)?(?:sugkopp(?:ar)?|suction\s*cups|vacuum\s*cups|saugn[äa]pfe|ventosas)(?!\s*(?:per|i|\/|an?\s+(?:minute|hour)|pro|por)\b)/i);
   const n = m ? parseInt(m[1], 10) : 0;
   return n >= 1 && n <= 100 ? n : 0;
 }
@@ -129,8 +134,10 @@ export function byggVakuumalternativ(prods: CatalogProduct[], u: Griporgansunder
   const krav = griporgansKrav("vacuum", { gripForceN: hazards.gripForceN, holdingForceN: hazards.holdingForceN, loadKg });
   const reqN = krav.n;
   const antal = angivetKoppantal(u.text);
-  // Små koppar ger under 1 N: visas med en decimal i stället för som 0.
-  const visa = (n: number) => (n >= 10 ? String(Math.round(n)) : n.toFixed(1).replace(".", sv ? "," : "."));
+  // Små koppar ger under 1 N: visas med en decimal i stället för som 0, och
+  // under 0,1 N som "< 0,1".
+  const komma = locale !== "en";
+  const visa = (n: number) => (n >= 10 ? String(Math.round(n)) : n < 0.05 ? (komma ? "< 0,1" : "< 0.1") : n.toFixed(1).replace(".", komma ? "," : "."));
   const kravText = krav.angiven
     ? (sv ? `håll-kraft ${reqN} N` : `holding force ${reqN} N`)
     : (sv ? `håll-kraft ≈ ${reqN} N (vikt × 9,81 × 2)` : `holding force ≈ ${reqN} N (weight × 9.81 × 2)`);
@@ -172,7 +179,7 @@ export function byggVakuumalternativ(prods: CatalogProduct[], u: Griporgansunder
         sv: ["Liten kopp", "Mellan", "Stor kopp"], en: ["Small cup", "Medium", "Large cup"],
         de: ["Kleiner Sauger", "Mittel", "Großer Sauger"], es: ["Ventosa pequeña", "Media", "Ventosa grande"],
       })[i] ?? "",
-      bore_mm: null, stroke_mm: null, force_n: holdN > 0 ? Math.round(holdN * 10) / 10 : null,
+      bore_mm: null, stroke_mm: null, force_n: holdN >= 0.05 ? Math.round(holdN * 10) / 10 : null,
       why: pick(locale, {
         sv: `Sugkopp Ø${d} mm, uppskattad håll-kraft ≈ ${visa(holdN)} N/kopp vid ~-0,6 bar. ${mat}Verifiera mot ytans täthet och säkerhetsfaktor.`,
         en: `Suction cup Ø${d} mm, est. holding force ≈ ${visa(holdN)} N/cup at ~-0.6 bar. ${mat}Verify against surface tightness and safety factor.`,
@@ -213,7 +220,7 @@ export function byggVakuumalternativ(prods: CatalogProduct[], u: Griporgansunder
         es: ` Añada un eyector Venturi (p. ej. ${ejector.name}) para generar el vacío.`,
       })
     : "";
-  const tillagg = `${need}${ejNote}${lyftetIngarInte(hazards, locale)}${esdNot(hazards, locale)}${atexNot(hazards, locale, "vakuum")}`;
+  const tillagg = `${need}${ejNote}${lyftetIngarInte(hazards, locale)}${esdNot(hazards, locale)}${atexNot(hazards, locale, "vakuum", prods)}`;
   const summary = pick(locale, {
     sv: `Det här är ett vakuumgrepp — välj sugkopp efter håll-kraft (kopparea × vakuum), inte cylinderslag.${tillagg}`,
     en: `This is a vacuum-gripping application — choose the suction cup by holding force (cup area × vacuum), not cylinder stroke.${tillagg}`,
@@ -378,10 +385,10 @@ export function byggGripdonsalternativ(prods: CatalogProduct[], u: Griporgansund
       : "";
     const greppText = kraftRackerNagon
       ? pick(locale, {
-          sv: `Inget ${typNamn} i katalogen uppfyller alla angivna krav; se kravstatus på alternativen.${annanText}`,
-          en: `No ${typNamn} in the catalogue meets every stated requirement; see the requirement status of the options.${annanText}`,
-          de: `Kein ${typNamn} im Katalog erfüllt alle angegebenen Anforderungen; siehe den Anforderungsstatus der Vorschläge.${annanText}`,
-          es: `Ninguna ${typNamn} del catálogo cumple todos los requisitos indicados; vea el estado de requisitos de las opciones.${annanText}`,
+          sv: `Inget ${typNamn} i katalogen uppfyller alla angivna krav; se kravstatus på alternativen.${ejProvade}${annanText}`,
+          en: `No ${typNamn} in the catalogue meets every stated requirement; see the requirement status of the options.${ejProvade}${annanText}`,
+          de: `Kein ${typNamn} im Katalog erfüllt alle angegebenen Anforderungen; siehe den Anforderungsstatus der Vorschläge.${ejProvade}${annanText}`,
+          es: `Ninguna ${typNamn} del catálogo cumple todos los requisitos indicados; vea el estado de requisitos de las opciones.${ejProvade}${annanText}`,
         })
       : starkastN > 0
       ? pick(locale, {
@@ -440,7 +447,7 @@ export function byggGripdonsalternativ(prods: CatalogProduct[], u: Griporgansund
     en: `This is a gripping application — grippers are sized by grip force, not cylinder stroke.${tillagg} The options are ${typeLabel}.`,
     de: `Dies ist eine Greifanwendung — Greifer werden nach Greifkraft dimensioniert, nicht nach Zylinderhub.${tillagg} Die Vorschläge sind ${typeLabel}.`,
     es: `Esta es una aplicación de agarre — las pinzas se dimensionan según la fuerza de agarre, no la carrera del cilindro.${tillagg} Las opciones son ${typeLabel}.`,
-  }) + `${raknarInte}${lyftetIngarInte(hazards, locale)}${esdNot(hazards, locale)}${atexNot(hazards, locale, "gripdon")}`;
+  }) + `${raknarInte}${lyftetIngarInte(hazards, locale)}${esdNot(hazards, locale)}${atexNot(hazards, locale, "gripdon", pool)}`;
   if (!options.length) options.push(buildCustomSolutionOption(0, locale, 0, false, hazards) as Record<string, unknown>);
   return { summary, options };
 }

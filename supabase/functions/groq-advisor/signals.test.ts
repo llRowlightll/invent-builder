@@ -969,3 +969,35 @@ Deno.test("radialgripare är ett uttalat gripdon", () => {
   assertEquals(detectEndEffectorIntent("Radialgripare för axlar, gripkraft 1200 N"), "gripper");
   assert(endEffectorExplicitlyAsked("Radialgripare för axlar"));
 });
+
+// Tredje granskningen 2026-10-14: orienteringsrensningen tog bort rörelser,
+// "befintlig" långt från lyftet räknades som ett befintligt lyft, och
+// "yttre backar" eller "3 backar med flaskor" blev ett radialgripdon.
+Deno.test("rörelser med locket och etiketten förblir vertikala; orientering efter 'med' gör det inte", () => {
+  assert(needsVerticalLoad("Cylindern pressar locket nedåt på burken, 20 kg verktyg"));
+  assert(needsVerticalLoad("Cylinder som trycker etiketten nedåt mot kartongen"));
+  assert(needsVerticalLoad("Cylinder som skjuter locket uppåt, 8 kg"));
+  assert(!needsVerticalLoad("Gripdon flyttar lådor med locket uppåt till bandet"));
+  assert(!needsVerticalLoad("Burkarna står med öppningen uppåt på bandet"));
+});
+
+Deno.test("ett befintligt lyft kräver att ordet hör till lyftet", () => {
+  assert(!harBefintligtLyft("Vi har en befintlig produktionslinje där gripdonet ska lyfta lådor på 20 kg"));
+  assert(!harBefintligtLyft("Befintlig maskin, vi vill lyfta lådor"));
+  assert(!harBefintligtLyft("Gripdon som ska lyfta lådor som redan har etiketter"));
+  assert(!harBefintligtLyft("Det finns redan tryckluft, lyftet ska ske vertikalt"));
+  assert(harBefintligtLyft("Gripdon på en befintlig lyftanordning med fallskydd"));
+  assert(harBefintligtLyft("Gripdonet sitter på en Z-axel som redan har stångbroms"));
+});
+
+Deno.test("backar som lådor och yttre backar är inget radialgripdon", () => {
+  assertEquals(onskadGripdonstyp("Gripdon som lyfter 3 backar med flaskor"), "parallel");
+  assertEquals(onskadGripdonstyp("Gripa tre backar åt gången"), "parallel");
+  assertEquals(onskadGripdonstyp("Gripdon med yttre backar i aluminium"), "parallel");
+  assertEquals(onskadGripdonstyp("Gripdon med tre backar för axlar"), "radial");
+  assertEquals(onskadGripdonstyp("Treback för runda detaljer"), "radial");
+});
+
+Deno.test("en liten massa ger ett krav, inte 'okänd massa'", () => {
+  assertEquals(griporgansKrav("vacuum", { gripForceN: 0, holdingForceN: 0, loadKg: 0.02 }).n, 1);
+});

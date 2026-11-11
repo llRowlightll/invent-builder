@@ -114,7 +114,8 @@ export function byggResultat(o: {
   // spänning är elektriskt (granskningen 2026-10-14).
   const namnOchTyp = `${o.primaryName ?? ""} ${o.primarySpecs?.type ?? ""} ${o.primarySpecs?.gripper_type ?? ""}`.toLowerCase();
   const ejektor = greppPrimar === "vacuum" && /eject|ejektor|venturi/.test(namnOchTyp);
-  const elgripdon = greppPrimar === "gripper" && (o.primarySpecs?.voltage != null || /\belectric|elektrisk/.test(namnOchTyp));
+  // Bara namnet eller typen avgör: en givarspänning gör inget gripdon elektriskt.
+  const elgripdon = greppPrimar === "gripper" && /\belectric|elektrisk|\behps\b|\blehf/.test(namnOchTyp);
   const princip = greppPrimar === "gripper"
     ? (elgripdon ? (sv ? "Elektriskt gripdon" : "Electric gripper") : (sv ? `Pneumatiskt gripdon${tillbehor}` : `Pneumatic gripper${tillbehor}`))
     : greppPrimar === "vacuum"
@@ -199,7 +200,12 @@ export function byggResultat(o: {
   const platshallare = komponenter.filter((r) => r.sku === "SPECIFY");
 
   const k = o.dom.kontrollerat;
-  const kontrolltext = sv
+  // Prövades ingenting alls sägs det, i stället för "0 av N rader höll", som
+  // läses som att varje rad föll (tredje granskningen 2026-10-14).
+  const ingetProvat = k.verifierade === 0 && k.blockerande === 0 && k.med_luckor === 0 && k.konfiguration === 0;
+  const kontrolltext = ingetProvat
+    ? (sv ? `Kontroller: inget angivet krav gällde någon av de ${k.rader} raderna, så ingenting har prövats.` : `Checks: no stated requirement applied to any of the ${k.rader} rows, so nothing was checked.`)
+    : sv
     ? `Kontroller: ${k.verifierade} av ${k.rader} rader höll mot angivna krav` +
       `${k.med_luckor ? `, ${k.med_luckor} med krav som inte kunde prövas (underlag saknas eller automatisk kontroll stöds inte)` : ""}` +
       `${k.ej_tillampligt ? `, ${k.ej_tillampligt} där inget angivet krav gäller` : ""}` +

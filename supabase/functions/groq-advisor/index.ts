@@ -803,8 +803,8 @@ async function handleEndEffectorOptions(
     tryckKrav: kravbild.krav.find(k => k.objektId === "matning" && k.egenskap === "tryck" && k.bekraftelse !== "avvisat")?.varde ?? 0,
   };
   const { summary, options } = intent === "vacuum"
-    ? byggVakuumalternativ(await fetchEndEffectorProducts("vacuum", 200), underlag)
-    : byggGripdonsalternativ(await fetchEndEffectorProducts("gripper", 200), underlag);
+    ? byggVakuumalternativ(await fetchEndEffectorProducts("vacuum", 1000), underlag)
+    : byggGripdonsalternativ(await fetchEndEffectorProducts("gripper", 1000), underlag);
   logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: options[0]?.sku ?? null, option_count: options.length }, true);
   return Response.json({ summary, options }, { headers: CORS });
 }
@@ -1883,7 +1883,7 @@ function platsmarke(i: number, locale: string): string {
 // Följden blev att själva cylindern kunde märkas "kräver verifiering" med
 // skälet "vi har ingen temperaturuppgift för artikeln", när uppgiften låg i
 // den här funktionen en rad tidigare. En blockerande rad fäller hela lösningen.
-async function fetchPrimaryInfo(sku: string): Promise<{ category: string; boreMm: number; brand: string; specs: Record<string, unknown> }> {
+async function fetchPrimaryInfo(sku: string): Promise<{ category: string; boreMm: number; brand: string; specs: Record<string, unknown>; name?: string }> {
   if (!sku || sku === "CUSTOM-SOLUTION" || sku === "SPECIFY") return { category: "", boreMm: 0, brand: "", specs: {} };
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/products?sku=eq.${encodeURIComponent(sku)}&select=name,categories(slug),brands(slug),specs:product_specs(key,value,unit)`, {
@@ -1899,6 +1899,7 @@ async function fetchPrimaryInfo(sku: string): Promise<{ category: string; boreMm
       boreMm,
       brand: d[0]?.brands?.slug ? String(d[0].brands.slug) : "",
       specs,
+      name: d[0]?.name ? String(d[0].name) : undefined,
     };
   } catch { return { category: "", boreMm: 0, brand: "", specs: {} }; }
 }
@@ -1919,7 +1920,7 @@ async function handleBom(
   // categories — a trigger like "noggrann"/"precis" can put electric-actuator into
   // the categories even when the chosen primary is a pneumatic cylinder, which then
   // wrongly built an electric drivetrain (servo drive + motor cable) for it.
-  const { category: primaryCategory, boreMm: primaryBoreMmKatalog, brand: primaryBrand, specs: primarySpecs } = await fetchPrimaryInfo(primarySku);
+  const { category: primaryCategory, boreMm: primaryBoreMmKatalog, brand: primaryBrand, specs: primarySpecs, name: primaryName } = await fetchPrimaryInfo(primarySku);
   // En familj har ingen borrning förrän någon väljer en. firstNumAbs("8–63")
   // gav 8, och stångbromsen till en last på 45 kg skulle beställas i Ø8. Här
   // väljs samma storlek som alternativkortet visade; okänd storlek ger 0, och
@@ -1997,7 +1998,7 @@ async function handleBom(
   const bomCtx: BomCtx = {
     ...hazards,
     primarySku, primaryIsFamilyProd, isElectric, locale,
-    primaryCategory,
+    primaryCategory, primaryName,
     products: atexSafeProducts, primaryBoreMm, primaryBrand, unitCount,
     kravTempC: extractRequiredMaxTemp(combinedText, answers),
     kravTempMinC: extractRequiredMinTemp(combinedText, answers),
@@ -2026,13 +2027,16 @@ async function handleBom(
   // (even if the LLM drops them or was rate-limited). The advisor must never look
   // "complete" while ignoring the physics and the requirement conflicts.
   const engNotes: string[] = [];
-  if (hazards.dynamics) engNotes.push(pick(locale, {
+  // Ett griporgan lyfter inget själv: lyftets dimensionering och kraftvarning
+  // hör till den lyftande aktuatorn, inte till gripdonets stycklista.
+  const griporganPrimar = primaryCategory === "gripper" || primaryCategory === "vacuum";
+  if (hazards.dynamics && !griporganPrimar) engNotes.push(pick(locale, {
     sv: `📐 Dimensionering (första-ordningens uppskattning): för ${hazards.cycleTimeS} s cykeltid, ${hazards.requiredStrokeMm} mm slag och ${hazards.loadKg} kg → topphastighet ~${hazards.dynamics.vPeak.toFixed(2)} m/s, acceleration ~${hazards.dynamics.accel.toFixed(1)} m/s², toppkraft ~${Math.round(hazards.dynamics.forceN)} N${hazards.isVerticalLoad ? " (inkl. gravitation)" : ""}. Verifiera vald axel/motor mot kraft, varvtal och kontinuerlig last — detta ersätter inte en full servoberäkning.`,
     en: `📐 Sizing (first-order estimate): for a ${hazards.cycleTimeS} s cycle, ${hazards.requiredStrokeMm} mm stroke and ${hazards.loadKg} kg → peak velocity ~${hazards.dynamics.vPeak.toFixed(2)} m/s, acceleration ~${hazards.dynamics.accel.toFixed(1)} m/s², peak force ~${Math.round(hazards.dynamics.forceN)} N${hazards.isVerticalLoad ? " (incl. gravity)" : ""}. Verify the chosen axis/motor for force, rpm and continuous load — this does not replace a full servo calculation.`,
     de: `📐 Dimensionierung (Schätzung erster Ordnung): für ${hazards.cycleTimeS} s Zykluszeit, ${hazards.requiredStrokeMm} mm Hub und ${hazards.loadKg} kg → Spitzengeschwindigkeit ~${hazards.dynamics.vPeak.toFixed(2)} m/s, Beschleunigung ~${hazards.dynamics.accel.toFixed(1)} m/s², Spitzenkraft ~${Math.round(hazards.dynamics.forceN)} N${hazards.isVerticalLoad ? " (inkl. Schwerkraft)" : ""}. Gewählte Achse/Motor gegen Kraft, Drehzahl und Dauerlast prüfen — dies ersetzt keine vollständige Servoberechnung.`,
     es: `📐 Dimensionamiento (estimación de primer orden): para un tiempo de ciclo de ${hazards.cycleTimeS} s, ${hazards.requiredStrokeMm} mm de carrera y ${hazards.loadKg} kg → velocidad máxima ~${hazards.dynamics.vPeak.toFixed(2)} m/s, aceleración ~${hazards.dynamics.accel.toFixed(1)} m/s², fuerza máxima ~${Math.round(hazards.dynamics.forceN)} N${hazards.isVerticalLoad ? " (incl. gravedad)" : ""}. Verifique el eje/motor elegido frente a la fuerza, las RPM y la carga continua — esto no sustituye un cálculo servo completo.`,
   }));
-  if (forceShortfall) engNotes.push(pick(locale, {
+  if (forceShortfall && !griporganPrimar) engNotes.push(pick(locale, {
     sv: `⛔ Kraftvarning: beräknad toppkraft ~${forceShortfall.needN} N överstiger vald aktuators märkkraft ~${forceShortfall.ratedN} N. Välj kraftigare axel / större borrning, sänk last/acceleration eller öka cykeltiden.`,
     en: `⛔ Force warning: computed peak force ~${forceShortfall.needN} N exceeds the chosen actuator's rated force ~${forceShortfall.ratedN} N. Pick a stronger axis / larger bore, reduce load/acceleration, or increase the cycle time.`,
     de: `⛔ Kraftwarnung: die berechnete Spitzenkraft ~${forceShortfall.needN} N übersteigt die Nennkraft ~${forceShortfall.ratedN} N des gewählten Aktuators. Stärkere Achse/größere Bohrung wählen, Last/Beschleunigung reduzieren oder die Zykluszeit erhöhen.`,
@@ -2083,7 +2087,7 @@ async function handleBom(
   const dom = bedomLosning(finalBom);
   const resultat = byggResultat({
     locale, kravbild, rows: finalBom, primarySku,
-    primaryName: products.find(p => p.sku === primarySku)?.name,
+    primaryName: primaryName ?? products.find(p => p.sku === primarySku)?.name,
     isElectric, kraftkrav: hazards.kraftkrav, dom, primaryCategory, primarySpecs,
     griporgan: primaryCategory === "gripper" || primaryCategory === "vacuum" ? griporgansKrav(primaryCategory, hazards) : undefined,
   });

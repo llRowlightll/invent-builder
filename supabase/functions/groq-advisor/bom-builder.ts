@@ -305,6 +305,9 @@ export interface BomCtx extends HazardFlags {
   /** Primärens kategori (slug). "gripper"/"vacuum" när kunden valt griporganet
    *  som huvudkomponent; då är det inte en lyftande cylinder. */
   primaryCategory?: string;
+  /** Primärens namn, ur fetchPrimaryInfo: `products` är ATEX-filtrerad och
+   *  saknar ofta primären. */
+  primaryName?: string;
 }
 
 /**
@@ -694,8 +697,10 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   // rule as mountings: a real SKU only when its bore equals the primary's,
   // otherwise SPECIFY with the required Ø called out — never a mismatched lock.
   if (isRodLock && isPneumatic && lyftetIngar) {
-    // Griporganets borrning är inte lyftaxelns: storleken anges då i klartext.
-    const pBore = primarArGriporgan ? 0 : primarBorrning(ctx);
+    // Griporganets borrning är inte lyftaxelns: med ett griporgan som primär
+    // matchas stångbromsen mot Z-axelns artikel (samma val som raden nedan).
+    const zAxel = lyftaxel ? findAxisActuator(brandSorted, perAxisStrokes.find(a => a.axis === "Z")?.stroke ?? 0, isElectric) : null;
+    const pBore = primarArGriporgan ? firstNumAbs(zAxel?.key_specs?.bore_mm) : primarBorrning(ctx);
     const boreTxt = pBore > 0 ? `Ø${pBore}` : pick(locale, { sv: "cylinderns borrning", en: "the cylinder's bore", de: "die Zylinderbohrung", es: "el diámetro del cilindro" });
     const lock = products.find(p =>
       p.category === "rod-lock" && pBore > 0 &&
@@ -1552,7 +1557,7 @@ export function arGripdonsserie(s: Record<string, unknown>): boolean {
 
 export function gripperTypeOf(p: CatalogProduct): "parallel" | "angular" | "radial" {
   const blob = `${p.key_specs?.gripper_type ?? ""} ${p.key_specs?.type ?? ""} ${p.name}`.toLowerCase();
-  if (/radial|3[\s-]?jaw|three[\s-]?jaw|self-?center|tre[\s-]?back|treback|centrer|3[\s-]?finger/.test(blob)) return "radial";
+  if (/radial|3[\s-]?jaw|three[\s-]?jaw|self-?center|(?<![a-zåäö])tre-?back|centrer|3-?finger/.test(blob)) return "radial";
   if (/angle|angular|hinged|vinkel/.test(blob)) return "angular";
   return "parallel";
 }
@@ -1675,7 +1680,7 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
     // cylinder gör. Utan ATEX-märkning i katalogen får det inte användas i
     // zonen. Till 2026-10-14 blev raden grön så snart gripkraften räckte.
     if (primarGriporgan && (ctx.isAtex || ctx.isAtexDust) &&
-        !isAtexCapableProduct({ sku: r.sku, name: products.find(p => p.sku === r.sku)?.name ?? "", category: ctx.primaryCategory ?? "", brand: "", key_specs: specar ?? {} })) {
+        !isAtexCapableProduct({ sku: r.sku, name: ctx.primaryName ?? products.find(p => p.sku === r.sku)?.name ?? "", category: ctx.primaryCategory ?? "", brand: "", key_specs: specar ?? {} })) {
       r.kontroller = [
         { krav: "ATEX", utfall: "underlag_saknas", text: sv ? "katalogen anger ingen ATEX-märkning för artikeln" : "the catalogue gives no ATEX marking for the item" },
         ...(gripKontroll ? [gripKontroll] : []),
@@ -2009,8 +2014,14 @@ export function deriveBomConnections(rows: BomRow[]): BomConnection[] {
   });
 
   // ── Sitter på aktuatorn ───────────────────────────────────────────────────
+  // Fallskyddet (backventil, stångbroms) hör till axeln som lyfter. Har en
+  // fleraxlig lösning en Z-axel sitter det där, inte på primären -- som kan
+  // vara ett gripdon eller X-axeln (tredje granskningen 2026-10-14). Axelns
+  // bokstav står i rollen på alla fyra språk ("Z-axel", "Z-axis", "Z-Achse",
+  // "eje Z").
+  const zAktuator = actuators.find(i => /\bZ-(?:axel|axis|Achse)\b|\beje Z\b/.test(rows[i].role));
   for (const k of ["rod_lock", "check_valve", "shock_absorber", "mount", "flow_control"] as const) {
-    idx(k).forEach((i, n) => link(i, actuatorFor(n, idx(k).length), "mounted_on"));
+    idx(k).forEach((i, n) => link(i, (k === "rod_lock" || k === "check_valve") && zAktuator !== undefined ? zAktuator : actuatorFor(n, idx(k).length), "mounted_on"));
   }
   idx("sensor").forEach((i, n) => link(i, actuatorFor(n, idx("sensor").length), "senses"));
 
