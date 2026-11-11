@@ -108,6 +108,11 @@ export function borrningar(v: string | undefined | null): Borrningar {
   return ut;
 }
 
+/** Finns borrningen d i värdet -- exakt, i listan eller inom intervallet? */
+export function harBorrning(v: string | undefined | null, d: number): boolean {
+  return rymmer(borrningar(v), d) !== null;
+}
+
 function antal(b: Borrningar) {
   return b.enstaka.length + b.intervall.length;
 }

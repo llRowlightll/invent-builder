@@ -13,7 +13,7 @@ import { categoryName } from "@/lib/categories";
 import { beskrivning, kallor, produktnamn, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
 import { ExternalLink, FileText, Settings } from "lucide-react";
 import { tillverkarlank } from "@/lib/tillverkarlank";
-import { borrEtikett, likvardigaCylindrar } from "@/lib/likvardiga";
+import { borrEtikett, borrningar, cylinderstandard, likvardigaCylindrar } from "@/lib/likvardiga";
 
 
 export const Route = createFileRoute("/$locale/product/$sku")({
@@ -372,6 +372,7 @@ function ProductDetail() {
               {isSv ? "Källa" : "Source"}, {kl.egenskap.toLowerCase()}: {kl.text.replace(/\s*(?:Kunskapsbasen|Knowledge base)\s+\d{4}-\d{2}-\d{2}\.?\s*$/i, "")}
             </p>
           ))}
+          <HittaLiknande product={product} locale={locale as Locale} />
         </section>
       )}
 
@@ -453,5 +454,29 @@ function BrandBadge({ slug, name }: { slug: string; name: string }) {
     </div>
   ) : (
     <div className="text-sm font-bold tracking-tight text-foreground">{name}</div>
+  );
+}
+
+/**
+ * "Hitta liknande" (som RS): samma borrning och standard i alla fabrikat, i
+ * katalogen med filtren redan satta. Bara när produkten har en enda borrning
+ * -- en serie med tolv storlekar har ingen "samma storlek".
+ */
+function HittaLiknande({ product, locale }: { product: ProductRow; locale: Locale }) {
+  const t = makeT(locale);
+  const b = borrningar(product.specs?.bore_mm?.value);
+  const d = b.enstaka.length === 1 && b.intervall.length === 0 ? b.enstaka[0] : null;
+  const std = cylinderstandard(product.specs?.standard?.value);
+  if (d === null && !std) return null;
+  const vad = [d !== null ? `Ø${d}` : null, std].filter(Boolean).join(" · ");
+  return (
+    <Link
+      to="/$locale/products"
+      params={{ locale }}
+      search={{ category: product.category.slug, ...(d !== null ? { borr: String(d) } : {}), ...(std ? { std } : {}) } as never}
+      className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-info hover:underline"
+    >
+      {t("productPage.hittaLiknande").replace("{vad}", vad)} →
+    </Link>
   );
 }

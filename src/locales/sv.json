@@ -306,7 +306,10 @@
     "noResultsAi": "Inga produkter matchade AI-sökningen. Prova att justera din beskrivning.",
     "noResultsManual": "Inga produkter matchade. Justera filter eller sökterm.",
     "addToList": "Lägg i korg",
-    "added": "Tillagd"
+    "added": "Tillagd",
+    "filterBore": "Borrning",
+    "filterStd": "Standard",
+    "filterBoreNote": "En serie räknas när storleken finns i den. Slaglängd väljs på produktsidan."
   },
   "chatPage": {
     "leadSv": "Beskriv vad du behöver — jag söker i hela katalogen och förklarar varför.",
@@ -431,7 +434,8 @@
     "requestQuote": "Begär offert",
     "askAi": "Osäker? Fråga AI-ingenjören",
     "contactForDelivery": "Kontakta oss för leveranstid",
-    "orderAvailable": "Beställ"
+    "orderAvailable": "Beställ",
+    "hittaLiknande": "Alla {vad} i alla fabrikat"
   },
   "rfqPage": {
     "title": "Offertförfrågan",
