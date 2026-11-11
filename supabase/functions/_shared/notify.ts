@@ -54,6 +54,11 @@ export interface UtskickSvar {
 }
 
 const FRAN_STANDARD = "Maskinval <noreply@maskinval.se>";
+/**
+ * Dit ett svar går när inget annat anges. Avsändaren är noreply@, som ingen
+ * läser; ett kundsvar ska hamna i Zoho-lådan info@maskinval.se (2026-11-11).
+ */
+const SVARSADRESS = "Maskinval <info@maskinval.se>";
 
 /** Liten REST-hjälp: funktionerna har olika Supabase-klienter, den här är fristående. */
 async function rest(
@@ -135,7 +140,7 @@ export async function skickaMejl(u: Utskick): Promise<UtskickSvar> {
         from: u.from ?? FRAN_STANDARD,
         to: u.to,
         ...(u.bcc?.length ? { bcc: u.bcc } : {}),
-        ...(u.replyTo ? { reply_to: u.replyTo } : {}),
+        reply_to: u.replyTo ?? SVARSADRESS,
         ...(u.attachments?.length ? { attachments: u.attachments } : {}),
         subject: u.subject,
         html: u.html,

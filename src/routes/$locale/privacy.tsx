@@ -39,7 +39,7 @@ function PrivacyPage() {
             svensk lagstiftning.
           </p>
           <p className="mt-2">
-            Kontakt: <a href="mailto:privacy@maskinval.se" className="text-info hover:underline">privacy@maskinval.se</a>
+            Kontakt: <a href="mailto:info@maskinval.se" className="text-info hover:underline">info@maskinval.se</a>
           </p>
         </Section>
 
@@ -114,7 +114,7 @@ function PrivacyPage() {
             <li><strong className="text-foreground">Invändning</strong> — invända mot behandling baserad på berättigat intresse</li>
           </ul>
           <p className="mt-2">
-            Kontakta oss på <a href="mailto:privacy@maskinval.se" className="text-info hover:underline">privacy@maskinval.se</a> för
+            Kontakta oss på <a href="mailto:info@maskinval.se" className="text-info hover:underline">info@maskinval.se</a> för
             att utöva dina rättigheter. Du har även rätt att klaga hos <a href="https://www.imy.se" target="_blank" rel="noopener noreferrer" className="text-info hover:underline">Integritetsskyddsmyndigheten (IMY)</a>.
           </p>
         </Section>
