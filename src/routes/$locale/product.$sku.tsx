@@ -13,6 +13,7 @@ import { categoryName } from "@/lib/categories";
 import { beskrivning, kallor, produktnamn, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
 import { ExternalLink, FileText, Settings } from "lucide-react";
 import { tillverkarlank } from "@/lib/tillverkarlank";
+import { borrEtikett, likvardigaCylindrar } from "@/lib/likvardiga";
 
 
 export const Route = createFileRoute("/$locale/product/$sku")({
@@ -109,7 +110,7 @@ function ProductDetail() {
   const t = makeT(locale as Locale);
   const [related, setRelated] = useState<ProductRow[]>([]);
   const [alternatives, setAlternatives] = useState<ProductRow[]>([]);
-  /** Vad varje alternativ-träff vilar på, per SKU. Visas för kunden -- en
+  /** Vad varje alternativ-träff vilar på, per SKU, som färdig text. Visas för kunden -- en
    *  beräknad likhet är inte en verifierad korsreferens, och att presentera
    *  det ena som det andra är inte hederligt mot en ingenjör. */
   const [altBasis, setAltBasis] = useState<Record<string, string>>({});
@@ -158,9 +159,22 @@ function ProductDetail() {
           egnaMatt.every((k) => normalt(x.p.specs[k]?.value) === normalt(product.specs[k]?.value)))
         .map((x) => (!x.basis.startsWith("bore") && egnaMatt.length > 0 ? { ...x, basis: "dimension" } : x))
         .slice(0, 6);
-      // Serverns ordning är rangordningen; behåll den i stället för katalogens.
-      setAlternatives(traffar.map((x) => x.p));
-      setAltBasis(Object.fromEntries(traffar.map((x) => [x.p.sku, x.basis])));
+      // Cylindrar: samma typ och en borrning som verkligen finns (se
+      // likvardiga.ts). Övriga: serverns ordning, med en etikett som bara
+      // säger "samma borrning" när den är lika.
+      const cylindrar = likvardigaCylindrar(product, cat);
+      if (cylindrar) {
+        setAlternatives(cylindrar.map((x) => x.p));
+        setAltBasis(Object.fromEntries(cylindrar.map((x) => [x.p.sku, isSv ? x.etikett.sv : x.etikett.en])));
+      } else {
+        setAlternatives(traffar.map((x) => x.p));
+        setAltBasis(Object.fromEntries(traffar.map((x) => [x.p.sku,
+          x.basis === "dimension"
+            ? (isSv ? "Samma gänga och slangdimension" : "Same thread and tube size")
+            : (x.basis.startsWith("bore") && borrEtikett(product, x.p, isSv))
+              || (isSv ? "Samma produkttyp — jämför specifikationerna" : "Same product type — compare specs"),
+        ])));
+      }
       // Show a "Configure" button when this product's family has a configurator.
       const fam = product.family?.toLowerCase().trim();
       if (fam) {
@@ -393,15 +407,7 @@ function ProductDetail() {
                 <div>
                   <ProductMini p={r} locale={locale} as="div" />
                   {altBasis[r.sku] && (
-                    <div className="mt-1 text-[11px] text-muted-foreground">
-                      {altBasis[r.sku] === "bore+stroke"
-                        ? (isSv ? "Samma borrning och slaglängd" : "Same bore and stroke")
-                        : altBasis[r.sku] === "bore"
-                          ? (isSv ? "Samma borrning" : "Same bore")
-                          : altBasis[r.sku] === "dimension"
-                            ? (isSv ? "Samma gänga och slangdimension" : "Same thread and tube size")
-                            : (isSv ? "Samma produkttyp — jämför specifikationerna" : "Same product type — compare specs")}
-                    </div>
+                    <div className="mt-1 text-[11px] text-muted-foreground">{altBasis[r.sku]}</div>
                   )}
                 </div>
               </li>
