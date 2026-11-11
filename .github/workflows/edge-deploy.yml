@@ -6,6 +6,7 @@ on:
     paths:
       - 'supabase/functions/**'
       - 'scripts/test-advisor.sh'
+      - '.github/workflows/edge-deploy.yml'
   workflow_dispatch:
 
 # Edge deploy gets its OWN concurrency group (NOT shared with deploy.yml). When it
@@ -102,7 +103,11 @@ jobs:
           MISSLYCKADE=""
           for fn in $FUNCTIONS; do
             echo "::group::deploy $fn"
-            if npx --yes supabase@latest functions deploy "$fn" --project-ref buqfbcztspswezwyafxo; then
+            # Låst version och --yes: supabase@latest bytte 2026-11 till en
+            # version som kräver bekräftelse, och utan terminal hoppade den över
+            # varje driftsättning ("Nothing was changed"). CI var röd, men drift
+            # stod kvar på gammal kod. Byt version medvetet, inte via @latest.
+            if npx --yes supabase@3.1.0 functions deploy "$fn" --project-ref buqfbcztspswezwyafxo --yes; then
               echo "✓ $fn"
             else
               echo "::error::$fn deploy misslyckades — den live-funktionen står kvar på gammal kod."
