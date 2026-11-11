@@ -420,6 +420,8 @@
     "compareAll": "Compare all →",
     "priceSection": "Price & Delivery",
     "sellingPrice": "Selling price",
+    "priceRow": "Price",
+    "priceOnQuote": "Given in the quote, within 1–2 working days",
     "estimatedDelivery": "Estimated delivery",
     "availability": "Availability",
     "inStock12": "1–2 business days",

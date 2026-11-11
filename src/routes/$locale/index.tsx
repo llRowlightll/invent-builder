@@ -14,7 +14,12 @@ import { getProductImage, getCategoryImage } from "@/lib/product-images";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { EditableText } from "@/components/EditableText";
 import { categoryName } from "@/lib/categories";
-import { ArrowRight, FileText, RefreshCw, Settings, Sparkles, Users } from "lucide-react";
+import {
+  ArrowRight, ArrowRightToLine, Cable, CircleDashed, CircleDot, CircuitBoard, Cog, Cpu, Cylinder, FileText, Funnel,
+  Gauge, HandGrab, LayoutGrid, Lock, MoveHorizontal, Plug, Radar, RefreshCw, RotateCw, Settings, Shrink, Sparkles,
+  Spline, ToggleLeft, Users, VolumeX, Wrench, Zap, type LucideIcon,
+} from "lucide-react";
+import { harLogga } from "@/lib/brand-logos";
 
 export const Route = createFileRoute("/$locale/")({
   head: ({ params }) => {
@@ -48,7 +53,7 @@ export const Route = createFileRoute("/$locale/")({
       // fel så fort en artikel avregistrerades.
       const [br, ct, ant] = await Promise.all([
         supabase.from("brands").select("slug,name").order("name"),
-        supabase.from("categories").select("slug,name").order("name"),
+        supabase.from("categories").select("slug,name,products!inner(id)").eq("products.status", "active").limit(1, { referencedTable: "products" }).order("name"),
         supabase.from("products").select("id", { count: "exact", head: true }).eq("status", "active"),
       ]);
       return { brands: (br.data ?? []) as Brand[], cats: (ct.data ?? []) as Cat[], antal: ant.count ?? null };
@@ -60,22 +65,42 @@ export const Route = createFileRoute("/$locale/")({
 });
 
 type Cat = { slug: string; name: string };
+
+// Exempelsökningarna på besökarens språk: den engelska sidan visade
+// "SMC CQ2 kompakt" och "vakuumgrepp" (2026-11-11).
+const EXEMPELSOK: Record<string, string[]> = {
+  sv: ["Festo DSBC cylinder", "SMC CQ2 kompakt", "Parker P1D pneumatisk", "vakuumgrepp"],
+  en: ["Festo DSBC cylinder", "SMC CQ2 compact", "Parker P1D pneumatic", "vacuum gripper"],
+  de: ["Festo DSBC Zylinder", "SMC CQ2 Kompakt", "Parker P1D pneumatisch", "Vakuumgreifer"],
+  es: ["Festo DSBC cilindro", "SMC CQ2 compacto", "Parker P1D neumático", "ventosa de vacío"],
+};
 type Brand = { slug: string; name: string };
 
-const CAT_ICONS: Record<string, string> = {
-  cylinder: "⇔",
-  "electric-actuator": "ϟ",
-  "valve-terminal": "▦",
-  valve: "◉",
-  gripper: "✦",
-  "air-preparation": "◈",
-  vacuum: "◎",
-  "linear-module": "⟶",
-  hose: "〰",
-  fitting: "⊕",
-  "speed-controller": "◑",
-  coupling: "⊗",
-  "seal-kit": "○",
+// En egen ikon per kategori. Tecknen (▣) som stod här förut var desamma för
+// femton kategorier och såg ofärdiga ut (2026-11-11).
+const CAT_ICONS: Record<string, LucideIcon> = {
+  cylinder: Cylinder,
+  "electric-actuator": Zap,
+  "linear-module": MoveHorizontal,
+  "rotary-actuator": RotateCw,
+  gripper: HandGrab,
+  vacuum: CircleDashed,
+  valve: ToggleLeft,
+  "valve-terminal": LayoutGrid,
+  "check-valve": ArrowRightToLine,
+  "flow-control": Gauge,
+  frl: Funnel,
+  silencer: VolumeX,
+  tubing: Spline,
+  fitting: Plug,
+  cable: Cable,
+  sensor: Radar,
+  "servo-motor": Cog,
+  "servo-drive": Cpu,
+  controller: CircuitBoard,
+  "rod-lock": Lock,
+  "shock-absorber": Shrink,
+  mounting: Wrench,
 };
 
 /** "{antal} artiklar" med det levande talet, eller utan ledet om det inte gick att räkna. */
@@ -120,7 +145,7 @@ function Landing() {
   const [totalBrands, setTotalBrands] = useState(ld.brands.length || 5);
 
   useEffect(() => {
-    supabase.from("categories").select("slug,name").order("name").then(({ data }) => setCats(data ?? []));
+    supabase.from("categories").select("slug,name,products!inner(id)").eq("products.status", "active").limit(1, { referencedTable: "products" }).order("name").then(({ data }) => setCats(data ?? []));
     supabase.from("brands").select("slug,name").order("name").then(({ data }) => {
       setBrands(data ?? []);
       if (data && data.length > 0) setTotalBrands(data.length);
@@ -233,7 +258,7 @@ function Landing() {
 
           <div className="mt-4 flex flex-wrap gap-2 text-xs text-primary-foreground/60">
             <span>{t("index.searchTry")}</span>
-            {["Festo DSBC cylinder", "SMC CQ2 kompakt", "Parker P1D pneumatisk", "vakuumgrepp"].map((s) => (
+            {(EXEMPELSOK[locale] ?? EXEMPELSOK.en).map((s) => (
               <button
                 key={s}
                 onClick={() => { setQ(s); sok(s); }}
@@ -352,7 +377,7 @@ function Landing() {
                   />
                 </div>
                 <div className="p-3">
-                  <div className="text-lg" style={{ color: "var(--info)" }}>{CAT_ICONS[c.slug] ?? "▣"}</div>
+                  {(() => { const Ikon = CAT_ICONS[c.slug] ?? CircleDot; return <Ikon aria-hidden className="size-5" style={{ color: "var(--info)" }} />; })()}
                   <div className="mt-1 font-medium text-foreground group-hover:text-info transition text-sm">{categoryName(c.slug, locale, c.name)}</div>
                   <div className="mt-0.5 text-xs text-muted-foreground">{t("index.viewProduct")}</div>
                 </div>
@@ -378,7 +403,8 @@ function Landing() {
             >
               <BrandLogo slug={b.slug} name={b.name} />
               <div className="px-3 py-2.5 text-center">
-                <div className="text-xs font-semibold text-foreground group-hover:text-info transition">{b.name}</div>
+                {/* Utan loggofil står namnet redan som ordmärke ovanför ("AVENTICS AVENTICS"). */}
+                {harLogga(b.slug) && <div className="text-xs font-semibold text-foreground group-hover:text-info transition">{b.name}</div>}
                 <div className="text-[10px] text-muted-foreground mt-0.5">{t("index.viewProducts")}</div>
               </div>
             </Link>
@@ -513,7 +539,7 @@ const FAQ_SV = [
   },
   {
     q: "Vad är skillnaden mellan pneumatisk och elektrisk aktuator?",
-    a: "Pneumatiska cylindrar är enkla, robusta och billiga — men saknar positionskontroll (bara två lägen: in/ut). Elektriska aktuatorer (servo/stepper) kan stanna exakt var som helst på slaglängden med ±0,01 mm noggrannhet. Elektriska passar vid precision ≤0,1 mm, variabla positioner eller när tryckluftsinstallation saknas.",
+    a: "Pneumatiska cylindrar är enkla, robusta och billiga — men saknar positionskontroll (bara två lägen: in/ut). Elektriska aktuatorer (servo/stepper) kan stanna var som helst på slaglängden; repeterbarheten är ungefär 0,003–0,05 mm med kulskruv och 0,05–0,3 mm med kuggrem. Elektriska passar vid precision ≤0,1 mm, variabla positioner eller när tryckluftsinstallation saknas.",
   },
   {
     q: "Vilka märken erbjuder Maskinval?",
@@ -540,7 +566,7 @@ const FAQ_EN = [
   },
   {
     q: "What is the difference between pneumatic and electric actuators?",
-    a: "Pneumatic cylinders are simple, robust, and low-cost — but offer only two positions (extend/retract). Electric actuators (servo/stepper) can stop at any point with ±0.01 mm accuracy. Choose electric when precision ≤0.1 mm, variable positioning, or when compressed air infrastructure is unavailable.",
+    a: "Pneumatic cylinders are simple, robust, and low-cost — but offer only two positions (extend/retract). Electric actuators (servo/stepper) can stop at any point along the stroke; repeatability is roughly 0.003–0.05 mm with a ball screw and 0.05–0.3 mm with a toothed belt. Choose electric when precision ≤0.1 mm, variable positioning, or when compressed air infrastructure is unavailable.",
   },
   {
     q: "Which brands does Maskinval offer?",
@@ -594,8 +620,7 @@ const BRAND_META: Record<string, { bg: string }> = {
 };
 
 function BrandLogo({ slug, name }: { slug: string; name: string }) {
-  const [imgError, setImgError] = useState(false);
-  const meta = BRAND_META[slug];
+  const meta = harLogga(slug) ? BRAND_META[slug] : undefined;
   const bg = meta?.bg ?? "#f8fafc";
 
   return (
@@ -603,11 +628,10 @@ function BrandLogo({ slug, name }: { slug: string; name: string }) {
       className="h-20 flex items-center justify-center p-4 overflow-hidden"
       style={{ background: bg }}
     >
-      {meta && !imgError ? (
+      {meta ? (
         <img
           src={`/brands/${slug}.svg`}
           alt={name}
-          onError={() => setImgError(true)}
           className="max-h-12 max-w-full object-contain"
           loading="lazy"
         />

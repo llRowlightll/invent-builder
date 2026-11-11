@@ -135,8 +135,8 @@ const CATEGORY_SEO: Record<string, { sv: string; en: string }> = {
     en: "Pneumatic cylinders for industrial automation — ISO 15552 profile cylinders, ISO 6432 round cylinders, rodless and guided cylinders. Select by stroke (50–1000 mm), bore (16–320 mm) and environment rating. Brands: Festo, SMC, Parker, Bosch Rexroth, Norgren, Metal Work, Camozzi.",
   },
   "electric-actuator": {
-    sv: "Elektriska aktuatorer och servo-axlar för precision och positionskontroll. Kulskruvsaxlar (noggrannhet ±0,01 mm), kuggremsdrivna axlar (hastighet upp till 3 m/s), elektrocylindrar som ersätter pneumatik. Märken: Festo EGSK/ELGA, SMC LEY/LESH, Parker ETH, Camozzi 6E.",
-    en: "Electric actuators and servo axes for precision positioning. Ball-screw axes (±0.01 mm accuracy), belt-driven axes (up to 3 m/s), electromechanical cylinders replacing pneumatics. Brands: Festo EGSK/ELGA, SMC LEY/LESH, Parker ETH, Camozzi 6E.",
+    sv: "Elektriska aktuatorer och servo-axlar för precision och positionskontroll. Kulskruvsaxlar (repeterbarhet ungefär 0,003–0,05 mm), kuggremsdrivna axlar (hastighet upp till 3 m/s), elektrocylindrar som ersätter pneumatik. Märken: Festo EGSK/ELGA, SMC LEY/LESH, Parker ETH, Camozzi 6E.",
+    en: "Electric actuators and servo axes for precision positioning. Ball-screw axes (repeatability roughly 0.003–0.05 mm), belt-driven axes (up to 3 m/s), electromechanical cylinders replacing pneumatics. Brands: Festo EGSK/ELGA, SMC LEY/LESH, Parker ETH, Camozzi 6E.",
   },
   valve: {
     sv: "Magnetventiler och riktningsventiler för pneumatiska cylindrar. 5/2-vägs, 3/2-vägs, NAMUR-montage och inlinjemontage. Spänning 24 V DC, anslutning G1/8–G3/4. Märken: Festo, SMC, Metal Work, Camozzi.",
