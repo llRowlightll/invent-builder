@@ -291,7 +291,7 @@ export default function CrmPage() {
   const [filter, setFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [testEmail, setTestEmail] = useState("alexandrooden@gmail.com");
+  const [testEmail, setTestEmail] = useState("info@maskinval.se");
   const [testSending, setTestSending] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
 
