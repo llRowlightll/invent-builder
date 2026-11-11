@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { logga } from "@/lib/matning";
 import type { ProductRow } from "@/lib/types";
 import { CheckSquare, Paperclip, Search, ShoppingCart } from "lucide-react";
+import { Snabborder } from "@/components/Snabborder";
 import {
   SHOPPING_LIST_KEY,
   SHOPPING_LIST_COUNT_KEY,
@@ -346,6 +347,13 @@ function ShoppingListPage() {
         )}
       </div>
 
+      {/* Snabborder: klistra in artikelnummer och antal (snabborder.ts) */}
+      <Snabborder
+        locale={locale as Locale}
+        katalog={catalog}
+        onLagg={(rader) => setItems((prev) => rader.reduce(mergeCartItem, prev))}
+      />
+
       {/* Cart */}
       <div className="mt-5">
         {items.length === 0 ? (
@@ -437,7 +445,15 @@ function ShoppingListPage() {
                           ) : (
                             <span className="font-medium">{item.name}</span>
                           )}
-                          <div className="font-mono text-[10px] text-muted-foreground mt-0.5">{item.sku}</div>
+                          {/* Kundens exakta orderkod (konfigurator, snabborder) är det som
+                              ska beställas -- seriens SKU står efter som referens. */}
+                          {item.order_code && item.order_code.toUpperCase() !== item.sku.toUpperCase() ? (
+                            <div className="font-mono text-[11px] text-foreground mt-0.5 break-all">
+                              {item.order_code} <span className="text-muted-foreground">· {item.sku}</span>
+                            </div>
+                          ) : (
+                            <div className="font-mono text-[10px] text-muted-foreground mt-0.5">{item.sku}</div>
+                          )}
                         </td>
                         <td className="p-3">
                           <div className="flex items-center justify-center gap-1.5">

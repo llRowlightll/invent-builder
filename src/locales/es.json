@@ -864,5 +864,20 @@
     "laddar": "Cargando el catálogo …",
     "tangent": "Pulsa / para buscar",
     "stang": "Cerrar"
+  },
+  "snabborder": {
+    "oppna": "Pegar una lista de referencias",
+    "rubrik": "Pedido rápido",
+    "hjalp": "Una línea por artículo: referencia o código de pedido y cantidad. Pega directamente desde Excel o una lista de materiales.",
+    "las": "Leer lista",
+    "sammanfattning": "Artículos del catálogo: {a} · Códigos de series que tenemos: {s} · Por verificar: {o}",
+    "serie": "Serie {f} – el código exacto va en la oferta",
+    "slag": "carrera",
+    "okand": "Código desconocido – lo verificamos en la oferta",
+    "okandNamn": "Artículo por verificar",
+    "inget": "No se pudo leer ninguna línea. Escribe una referencia por línea.",
+    "andra": "Editar lista",
+    "lagg": "Añadir {n} líneas al carrito",
+    "lagda": "{n} líneas añadidas al carrito."
   }
 }

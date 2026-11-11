@@ -864,5 +864,20 @@
     "laddar": "Katalog wird geladen …",
     "tangent": "/ drücken zum Suchen",
     "stang": "Schließen"
+  },
+  "snabborder": {
+    "oppna": "Liste mit Artikelnummern einfügen",
+    "rubrik": "Schnellbestellung",
+    "hjalp": "Eine Zeile pro Artikel: Artikelnummer oder Bestellcode und Menge. Direkt aus Excel oder einer Stückliste einfügen.",
+    "las": "Liste lesen",
+    "sammanfattning": "Katalogartikel: {a} · Bestellcodes in geführten Serien: {s} · Zu prüfen: {o}",
+    "serie": "Serie {f} – genauer Code geht mit dem Angebot",
+    "slag": "Hub",
+    "okand": "Unbekannter Code – wir prüfen ihn im Angebot",
+    "okandNamn": "Zu prüfender Artikel",
+    "inget": "Keine Zeile lesbar. Eine Artikelnummer pro Zeile eingeben.",
+    "andra": "Liste ändern",
+    "lagg": "{n} Zeilen in den Warenkorb",
+    "lagda": "{n} Zeilen in den Warenkorb gelegt."
   }
 }
