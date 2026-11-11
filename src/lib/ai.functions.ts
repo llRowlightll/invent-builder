@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { PhysicsDimensions } from "./physics";
 import { avslutaKlipptSvar, skiljKallrad } from "./chattsvar";
+import { matcharFraga } from "./sokord";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 // llama-3.3-70b-versatile decommissioned by Groq 2026-08-16. Moved to openai/gpt-oss-120b
@@ -256,10 +257,58 @@ export const aiExplain = createServerFn({ method: "POST" })
     return { text: fb, source: "fallback" };
   });
 
+/**
+ * Direkta träffar på artikelnummer, namn och serie i HELA katalogen, före
+ * AI:n. Varje ord ska finnas (med svenska synonymer, se sokord.ts).
+ *
+ * Hittat 2026-11-11: "dsnu" gav tre AVENTICS-cylindrar och låste
+ * fabrikatsfiltret till AVENTICS. AI-sökningen valde bland de 25 första
+ * cylindrarna i bokstavsordning -- alla AVENTICS -- fast katalogen har 15
+ * Festo DSNU. En kod eller ett namn som finns i katalogen ska hittas utan att
+ * en modell gissar.
+ */
+async function direktaTraffar(query: string): Promise<string[]> {
+  const ord = query.trim().split(/\s+/).filter(Boolean);
+  if (ord.length === 0 || ord.length > 4) return [];
+  try {
+    const sb = getSupabase();
+    const { data } = await sb.from("products").select("sku, name, family").eq("status", "active").limit(2000);
+    const rader = (data ?? []) as Array<{ sku: string; name: string; family: string | null }>;
+    const forsta = ord[0].toLowerCase();
+    return rader
+      .filter((p) => matcharFraga(`${p.sku} ${p.name} ${p.family ?? ""}`, query))
+      .sort((a, b) => {
+        const vikt = (p: { sku: string; name: string }) =>
+          p.sku.toLowerCase() === query.trim().toLowerCase() ? 0
+          : p.sku.toLowerCase().includes(forsta) ? 1
+          : p.name.toLowerCase().startsWith(forsta) ? 2 : 3;
+        return vikt(a) - vikt(b) || a.name.length - b.name.length || a.name.localeCompare(b.name, "sv");
+      })
+      .map((p) => p.sku);
+  } catch {
+    return [];
+  }
+}
+
 // Maps user description to catalog filter criteria — calls Supabase Edge Function (Gemini)
 export const aiSearchProducts = createServerFn({ method: "POST" })
   .inputValidator((d: { query: string; locale?: string }) => d)
   .handler(async ({ data }): Promise<AiSearchResult> => {
+    const isSv = data.locale !== "en";
+    const direkt = await direktaTraffar(data.query);
+    if (direkt.length > 0) {
+      // Listan filtreras på frågan själv och de direkta träffarna står först.
+      // Inget fabrikat eller kategori låses: det är frågans ord som avgör.
+      return {
+        explanation: isSv
+          ? `${direkt.length} ${direkt.length === 1 ? "artikel har" : "artiklar har"} "${data.query.trim()}" i artikelnumret, namnet eller serien.`
+          : `${direkt.length} ${direkt.length === 1 ? "item has" : "items have"} "${data.query.trim()}" in the article number, name or series.`,
+        keywords: [data.query.trim()],
+        spec_filters: [],
+        ranked_skus: direkt,
+        source: "fallback",
+      };
+    }
     try {
       const res = await fetch(AI_SEARCH_EDGE, {
         method: "POST",
@@ -277,18 +326,20 @@ export const aiSearchProducts = createServerFn({ method: "POST" })
       const results = edgeData.results ?? [];
       if (results.length === 0) return fallbackSearch(data.query, data.locale !== "en");
 
-      // Derive AiSearchResult fields from ranked results
+      // Förklaringen är EN mening: den bästa träffens skäl. Tre ihopfogade skäl
+      // upprepade samma sak tre gånger (2026-11-11).
       const topResult = results[0];
-      const isSv = data.locale !== "en";
-      const explanation = results.slice(0, 3)
-        .map((r) => `${r.name}: ${r.match_reason}`)
-        .join(". ") || (isSv ? `Sökresultat för "${data.query}".` : `Search results for "${data.query}".`);
+      const explanation = (topResult.match_reason ? `${topResult.name}: ${topResult.match_reason}` : "")
+        || (isSv ? `Sökresultat för "${data.query}".` : `Search results for "${data.query}".`);
 
-      // Pick the dominant category from top results
+      // Kategorin låses bara när nästan alla träffar delar den, och fabrikatet
+      // bara när frågan själv nämner det. Den första träffens fabrikat låste
+      // annars listan till ett enda märke ("dsnu" visade bara AVENTICS).
       const categoryCounts: Record<string, number> = {};
       results.forEach((r) => { if (r.category) categoryCounts[r.category] = (categoryCounts[r.category] ?? 0) + 1; });
-      const category_slug = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
-      const brand_slug = topResult.brand?.toLowerCase().replace(/\s+/g, "-") || undefined;
+      const [vanligast, antal] = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0] ?? [];
+      const category_slug = vanligast && (antal ?? 0) >= Math.ceil(results.length * 0.8) ? vanligast : undefined;
+      const brand_slug = fallbackSearch(data.query, isSv).brand_slug;
 
       return {
         explanation,

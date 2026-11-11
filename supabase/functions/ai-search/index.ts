@@ -42,6 +42,22 @@ function detectCategories(query: string): string[] {
   return Array.from(cats);
 }
 
+/**
+ * Lika många artiklar från varje fabrikat, turvis. RPC:n sorterar på fabrikat
+ * och artikelnummer, så de första 30 cylindrarna var alla AVENTICS, och "dsnu"
+ * fick välja bland dem (2026-11-11).
+ */
+function jamnaFabrikat(produkter: Product[], antal: number): Product[] {
+  const perFabrikat = new Map<string, Product[]>();
+  for (const p of produkter) perFabrikat.set(p.brand, [...(perFabrikat.get(p.brand) ?? []), p]);
+  const kor = [...perFabrikat.values()];
+  const ut: Product[] = [];
+  for (let i = 0; ut.length < antal && kor.some((k) => k.length > i); i++) {
+    for (const k of kor) if (k[i] && ut.length < antal) ut.push(k[i]);
+  }
+  return ut;
+}
+
 async function fetchProducts(categories: string[], limit = 25): Promise<Product[]> {
   const results = await Promise.all(
     categories.map(async (slug) => {
@@ -52,11 +68,11 @@ async function fetchProducts(categories: string[], limit = 25): Promise<Product[
           apikey: SUPABASE_ANON_KEY,
           Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
         },
-        body: JSON.stringify({ p_category_slug: slug, p_limit: limit }),
+        body: JSON.stringify({ p_category_slug: slug, p_limit: 500 }),
       });
       if (!res.ok) return [];
       const data = await res.json();
-      return Array.isArray(data) ? data : [];
+      return Array.isArray(data) ? jamnaFabrikat(data as Product[], limit) : [];
     })
   );
   return results.flat() as Product[];
@@ -158,7 +174,7 @@ Deno.serve(async (req: Request) => {
 
     const categories = detectCategories(query);
     const [products, pdfContext] = await Promise.all([
-      fetchProducts(categories, 30),
+      fetchProducts(categories, 48),
       searchKnowledge(query, 4),
     ]);
 
