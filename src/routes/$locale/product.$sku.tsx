@@ -1,4 +1,4 @@
-import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useNavigate, useParams } from "@tanstack/react-router";
 import { harLogga } from "@/lib/brand-logos";
 import { useEffect, useState } from "react";
 import { makeT, type Locale } from "@/lib/i18n";
@@ -97,9 +97,7 @@ export const Route = createFileRoute("/$locale/product/$sku")({
     return { product };
   },
   component: ProductDetail,
-  notFoundComponent: () => {
-    return <div className="container-page py-16 text-sm">Product not found.</div>;
-  },
+  notFoundComponent: ArtikelSaknas,
 });
 
 function ProductDetail() {
@@ -346,7 +344,7 @@ function ProductDetail() {
         <Row
           k={t("productPage.estimatedDelivery")}
           v={product.lead_time_days != null
-            ? t("index.leadEst").replace("{d}", String(product.lead_time_days))
+            ? t("productPage.leadEstConfirm").replace("{d}", String(product.lead_time_days))
             : t("productPage.contactForDelivery")}
         />
       </section>
@@ -393,14 +391,25 @@ function ProductDetail() {
             <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               {t("nav.compare")} — {categoryName(product.category.slug, locale, product.category.name)}
             </h2>
-            <Link
-              to="/$locale/compare"
-              params={{ locale }}
-              search={{ skus: [product.sku, ...alternatives.slice(0, 3).map((a) => a.sku)].join(",") }}
-              className="text-xs px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:border-info hover:text-info transition"
-            >
-              {t("productPage.compareAll")}
-            </Link>
+            <div className="flex flex-wrap justify-end gap-2">
+              {product.category.slug === "cylinder" && (
+                <Link
+                  to="/$locale/motsvarighet/$sku"
+                  params={{ locale, sku: product.sku }}
+                  className="text-xs px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:border-info hover:text-info transition"
+                >
+                  {t("productPage.motsvarighetTabell")}
+                </Link>
+              )}
+              <Link
+                to="/$locale/compare"
+                params={{ locale }}
+                search={{ skus: [product.sku, ...alternatives.slice(0, 3).map((a) => a.sku)].join(",") }}
+                className="text-xs px-3 py-1.5 rounded-md border border-border text-muted-foreground hover:border-info hover:text-info transition"
+              >
+                {t("productPage.compareAll")}
+              </Link>
+            </div>
           </div>
           <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {alternatives.map((r) => (
@@ -480,3 +489,35 @@ function HittaLiknande({ product, locale }: { product: ProductRow; locale: Local
     </Link>
   );
 }
+
+/**
+ * En artikel som inte finns (utgången, eller ett nummer vi inte har). Sidan
+ * sa "Product not found." på engelska på alla språk och lämnade besökaren där.
+ * Nu: vad som hänt, och tre vägar vidare -- sök, motsvarighet, fråga.
+ */
+const SAKNAS: Record<string, { rubrik: string; text: (sku: string) => string; sok: (sku: string) => string; ersatt: string; fraga: string }> = {
+  sv: { rubrik: "Artikeln finns inte i katalogen", text: (s) => `Vi hittar ingen aktiv artikel med numret ${s}. Den kan ha utgått, eller heta något annat hos oss.`, sok: (s) => `Sök efter ${s} i katalogen`, ersatt: "Hitta en motsvarighet med Ersätt en komponent", fraga: "Fråga oss" },
+  en: { rubrik: "This article is not in the catalogue", text: (s) => `We can't find an active article numbered ${s}. It may be discontinued, or listed under another number.`, sok: (s) => `Search for ${s} in the catalogue`, ersatt: "Find an equivalent with Replace a component", fraga: "Ask us" },
+  de: { rubrik: "Dieser Artikel ist nicht im Katalog", text: (s) => `Wir finden keinen aktiven Artikel mit der Nummer ${s}. Er ist eventuell ausgelaufen oder unter einer anderen Nummer geführt.`, sok: (s) => `Nach ${s} im Katalog suchen`, ersatt: "Alternative mit „Komponente ersetzen“ finden", fraga: "Fragen Sie uns" },
+  es: { rubrik: "Este artículo no está en el catálogo", text: (s) => `No encontramos ningún artículo activo con el número ${s}. Puede estar descatalogado o figurar con otro número.`, sok: (s) => `Buscar ${s} en el catálogo`, ersatt: "Encontrar un equivalente con Sustituir un componente", fraga: "Pregúntenos" },
+};
+
+function ArtikelSaknas() {
+  const params = useParams({ strict: false }) as { locale?: string; sku?: string };
+  const locale = (params.locale ?? "sv") as Locale;
+  const sku = params.sku ?? "";
+  const x = SAKNAS[locale] ?? SAKNAS.en;
+  const lank = "inline-flex rounded-md border border-border px-3 py-1.5 text-sm hover:border-info hover:text-info";
+  return (
+    <div className="container-page py-16 max-w-2xl">
+      <h1 className="text-2xl font-semibold tracking-tight">{x.rubrik}</h1>
+      <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{x.text(sku)}</p>
+      <div className="mt-6 flex flex-wrap gap-3">
+        <Link to="/$locale/products" params={{ locale }} search={{ q: sku } as never} className={lank}>{x.sok(sku)}</Link>
+        <Link to="/$locale/replace" params={{ locale }} search={{ kod: sku }} className={lank}>{x.ersatt}</Link>
+        <Link to="/$locale/talk" params={{ locale }} className={lank}>{x.fraga}</Link>
+      </div>
+    </div>
+  );
+}
+

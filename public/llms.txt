@@ -1,0 +1,33 @@
+# Maskinval
+
+> Maskinval (maskinval.se) is a Swedish, brand-neutral site for choosing pneumatic and industrial automation components. One catalogue covers about 800 articles from eight manufacturers — Festo, SMC, AVENTICS, Metal Work, Camozzi, Parker, Norgren and Bosch Rexroth — with technical data, cross-brand equivalents and quote requests. The site is in Swedish (sv), English (en), German (de) and Spanish (es).
+
+Prices are given on quote. Lead times shown on the site are estimates and are confirmed in the quote. Technical values come from the manufacturers' catalogues; where a value is missing the site says so instead of guessing.
+
+## Main tools
+
+- [Product catalogue](https://maskinval.se/en/products): cylinders, valves, grippers, vacuum, air preparation, fittings, sensors and electric axes. Filter by category, brand, bore (ISO 3320 sizes) and standard (ISO 6432, ISO 15552, ISO 21287).
+- [Replace a component](https://maskinval.se/en/replace): enter an order code or photograph the type plate and get the same article or equivalents from other brands.
+- [Compare](https://maskinval.se/en/compare): side-by-side technical data across brands.
+- [Machine builder](https://maskinval.se/en/machine-builder): describe a machine task in your own words; the site shows how it read the requirements, asks follow-up questions, proposes components with a requirement status per alternative, and builds a bill of materials.
+- [Control & PLC](https://maskinval.se/en/plc): turns a machine description into signal lists, sequences and open questions for the programmer. Addresses are never invented.
+- [Configurator](https://maskinval.se/en/configurator): build a full order code for a cylinder or valve series.
+- [Buying guides](https://maskinval.se/en/guider): how to size a cylinder, choose a valve, and more, with the formulas used.
+
+## How equivalents are chosen
+
+An equivalent must be the same kind of component (for example a round ISO 6432 cylinder is only compared with other round cylinders) and must exist in the same bore. The site states what matches — "same standard (ISO 6432), same bore Ø8" — and nothing more.
+
+## Contact
+
+- Email: info@maskinval.se
+- [About](https://maskinval.se/en/om-oss)
+- [Privacy policy](https://maskinval.se/en/privacy)
+- [Terms](https://maskinval.se/en/terms)
+
+## Swedish pages
+
+- [Produkter](https://maskinval.se/sv/products)
+- [Ersätt en komponent](https://maskinval.se/sv/replace)
+- [Bygg maskin](https://maskinval.se/sv/machine-builder)
+- [Guider](https://maskinval.se/sv/guider)

@@ -1,7 +1,7 @@
 /// <reference lib="deno.ns" />
 // Körs med: deno test tests/likvardiga.test.ts
 import { assertEquals } from "jsr:@std/assert@^1";
-import { borrEtikett, borrningar, cylindergrupp, likvardigaCylindrar } from "../src/lib/likvardiga.ts";
+import { borrEtikett, borrningar, cylindergrupp, likvardigaCylindrar, motsvarighetsrepresentant } from "../src/lib/likvardiga.ts";
 import type { ProductRow } from "../src/lib/types.ts";
 
 function p(sku: string, brand: string, name: string, specs: Record<string, string>, extra: Partial<ProductRow> = {}): ProductRow {
@@ -93,4 +93,21 @@ Deno.test("en rad per familj -- slagvarianter av samma serie visas inte två gå
   const cq2 = p("SMC-CQ2", "smc", "CQ2 – Kompaktcylinder", { bore_mm: "12,16,20,25" }, { family: "CQ2" });
   const ut = likvardigaCylindrar(cq2, [cq2, ...kpz])!;
   assertEquals(ut.length, 1);
+});
+
+Deno.test("motsvarighetssidan: syskon i samma familj och storlek pekar på en rad", () => {
+  // AVENTICS KPZ: 93 rader med rena nummer som bara skiljer sig i slag.
+  const kpz = (sku: string, borr: string, slag: string) => p(sku, "aventics", "KPZ", { bore_mm: borr, stroke_mm: slag }, { family: "KPZ" });
+  const a = kpz("0822390001", "50", "100"), b = kpz("0822390000", "50", "200"), c = kpz("0822390100", "63", "100");
+  assertEquals(motsvarighetsrepresentant(a, [a, b, c]).sku, "0822390000");
+  // En annan borrning är en annan sida.
+  assertEquals(motsvarighetsrepresentant(c, [a, b, c]).sku, "0822390100");
+  // Seriens egen rad går före, men en storleksrad med samma prefix är ingen serie.
+  const serie = p("FESTO-DSNU", "festo", "DSNU", { bore_mm: "8" }, { family: "DSNU" });
+  const storlek = p("FESTO-DSNU-8", "festo", "DSNU-8", { bore_mm: "8" }, { family: "DSNU" });
+  const modul = p("FESTO-193986", "festo", "ISO cylinder", { bore_mm: "8" }, { family: "DSNU" });
+  assertEquals(motsvarighetsrepresentant(modul, [modul, storlek, serie]).sku, "FESTO-DSNU");
+  assertEquals(motsvarighetsrepresentant(modul, [modul, storlek]).sku, "FESTO-193986");
+  // Utan familj står raden för sig själv.
+  assertEquals(motsvarighetsrepresentant(DSNU8, [DSNU8, MW8]).sku, "FESTO-193986");
 });
