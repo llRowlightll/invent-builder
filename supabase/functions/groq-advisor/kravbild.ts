@@ -239,6 +239,117 @@ export function hastighetsKravId(varde: number): string {
   return `krav-hastighet-${formatTal(Math.round(varde * 1000) / 1000).replace(",", "_")}`;
 }
 
+// ── Massa ───────────────────────────────────────────────────────────────────
+/** Enheterna en massa skrivs med. Inte "kgf" (en kraft) och inte "g" ensamt
+ *  ("G1/4" är en gänga, "5 g" kan vara en acceleration). */
+export const MASSENHET = String.raw`(?:kg(?!f)|kilo(?:gram)?s?|ton(?:nes?)?|gram)`;
+
+/** Faktor till kg för en massenhet. */
+export function massfaktor(enhet: string): number {
+  const e = enhet.toLowerCase();
+  return e.startsWith("ton") ? 1000 : e === "gram" ? 0.001 : 1;
+}
+
+// ── Längder ─────────────────────────────────────────────────────────────────
+// Varje längd i texten får EN läsning, och motorn (extractMinStroke) och
+// tolkningspanelen använder samma. Före 2026-11-12 tog motorn det största
+// mm-talet i hela texten som slaglängd, medan panelen bara visade tal med
+// ordet "slag" intill: "lyfta 40 kg vertikalt 400 mm" räknades med 400 mm men
+// syntes inte där ingenjören kontrollerar tolkningen, och "avstånd 150 mm"
+// eller "lådor 400 mm långa" blev en slaglängd som ingen sagt.
+
+export type LangdTyp = "slag" | "lyft" | "sidled" | "matt" | "avstand" | "noggrannhet" | "okand";
+
+export interface Langd {
+  mm: number;
+  typ: LangdTyp;
+  /** Enheten som den stod: "mm", "cm" eller "m". */
+  enhet: "mm" | "cm" | "m";
+  /** "minsta avstånd 150 mm" */
+  minst?: boolean;
+  /** Position i texten som skickades in. */
+  index: number;
+}
+
+const LANGD_RE = /(\d+(?:[.,]\d+)?)\s*(mm|cm|meter|metre|meters|m)\b(?!\s*(?:\/|per\b|²|³))/gi;
+// Småord mellan ordet och talet: "slaglängden är ca 200 mm", "stroke of 200 mm".
+const FYLL = String.raw`(?:\s*(?:är|blir|på|om|av|med|of|is|by|ca\.?|cirka|ungefär|about|approx\.?|max\.?|minst|högst|upp till|up to|=|:))*\s*\W*$`;
+const SLAG_FORE = new RegExp(String.raw`(?:slaglängd\w*|\bslag(?:et)?|\bstroke|\bhub|lyfthöjd\w*|lyftslag\w*|\blift height|\btravel|vandring\w*|rörelselängd\w*|\brörelse(?:n|ns)?|\bsträcka\w*)${FYLL}`, "i");
+const SLAG_EFTER = /^\s*(?:slag\w*|stroke)/i;
+// En borrning är cylinderns mått, varken produktens eller ett slag.
+const BORRNING_FORE = /(?:[Øø]|\bborrning\w*|\bbore|kolvdiameter\w*|\bD\s*=)\s*\W{0,2}$/i;
+const MATT_FORE = new RegExp(String.raw`(?:längd|bredd|höjd|diameter|djup|tjocklek|length|width|height|depth|thickness)\w*${FYLL}`, "i");
+const MATT_EFTER = /^\s*(?:lång|bred|hög|djup|tjock|long\b|wide\b|high\b|tall\b|deep\b|thick\b|i diameter|in diameter)/i;
+const AVSTAND_FORE = /(?:avstånd\w*|mellanrum\w*|delning\w*|\bpitch|\bgaps?\b|\bspacing|\bc\/c|cc-avstånd\w*)[^.\d]{0,15}$/i;
+const AVSTAND_EFTER = /^\s*(?:avstånd\w*|mellanrum\w*|isär|apart\b|mellan\b)/i;
+const LODRAT_ORD = /(?<![\wåäö])(?:lyft\w*|höj(?!d)\w*|sänk\w*|hissa\w*|vertikal\w*|lodrät\w*|uppåt|nedåt|upp|ned|ner|z-?ax\w*|vertical\w*|lift\w*|raise\w*|lower\w*|up|down)(?![\wåäö])/gi;
+const SIDLED_ORD = /(?<![\wåäö])(?:sidled\w*|sidoförflytt\w*|förflytt\w*|flytta\w*|skjut\w*|flytt\w*|framåt|bakåt|längs|sideways|sidewards|laterally|horisontell\w*|horizontal\w*)(?![\wåäö])/gi;
+const METERORD = /(?:slag\w*|lyfthöjd|lyft\w*|höj\w*|sänk\w*|flytt\w*|förflytt\w*|skjut\w*|rörelse\w*|vandring|travel|stroke|sträcka|sidled\w*|längs|uppåt|nedåt|upp|ned|ner|vertikal\w*|lodrät\w*)/i;
+
+/** Närmaste rörelseord i satsen: lodrätt eller i sidled. */
+function narmasteRorelse(fore: string, efter: string): "lyft" | "sidled" | null {
+  const traffar: Array<{ typ: "lyft" | "sidled"; avstand: number }> = [];
+  const prova = (re: RegExp, typ: "lyft" | "sidled") => {
+    for (const m of fore.matchAll(re)) traffar.push({ typ, avstand: fore.length - ((m.index ?? 0) + m[0].length) });
+    for (const m of efter.matchAll(re)) traffar.push({ typ, avstand: (m.index ?? 0) + 1 });
+  };
+  prova(LODRAT_ORD, "lyft");
+  prova(SIDLED_ORD, "sidled");
+  traffar.sort((a, b) => a.avstand - b.avstand);
+  return traffar[0]?.typ ?? null;
+}
+
+/** Längderna i en text, var och en med sin läsning. */
+export function langderITexten(text: string): Langd[] {
+  const ut: Langd[] = [];
+  for (const m of (text ?? "").matchAll(LANGD_RE)) {
+    const i = m.index ?? 0;
+    const enhetRa = m[2].toLowerCase();
+    const enhet: Langd["enhet"] = enhetRa === "mm" ? "mm" : enhetRa === "cm" ? "cm" : "m";
+    const n = tal(m[1]);
+    if (!Number.isFinite(n)) continue;
+    const mm = Math.round((enhet === "mm" ? n : enhet === "cm" ? n * 10 : n * 1000) * 1000) / 1000;
+    const foreHel = text.slice(Math.max(0, i - 40), i);
+    const efterHel = text.slice(i + m[0].length, i + m[0].length + 20);
+    if (/[×xX*]\s*$/.test(foreHel) || /^\s*[×xX*]\s*\d/.test(efterHel)) continue; // del av "300 × 200 mm"
+    // Satsen talet står i: "lyfta 400 mm upp, sedan skjuta 300 mm i sidled".
+    const fore = foreHel.split(/[,;:.](?!\d)/).pop() ?? "";
+    const efter = efterHel.split(/[,;:.](?!\d)/)[0] ?? "";
+    // En meter är en längd bara intill ett rörelseord: "10 m slang" och
+    // "ett 3 m långt band" är inga slag.
+    if (enhet === "m" && !METERORD.test(fore + " " + efter)) continue;
+    if (BORRNING_FORE.test(fore)) continue;
+    let typ: LangdTyp;
+    if (/[±]\s*$/.test(fore) || /(?:noggrannhet|repeterbarhet|tolerans|precision|accuracy)\W*$/i.test(fore)) typ = "noggrannhet";
+    else if (SLAG_FORE.test(fore) || SLAG_EFTER.test(efter)) typ = "slag";
+    else if (MATT_FORE.test(fore) || MATT_EFTER.test(efter)) typ = "matt";
+    else if (AVSTAND_FORE.test(fore) || AVSTAND_EFTER.test(efter)) typ = "avstand";
+    else typ = narmasteRorelse(fore, efter) ?? "okand";
+    const minst = typ === "avstand" && /\b(?:minst|minsta|min\.?|at least|minimum)\b/i.test(fore);
+    ut.push({ mm, typ, enhet, index: i, ...(minst ? { minst } : {}) });
+  }
+  return ut;
+}
+
+/** Kravets id för en längd som systemet inte vet är en slaglängd. Samma i
+ *  kravbilden och i motorns extractMinStroke. */
+export function slagKravId(mm: number): string {
+  return `krav-slag-${formatTal(mm).replace(",", "_")}`;
+}
+
+/** Användaren har sagt att längden inte är en slaglängd. */
+export function slagAvvisat(tolkning: Tolkningsbeslut, mm: number): boolean {
+  const id = slagKravId(mm);
+  return tolkning[`tolkning-${id}`] === "inte_slag" || tolkning[id] === "avvisat";
+}
+
+/** Personal under lasten: den största risken i ett lyft. */
+const PERSONAL_UNDER = /(?<![\wåäö])(?:personal\w*|operatör\w*|människor|personer|folk|någon|arbetare|people|personnel|operators?|workers?|persons?|someone)(?![\wåäö])[^.;]{0,40}?(?<![\wåäö])(?:under|beneath|below|nedanför|underneath)\s+(?:den\s+)?(?:lasten|lyftet|lådan|lådorna|last\w*|the\s+load|the\s+lift|it)(?![\wåäö])|(?<![\wåäö])(?:under|beneath|below)\s+(?:lasten|the\s+load)(?![\wåäö])[^.;]{0,30}?(?:personal|people|personnel|operatör\w*|operators?)/i;
+
+export function personalUnderLasten(text: string): boolean {
+  return PERSONAL_UNDER.test(text ?? "");
+}
+
 // ── Tolkningen ──────────────────────────────────────────────────────────────
 
 const OBJEKT_ORDNING: ObjektTyp[] = ["maskin", "produkt", "transportband", "aktuator", "kontrollstation", "mottagning", "styrsystem", "matning"];
@@ -268,6 +379,12 @@ export function tolkaKravbild(beskrivning: string, svarIn: Record<string, string
 
   const tillampning: Tillampning = SAKKAR_ORD.test(text) && FORMAL[0].re.test(text) ? "sortering_utskjutning" : "allman";
   FORMAL[0].re.lastIndex = 0;
+
+  // Har kunden svarat på slagfrågan gäller svaret, inte ett mått utan rörelseord.
+  const slagISvaren = Object.entries(svar).some(([id, v]) => /slag|stroke/i.test(id) && /\d/.test(String(v ?? "")));
+  // Med ett uttryckligt slag eller lyft räknar motorn bara med det; ett mått
+  // utan rörelseord är då inget slag, utan står som ett mått.
+  const uttryckligtSlag = langderITexten(text).some((l) => l.typ === "slag" || l.typ === "lyft");
 
   for (const men of meningar(text)) {
     const s = men.text;
@@ -307,9 +424,11 @@ export function tolkaKravbild(beskrivning: string, svarIn: Record<string, string
     }
 
     // Massa: intervall bevaras ("0,5–3 kg"), annars ett tal.
-    for (const m of s.matchAll(/(\d+(?:[.,]\d+)?)\s*(?:kg\s*)?(?:[–—-]|till|to)\s*(\d+(?:[.,]\d+)?)\s*kg\b/gi)) {
-      const min = tal(m[1]);
-      const max = tal(m[2]);
+    // "kilo", "kilos" och "ton" är samma storhet ("25 kilos lådor", "1,5 ton").
+    for (const m of s.matchAll(new RegExp(String.raw`(\d+(?:[.,]\d+)?)\s*(?:${MASSENHET}\s*)?(?:[–—-]|till|to)\s*(\d+(?:[.,]\d+)?)\s*(${MASSENHET})(?![\wåäö])`, "gi"))) {
+      const f = massfaktor(m[3]);
+      const min = tal(m[1]) * f;
+      const max = tal(m[2]) * f;
       if (!(max > min)) continue;
       const objekt: ObjektTyp = /\b(?:låd|kartong|produkt|detalj|paket|kolli|box|artikl|product|part|crate)/i.test(s) ? "produkt" : "produkt";
       const id = lagg({ objektId: objekt, egenskap: "massa", intervall: { min, max }, enhet: "kg", ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
@@ -320,11 +439,11 @@ export function tolkaKravbild(beskrivning: string, svarIn: Record<string, string
       });
     }
     if (!krav.some((k) => k.egenskap === "massa" && k.kalla.utdrag === utdrag)) {
-      for (const m of s.matchAll(/(?<![\d.,–—-])(\d+(?:[.,]\d+)?)\s*kg\b(?!\s*\/)/gi)) {
+      for (const m of s.matchAll(new RegExp(String.raw`(?<![\d.,–—-])(\d+(?:[.,]\d+)?)\s*(${MASSENHET})(?![\wåäö])(?!\s*\/)`, "gi"))) {
         const forre = s.slice(0, m.index ?? 0);
         if (/[–—-]\s*$|\btill\s*$/.test(forre)) continue; // del av ett intervall
         const max = /\b(?:max|högst|upp till|up to)\s*$/i.test(forre.slice(-12));
-        lagg({ objektId: "produkt", egenskap: "massa", varde: tal(m[1]), enhet: "kg", grans: max ? "max" : undefined, ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
+        lagg({ objektId: "produkt", egenskap: "massa", varde: Math.round(tal(m[1]) * massfaktor(m[2]) * 1000) / 1000, enhet: "kg", grans: max ? "max" : undefined, ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
       }
     }
 
@@ -350,27 +469,75 @@ export function tolkaKravbild(beskrivning: string, svarIn: Record<string, string
       });
     }
 
-    // Slaglängd uttryckligen, eller en önskad förflyttning av produkten.
-    for (const m of s.matchAll(/(\d+(?:[.,]\d+)?)\s*mm\b(?!\s*\/)/gi)) {
-      const fore = s.slice(Math.max(0, (m.index ?? 0) - 40), m.index ?? 0);
-      const efter = s.slice((m.index ?? 0) + m[0].length, (m.index ?? 0) + m[0].length + 20);
-      if (/[×xX*]\s*$/.test(fore) || /^\s*[×xX*]/.test(efter)) continue; // del av mått
-      if (/[±]\s*$/.test(fore) || /(?:noggrannhet|repeterbarhet|tolerans|precision|accuracy)\W*$/i.test(fore)) {
-        lagg({ objektId: "aktuator", egenskap: "noggrannhet", varde: tal(m[1]), enhet: "mm", ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
+    // Längder: slag, lyft, sidoförflyttning, mått, avstånd och noggrannhet
+    // läses en gång, av samma funktion som motorn använder (langderITexten).
+    for (const l of langderITexten(s)) {
+      const v = l.mm;
+      const kalla = { typ: "beskrivning" as const, utdrag };
+      if (l.typ === "noggrannhet") {
+        lagg({ objektId: "aktuator", egenskap: "noggrannhet", varde: v, enhet: "mm", ursprung: "anvandare", kalla });
         continue;
       }
-      const arSlag = /\b(?:slaglängd|slag|stroke|hub)\w*\W*$/i.test(fore) || /^\s*(?:slag|stroke)/i.test(efter);
-      const arForflyttning = /\b(?:sidled|i sidled|sidoförflytt\w*|förflytt\w*|flytta\w*|skjut\w*|sideways|sidewards|laterally)\b/i.test(fore + " " + efter);
-      if (arSlag) {
-        lagg({ objektId: "aktuator", egenskap: "slaglangd", varde: tal(m[1]), enhet: "mm", ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
-      } else if (arForflyttning) {
-        const kravId = lagg({ objektId: "produkt", egenskap: "sidoforflyttning", varde: tal(m[1]), enhet: "mm", ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
+      if (l.typ === "slag") {
+        lagg({ objektId: "aktuator", egenskap: "slaglangd", varde: v, enhet: "mm", ursprung: "anvandare", kalla });
+        continue;
+      }
+      if (l.typ === "lyft") {
+        lagg({
+          objektId: "aktuator", egenskap: "slaglangd", varde: v, enhet: "mm", ursprung: "anvandare", kalla,
+          metod: "Lyftets höjd, läst som aktuatorns slaglängd.",
+        });
+        continue;
+      }
+      if (l.typ === "matt") {
+        lagg({ objektId: "produkt", egenskap: "matt", varde: v, enhet: "mm", ursprung: "anvandare", kalla });
+        continue;
+      }
+      if (l.typ === "avstand") {
+        lagg({ objektId: "produkt", egenskap: l.minst ? "minsta_avstand" : "avstand", varde: v, enhet: "mm", ursprung: "anvandare", kalla });
+        continue;
+      }
+      if (l.typ === "okand") {
+        // Ett mått utan rörelseord. Motorn räknar det som slaglängd (det
+        // gjorde den redan före 2026-11-12) -- nu syns det, och användaren
+        // kan säga att det är något annat.
+        if (uttryckligtSlag) {
+          lagg({ objektId: "produkt", egenskap: "matt", varde: v, enhet: "mm", ursprung: "anvandare", kalla });
+          continue;
+        }
+        if (l.enhet !== "mm" || v < 50 || v > 10000 || slagISvaren) continue;
+        const id = slagKravId(v);
+        const valt = beslut[`tolkning-${id}`];
+        lagg({
+          id, objektId: "aktuator", egenskap: "slaglangd", varde: v, enhet: "mm", ursprung: "antagande", kalla,
+          metod: "Ett mått utan rörelseord. Räknas som slaglängd tills du avgör annat.",
+        });
+        const k = krav.find((x) => x.id === id)!;
+        if (valt === "inte_slag") k.bekraftelse = "avvisat";
+        else if (valt === "slaglangd") k.bekraftelse = "bekraftat";
+        else osakra.push({
+          id: `tolkning-${id}`, kravId: id,
+          fraga: {
+            sv: `Är ${formatTal(v)} mm aktuatorns slaglängd?`,
+            en: `Is ${String(v)} mm the actuator's stroke?`,
+          },
+          alternativ: [
+            { id: "slaglangd", sv: "Ja, rörelsens längd", en: "Yes, the length of the movement" },
+            { id: "inte_slag", sv: "Nej, ett mått eller avstånd", en: "No, a dimension or distance" },
+          ],
+          forval: "slaglangd",
+        });
+        continue;
+      }
+      // Sidled: produktens förflyttning, som aktuatorns slag kan avvika från.
+      {
+        const kravId = lagg({ objektId: "produkt", egenskap: "sidoforflyttning", varde: v, enhet: "mm", ursprung: "anvandare", kalla });
         if (beslut[`tolkning-${kravId}`] !== "sidoforflyttning" && beslut[`tolkning-${kravId}`] !== "slaglangd") {
           osakra.push({
             id: `tolkning-${kravId}`, kravId,
             fraga: {
-              sv: `Är ${formatTal(tal(m[1]))} mm produktens önskade sidoförflyttning eller aktuatorns slaglängd?`,
-              en: `Is ${String(tal(m[1]))} mm the product's required sideways travel or the actuator's stroke?`,
+              sv: `Är ${formatTal(v)} mm produktens önskade sidoförflyttning eller aktuatorns slaglängd?`,
+              en: `Is ${String(v)} mm the product's required sideways travel or the actuator's stroke?`,
             },
             alternativ: [
               { id: "sidoforflyttning", sv: "Produktens förflyttning (aktuatorns slag kan avvika)", en: "The product's travel (the stroke may differ)" },
@@ -396,7 +563,23 @@ export function tolkaKravbild(beskrivning: string, svarIn: Record<string, string
     }
 
     // Matning: tryckluft och spänning.
+    // "6–8 bar" är ett intervall. Det lägsta trycket dimensionerar kraften,
+    // så det bärs som värde (motorn läser varde) medan intervallet visas.
+    const tryckIntervall: Array<[number, number]> = [];
+    for (const m of s.matchAll(/(\d+(?:[.,]\d+)?)\s*(?:bar\s*)?(?:[–—-]|till|to)\s*(\d+(?:[.,]\d+)?)\s*bar\b/gi)) {
+      const min = tal(m[1]);
+      const max = tal(m[2]);
+      if (!(max > min)) continue;
+      tryckIntervall.push([m.index ?? 0, (m.index ?? 0) + m[0].length]);
+      lagg({
+        objektId: "matning", egenskap: "tryck", intervall: { min, max }, varde: min, enhet: "bar",
+        ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag },
+        metod: "Det lägsta trycket i intervallet dimensionerar kraften.",
+      });
+    }
     for (const m of s.matchAll(/(\d+(?:[.,]\d+)?)\s*bar\b/gi)) {
+      const i = m.index ?? 0;
+      if (tryckIntervall.some(([a, b]) => i >= a && i < b)) continue;
       lagg({ objektId: "matning", egenskap: "tryck", varde: tal(m[1]), enhet: "bar", ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
     }
     for (const m of s.matchAll(/(\d+(?:[.,]\d+)?)\s*V\s*(DC|AC|likström|växelström)?\b/g)) {
@@ -447,6 +630,14 @@ export function tolkaKravbild(beskrivning: string, svarIn: Record<string, string
     if (sak) lagg({ objektId: "maskin", egenskap: "sakerhet", text: sak, ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
     else if (/\b(?:nödstopp\w*|säkerhetsfunktion\w*|skyddsgrind\w*|ljusridå\w*|emergency stop|safety function\w*)\b/i.test(s)) {
       lagg({ objektId: "maskin", egenskap: "sakerhet", text: "Säkerhetsfunktion nämnd", ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
+    }
+    // Den största risken i ett lyft ska stå där ingenjören kontrollerar
+    // tolkningen, inte bara i en fråga längre fram (sajtkritiken 2026-11-11).
+    if (personalUnderLasten(s)) {
+      lagg({
+        id: "krav-maskin-personal-under-lasten", objektId: "maskin", egenskap: "sakerhet",
+        text: "Personal under lasten: lasten får inte falla", ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag },
+      });
     }
 
     // Temperatur.
