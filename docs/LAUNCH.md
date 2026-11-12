@@ -39,8 +39,9 @@ som driver offerterna.)
    **"Ladda upp CSV"**, granska tabellen, **Bekräfta**.
 3. Alternativ: klistra in text/PDF (AI extraherar priserna) eller redigera per rad.
 
-Marginal: alla produkter har redan **30 %** som standard — ändra per rad eller via
-bulk-marginalen om du vill.
+Marginal: alla produkter har **20 %** (ägarens beslut 2026-11-12: inköp 100 kr →
+säljpris 125 kr). Marginalen räknas på säljpriset (inköp ÷ (1 − marginal)). Ändra
+per rad eller via bulk-marginalen om du vill.
 
 ### 2. Företagsmejl + notifieringar (Resend)
 Utgående mejl (offertbekräftelser, orderstatus, admin-notiser) skickas från
