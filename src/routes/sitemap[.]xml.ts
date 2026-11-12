@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { GUIDES } from "@/lib/guides";
+import { loadCatalog } from "@/lib/catalog";
+import { likvardigaCylindrar, motsvarighetsrepresentant } from "@/lib/likvardiga";
 
 const BASE = "https://maskinval.se";
 const LOCALES = ["sv", "en", "de", "es"];
@@ -39,6 +41,20 @@ export const Route = createFileRoute("/sitemap.xml")({
           families = (fams ?? []).map((f) => f.slug);
         }
 
+        // Motsvarighetssidor: bara cylindrar som har minst en motsvarighet av
+        // samma typ och storlek. En tom sida är noindex och hör inte hit.
+        let motsvarigheter: string[] = [];
+        try {
+          const katalog = await loadCatalog();
+          // En sida per familj och storlek (representanten); syskonen pekar
+          // dit med canonical.
+          motsvarigheter = [...new Set(katalog
+            .filter((p) => p.category?.slug === "cylinder" && (likvardigaCylindrar(p, katalog, 1)?.length ?? 0) > 0)
+            .map((p) => motsvarighetsrepresentant(p, katalog).sku))];
+        } catch {
+          motsvarigheter = [];
+        }
+
         const today = new Date().toISOString().split("T")[0];
 
         const urls: string[] = [];
@@ -59,6 +75,10 @@ export const Route = createFileRoute("/sitemap.xml")({
           for (const p of products) {
             const lm = p.updated_at ? p.updated_at.slice(0, 10) : today;
             urls.push(url(`/${locale}/product/${encodeURIComponent(p.sku)}`, lm, "monthly", "0.9"));
+          }
+          // Motsvarigheter: "motsvarighet till <artikel>" i andra fabrikat
+          for (const sku of motsvarigheter) {
+            urls.push(url(`/${locale}/motsvarighet/${encodeURIComponent(sku)}`, today, "monthly", "0.7"));
           }
           // Configurator pages — custom-build landing pages, strong long-tail SEO
           for (const fam of families) {

@@ -421,6 +421,7 @@
     "specification": "Spezifikation",
     "accessoriesRelated": "Zubehör & Verwandtes",
     "compareAll": "Alle vergleichen →",
+    "motsvarighetTabell": "Alle Alternativen als Tabelle →",
     "priceSection": "Preis & Lieferung",
     "sellingPrice": "Verkaufspreis",
     "priceRow": "Preis",
@@ -434,6 +435,7 @@
     "requestQuote": "Angebot anfragen",
     "askAi": "Unsicher? KI-Ingenieur fragen",
     "contactForDelivery": "Lieferzeit auf Anfrage",
+    "leadEstConfirm": "ca. {d} Tage, Bestätigung im Angebot",
     "orderAvailable": "Bestellen",
     "hittaLiknande": "Alle {vad} aller Hersteller"
   },

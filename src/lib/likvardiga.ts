@@ -232,3 +232,27 @@ export function borrEtikett(produkt: ProductRow, kand: ProductRow, sv: boolean):
   if (r !== null) return sv ? `Finns i Ø${d}` : `Available in Ø${d}`;
   return sv ? `Närliggande storlek ${borrText(b)} — jämför` : `Nearby size ${borrText(b)} — compare`;
 }
+
+/**
+ * Raden som står för sin familj och storlek på motsvarighetssidorna. 93
+ * KPZ-rader skiljer sig bara i slag och har samma motsvarigheter; utan en
+ * representant blir det 93 likadana sidor. Seriens egen rad (sku:n slutar
+ * på familjenamnet) går först, annars den lägsta sku:n.
+ */
+export function motsvarighetsrepresentant(produkt: ProductRow, katalog: ProductRow[]): ProductRow {
+  const b = borrningar(produkt.specs?.bore_mm?.value);
+  const borr = b.enstaka.length === 1 && b.intervall.length === 0 ? String(b.enstaka[0]) : (produkt.specs?.bore_mm?.value ?? "");
+  const familj = (produkt.family ?? "").toLowerCase();
+  if (!familj) return produkt;
+  const nyckel = (p: ProductRow) => {
+    const pb = borrningar(p.specs?.bore_mm?.value);
+    const d = pb.enstaka.length === 1 && pb.intervall.length === 0 ? String(pb.enstaka[0]) : (p.specs?.bore_mm?.value ?? "");
+    return `${p.brand?.slug}|${(p.family ?? "").toLowerCase()}|${d}`;
+  };
+  const egen = `${produkt.brand?.slug}|${familj}|${borr}`;
+  const syskon = katalog.filter((p) => p.category?.slug === "cylinder" && nyckel(p) === egen);
+  if (syskon.length <= 1) return produkt;
+  // "FESTO-DSNU", inte "FESTO-DSNU-10" (en storlek) eller "0822390000".
+  const serie = syskon.find((p) => p.sku.toLowerCase() === familj || p.sku.toLowerCase().endsWith(`-${familj}`));
+  return serie ?? syskon.reduce((a, c) => (c.sku.localeCompare(a.sku) < 0 ? c : a));
+}
