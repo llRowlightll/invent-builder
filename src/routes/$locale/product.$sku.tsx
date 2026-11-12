@@ -14,6 +14,8 @@ import { beskrivning, kallor, produktnamn, specEtikett, specVarde, synligaSpecar
 import { ExternalLink, FileText, Settings } from "lucide-react";
 import { tillverkarlank } from "@/lib/tillverkarlank";
 import { borrEtikett, borrningar, cylinderstandard, likvardigaCylindrar } from "@/lib/likvardiga";
+import { formatBelopp, prisErbjudande, type PubliktPris } from "@/lib/priser";
+import { hamtaPublikaPriser } from "@/lib/priser-hamta";
 
 
 export const Route = createFileRoute("/$locale/product/$sku")({
@@ -66,7 +68,9 @@ export const Route = createFileRoute("/$locale/product/$sku")({
   // SKU) so the page SSRs real content AND the JSON-LD below — a crawler that
   // doesn't execute JS used to see neither. related/alternatives still load
   // client-side (below-the-fold, not SEO-critical, inherently multi-record).
-  loader: async ({ params }): Promise<{ product: ProductRow | null }> => {
+  loader: async ({ params }): Promise<{ product: ProductRow | null; pris: PubliktPris | null }> => {
+    // Priset hämtas samtidigt; det är tomt tills ägaren slagit på "Visa priser".
+    const prisLofte = hamtaPublikaPriser([params.sku]);
     const { data, error } = await supabase
       .from("products")
       .select(
@@ -75,7 +79,7 @@ export const Route = createFileRoute("/$locale/product/$sku")({
       .eq("sku", params.sku)
       .eq("status", "active")
       .maybeSingle();
-    if (error || !data) return { product: null };
+    if (error || !data) return { product: null, pris: null };
     const d = data as unknown as {
       id: string; sku: string; name: string; name_en: string | null; description: string | null; description_en: string | null; family: string | null;
       lead_time_days: number | null; availability: string | null; ip_rating: string | null;
@@ -96,7 +100,8 @@ export const Route = createFileRoute("/$locale/product/$sku")({
       image_url: d.image_url, length_mm: d.length_mm, width_mm: d.width_mm, height_mm: d.height_mm,
       specs,
     };
-    return { product };
+    const pris = (await prisLofte)[d.sku] ?? null;
+    return { product, pris };
   },
   component: ProductDetail,
   notFoundComponent: ArtikelSaknas,
@@ -106,7 +111,7 @@ function ProductDetail() {
   const { locale, sku } = Route.useParams();
   // Cast: TanStack's deep generic inference returns `undefined` for this route's
   // loaderData type (head + loader + notFoundComponent), but the loader does run.
-  const { product } = Route.useLoaderData() as unknown as { product: ProductRow | null };
+  const { product, pris } = Route.useLoaderData() as unknown as { product: ProductRow | null; pris: PubliktPris | null };
   const t = makeT(locale as Locale);
   const [related, setRelated] = useState<ProductRow[]>([]);
   const [alternatives, setAlternatives] = useState<ProductRow[]>([]);
@@ -212,13 +217,12 @@ function ProductDetail() {
     category: categoryName(product.category.slug, locale, product.category.name),
     url: canonicalUrl,
     image: productImageUrl?.startsWith("http") ? productImageUrl : `${SITE}${productImageUrl}`,
-    // No `offers` property: Product.offers is optional per schema.org, and Google
-    // treats an Offer with no `price`/`priceSpecification.price` as an ERROR (GSC:
-    // "Ange antingen price eller priceSpecification.price"), not just an omission.
-    // purchase_price is internal cost — never a public selling price (would leak
-    // margin) — and there is no separate public list-price column yet. Add a real
-    // `offers: { "@type": "Offer", price, priceCurrency: "SEK", ... }` block here
-    // once real public pricing exists (see docs/LAUNCH.md pricing import).
+    // `offers` bara med ett riktigt pris: Google behandlar ett Offer utan
+    // price som ett FEL (GSC: "Ange antingen price eller
+    // priceSpecification.price"). Priset är säljpriset ur publika_priser
+    // (aldrig inköpspriset) och finns först när ägaren slagit på "Visa
+    // priser"; en serie med från-pris får inget Offer (se priser.ts).
+    ...(prisErbjudande(pris, canonicalUrl) && { offers: prisErbjudande(pris, canonicalUrl) }),
     ...(Object.keys(product.specs).length > 0 && {
       additionalProperty: synligaSpecar(product.specs).map(([k, v]) => ({
         "@type": "PropertyValue",
@@ -340,9 +344,23 @@ function ProductDetail() {
         {/* Visade "Kontakta oss" även när en uppskattning fanns. Nu visas
             uppskattningen där den finns, märkt som en sådan -- 40 % av
             katalogen delar samma 21 dagar, så siffran är inte bekräftad. */}
-        {/* Inga priser finns ännu (inga prislistor). Raden säger det i stället
-            för att rutan "Pris & leverans" står utan pris (2026-11-11). */}
-        <Row k={t("productPage.priceRow")} v={t("productPage.priceOnQuote")} />
+        {/* Utan publikt pris (ingen prislista, eller "Visa priser" av) säger
+            raden att priset lämnas i offerten (2026-11-11). Med pris: säljpriset
+            exkl. moms, "från" för en serie, och att offertens pris gäller --
+            villkoren säger att priser på sajten är indikativa. */}
+        <Row
+          k={t("productPage.priceRow")}
+          v={pris
+            ? t(pris.fran ? "productPage.priceFromExVat" : "productPage.priceExVat").replace("{p}", formatBelopp(pris.pris, locale as Locale))
+            : t("productPage.priceOnQuote")}
+        />
+        {pris && (
+          <p className="text-xs text-muted-foreground">
+            {pris.prisdatum
+              ? t(pris.fran ? "productPage.priceFromIndicative" : "productPage.priceIndicative").replace("{d}", pris.prisdatum)
+              : t("productPage.priceIndicativeNoDate")}
+          </p>
+        )}
         <Row
           k={t("productPage.estimatedDelivery")}
           v={product.lead_time_days != null

@@ -11,6 +11,7 @@ import {
   type CompanySettings,
 } from "@/lib/company-settings";
 import { useAdminGuard } from "@/lib/auth-context";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/$locale/admin/settings")({
   component: AdminSettingsPage,
@@ -161,6 +162,84 @@ export default function AdminSettingsPage() {
           )}
         </div>
       </form>
+
+      <PrisVisning />
     </div>
+  );
+}
+
+/**
+ * Strömbrytaren för publika priser (site_content 'priser.visa'). Databas-
+ * funktionen publika_priser lämnar inget pris förrän den står på 'ja', så en
+ * inläst prislista kan kontrolleras i Prissättning innan kunderna ser den.
+ */
+function PrisVisning() {
+  const [pa, setPa] = useState<boolean | null>(null);
+  const [lage, setLage] = useState<{ medPris: number; visas: number; felMarginal: number } | null>(null);
+  const [sparar, setSparar] = useState(false);
+  const [fel, setFel] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.from("site_content").select("value").eq("key", "priser.visa").maybeSingle()
+      .then(({ data }) => setPa(data?.value === "ja"));
+    (supabase as unknown as { rpc: (fn: string) => Promise<{ data: unknown }> })
+      .rpc("admin_list_product_pricing")
+      .then(({ data }) => {
+        if (!Array.isArray(data)) return;
+        const rader = data as { purchase_price: number | null; margin: number | null }[];
+        const medPris = rader.filter((r) => r.purchase_price != null && r.purchase_price > 0);
+        const ok = (m: number | null) => m != null && m >= 1 && m <= 95;
+        setLage({
+          medPris: medPris.length,
+          visas: medPris.filter((r) => ok(r.margin)).length,
+          felMarginal: rader.filter((r) => r.margin != null && r.margin < 1).length,
+        });
+      });
+  }, []);
+
+  async function vaxla(nytt: boolean) {
+    setSparar(true);
+    setFel(null);
+    const { error } = await supabase
+      .from("site_content")
+      .upsert({ key: "priser.visa", locale: "all", value: nytt ? "ja" : "nej" }, { onConflict: "key,locale" });
+    if (error) setFel("Kunde inte spara. Försök igen.");
+    else setPa(nytt);
+    setSparar(false);
+  }
+
+  return (
+    <section className="mt-10 rounded-lg border border-border p-4 text-sm">
+      <h2 className="text-base font-semibold text-foreground">Priser på sajten</h2>
+      <p className="mt-1 text-muted-foreground">
+        När det här är på visar produktsidorna säljpriset exkl. moms (inköpspris ÷ (1 − marginal)),
+        avrundat till hela kronor och märkt som indikativt. Inköpspris och marginal visas aldrig.
+        En serie utan artikelnummer visas som "från" och sägs gälla seriens billigaste variant – ange då den.
+        Pris äldre än 365 dagar visas inte.
+      </p>
+      {lage && (
+        <ul className="mt-3 space-y-1 text-muted-foreground">
+          <li>{lage.medPris} artiklar har inköpspris, {lage.visas} av dem får visas.</li>
+          {lage.felMarginal > 0 && (
+            <li className="text-destructive">
+              {lage.felMarginal} artiklar har en marginal under 1 % (0,35 – en rest från när marginalen var ett
+              bråktal). De visas inte förrän marginalen är rättad i Prissättning, där en knapp ger dem
+              kategorins vanliga marginal.
+            </li>
+          )}
+        </ul>
+      )}
+      <label className="mt-4 flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={pa === true}
+          disabled={pa === null || sparar}
+          onChange={(e) => vaxla(e.target.checked)}
+        />
+        <span className="font-medium text-foreground">Visa priser på produktsidorna</span>
+        {sparar && <span className="text-muted-foreground">Sparar…</span>}
+      </label>
+      {fel && <p className="mt-2 text-destructive">{fel}</p>}
+    </section>
   );
 }

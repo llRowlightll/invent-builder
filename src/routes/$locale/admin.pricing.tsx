@@ -39,8 +39,20 @@ type ProposalRow = Proposal & {
 const EDGE = "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/extract-prices";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+/**
+ * Marginalen är bruttomarginal i PROCENT (20260603000300). Kolumnens
+ * standardvärde var kvar på bråktalet 0.35 fram till 20261112140000, så
+ * artiklar inlagda efter juni fick 0,35 % -- säljpriset blev i praktiken
+ * inköpspriset. Under 1 % räknas som ett misstag och visas aldrig publikt.
+ */
+function misstankMarginal(margin: string | null | number): boolean {
+  const mg = typeof margin === "string" ? Number(margin) : margin;
+  return mg != null && !isNaN(mg) && mg > 0 && mg < 1;
+}
+
 function sellPrice(pp: number | null, margin: string | null | number): string {
   const mg = typeof margin === "string" ? Number(margin) : margin;
+  if (misstankMarginal(margin)) return "marginal < 1 %?";
   if (pp == null || mg == null || isNaN(pp) || isNaN(mg) || mg >= 100) return "—";
   return (pp / (1 - mg / 100)).toLocaleString("sv-SE", {
     minimumFractionDigits: 0, maximumFractionDigits: 0,
@@ -171,6 +183,56 @@ export default function AdminPricingPage() {
     }
   }
 
+  /** Artikelns egen marginal när den är ett rimligt procenttal, annars 30.
+   *  Förut fick varje inläst rad 30 %, och de differentierade marginalerna
+   *  (22 % cylindrar/ventiler, 40 % tillbehör) skrevs över vid varje import. */
+  const standardMarginal = (sku: string): string => {
+    const m = rows.find((r) => r.sku === sku)?.margin;
+    return m != null && m >= 1 && m <= 95 ? String(m) : "30";
+  };
+
+  const misstankta = rows.filter((r) => misstankMarginal(r.margin)).length;
+  const [rattar, setRattar] = useState(false);
+
+  /**
+   * Ägarens knapp. 0,35 kom från kolumnens gamla bråktalsstandard; raderna
+   * (mest AVENTICS- och Parker-cylindrar) får samma marginal som de flesta
+   * andra artiklar i sin kategori -- 22 % för cylindrar och ventiler, 30 %
+   * eller 40 % för andra -- i stället för en gissad siffra.
+   */
+  function kategorinsMarginal(): { catId: string; namn: string; marginal: number; antal: number }[] {
+    const ut: { catId: string; namn: string; marginal: number; antal: number }[] = [];
+    const perKat = new Map<string, Row[]>();
+    for (const r of rows) perKat.set(r.category_id, [...(perKat.get(r.category_id) ?? []), r]);
+    for (const [catId, lista] of perKat) {
+      const fel = lista.filter((r) => misstankMarginal(r.margin)).length;
+      if (fel === 0) continue;
+      const rakna = new Map<number, number>();
+      for (const r of lista) if (r.margin != null && r.margin >= 1 && r.margin <= 95) rakna.set(r.margin, (rakna.get(r.margin) ?? 0) + 1);
+      const vanligast = [...rakna.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 30;
+      ut.push({ catId, namn: lista[0]?.category?.name ?? "Okategoriserad", marginal: vanligast, antal: fel });
+    }
+    return ut;
+  }
+
+  async function rattaBraktal() {
+    const plan = kategorinsMarginal();
+    const text = plan.map((p) => `${p.namn}: ${p.antal} st → ${p.marginal} %`).join("\n");
+    if (!window.confirm(`Rätta marginalen 0,35 % till kategorins vanliga marginal?\n\n${text}`)) return;
+    setRattar(true);
+    let fel: string | null = null;
+    for (const p of plan) {
+      const q = supabase.from("products")
+        .update({ margin: p.marginal, updated_at: new Date().toISOString() });
+      const { error } = await (p.catId ? q.eq("category_id", p.catId) : q.is("category_id", null))
+        .gt("margin", 0).lt("margin", 1);
+      if (error) { fel = error.message; break; }
+    }
+    setRattar(false);
+    if (fel) setMsg({ text: `Fel: ${fel}`, ok: false });
+    else { setMsg({ text: "✓ Marginalerna under 1 % rättade efter kategori", ok: true }); await load(); }
+  }
+
   async function bulkUpdate() {
     if (!bulkMargin) return;
     setBulking(true);
@@ -237,7 +299,7 @@ export default function AdminPricingPage() {
         if (!sku || !isFinite(pp) || pp <= 0) continue;
         const mg = String(pick(r, MARGIN) ?? "").replace(",", ".").replace(/[^\d.]/g, "");
         list.push({ sku, name: String(pick(r, NAME) ?? "").trim(), brand: "", purchase_price: pp,
-          confidence: "high", evidence: "CSV-import", selected: true, margin: mg || "30" });
+          confidence: "high", evidence: "CSV-import", selected: true, margin: mg || standardMarginal(sku) });
       }
       if (csvRef.current) csvRef.current.value = "";
       if (list.length === 0) {
@@ -293,7 +355,7 @@ export default function AdminPricingPage() {
       const list = (data.proposals ?? []).map((p) => ({
         ...p,
         selected: true,
-        margin:   "30",  // default margin — admin can adjust
+        margin:   standardMarginal(p.sku),  // artikelns egen marginal; admin kan ändra
       }));
       if (list.length === 0) {
         setIntakeMsg({ text: "Inga priser hittades. Kontrollera att texten innehåller priser och produktnamn/artikelnummer.", ok: false });
@@ -349,6 +411,17 @@ export default function AdminPricingPage() {
           <p className="text-sm text-muted-foreground">
             {pricedCount} av {rows.length} produkter har inköpspris
           </p>
+          {misstankta > 0 && (
+            <p className="mt-2 text-sm text-destructive">
+              {misstankta} artiklar har marginalen 0,35 % – kolumnens gamla standard var ett bråktal
+              (0,35 = 35 %), men marginalen räknas i procent. Med ett inköpspris blir säljpriset då
+              i praktiken inköpspriset, och de visas inte på sajten.{" "}
+              <button onClick={rattaBraktal} disabled={rattar}
+                className="underline font-medium disabled:opacity-50">
+                {rattar ? "Rättar…" : "Ge dem kategorins vanliga marginal"}
+              </button>
+            </p>
+          )}
         </div>
       </div>
 
@@ -462,7 +535,8 @@ export default function AdminPricingPage() {
                         <td className="px-4 py-2">
                           <input type="number" value={getVal(r.id, "margin", r.margin)}
                             onChange={(e) => setVal(r.id, "margin", e.target.value)} placeholder="30"
-                            className="w-20 text-right text-xs rounded border border-border bg-card px-2 py-1 focus:outline-none focus:ring-1 focus:ring-info" />
+                            title={misstankMarginal(getVal(r.id, "margin", r.margin)) ? "Marginalen är i procent: 0,35 betyder 0,35 %, inte 35 %." : undefined}
+                            className={`w-20 text-right text-xs rounded border bg-card px-2 py-1 focus:outline-none focus:ring-1 focus:ring-info ${misstankMarginal(getVal(r.id, "margin", r.margin)) ? "border-destructive" : "border-border"}`} />
                         </td>
                         <td className="px-4 py-2 text-right text-xs font-mono font-medium text-foreground/80">
                           {sellPrice(
