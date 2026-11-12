@@ -183,12 +183,12 @@ export default function AdminPricingPage() {
     }
   }
 
-  /** Artikelns egen marginal när den är ett rimligt procenttal, annars 30.
-   *  Förut fick varje inläst rad 30 %, och de differentierade marginalerna
-   *  (22 % cylindrar/ventiler, 40 % tillbehör) skrevs över vid varje import. */
+  /** Artikelns egen marginal när den är ett rimligt procenttal, annars 20
+   *  (ägarens standard sedan 2026-11-12: inköp 100 kr → säljpris 125 kr).
+   *  Förut fick varje inläst rad 30 %, oavsett artikelns egen marginal. */
   const standardMarginal = (sku: string): string => {
     const m = rows.find((r) => r.sku === sku)?.margin;
-    return m != null && m >= 1 && m <= 95 ? String(m) : "30";
+    return m != null && m >= 1 && m <= 95 ? String(m) : "20";
   };
 
   const misstankta = rows.filter((r) => misstankMarginal(r.margin)).length;
@@ -323,7 +323,7 @@ export default function AdminPricingPage() {
     // The CSV import ignores this column on re-upload (it matches sku/price/margin).
     const header = "artikelnummer;namn;marke;typ;inkopspris;marginal";
     const body = rows.map((r) =>
-      `${esc(r.sku)};${esc(r.name)};${esc(r.brand?.name ?? "")};${r.is_family ? "familj" : "specifik"};${r.purchase_price ?? ""};${r.margin ?? 30}`
+      `${esc(r.sku)};${esc(r.name)};${esc(r.brand?.name ?? "")};${r.is_family ? "familj" : "specifik"};${r.purchase_price ?? ""};${r.margin ?? 20}`
     );
     const csv = "﻿" + [header, ...body].join("\r\n") + "\r\n";
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
@@ -410,6 +410,10 @@ export default function AdminPricingPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Prissättning</h1>
           <p className="text-sm text-muted-foreground">
             {pricedCount} av {rows.length} produkter har inköpspris
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Marginalen räknas på säljpriset: 20 % ger inköp × 1,25 (100 kr → 125 kr, varav 25 kr är din del).
+            Ange inköpspriset exkl. moms.
           </p>
           {misstankta > 0 && (
             <p className="mt-2 text-sm text-destructive">
@@ -534,7 +538,7 @@ export default function AdminPricingPage() {
                         </td>
                         <td className="px-4 py-2">
                           <input type="number" value={getVal(r.id, "margin", r.margin)}
-                            onChange={(e) => setVal(r.id, "margin", e.target.value)} placeholder="30"
+                            onChange={(e) => setVal(r.id, "margin", e.target.value)} placeholder="20"
                             title={misstankMarginal(getVal(r.id, "margin", r.margin)) ? "Marginalen är i procent: 0,35 betyder 0,35 %, inte 35 %." : undefined}
                             className={`w-20 text-right text-xs rounded border bg-card px-2 py-1 focus:outline-none focus:ring-1 focus:ring-info ${misstankMarginal(getVal(r.id, "margin", r.margin)) ? "border-destructive" : "border-border"}`} />
                         </td>
