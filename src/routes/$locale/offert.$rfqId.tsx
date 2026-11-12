@@ -60,6 +60,11 @@ export default function PublicOffertPage() {
   const [declined, setDeclined] = useState(false);
   const [poInput, setPoInput] = useState("");
   const [orderId, setOrderId] = useState<string | null>(null);
+  // Leveransadressen samlas in vid accept: leverantören skickar direkt till
+  // kunden, och en offert hade tidigare ingen adress alls (2026-11-12).
+  const [lev, setLev] = useState({ namn: "", gata: "", postnr: "", ort: "", telefon: "", referens: "", instruktioner: "" });
+  const [poFil, setPoFil] = useState<File | null>(null);
+  const [fel, setFel] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -100,7 +105,30 @@ export default function PublicOffertPage() {
   const currency = rfq?.quote_currency ?? "SEK";
 
   async function respond(decision: "accepted" | "rejected") {
+    setFel(null);
+    const namn = lev.namn.trim() || rfq?.company || "";
+    if (decision === "accepted" && (!namn || !lev.gata.trim() || !lev.postnr.trim() || !lev.ort.trim())) {
+      setFel("Fyll i leveransadressen (mottagare, gata, postnummer och ort) innan du accepterar.");
+      return;
+    }
+    if (poFil && poFil.size > 10 * 1024 * 1024) {
+      setFel("PO-filen får vara högst 10 MB.");
+      return;
+    }
     setAccepting(true);
+    // Kundens PO som fil, i offertens egen mapp i den privata bucketen.
+    let poSokvag: string | undefined;
+    if (decision === "accepted" && poFil) {
+      const namnet = poFil.name.replace(/[^A-Za-z0-9._-]+/g, "_").slice(-80);
+      const sokvag = `${rfqId}/${Date.now()}-${namnet}`;
+      const { error: upFel } = await supabase.storage.from("kund-po").upload(sokvag, poFil, { contentType: poFil.type || undefined });
+      if (upFel) {
+        setAccepting(false);
+        setFel(`PO-filen kunde inte laddas upp (${upFel.message}). Försök igen eller acceptera utan fil och mejla den till oss.`);
+        return;
+      }
+      poSokvag = sokvag;
+    }
     // SECURITY: respond via SECURITY DEFINER RPC. It only flips a quote that is
     // currently 'quoted' → accepted/rejected and validates the decision value,
     // so anon can no longer mass-update arbitrary quotes. On acceptance it also
@@ -110,7 +138,11 @@ export default function PublicOffertPage() {
       p_id: rfqId,
       p_decision: decision,
       p_po: poInput.trim() || undefined,
-    });
+      ...(decision === "accepted" ? {
+        p_leverans: { ...lev, namn },
+        p_po_fil: poSokvag,
+      } : {}),
+    } as never);
     const result = Array.isArray(data) ? data[0] : data;
     const newOrderId = (result as { order_id?: string } | null)?.order_id ?? null;
     if (newOrderId) setOrderId(newOrderId);
@@ -280,18 +312,64 @@ export default function PublicOffertPage() {
             </div>
           ) : (
             <div className="border-t border-border pt-8 space-y-5" style={{ fontFamily: "system-ui, sans-serif" }}>
-              {/* PO input — customer can enter/confirm their PO number before accepting */}
-              <div className="max-w-xs">
-                <label className="block text-xs uppercase tracking-wider text-muted-foreground mb-1">
-                  Ert PO-nummer (valfritt)
+              {/* Leveransadress och PO -- leverantören skickar direkt till kunden. */}
+              <div className="space-y-3">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Leveransadress</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {([
+                    ["namn", "Mottagare (företag)", rfq.company ?? "", true],
+                    ["gata", "Gatuadress", "", true],
+                    ["postnr", "Postnummer", "", true],
+                    ["ort", "Ort", "", true],
+                    ["telefon", "Telefon vid leverans", "", false],
+                    ["referens", "Er referens / märkning", "", false],
+                  ] as const).map(([falt, etikett, platshallare, kravs]) => (
+                    <label key={falt} className="block text-xs text-muted-foreground">
+                      {etikett}{kravs ? " *" : ""}
+                      <input
+                        type="text"
+                        value={lev[falt]}
+                        placeholder={platshallare}
+                        maxLength={falt === "gata" ? 160 : 120}
+                        onChange={(e) => setLev((v) => ({ ...v, [falt]: e.target.value }))}
+                        className="mt-1 w-full border border-border rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-green-500/30"
+                      />
+                    </label>
+                  ))}
+                </div>
+                <label className="block text-xs text-muted-foreground">
+                  Leveransinstruktion (valfritt)
+                  <input
+                    type="text"
+                    value={lev.instruktioner}
+                    maxLength={500}
+                    placeholder="t.ex. lastkaj 2, vardagar 7–15"
+                    onChange={(e) => setLev((v) => ({ ...v, instruktioner: e.target.value }))}
+                    className="mt-1 w-full border border-border rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-green-500/30"
+                  />
                 </label>
-                <input
-                  type="text"
-                  value={poInput || rfq.po_number || ""}
-                  onChange={e => setPoInput(e.target.value)}
-                  placeholder="t.ex. PO-2024-001"
-                  className="w-full border border-border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30"
-                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="block text-xs text-muted-foreground">
+                    Ert PO-nummer (valfritt)
+                    <input
+                      type="text"
+                      value={poInput || rfq.po_number || ""}
+                      onChange={e => setPoInput(e.target.value)}
+                      placeholder="t.ex. PO-2024-001"
+                      className="mt-1 w-full border border-border rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-green-500/30"
+                    />
+                  </label>
+                  <label className="block text-xs text-muted-foreground">
+                    Bifoga PO (PDF eller bild, valfritt)
+                    <input
+                      type="file"
+                      accept="application/pdf,image/png,image/jpeg"
+                      onChange={(e) => setPoFil(e.target.files?.[0] ?? null)}
+                      className="mt-1 block w-full text-sm text-foreground file:mr-3 file:rounded file:border file:border-border file:bg-muted file:px-3 file:py-1.5 file:text-sm"
+                    />
+                  </label>
+                </div>
+                {fel && <p className="text-sm text-destructive">{fel}</p>}
               </div>
               <div className="text-center space-y-4">
                 <p className="text-sm text-muted-foreground">Vill du acceptera denna offert?</p>

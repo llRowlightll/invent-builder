@@ -1,1 +1,5 @@
 project_id = "ccoksforzjgvimyqpmpr"
+# Fortnox skickar tillbaka webbläsaren utan inloggning; funktionen kräver
+# själv admin för start/status och ett engångs-state för återkomsten.
+[functions.fortnox-anslut]
+verify_jwt = false

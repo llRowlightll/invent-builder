@@ -54,6 +54,7 @@ import { Route as LocalePlcProjektIdRouteImport } from './routes/$locale/plc.$pr
 import { Route as LocaleOffertRfqIdRouteImport } from './routes/$locale/offert.$rfqId'
 import { Route as LocaleOcOrderIdRouteImport } from './routes/$locale/oc.$orderId'
 import { Route as LocaleMotsvarighetSkuRouteImport } from './routes/$locale/motsvarighet.$sku'
+import { Route as LocaleLeverantorTokenRouteImport } from './routes/$locale/leverantor.$token'
 import { Route as LocaleGuiderSlugRouteImport } from './routes/$locale/guider.$slug'
 import { Route as LocaleConfiguratorFamilyRouteImport } from './routes/$locale/configurator.$family'
 import { Route as LocaleBomBomIdRouteImport } from './routes/$locale/bom.$bomId'
@@ -306,6 +307,11 @@ const LocaleMotsvarighetSkuRoute = LocaleMotsvarighetSkuRouteImport.update({
   path: '/motsvarighet/$sku',
   getParentRoute: () => LocaleRoute,
 } as any)
+const LocaleLeverantorTokenRoute = LocaleLeverantorTokenRouteImport.update({
+  id: '/leverantor/$token',
+  path: '/leverantor/$token',
+  getParentRoute: () => LocaleRoute,
+} as any)
 const LocaleGuiderSlugRoute = LocaleGuiderSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
@@ -492,6 +498,7 @@ export interface FileRoutesByFullPath {
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
   '/$locale/configurator/$family': typeof LocaleConfiguratorFamilyRoute
   '/$locale/guider/$slug': typeof LocaleGuiderSlugRoute
+  '/$locale/leverantor/$token': typeof LocaleLeverantorTokenRoute
   '/$locale/motsvarighet/$sku': typeof LocaleMotsvarighetSkuRoute
   '/$locale/oc/$orderId': typeof LocaleOcOrderIdRoute
   '/$locale/offert/$rfqId': typeof LocaleOffertRfqIdRoute
@@ -560,6 +567,7 @@ export interface FileRoutesByTo {
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
   '/$locale/configurator/$family': typeof LocaleConfiguratorFamilyRoute
   '/$locale/guider/$slug': typeof LocaleGuiderSlugRoute
+  '/$locale/leverantor/$token': typeof LocaleLeverantorTokenRoute
   '/$locale/motsvarighet/$sku': typeof LocaleMotsvarighetSkuRoute
   '/$locale/oc/$orderId': typeof LocaleOcOrderIdRoute
   '/$locale/offert/$rfqId': typeof LocaleOffertRfqIdRoute
@@ -633,6 +641,7 @@ export interface FileRoutesById {
   '/$locale/bom/$bomId': typeof LocaleBomBomIdRoute
   '/$locale/configurator/$family': typeof LocaleConfiguratorFamilyRoute
   '/$locale/guider/$slug': typeof LocaleGuiderSlugRoute
+  '/$locale/leverantor/$token': typeof LocaleLeverantorTokenRoute
   '/$locale/motsvarighet/$sku': typeof LocaleMotsvarighetSkuRoute
   '/$locale/oc/$orderId': typeof LocaleOcOrderIdRoute
   '/$locale/offert/$rfqId': typeof LocaleOffertRfqIdRoute
@@ -707,6 +716,7 @@ export interface FileRouteTypes {
     | '/$locale/bom/$bomId'
     | '/$locale/configurator/$family'
     | '/$locale/guider/$slug'
+    | '/$locale/leverantor/$token'
     | '/$locale/motsvarighet/$sku'
     | '/$locale/oc/$orderId'
     | '/$locale/offert/$rfqId'
@@ -775,6 +785,7 @@ export interface FileRouteTypes {
     | '/$locale/bom/$bomId'
     | '/$locale/configurator/$family'
     | '/$locale/guider/$slug'
+    | '/$locale/leverantor/$token'
     | '/$locale/motsvarighet/$sku'
     | '/$locale/oc/$orderId'
     | '/$locale/offert/$rfqId'
@@ -847,6 +858,7 @@ export interface FileRouteTypes {
     | '/$locale/bom/$bomId'
     | '/$locale/configurator/$family'
     | '/$locale/guider/$slug'
+    | '/$locale/leverantor/$token'
     | '/$locale/motsvarighet/$sku'
     | '/$locale/oc/$orderId'
     | '/$locale/offert/$rfqId'
@@ -1188,6 +1200,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleMotsvarighetSkuRouteImport
       parentRoute: typeof LocaleRoute
     }
+    '/$locale/leverantor/$token': {
+      id: '/$locale/leverantor/$token'
+      path: '/leverantor/$token'
+      fullPath: '/$locale/leverantor/$token'
+      preLoaderRoute: typeof LocaleLeverantorTokenRouteImport
+      parentRoute: typeof LocaleRoute
+    }
     '/$locale/guider/$slug': {
       id: '/$locale/guider/$slug'
       path: '/$slug'
@@ -1492,6 +1511,7 @@ interface LocaleRouteChildren {
   LocaleIndexRoute: typeof LocaleIndexRoute
   LocaleAssemblySlugRoute: typeof LocaleAssemblySlugRoute
   LocaleBomBomIdRoute: typeof LocaleBomBomIdRoute
+  LocaleLeverantorTokenRoute: typeof LocaleLeverantorTokenRoute
   LocaleMotsvarighetSkuRoute: typeof LocaleMotsvarighetSkuRoute
   LocaleOcOrderIdRoute: typeof LocaleOcOrderIdRoute
   LocaleOffertRfqIdRoute: typeof LocaleOffertRfqIdRoute
@@ -1534,6 +1554,7 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleIndexRoute: LocaleIndexRoute,
   LocaleAssemblySlugRoute: LocaleAssemblySlugRoute,
   LocaleBomBomIdRoute: LocaleBomBomIdRoute,
+  LocaleLeverantorTokenRoute: LocaleLeverantorTokenRoute,
   LocaleMotsvarighetSkuRoute: LocaleMotsvarighetSkuRoute,
   LocaleOcOrderIdRoute: LocaleOcOrderIdRoute,
   LocaleOffertRfqIdRoute: LocaleOffertRfqIdRoute,

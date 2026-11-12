@@ -94,6 +94,7 @@ jobs:
             welcome-email
             hubspot-sync
             fortnox-order
+            fortnox-anslut
             book-shipment
             document-ai
             extract-prices

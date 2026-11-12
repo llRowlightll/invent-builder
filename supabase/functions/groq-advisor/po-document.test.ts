@@ -141,3 +141,46 @@ Deno.test("raderna kommer i radordning oavsett hur de lästes", () => {
 Deno.test("ämnesraden bär numret leverantören ska svara med", () => {
   assertEquals(amnesrad(dok()), "Inköpsorder MPO-2026-00431 - Maskinval AB");
 });
+
+// ── Leveransadress och direktleverans (2026-11-12) ──────────────────────────
+const kundAdress = {
+  direkt: true, direktOklar: false, namn: "Kund AB", gata: "Fabriksgatan 3", postnr: "411 04",
+  ort: "Göteborg", land: "SE", kontakt: "Anna", telefon: "031-00 00 00", instruktioner: null,
+  kundreferens: "Linje 4",
+};
+
+Deno.test("direktleverans med hel kundadress får skickas", () => {
+  const d = byggPoDokument({ huvud, leverantor: festo, rader, kundorder: { order_number: "MV-1" }, foretag, leverans: kundAdress });
+  assertEquals(d.hinder, []);
+  assertEquals(d.leverans?.direkt, true);
+});
+
+Deno.test("direktleverans utan kundens ort stoppar utskicket", () => {
+  const d = byggPoDokument({ huvud, leverantor: festo, rader, kundorder: { order_number: "MV-1" }, foretag,
+    leverans: { ...kundAdress, ort: "" } });
+  assertEquals(d.hinder.length, 1);
+  assertEquals(faarSkickas(d, { sent_at: null }, { bekraftaVarningar: true }).ok, false);
+});
+
+Deno.test("oklar direktleverans är en varning som måste bekräftas", () => {
+  const d = byggPoDokument({ huvud, leverantor: festo, rader, kundorder: { order_number: "MV-1" }, foretag,
+    leverans: { ...kundAdress, direktOklar: true } });
+  assertEquals(d.hinder, []);
+  assertEquals(d.varningar.length, 1);
+  assertEquals(faarSkickas(d, { sent_at: null }).kanBekraftas, true);
+  assertEquals(faarSkickas(d, { sent_at: null }, { bekraftaVarningar: true }).ok, true);
+});
+
+Deno.test("leverans till oss räcker med gata och postnummer/ort i ett fält", () => {
+  const d = byggPoDokument({ huvud, leverantor: festo, rader, kundorder: { order_number: "MV-1" }, foretag,
+    leverans: { direkt: false, direktOklar: false, namn: "Maskinval", gata: "Industrivägen 1", postnr: "123 45 Stockholm",
+      ort: null, land: "SE", kontakt: null, telefon: null, instruktioner: null, kundreferens: null } });
+  assertEquals(d.hinder, []);
+});
+
+Deno.test("leverans till oss utan vår adress stoppar utskicket", () => {
+  const d = byggPoDokument({ huvud, leverantor: festo, rader, kundorder: { order_number: "MV-1" }, foretag,
+    leverans: { direkt: false, direktOklar: false, namn: "Maskinval", gata: null, postnr: null,
+      ort: null, land: "SE", kontakt: null, telefon: null, instruktioner: null, kundreferens: null } });
+  assertEquals(d.hinder.length, 1);
+});

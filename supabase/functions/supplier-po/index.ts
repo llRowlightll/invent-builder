@@ -17,7 +17,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { skickaMejl } from "../_shared/notify.ts";
 import { requireAdmin } from "../_shared/admin-auth.ts";
-import { byggPoDokument, faarSkickas, amnesrad, type PoForetag } from "./po-document.ts";
+import { byggPoDokument, faarSkickas, amnesrad, type PoDokument, type PoForetag, type PoLeverans } from "./po-document.ts";
 import { renderaPoPdf } from "./pdf.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -25,6 +25,23 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API = "https://api.resend.com/emails";
 const RESEND_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const FROM = Deno.env.get("SUPPLIER_PO_FROM") ?? "Maskinval <noreply@maskinval.se>";
+const SITE = "https://maskinval.se";
+
+/** 24 slumpbyte som base64url (32 tecken). Bara hashen sparas i databasen. */
+function nyToken(): string {
+  const b = crypto.getRandomValues(new Uint8Array(24));
+  return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Samma som databasens encode(sha256(convert_to(token, 'UTF8')), 'hex'). */
+async function sha256hex(text: string): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(d)].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+function esc(v: string | null | undefined): string {
+  return String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -68,13 +85,23 @@ function base64(bytes: Uint8Array): string {
   return btoa(bin);
 }
 
-function mejlHtml(poNumber: string, foretag: PoForetag, leverantorsNamn: string, kundnummer: string | null): string {
+function mejlHtml(dok: PoDokument): string {
+  const lev = dok.leverantor!;
+  const l = dok.leverans;
+  const adress = l
+    ? [l.namn, l.gata, [l.postnr, l.ort].filter(Boolean).join(" "), [l.kontakt, l.telefon].filter(Boolean).join(", ")]
+        .filter((r) => (r ?? "").trim()).map(esc).join("<br>")
+    : "";
+  const markning = esc([dok.poNumber, l?.kundreferens].filter(Boolean).join(" / "));
   return `<!doctype html><html><body style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1a1a1f;line-height:1.55">
-<p>Hej ${leverantorsNamn},</p>
-<p>Bifogat finner ni vår inköpsorder <strong>${poNumber}</strong>${kundnummer ? ` (vårt kundnummer hos er: ${kundnummer})` : ""}.</p>
-<p><strong>Ange ${poNumber} i ämnesraden när ni svarar.</strong> Det är så er bekräftelse hittar tillbaka till rätt order hos oss.</p>
-<p>Bekräfta gärna per rad: artikelnummer, antal, pris och leveransdatum. Hör av er om något i ordern behöver ändras innan ni bekräftar.</p>
-<p>Med vänlig hälsning<br>${foretag.name}<br>${foretag.email}${foretag.phone ? ` &middot; ${foretag.phone}` : ""}</p>
+<p>Hej ${esc(lev.name)},</p>
+<p>Bifogat finner ni vår inköpsorder <strong>${esc(dok.poNumber)}</strong>${lev.customer_number ? ` (vårt kundnummer hos er: ${esc(lev.customer_number)})` : ""}.</p>
+${dok.leverantorsLank ? `<p style="margin:22px 0"><a href="${esc(dok.leverantorsLank)}" style="background:#1d3a6e;color:#fff;padding:11px 18px;border-radius:6px;text-decoration:none;font-weight:600">Bekräfta ordern och ange leveransdatum</a></p>
+<p style="color:#555;font-size:14px">På samma sida anger ni fraktbolag och spårningsnummer när det skickas. Ingen inloggning behövs.</p>` : ""}
+${l ? `<p><strong>${l.direkt ? "Levereras direkt till vår kund" : "Levereras till"}:</strong><br>${adress}</p>
+${l.direkt ? `<p><strong>Neutral leverans:</strong> inga priser och inte er faktura i paketet. Fakturan till ${esc(dok.foretag.name)}. Märk godset: ${markning}.</p>` : `<p>Märk godset: ${markning}.</p>`}` : ""}
+<p>Föredrar ni mejl går det bra att svara här med <strong>${esc(dok.poNumber)}</strong> i ämnesraden.</p>
+<p>Med vänlig hälsning<br>${esc(dok.foretag.name)}<br>${esc(dok.foretag.email)}${dok.foretag.phone ? ` &middot; ${esc(dok.foretag.phone)}` : ""}</p>
 </body></html>`;
 }
 
@@ -99,7 +126,7 @@ Deno.serve(async (req) => {
 
   const { data: spo, error: spoFel } = await db
     .from("supplier_purchase_orders")
-    .select("*, suppliers(*), orders(order_number)")
+    .select("*, suppliers(*), orders(order_number, customer_name, customer_company, contact_phone, delivery_name, delivery_street, delivery_postal, delivery_city, delivery_country, delivery_instructions, customer_reference, desired_delivery_date)")
     .eq("id", spoId)
     .maybeSingle();
   if (spoFel) return json({ fel: spoFel.message }, 500);
@@ -113,8 +140,34 @@ Deno.serve(async (req) => {
 
   const s = spo as Record<string, unknown>;
   const lev = (s.suppliers ?? null) as Record<string, unknown> | null;
+  const ord = (s.orders ?? null) as Record<string, string | null> | null;
+  const foretag = await hamtaForetag(db);
 
-  const dok = byggPoDokument({
+  // Direktleverans om leverantören inte sagt nej (null = inte utrett: direkt,
+  // men med en varning som måste bekräftas).
+  const tillatDirekt = lev ? (lev.allows_dropship as boolean | null) : null;
+  const direkt = tillatDirekt !== false;
+  const leverans: PoLeverans = direkt
+    ? {
+        direkt: true,
+        direktOklar: tillatDirekt == null,
+        namn: ord?.delivery_name || ord?.customer_company || ord?.customer_name || null,
+        gata: ord?.delivery_street ?? null,
+        postnr: ord?.delivery_postal ?? null,
+        ort: ord?.delivery_city ?? null,
+        land: ord?.delivery_country ?? null,
+        kontakt: ord?.customer_name ?? null,
+        telefon: ord?.contact_phone ?? null,
+        instruktioner: ord?.delivery_instructions ?? null,
+        kundreferens: ord?.customer_reference ?? null,
+      }
+    : {
+        direkt: false, direktOklar: false,
+        namn: foretag.name, gata: foretag.address || null, postnr: foretag.postal || null, ort: null,
+        land: "SE", kontakt: null, telefon: foretag.phone || null, instruktioner: null, kundreferens: null,
+      };
+
+  const bygg = (leverantorsLank: string | null) => byggPoDokument({
     huvud: {
       po_number: s.po_number as string | null,
       created_at: s.created_at as string,
@@ -141,9 +194,12 @@ Deno.serve(async (req) => {
         }
       : null,
     rader: (rader ?? []) as never,
-    kundorder: { order_number: ((s.orders as { order_number?: string } | null)?.order_number) ?? null },
-    foretag: await hamtaForetag(db),
+    kundorder: { order_number: ord?.order_number ?? null },
+    foretag,
+    leverans,
+    leverantorsLank,
   });
+  const dok = bygg(null);
 
   if (action === "check") {
     const beslut = faarSkickas(dok, { sent_at: s.sent_at as string | null }, {
@@ -178,14 +234,20 @@ Deno.serve(async (req) => {
   const till = (dok.leverantor!.order_email ?? "").trim();
   const tidigareStatus = (s.status as string) ?? "draft";
 
+  // Leverantörslänken: ny token per utskick, bara hashen sparas. Ett nytt
+  // utskick gör den förra länken ogiltig.
+  const token = nyToken();
+  const tokenHash = await sha256hex(token);
+  const skickas = bygg(`${SITE}/sv/leverantor/${token}`);
+
   // PDF:en först: går renderingen fel ska ingenting ha reserverats.
-  const pdf = await renderaPoPdf(dok);
+  const pdf = await renderaPoPdf(skickas);
 
   // Reservera FÖRE utskicket. Två samtidiga klick: bara det ena får en rad
   // tillbaka, det andra ser 0 och avbryter.
   const reservation = db
     .from("supplier_purchase_orders")
-    .update({ sent_at: new Date().toISOString(), sent_to: till, sent_method: "email", status: "sent" })
+    .update({ sent_at: new Date().toISOString(), sent_to: till, sent_method: "email", status: "sent", leverantor_token_hash: tokenHash })
     .eq("id", spoId);
   const { data: reserverad, error: resFel } = await (body.skicka_om
     ? reservation.select("id")
@@ -203,8 +265,8 @@ Deno.serve(async (req) => {
     kind: "supplier_po",
     to: till,
     replyTo: dok.foretag.email,
-    subject: amnesrad(dok),
-    html: mejlHtml(dok.poNumber, dok.foretag, dok.leverantor!.name, dok.leverantor!.customer_number),
+    subject: amnesrad(skickas),
+    html: mejlHtml(skickas),
     attachments: [{ filename: `${dok.poNumber}.pdf`, content: base64(pdf) }],
     idempotencyKey: `supplier_po:${dok.poNumber}:${new Date().toISOString().slice(0, 16)}`,
     ref: { table: "supplier_purchase_orders", id: spoId },
@@ -221,6 +283,7 @@ Deno.serve(async (req) => {
         sent_to: (s.sent_to as string | null) ?? null,
         sent_method: (s.sent_method as string | null) ?? null,
         status: tidigareStatus,
+        leverantor_token_hash: (s.leverantor_token_hash as string | null) ?? null,
       })
       .eq("id", spoId);
     return json({ ok: false, skal: `Resend avvisade utskicket: ${text.slice(0, 300)}` }, 502);

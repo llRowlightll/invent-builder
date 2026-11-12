@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Fragment, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminGuard } from "@/lib/auth-context";
+import { FRAKTBOLAG, giltigtSparningsnummer } from "@/lib/fraktbolag";
 
 export const Route = createFileRoute("/$locale/admin/orders")({
   component: AdminOrdersPage,
@@ -51,6 +52,8 @@ interface SupplierPoRow {
   antal_rader: number;
   leverantor: string;
   rader: SupplierPoLine[];
+  /** När leverantören först öppnade länken i inköpsorderns mejl. */
+  lank_oppnad: string | null;
 }
 
 const NIVA_ETIKETT: Record<string, { text: string; klass: string }> = {
@@ -84,6 +87,7 @@ const SVARSVAL: Array<[string, string]> = [
 
 interface OrderRow {
   id: string;
+  rfq_id?: string | null;
   /** MV-2026-00124. Null för ordrar skapade innan numren infördes. */
   order_number: string | null;
   customer_name: string;
@@ -447,6 +451,86 @@ function AckModal({ spo, onClose, onSaved }: {
   );
 }
 
+/**
+ * Försändelse som leverantören meddelat på annat sätt (mejl, telefon).
+ * Samma väg som leverantörslänken: admin_registrera_forsandelse ->
+ * registrera_forsandelse, som räknar fram spårningslänken och uppdaterar
+ * orderns status. Kunden ser den direkt.
+ */
+function ForsandelseModal({ spo, onClose, onSaved }: {
+  spo: SupplierPoRow;
+  onClose: () => void;
+  onSaved: (text: string) => void;
+}) {
+  const [fraktbolag, setFraktbolag] = useState("postnord");
+  const [nr, setNr] = useState("");
+  const [beraknad, setBeraknad] = useState("");
+  const [antal, setAntal] = useState<Record<string, string>>(
+    () => Object.fromEntries(spo.rader.filter(l => l.status !== "cancelled").map(l => [l.id, String(l.ack_qty ?? l.qty)])),
+  );
+  const [sparar, setSparar] = useState(false);
+  const [fel, setFel] = useState<string | null>(null);
+
+  async function spara() {
+    setFel(null);
+    if (!giltigtSparningsnummer(nr)) { setFel("Spårningsnumret ska vara 4–40 tecken: bokstäver, siffror, mellanslag eller bindestreck."); return; }
+    const rader = Object.entries(antal).map(([spoi_id, q]) => ({ spoi_id, qty: Number(q || 0) })).filter(r => r.qty > 0);
+    if (rader.length === 0) { setFel("Ange antal på minst en rad."); return; }
+    setSparar(true);
+    const { error } = await (supabase as unknown as {
+      rpc: (fn: string, a: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
+    }).rpc("admin_registrera_forsandelse", {
+      p_spo_id: spo.id, p_carrier: fraktbolag, p_tracking: nr.trim(), p_estimated: beraknad || null, p_lines: rader,
+    });
+    setSparar(false);
+    if (error) { setFel(error.message); return; }
+    onSaved(`${spo.po_number}: försändelsen är registrerad och syns för kunden.`);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-xl bg-card p-5 shadow-xl space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-base font-semibold">Försändelse — {spo.po_number}</h2>
+        <p className="text-xs text-muted-foreground">{spo.leverantor}. Leverantören kan också ange den själv via länken i inköpsorderns mejl.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <label className="text-xs text-muted-foreground">Fraktbolag
+            <select value={fraktbolag} onChange={(e) => setFraktbolag(e.target.value)}
+              className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm">
+              {FRAKTBOLAG.map(f => <option key={f.kod} value={f.kod}>{f.namn}</option>)}
+            </select>
+          </label>
+          <label className="text-xs text-muted-foreground">Spårningsnummer
+            <input value={nr} onChange={(e) => setNr(e.target.value)} maxLength={40}
+              className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm" />
+          </label>
+          <label className="text-xs text-muted-foreground">Beräknad leverans
+            <input type="date" value={beraknad} onChange={(e) => setBeraknad(e.target.value)}
+              className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm" />
+          </label>
+        </div>
+        <div className="space-y-1.5">
+          {spo.rader.filter(l => l.status !== "cancelled").map(l => (
+            <label key={l.id} className="flex items-center justify-between gap-3 text-sm">
+              <span><span className="tabular">{l.sku}</span> <span className="text-xs text-muted-foreground">({l.qty} st)</span></span>
+              <input type="number" min="0" step="any" value={antal[l.id] ?? ""}
+                onChange={(e) => setAntal(a => ({ ...a, [l.id]: e.target.value }))}
+                className="w-20 rounded border border-border bg-background px-2 py-1 text-right text-sm" />
+            </label>
+          ))}
+        </div>
+        {fel && <p className="text-sm text-destructive">{fel}</p>}
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm rounded-md border border-border">Avbryt</button>
+          <button onClick={spara} disabled={sparar}
+            className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:opacity-90 transition disabled:opacity-50">
+            {sparar ? "Registrerar…" : "Registrera försändelsen"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminOrdersPage() {
   const { locale } = Route.useParams();
   const { isAdmin, authLoading } = useAdminGuard();
@@ -463,23 +547,37 @@ function AdminOrdersPage() {
   const [arbetar, setArbetar] = useState<string | null>(null);
   const [spoOk, setSpoOk] = useState<string | null>(null);
   const [ackFor, setAckFor] = useState<SupplierPoRow | null>(null);
+  const [forsFor, setForsFor] = useState<SupplierPoRow | null>(null);
+  /** rfq_id -> sökväg till kundens PO-fil i bucketen kund-po. */
+  const [poFiler, setPoFiler] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (authLoading) return; // vänta tills auth är klar innan redirect-beslut
     if (!isAdmin) { navigate({ to: "/$locale/login", params: { locale } }); return; }
     supabase.from("orders").select("*").order("created_at", { ascending: false })
-      .then(({ data }) => { setOrders((data as OrderRow[]) ?? []); setLoading(false); });
+      .then(async ({ data }) => {
+        const rader = (data as OrderRow[]) ?? [];
+        setOrders(rader);
+        setLoading(false);
+        const rfqIds = rader.map(o => o.rfq_id).filter((v): v is string => Boolean(v));
+        if (rfqIds.length) {
+          const { data: rfqs } = await (supabase as unknown as {
+            from: (t: string) => { select: (c: string) => { in: (k: string, v: string[]) => Promise<{ data: { id: string; po_file_path: string | null }[] | null }> } };
+          }).from("rfqs").select("id, po_file_path").in("id", rfqIds);
+          setPoFiler(Object.fromEntries((rfqs ?? []).filter(r => r.po_file_path).map(r => [r.id, r.po_file_path as string])));
+        }
+      });
     laddaInkopsordrar();
   }, [isAdmin, authLoading]);
 
   async function laddaInkopsordrar() {
     const { data, error } = await supabase
       .from("supplier_purchase_orders")
-      .select("id, po_number, order_id, supplier_id, status, total_purchase_ex_vat, expected_delivery, needs_review, review_reason, suppliers(name), supplier_purchase_order_items(id, line_no, sku, supplier_sku, name, qty, unit_purchase_price, status, ack_qty, ack_unit_price, ack_delivery_date, ack_status, ack_reason, ack_substitute_sku)")
+      .select("id, po_number, order_id, supplier_id, status, total_purchase_ex_vat, expected_delivery, needs_review, review_reason, leverantor_lank_oppnad_at, suppliers(name), supplier_purchase_order_items(id, line_no, sku, supplier_sku, name, qty, unit_purchase_price, status, ack_qty, ack_unit_price, ack_delivery_date, ack_status, ack_reason, ack_substitute_sku)")
       .order("po_number", { ascending: true });
     if (error) { setSpoFel(error.message); return; }
     const per: Record<string, SupplierPoRow[]> = {};
-    for (const rad of (data ?? []) as Record<string, unknown>[]) {
+    for (const rad of (data ?? []) as unknown as Record<string, unknown>[]) {
       const r: SupplierPoRow = {
         id: rad.id as string,
         po_number: rad.po_number as string | null,
@@ -492,6 +590,7 @@ function AdminOrdersPage() {
         review_reason: rad.review_reason as string | null,
         antal_rader: ((rad.supplier_purchase_order_items as unknown[]) ?? []).length,
         leverantor: (rad.suppliers as { name?: string } | null)?.name ?? "Okänd leverantör",
+        lank_oppnad: (rad.leverantor_lank_oppnad_at as string | null) ?? null,
         rader: (((rad.supplier_purchase_order_items as SupplierPoLine[]) ?? [])
           .slice()
           .sort((a, b) => a.line_no - b.line_no)),
@@ -654,7 +753,21 @@ function AdminOrdersPage() {
                     <div className="text-xs text-muted-foreground">{order.customer_company ?? order.customer_email}</div>
                     {order.customer_org_nr && <div className="text-xs text-muted-foreground">org: {order.customer_org_nr}</div>}
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs">{order.po_number ?? "—"}</td>
+                  <td className="px-4 py-3 font-mono text-xs">
+                    {order.po_number ?? "—"}
+                    {order.rfq_id && poFiler[order.rfq_id] && (
+                      <button
+                        onClick={async () => {
+                          const { data } = await supabase.storage.from("kund-po").createSignedUrl(poFiler[order.rfq_id!], 300);
+                          if (data?.signedUrl) window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+                        }}
+                        className="ml-2 font-sans text-[11px] text-info underline"
+                        title="Kundens PO som fil"
+                      >
+                        PO-fil
+                      </button>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-muted-foreground">{Array.isArray(order.items) ? order.items.length : 0} art.</td>
                   <td className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">{fmt(order.total_inc_vat ?? order.total_ex_vat)}</td>
                   <td className="px-4 py-3">
@@ -739,6 +852,11 @@ function AdminOrdersPage() {
                               </span>
                             )}
                             <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{spo.status}</span>
+                            {spo.lank_oppnad && (
+                              <span className="text-xs text-muted-foreground" title="Leverantören har öppnat länken i inköpsorderns mejl">
+                                länken öppnad {new Date(spo.lank_oppnad).toLocaleDateString("sv-SE", { month: "short", day: "numeric" })}
+                              </span>
+                            )}
                             {spo.needs_review && (
                               <span className="text-xs px-2 py-0.5 rounded-full bg-gold-surface text-gold-deep">
                                 granska: {spo.review_reason ?? "okänt"}
@@ -752,6 +870,14 @@ function AdminOrdersPage() {
                                 title="Registrera leverantörens svar per rad"
                               >
                                 Registrera svar
+                              </button>
+                              <button
+                                onClick={() => setForsFor(spo)}
+                                disabled={spo.rader.length === 0}
+                                className="px-2.5 py-1 text-xs rounded-md border border-border hover:border-primary transition disabled:opacity-50"
+                                title="Fraktbolag och spårningsnummer, om leverantören meddelat det på annat sätt"
+                              >
+                                Försändelse
                               </button>
                               <button
                                 onClick={() => forhandsgranska(spo.id)}
@@ -829,6 +955,18 @@ function AdminOrdersPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {forsFor && (
+        <ForsandelseModal
+          spo={forsFor}
+          onClose={() => setForsFor(null)}
+          onSaved={async (text) => {
+            setForsFor(null);
+            setSpoOk(text);
+            await laddaInkopsordrar();
+          }}
+        />
       )}
 
       {ackFor && (

@@ -92,7 +92,7 @@ export async function renderaPoPdf(dok: PoDokument): Promise<Uint8Array> {
     [dok.foretag.name, dok.leverantor?.name ?? "(ingen leverantör)"],
     [dok.foretag.address, dok.leverantor?.contact_name ?? ""],
     [dok.foretag.postal, dok.leverantor?.order_email ?? ""],
-    [`Org.nr ${dok.foretag.org}`, dok.leverantor?.customer_number ? `Vårt kundnr: ${dok.leverantor.customer_number}` : ""],
+    [dok.foretag.org ? `Org.nr ${dok.foretag.org}` : "", dok.leverantor?.customer_number ? `Vårt kundnr: ${dok.leverantor.customer_number}` : ""],
     [dok.foretag.email, ""],
     [dok.foretag.phone, ""],
   ]) {
@@ -124,6 +124,41 @@ export async function renderaPoPdf(dok: PoDokument): Promise<Uint8Array> {
     kol++;
   }
   s.y = refTopp - Math.ceil(referenser.length / 3) * 30 - 10;
+
+  // ── Leveransadress ──────────────────────────────────────────────────────
+  if (dok.leverans) {
+    const l = dok.leverans;
+    const adress = [
+      l.namn ?? "",
+      l.gata ?? "",
+      [l.postnr, l.ort].filter(Boolean).join(" "),
+      l.land && l.land !== "SE" && l.land.toLowerCase() !== "sverige" ? l.land : "",
+      [l.kontakt, l.telefon].filter(Boolean).join(", "),
+    ].filter((r) => r.trim());
+    const markning = [dok.poNumber, l.kundreferens].filter(Boolean).join(" / ");
+    const anteckningar = l.direkt
+      ? [
+          "DIREKTLEVERANS TILL VÅR KUND. Neutral leverans: inga priser och inte er faktura i paketet.",
+          `Fakturan till ${dok.foretag.name}. Märk godset: ${markning}.`,
+          ...(l.instruktioner ? [`Leveransinstruktion: ${l.instruktioner}`] : []),
+        ]
+      : [`Märk godset: ${markning}.`];
+    const hojd = 14 + Math.max(adress.length, 1) * 11 + anteckningar.length * 11 + 10;
+    sida.drawRectangle({ x: MARGINAL, y: s.y - hojd + 10, width: h - MARGINAL, height: hojd,
+      borderColor: LINJE, borderWidth: 0.7, color: rgb(1, 1, 1) });
+    sida.drawText(latin(l.direkt ? "LEVERERAS TILL (DIREKT TILL KUND)" : "LEVERERAS TILL"),
+      { x: MARGINAL + 10, y: s.y - 2, size: 7.5, font: fet, color: GRA });
+    let yy = s.y - 15;
+    for (const r of adress) {
+      sida.drawText(klipp(latin(r), h - MARGINAL - 20, normal, 9), { x: MARGINAL + 10, y: yy, size: 9, font: normal, color: SVART });
+      yy -= 11;
+    }
+    for (const r of anteckningar) {
+      sida.drawText(klipp(latin(r), h - MARGINAL - 20, normal, 8), { x: MARGINAL + 10, y: yy, size: 8, font: fet, color: l.direkt ? VARNING : GRA });
+      yy -= 11;
+    }
+    s.y -= hojd + 8;
+  }
 
   // ── Rader ───────────────────────────────────────────────────────────────
   const kolumner = [
@@ -189,13 +224,24 @@ export async function renderaPoPdf(dok: PoDokument): Promise<Uint8Array> {
   }
 
   // ── Svarsinstruktion ────────────────────────────────────────────────────
-  s.sida.drawRectangle({ x: MARGINAL, y: s.y - 44, width: h - MARGINAL, height: 52, color: rgb(0.97, 0.97, 0.99) });
+  if (s.y < 120) {
+    sida = pdf.addPage([A4.bredd, A4.hojd]);
+    s.sida = sida;
+    s.y = A4.hojd - MARGINAL;
+  }
+  const lank = dok.leverantorsLank ?? "(länken skapas när inköpsordern skickas)";
+  s.sida.drawRectangle({ x: MARGINAL, y: s.y - 70, width: h - MARGINAL, height: 78, color: rgb(0.97, 0.97, 0.99) });
   s.sida.drawText(latin("Så svarar ni"), { x: MARGINAL + 10, y: s.y - 4, size: 8.5, font: fet, color: SVART });
   s.sida.drawText(
-    latin(`Ange ${dok.poNumber} i ämnesraden när ni bekräftar. Bekräfta artikel, antal, pris och leveransdatum per rad.`),
+    latin("Bekräfta antal, pris och leveransdatum per rad, och ange fraktbolag och spårningsnummer när det skickas:"),
     { x: MARGINAL + 10, y: s.y - 18, size: 8.5, font: normal, color: SVART });
-  s.sida.drawText(latin(`Frågor: ${dok.foretag.email} - ${dok.foretag.phone}`),
-    { x: MARGINAL + 10, y: s.y - 31, size: 8.5, font: normal, color: GRA });
+  s.sida.drawText(klipp(latin(lank), h - MARGINAL - 20, fet, 8.5),
+    { x: MARGINAL + 10, y: s.y - 31, size: 8.5, font: fet, color: SVART });
+  s.sida.drawText(
+    latin(`Eller svara på mejlet med ${dok.poNumber} i ämnesraden.`),
+    { x: MARGINAL + 10, y: s.y - 44, size: 8.5, font: normal, color: SVART });
+  s.sida.drawText(latin(`Frågor: ${dok.foretag.email}${dok.foretag.phone ? ` - ${dok.foretag.phone}` : ""}`),
+    { x: MARGINAL + 10, y: s.y - 57, size: 8.5, font: normal, color: GRA });
 
   // ── Sidfot ──────────────────────────────────────────────────────────────
   const sidor = pdf.getPages();
