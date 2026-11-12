@@ -47,6 +47,7 @@ import { Route as LocaleAdminRouteImport } from './routes/$locale/admin'
 import { Route as LocalePlcIndexRouteImport } from './routes/$locale/plc.index'
 import { Route as LocaleGuiderIndexRouteImport } from './routes/$locale/guider.index'
 import { Route as LocaleConfiguratorIndexRouteImport } from './routes/$locale/configurator.index'
+import { Route as LocaleVerktygCylinderkraftRouteImport } from './routes/$locale/verktyg.cylinderkraft'
 import { Route as LocaleRfqRfqIdRouteImport } from './routes/$locale/rfq.$rfqId'
 import { Route as LocaleProductSkuRouteImport } from './routes/$locale/product.$sku'
 import { Route as LocalePlcProjektIdRouteImport } from './routes/$locale/plc.$projektId'
@@ -269,6 +270,12 @@ const LocaleConfiguratorIndexRoute = LocaleConfiguratorIndexRouteImport.update({
   path: '/',
   getParentRoute: () => LocaleConfiguratorRoute,
 } as any)
+const LocaleVerktygCylinderkraftRoute =
+  LocaleVerktygCylinderkraftRouteImport.update({
+    id: '/verktyg/cylinderkraft',
+    path: '/verktyg/cylinderkraft',
+    getParentRoute: () => LocaleRoute,
+  } as any)
 const LocaleRfqRfqIdRoute = LocaleRfqRfqIdRouteImport.update({
   id: '/rfq/$rfqId',
   path: '/rfq/$rfqId',
@@ -491,6 +498,7 @@ export interface FileRoutesByFullPath {
   '/$locale/plc/$projektId': typeof LocalePlcProjektIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
+  '/$locale/verktyg/cylinderkraft': typeof LocaleVerktygCylinderkraftRoute
   '/$locale/configurator/': typeof LocaleConfiguratorIndexRoute
   '/$locale/guider/': typeof LocaleGuiderIndexRoute
   '/$locale/plc/': typeof LocalePlcIndexRoute
@@ -558,6 +566,7 @@ export interface FileRoutesByTo {
   '/$locale/plc/$projektId': typeof LocalePlcProjektIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
+  '/$locale/verktyg/cylinderkraft': typeof LocaleVerktygCylinderkraftRoute
   '/$locale/configurator': typeof LocaleConfiguratorIndexRoute
   '/$locale/guider': typeof LocaleGuiderIndexRoute
   '/$locale/plc': typeof LocalePlcIndexRoute
@@ -630,6 +639,7 @@ export interface FileRoutesById {
   '/$locale/plc/$projektId': typeof LocalePlcProjektIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
+  '/$locale/verktyg/cylinderkraft': typeof LocaleVerktygCylinderkraftRoute
   '/$locale/configurator/': typeof LocaleConfiguratorIndexRoute
   '/$locale/guider/': typeof LocaleGuiderIndexRoute
   '/$locale/plc/': typeof LocalePlcIndexRoute
@@ -703,6 +713,7 @@ export interface FileRouteTypes {
     | '/$locale/plc/$projektId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
+    | '/$locale/verktyg/cylinderkraft'
     | '/$locale/configurator/'
     | '/$locale/guider/'
     | '/$locale/plc/'
@@ -770,6 +781,7 @@ export interface FileRouteTypes {
     | '/$locale/plc/$projektId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
+    | '/$locale/verktyg/cylinderkraft'
     | '/$locale/configurator'
     | '/$locale/guider'
     | '/$locale/plc'
@@ -841,6 +853,7 @@ export interface FileRouteTypes {
     | '/$locale/plc/$projektId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
+    | '/$locale/verktyg/cylinderkraft'
     | '/$locale/configurator/'
     | '/$locale/guider/'
     | '/$locale/plc/'
@@ -1125,6 +1138,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/$locale/configurator/'
       preLoaderRoute: typeof LocaleConfiguratorIndexRouteImport
       parentRoute: typeof LocaleConfiguratorRoute
+    }
+    '/$locale/verktyg/cylinderkraft': {
+      id: '/$locale/verktyg/cylinderkraft'
+      path: '/verktyg/cylinderkraft'
+      fullPath: '/$locale/verktyg/cylinderkraft'
+      preLoaderRoute: typeof LocaleVerktygCylinderkraftRouteImport
+      parentRoute: typeof LocaleRoute
     }
     '/$locale/rfq/$rfqId': {
       id: '/$locale/rfq/$rfqId'
@@ -1477,6 +1497,7 @@ interface LocaleRouteChildren {
   LocaleOffertRfqIdRoute: typeof LocaleOffertRfqIdRoute
   LocaleProductSkuRoute: typeof LocaleProductSkuRoute
   LocaleRfqRfqIdRoute: typeof LocaleRfqRfqIdRoute
+  LocaleVerktygCylinderkraftRoute: typeof LocaleVerktygCylinderkraftRoute
 }
 
 const LocaleRouteChildren: LocaleRouteChildren = {
@@ -1518,6 +1539,7 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleOffertRfqIdRoute: LocaleOffertRfqIdRoute,
   LocaleProductSkuRoute: LocaleProductSkuRoute,
   LocaleRfqRfqIdRoute: LocaleRfqRfqIdRoute,
+  LocaleVerktygCylinderkraftRoute: LocaleVerktygCylinderkraftRoute,
 }
 
 const LocaleRouteWithChildren =

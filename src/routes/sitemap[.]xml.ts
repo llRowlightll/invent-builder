@@ -16,6 +16,7 @@ const STATIC_PATHS = [
   "/machine-builder",
   "/configure",
   "/guider",
+  "/verktyg/cylinderkraft",
 ];
 
 export const Route = createFileRoute("/sitemap.xml")({

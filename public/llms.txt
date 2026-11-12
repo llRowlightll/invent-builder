@@ -13,6 +13,7 @@ Prices are given on quote. Lead times shown on the site are estimates and are co
 - [Control & PLC](https://maskinval.se/en/plc): turns a machine description into signal lists, sequences and open questions for the programmer. Addresses are never invented.
 - [Configurator](https://maskinval.se/en/configurator): build a full order code for a cylinder or valve series.
 - [Buying guides](https://maskinval.se/en/guider): how to size a cylinder, choose a valve, and more, with the formulas used.
+- [Cylinder calculator](https://maskinval.se/en/verktyg/cylinderkraft): theoretical and usable force on extend and retract, the smallest bore for a load, and air consumption in Nl/min — the same model the machine builder uses.
 
 ## How equivalents are chosen
 

@@ -74,6 +74,16 @@ function GuidePage() {
       </Link>
       <h1 className="mt-6 text-3xl font-semibold tracking-tight text-foreground">{title}</h1>
       <p className="mt-3 text-base text-foreground/80 leading-relaxed">{sv ? g.intro.sv : g.intro.en}</p>
+      {/* Guiderna med formler får räknaren intill: samma formler, egna tal. */}
+      {(g.slug === "dimensionera-pneumatikcylinder" || g.slug === "berakna-luftforbrukning" || g.slug === "cylinder-for-vertikal-last") && (
+        <Link
+          to="/$locale/verktyg/cylinderkraft"
+          params={{ locale }}
+          className="mt-4 inline-flex items-center gap-1 rounded-md border border-info/40 bg-info-surface/40 px-3 py-1.5 text-sm font-medium text-info hover:border-info"
+        >
+          {sv ? "Räkna med dina egna värden i cylinderräknaren →" : "Run your own numbers in the cylinder calculator →"}
+        </Link>
+      )}
 
       <div className="mt-8 space-y-8">
         {g.sections.map((s, i) => (
