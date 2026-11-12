@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { fetchCompanySettings } from "@/lib/company-settings";
 import { z } from "zod";
 import { makeT, type Locale } from "@/lib/i18n";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +31,9 @@ function TalkPage() {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [err, setErr] = useState<string | null>(null);
+  // Telefonnumret står i bolagsinställningarna (admin), inte i koden.
+  const [telefon, setTelefon] = useState("");
+  useEffect(() => { fetchCompanySettings().then((b) => setTelefon(b.phone)).catch(() => setTelefon("")); }, []);
 
   async function submit() {
     setErr(null);
@@ -84,6 +88,12 @@ function TalkPage() {
         </div>
       ) : (
         <div className="mt-6 rounded-lg border border-border bg-card p-6 space-y-3">
+          {telefon && (
+            <p className="text-sm text-foreground">
+              {t("talk.ringOss")}{" "}
+              <a href={`tel:${telefon.replace(/[^\d+]/g, "")}`} className="font-medium text-info hover:underline">{telefon}</a>
+            </p>
+          )}
           {status === "sent" ? (
             <p className="text-sm text-foreground">{t("talk.sent")}</p>
           ) : (

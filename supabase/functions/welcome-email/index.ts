@@ -121,7 +121,7 @@ function buildHtml(name: string, locale: string = "sv"): string {
       </td>
       <td style="vertical-align:top;">
         <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#065F46;">Vi finns här — på riktigt</p>
-        <p style="margin:0 0 10px;font-size:13px;color:#374151;line-height:1.6;">Bakom AI-verktyget finns ett team av riktiga ingenjörer och tekniska säljare. Frågor om produktval, dimensionering eller priser? Vi svarar personligen — vanligtvis samma arbetsdag.</p>
+        <p style="margin:0 0 10px;font-size:13px;color:#374151;line-height:1.6;">Bakom AI-verktyget finns ett team av riktiga ingenjörer och tekniska säljare. Frågor om produktval, dimensionering eller priser? Vi svarar personligen inom 1–2 arbetsdagar.</p>
         <a href="${advisorUrl}" style="display:inline-block;background:#065F46;color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:8px 18px;border-radius:6px;">👷 Prata med en ingenjör</a>
         <span style="display:inline-block;margin-left:12px;font-size:12px;color:#6b7280;">eller <a href="mailto:info@maskinval.se" style="color:#065F46;text-decoration:none;font-weight:600;">info@maskinval.se</a></span>
       </td>
