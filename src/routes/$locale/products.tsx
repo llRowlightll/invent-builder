@@ -15,19 +15,20 @@ import { matcharFraga } from "@/lib/sokord";
 import { cylinderstandard, harBorrning } from "@/lib/likvardiga";
 import { logga } from "@/lib/matning";
 import { FileText } from "lucide-react";
+import { textParam } from "@/lib/sokparam";
 
 type FilterKey = "brands" | "cats" | "grades";
 
 export const Route = createFileRoute("/$locale/products")({
   validateSearch: z.object({
-    q: z.string().optional(),
-    category: z.string().optional(),
-    brand: z.string().optional(),
-    ai: z.string().optional(),
+    q: textParam(),
+    category: textParam(),
+    brand: textParam(),
+    ai: textParam(),
     /** Borrningar, kommaseparerade: "8,10". */
-    borr: z.string().optional(),
+    borr: textParam(),
     /** Cylinderstandard: "ISO 6432". */
-    std: z.string().optional(),
+    std: textParam(),
   }),
   // Surface the active category/brand filters to head() so the page gets a
   // unique, filter-specific <title> + meta description (better CTR), and fetch

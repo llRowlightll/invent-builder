@@ -16,6 +16,7 @@ import { identifiera, motsvarigheter, sammaVarde, type Identifiering, type Kandi
 import { logga } from "@/lib/matning";
 import type { FamilyBrief } from "../../../supabase/functions/groq-advisor/order-code.ts";
 import { hamtaFamiljer } from "@/lib/familjer";
+import { textParam } from "@/lib/sokparam";
 
 type Text = {
   titel: string; ingress: string; falt: string; sok: string; fota: string; laserFoto: string;
@@ -105,7 +106,7 @@ const TEXT: Record<string, Text> = {
 const JAMFOR = ["bore_mm", "stroke_mm", "standard", "cushioning_types", "position_sensing", "max_pressure", "temp_range"] as const;
 
 export const Route = createFileRoute("/$locale/replace")({
-  validateSearch: z.object({ kod: z.string().optional() }),
+  validateSearch: z.object({ kod: textParam() }),
   head: ({ params }) => {
     const x = TEXT[params.locale] ?? TEXT.en;
     return {

@@ -22,7 +22,7 @@ export const Route = createFileRoute("/$locale/product/$sku")({
   head: ({ params, loaderData }) => {
     const t = makeT(params.locale as Locale);
     const { locale, sku } = params;
-    const canonical = `${SITE}/${locale}/product/${sku}`;
+    const canonical = `${SITE}/${locale}/product/${encodeURIComponent(sku)}`;
     const isSv = locale === "sv";
     const titleSuffix = isSv ? "köp & spec | Maskinval" : "specs & order | Maskinval";
     const product = (loaderData as { product: ProductRow | null } | undefined)?.product ?? null;
@@ -60,7 +60,7 @@ export const Route = createFileRoute("/$locale/product/$sku")({
       ],
       links: [
         { rel: "canonical", href: canonical },
-        ...hreflangLinks(`product/${sku}`),
+        ...hreflangLinks(`product/${encodeURIComponent(sku)}`),
       ],
     };
   },
@@ -196,7 +196,7 @@ function ProductDetail() {
   if (!product) throw notFound();
 
   const productImageUrl = getProductImage(product);
-  const canonicalUrl = `${SITE}/${locale}/product/${sku}`;
+  const canonicalUrl = `${SITE}/${locale}/product/${encodeURIComponent(sku)}`;
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",

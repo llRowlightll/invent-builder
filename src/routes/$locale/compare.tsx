@@ -8,9 +8,10 @@ import { getProductImage } from "@/lib/product-images";
 import { addToShoppingList } from "@/lib/cart";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { kallor, produktnamn, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
+import { textParam } from "@/lib/sokparam";
 
 export const Route = createFileRoute("/$locale/compare")({
-  validateSearch: z.object({ skus: z.string().optional() }),
+  validateSearch: z.object({ skus: textParam() }),
   head: ({ params }) => {
     const locale = params.locale;
     const t = makeT(locale as Locale);

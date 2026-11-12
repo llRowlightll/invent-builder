@@ -5,9 +5,10 @@ import { makeT, type Locale } from "@/lib/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Lock } from "lucide-react";
+import { textParam } from "@/lib/sokparam";
 
 export const Route = createFileRoute("/$locale/claims")({
-  validateSearch: z.object({ order: z.string().optional() }),
+  validateSearch: z.object({ order: textParam() }),
   head: ({ params }) => {
     const t = makeT(params.locale as Locale);
     return {
