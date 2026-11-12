@@ -49,6 +49,7 @@ import {
   needsElectricAxis, needsEndPositionDetection, needsFoodGrade, needsMultiAxis, needsPharmaGmp,
   needsSilSafety, needsSpolmiljo, needsValveTerminal, needsVerticalLoad, slagIMeterMm,
 } from "./signals.ts";
+import { langderITexten, MASSENHET } from "./kravbild.ts";
 
 export type Fraga = {
   id: string;
@@ -126,8 +127,10 @@ export type Kanda = {
 /** Det kunden redan har angett. Frågas aldrig igen (av modellen eller av oss). */
 export function kandaVarden(text: string, kod?: Kodvarden): Kanda {
   return {
-    slag: !!kod?.slagMm || slagIMeterMm(text) > 0 || /(slag(längd)?|lyfthöjd|lyft\w*|höj[ae]\w*|sänk\w*|flytt\w*|skjut\w*|förflytt\w*|rörelse\w*|vandring|travel|stroke|sträcka|sidled|längs)[^.\d]{0,25}\d{2,5}\s*mm|\d{2,5}\s*mm[^.\d]{0,20}(slag|upp\b|uppåt|ner\b|ned\b|nedåt|i sidled|lyft|stroke|travel|rörelse|förflyttning|framåt|bakåt)/i.test(text),
-    last: /\d+(?:[.,]\d+)?\s*kg\b/i.test(text),
+    // Samma läsning av längder som motorn och tolkningspanelen (kravbild.ts):
+    // "lådor 400 mm långa" och "avstånd 150 mm" är inga slag, så frågan ställs.
+    slag: !!kod?.slagMm || slagIMeterMm(text) > 0 || langderITexten(text).some((l) => l.typ === "slag" || l.typ === "lyft" || l.typ === "sidled"),
+    last: new RegExp(String.raw`\d+(?:[.,]\d+)?\s*${MASSENHET}(?![\wåäö])`, "i").test(text),
     kraft: /\d+(?:[.,]\d+)?\s*k?N\b/.test(text),
     takt: /(\d+|en|ett|två|tre|fyra|fem|sex|sju|åtta|nio|tio|tjugo|trettio|hundra)\s*(gånger|ggr|cykler|slag|takter?|st|lyft|rörelser)\s*(per|i|om|\/)\s*(sekund\w*|sek|s\b|minut\w*|min\b|timme\w*|tim\b|h\b|dag\w*|dygn\w*|vecka\w*|skift\w*)|\d+\s*\/\s*(min|h|s)\b|cykeltid|takttid|per\s+minut|i\s+minuten/i.test(text),
     hastighet: extractSpeedMs(text, {}) > 0,

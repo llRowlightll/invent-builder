@@ -9,7 +9,7 @@
 // bom-builder.ts or index.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { hastighetensObjekt, hastighetsKravId, type Tolkningsbeslut } from "./kravbild.ts";
+import { hastighetensObjekt, hastighetsKravId, langderITexten, MASSENHET, massfaktor, slagAvvisat, type Tolkningsbeslut } from "./kravbild.ts";
 import { type CatalogProduct, parseStrokeFromSpecs } from "./scoring.ts";
 
 // Found 2026-08-19: every LLM-facing "write your answer in ${lang}" instruction
@@ -385,7 +385,7 @@ export function strokeLabel(specs: Record<string, unknown>): string {
   return "?";
 }
 
-export function extractMinStroke(answers: Record<string, string>, description: string): number {
+export function extractMinStroke(answers: Record<string, string>, description: string, tolkning: Tolkningsbeslut = {}): number {
   for (const [k, v] of Object.entries(answers)) {
     if (/stroke|slag|sträcka|avstånd|rörelse|längd|travel|distance/i.test(k)) {
       const digits = v.replace(/[^0-9.]/g, "");
@@ -394,16 +394,23 @@ export function extractMinStroke(answers: Record<string, string>, description: s
     }
   }
   const allText = Object.values(answers).join(" ") + " " + description;
-  let maxFound = 0;
-  // Match "NNN mm" but NOT "NNN mm/s" (speed), "NNN mm²" (area), "NNN mm³" (volume)
-  for (const m of allText.matchAll(/(\d{2,5})\s*mm(?![\s]*(\/|per|²|³|s\b))/gi)) {
-    const v = parseInt(m[1]);
-    if (v >= 50 && v <= 10000 && v > maxFound) maxFound = v;
-  }
+  // Längderna läses av samma funktion som tolkningspanelen (kravbild.ts).
+  // Före 2026-11-12 togs det största mm-talet i hela texten: "avstånd 150 mm"
+  // och "lådor 400 mm långa" blev slaglängder, och en uttrycklig "slag 30 mm"
+  // föll bort under 50 mm-gränsen.
+  const langder = langderITexten(allText);
+  const uttryckliga = langder.filter((l) => (l.typ === "slag" || l.typ === "lyft") && l.mm >= 5 && l.mm <= 15000);
+  const ovriga = langder.filter((l) =>
+    (l.typ === "sidled" && l.mm >= 50 && l.mm <= 20000) ||
+    (l.typ === "okand" && l.enhet === "mm" && l.mm >= 50 && l.mm <= 10000 && !slagAvvisat(tolkning, l.mm)));
+  const urval = uttryckliga.length ? uttryckliga : ovriga;
+  let maxFound = urval.reduce((max, l) => Math.max(max, Math.round(l.mm)), 0);
   // "2 meter i sidled", "flytta 1,5 m": slaglängd i meter, men bara intill ett
   // rörelseord -- "1 m/s" är en fart och "10 m slang" ingen rörelse.
-  const iMeter = slagIMeterMm(allText);
-  if (iMeter > maxFound) maxFound = iMeter;
+  if (!uttryckliga.length) {
+    const iMeter = slagIMeterMm(allText);
+    if (iMeter > maxFound) maxFound = iMeter;
+  }
   if (maxFound > 0) return maxFound;
   const rangeMatch = allText.match(/(\d+)[–—\-](\d+)\s*mm/);
   if (rangeMatch) return parseInt(rangeMatch[2]);
@@ -964,8 +971,10 @@ export function extractLoadKg(text: string, answers: Record<string, string>): nu
   // Inte "kgf": "gripkraft 50 kgf" är en kraft. Den lästes som en last på 50 kg,
   // och tumregeln gav ett krav på 5000 N i stället för ≈ 490 N (granskningen
   // 2026-10-14).
-  const kgMatch = allText.match(/(\d+(?:[.,]\d+)?)\s*kg(?!f)/i);
-  if (kgMatch) return parseFloat(kgMatch[1].replace(",", "."));
+  // "25 kilos lådor" och "1,5 ton" är också vikter (granskningen 2026-11-11:
+  // de gav last 0 och därmed ingen borrning).
+  const kgMatch = allText.match(new RegExp(String.raw`(\d+(?:[.,]\d+)?)\s*(${MASSENHET})(?![\wåäö])`, "i"));
+  if (kgMatch) return Math.round(parseFloat(kgMatch[1].replace(",", ".")) * massfaktor(kgMatch[2]) * 1000) / 1000;
   // Maskinbyggarens sifferfält skickar talet utan enhet: {last_kg: "12"}.
   // Hittat 2026-10-11: vikten kunden svarat lästes aldrig, eftersom "last_kg 12"
   // har enheten före talet. Nyckeln bär enheten.
@@ -1702,7 +1711,7 @@ export function detectHazards(
   const isDirtyEnv = needsDirtyEnv(text);
 
   const requiredMaxTempC = extractRequiredMaxTemp(text, answers);
-  const minStrokeMm = extractMinStroke(answers, text);
+  const minStrokeMm = extractMinStroke(answers, text, tolkning);
   // Gated on isMultiAxis, matching both call sites this replaced (handleBom's
   // and handleOptions's own pre-refactor locals) -- extractPerAxisStrokes
   // matches ANY answer key containing a stroke-ish term, not just genuinely

@@ -202,3 +202,107 @@ Deno.test("en hastighet vid ett produktord är aktuatorns när meningen inte nä
     assertEquals(kb.osakra.find((o) => o.kravId.startsWith("krav-hastighet"))?.forval, vantat, text);
   }
 });
+
+// ── Lyft, personal och enheter (sajtkritiken 2026-11-11) ────────────────────
+import { langderITexten, personalUnderLasten, slagKravId } from "./kravbild.ts";
+import { extractLoadKg, extractMinStroke } from "./signals.ts";
+
+Deno.test("lyfthöjden syns som slaglängd, och motorn räknar med samma tal", () => {
+  const fall: Array<[string, number]> = [
+    ["Lyfta lådor 40 kg vertikalt 400 mm", 400],
+    ["Cylindern ska lyfta en lucka 250 mm uppåt", 250],
+    ["Höja bordet 30 mm", 30],
+    ["Sänka plattan 120 mm, 6 bar", 120],
+    ["Lift a 20 kg part 300 mm vertically", 300],
+    ["Lyftet är 40 cm", 400],
+    ["Lyfta 0,5 m", 500],
+    ["Slaglängden är ca 200 mm", 200],
+  ];
+  for (const [text, mm] of fall) {
+    const kb = tolkaKravbild(text);
+    const slag = ett(kb, "aktuator", "slaglangd");
+    assertEquals(slag.varde, mm, text);
+    assertEquals(extractMinStroke({}, text), mm, text);
+    assertEquals(kb.osakra.filter((o) => o.kravId.startsWith("krav-slag")), [], text);
+  }
+});
+
+Deno.test("mått och avstånd blir aldrig en slaglängd", () => {
+  const fall: Array<[string, number]> = [
+    ["Lådor 400 mm långa ska lyftas 200 mm", 200],
+    ["Avstånd 150 mm mellan lådorna, skjuta 300 mm i sidled", 300],
+    ["Paketen har en bredd av 350 mm och ska lyftas 120 mm", 120],
+    ["Ø63 mm cylinder, slag 160 mm", 160],
+    ["Lådorna är 600 mm höga, slag 250 mm", 250],
+  ];
+  for (const [text, mm] of fall) {
+    assertEquals(extractMinStroke({}, text), mm, text);
+    const kb = tolkaKravbild(text);
+    // Sidled är produktens förflyttning (en fråga om slaget), annars slaget.
+    const k = hitta(kb, "aktuator", "slaglangd").concat(hitta(kb, "produkt", "sidoforflyttning"));
+    assertEquals(k.map((x) => x.varde), [mm], text);
+  }
+  // "Lucka" är också en dörr som lyfts.
+  assertEquals(extractMinStroke({}, "Cylindern ska lyfta en lucka 250 mm uppåt"), 250);
+  const kb = tolkaKravbild("Minsta avstånd 150 mm mellan lådorna");
+  assertEquals(ett(kb, "produkt", "minsta_avstand").varde, 150);
+  assertEquals(hitta(kb, "aktuator", "slaglangd"), []);
+  assertEquals(extractMinStroke({}, "Minsta avstånd 150 mm mellan lådorna"), 0);
+  // En borrning är varken produktens mått eller ett slag.
+  assertEquals(langderITexten("Ø50 mm"), []);
+});
+
+Deno.test("ett mått utan rörelseord är en synlig gissning som användaren avgör", () => {
+  const text = "Kartong 400 mm, 5 kg";
+  const kb = tolkaKravbild(text);
+  const slag = ett(kb, "aktuator", "slaglangd");
+  assertEquals([slag.varde, slag.ursprung, slag.id], [400, "antagande", slagKravId(400)]);
+  assert(kb.osakra.some((o) => o.kravId === slagKravId(400)));
+  assertEquals(extractMinStroke({}, text), 400);
+  // "Nej, ett mått": motorn släpper talet och panelen stryker det.
+  const beslut = { [`tolkning-${slagKravId(400)}`]: "inte_slag" };
+  assertEquals(extractMinStroke({}, text, beslut), 0);
+  assertEquals(ett(tolkaKravbild(text, {}, beslut), "aktuator", "slaglangd").bekraftelse, "avvisat");
+  // Ett svar på slagfrågan gäller i stället för gissningen.
+  const medSvar = tolkaKravbild(text, { slaglangd_mm: "150" });
+  assertEquals(hitta(medSvar, "aktuator", "slaglangd").map((k) => k.varde), [150]);
+});
+
+Deno.test("personal under lasten står som säkerhetskrav", () => {
+  for (const text of [
+    "Lyfta lådor 50 kg med gripdon, personal arbetar under lasten",
+    "Operatören står ibland under lyftet",
+    "People work underneath the load",
+    "Under lasten går personal",
+  ]) {
+    assert(personalUnderLasten(text), text);
+    const kb = tolkaKravbild(text);
+    assert(hitta(kb, "maskin", "sakerhet").some((k) => k.text === "Personal under lasten: lasten får inte falla"), text);
+  }
+  for (const text of ["Personalen lastar lådorna", "Under drift ska ingen personal vara i cellen", "Lasten under 5 kg"]) {
+    assert(!personalUnderLasten(text), text);
+  }
+});
+
+Deno.test("kilo, ton och tryckintervall läses", () => {
+  assertEquals(ett(tolkaKravbild("Skjuta 25 kilos lådor"), "produkt", "massa").varde, 25);
+  assertEquals(ett(tolkaKravbild("Lyfta 1,5 ton"), "produkt", "massa").varde, 1500);
+  assertEquals(ett(tolkaKravbild("Detaljer 500 gram"), "produkt", "massa").varde, 0.5);
+  assertEquals(ett(tolkaKravbild("Lådor 2–5 kilo"), "produkt", "massa").intervall, { min: 2, max: 5 });
+  assertEquals(extractLoadKg("cylindern ska skjuta 25 kilos lådor", {}), 25);
+  assertEquals(extractLoadKg("lyfta 1,5 ton", {}), 1500);
+  assertEquals(extractLoadKg("gripkraft 50 kgf", {}), 0);
+  const tryck = ett(tolkaKravbild("Nätet håller 6–8 bar"), "matning", "tryck");
+  assertEquals([tryck.intervall, tryck.varde], [{ min: 6, max: 8 }, 6]);
+  assertEquals(kravetsVarde(tryck), "6–8 bar");
+  assertEquals(ett(tolkaKravbild("Tryck 6 bar"), "matning", "tryck").varde, 6);
+});
+
+Deno.test("med ett uttryckligt lyft är ett mått utan rörelseord bara ett mått", () => {
+  const text = "Lyfta lådor 40 kilo vertikalt 400 mm. Kartong 350 mm.";
+  const kb = tolkaKravbild(text);
+  assertEquals(hitta(kb, "aktuator", "slaglangd").map((k) => k.varde), [400]);
+  assertEquals(ett(kb, "produkt", "matt").varde, 350);
+  assertEquals(kb.osakra.filter((o) => o.kravId.startsWith("krav-slag")), []);
+  assertEquals(extractMinStroke({}, text), 400);
+});
