@@ -10,6 +10,7 @@
 // are called.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { basta, gangaAv, normGanga, slangOdAv, stammer } from "./porter.ts";
 import { provaGripkraft, provaSpanning, provaTryck, SPANNINGSSATTA, TRYCKSATTA, type Kontroll, type Spanning } from "./kontroller.ts";
 import { type CatalogProduct, arBorrningsspann, isAtexCapableProduct, isBeltDrivenProduct, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
 import { type HazardFlags, griporgansKrav, pick, isPneumaticByDrive, isNonArticulatingActuator, tolkaTempSpann } from "./signals.ts";
@@ -253,6 +254,42 @@ export function findCatalogProductByType(
 /** Find a real catalog actuator for a secondary axis (electric axis or pneumatic
  *  cylinder) matching a target stroke — so multi-axis BOMs emit real SKUs, not
  *  "ej i katalog" placeholders. */
+/**
+ * Alla artiklar som findCatalogProductByType godtar för typen, i samma
+ * ordning, med dess eget val först. Används för att välja tillbehör i rätt
+ * gänga och slangdimension (porter.ts). En koppling måste vara en rak
+ * instickskoppling med gänga och slangdimension -- inte en ljuddämpare,
+ * kabel eller plugg som råkar ligga i kategorin "fitting".
+ */
+export function kandidaterAvTyp(
+  type: "fitting" | "silencer" | "flow-control" | "tubing",
+  products: CatalogProduct[],
+): CatalogProduct[] {
+  const passar = (p: CatalogProduct) => type !== "fitting" || (
+    !!gangaAv(p) && slangOdAv(p) != null &&
+    !/silencer|ljuddämp|flow.?control|strypning|strypback|kabel|cable|plug|bracket|nipple|exhaust|skott|bulkhead|[TY]-?koppling|[TY]-fitting/i.test(`${p.name} ${p.sku}`));
+  const forst = findCatalogProductByType(type, products);
+  const alla = products.filter((p) => findCatalogProductByType(type, [p]) === p).filter(passar);
+  // Typens eget val först -- om det är en riktig koppling. I kategorin
+  // "fitting" ligger också ljuddämpare och kablar (FESTO-2307 "Silencer").
+  return forst && passar(forst) ? [forst, ...alla.filter((p) => p !== forst)] : alla;
+}
+
+/**
+ * En rad om tillbehöret inte har den gänga eller slangdimension som behövs
+ * (porter.ts). Tom sträng när den stämmer eller inte kan avgöras.
+ */
+function portNot(p: CatalogProduct | null, onskat: { ganga?: string | null; od?: number | null }, locale: string): string {
+  if (stammer(p, onskat) !== false) return "";
+  const vad = [onskat.ganga, onskat.od ? `Ø${onskat.od}` : null].filter(Boolean).join(", ");
+  return pick(locale, {
+    sv: ` Obs: katalogen saknar den här artikeln i ${vad} — välj storlek efter porten och slangen.`,
+    en: ` Note: the catalogue lacks this item in ${vad} — choose the size to match the port and tube.`,
+    de: ` Hinweis: Der Katalog führt diesen Artikel nicht in ${vad} — Größe passend zu Anschluss und Schlauch wählen.`,
+    es: ` Nota: el catálogo no tiene este artículo en ${vad} — elija el tamaño según el puerto y el tubo.`,
+  });
+}
+
 export function findAxisActuator(products: CatalogProduct[], strokeMm: number, isElectric: boolean): CatalogProduct | null {
   const cands = products.filter(p => isElectric
     ? isElectricActuator(p) && !isPneumaticByDrive(p)
@@ -763,6 +800,9 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     }
   }
 
+  // Gängan tillbehören ska ha: ventilens port (en enskild ventil). Vid en
+  // ventilramp finns ingen enskild port, och då väljs inget efter gänga.
+  let tillbehorsPort: string | null = null;
   // ── 4. Valve terminal (multi-actuator / fieldbus) OR single directional valve ─
   if (valveTerminal && isPneumatic) {
     const vtMatch = findCatalogProductByType("valve-terminal", products);
@@ -800,6 +840,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
       (valveMatch?.key_specs?.port as string | undefined) ??
       (valveMatch?.key_specs?.port_size as string | undefined) ??
       (`${valveMatch?.name ?? ""} ${valveMatch?.sku ?? ""}`.match(/\bG\s?\d\/\d\b|\bM\d+\b/i)?.[0]);
+    tillbehorsPort = normGanga(ventilPort) ?? (valveMatch ? gangaAv(valveMatch) : null);
     const portText = ventilPort
       ? pick(locale, {
           sv: ` Ventilens anslutning är ${ventilPort} — kontrollera att den matchar cylinderns portar.`,
@@ -830,9 +871,19 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     });
   }
 
+  let kopplingVal: CatalogProduct | null = null;
+  let slangOd: number | null = null;
   // ── 4b. Silencer + one-way flow control (all pneumatic) ──────────
   if (isPneumatic) {
-    const silMatch = findCatalogProductByType("silencer", products);
+    const silMatch = tillbehorsPort
+      ? basta(kandidaterAvTyp("silencer", products), { ganga: tillbehorsPort })
+      : findCatalogProductByType("silencer", products);
+    // Kopplingarna väljs här, före strypventilerna, så att slangdimensionen
+    // är känd: ventilens gänga, sedan slangen kopplingen tar.
+    kopplingVal = tillbehorsPort
+      ? basta(kandidaterAvTyp("fitting", products), { ganga: tillbehorsPort })
+      : findCatalogProductByType("fitting", products);
+    slangOd = slangOdAv(kopplingVal);
     rows.push({
       // valveTerminal case: one central exhaust unit serves all stations by
       // design (same shared-infrastructure reasoning as the valve terminal
@@ -846,9 +897,15 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
         en: "MANDATORY on the valve exhaust ports (3/5) — cuts noise and keeps dirt out. One per exhaust port (2 for a 5/2 valve); one central unit suffices on a manifold.",
         de: "ZWINGEND ERFORDERLICH an den Entlüftungsanschlüssen des Ventils (3/5) — reduziert den Geräuschpegel und hält Schmutz fern. Einer je Entlüftungsanschluss (2 Stück bei einem 5/2-Ventil); bei einer Ventilinsel genügt eine zentrale Einheit.",
         es: "OBLIGATORIO en los puertos de escape de la válvula (3/5) — reduce el nivel de ruido y evita la entrada de suciedad. Uno por puerto de escape (2 para una válvula 5/2); en un terminal de válvulas basta una unidad central.",
-      }),
+      }) + portNot(silMatch, { ganga: tillbehorsPort }, locale),
     });
-    const fcMatch = findCatalogProductByType("flow-control", products);
+    // Strypventilerna sitter på cylinderns portar: cylinderns gänga om den
+    // står i katalogen, annars ventilens.
+    const cylPort = normGanga(ctx.primarySpecs?.port) ?? tillbehorsPort;
+    const fcOnskat = { ganga: cylPort, od: slangOd };
+    const fcMatch = cylPort || slangOd
+      ? basta(kandidaterAvTyp("flow-control", products), fcOnskat)
+      : findCatalogProductByType("flow-control", products);
     rows.push({
       sku: fcMatch?.sku ?? "SPECIFY", quantity: 2 * uc,
       kind: "flow_control",
@@ -858,7 +915,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
         en: "MANDATORY to set cylinder speed — 2 one-way flow-control valves (meter-out) on the cylinder ports give smooth, controlled extend/retract.",
         de: "ZWINGEND ERFORDERLICH zur Einstellung der Zylindergeschwindigkeit — 2 Drosselrückschlagventile (Abluftdrosselung) an den Zylinderanschlüssen sorgen für eine gleichmäßige, kontrollierte Aus-/Einfahrbewegung.",
         es: "OBLIGATORIO para ajustar la velocidad del cilindro — 2 reguladores de caudal unidireccionales (regulación de escape) en los puertos del cilindro proporcionan un movimiento de avance/retroceso suave y controlado.",
-      }),
+      }) + portNot(fcMatch, fcOnskat, locale),
     });
   }
 
@@ -1069,7 +1126,9 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
 
   // ── 8. Push-in fitting (all pneumatic) ───────────────────────────
   if (isPneumatic) {
-    const fittingMatch = findCatalogProductByType("fitting", products);
+    // Vald i 4b (samma villkor, isPneumatic). Ingen reserv till typens
+    // första träff: den kan vara en ljuddämpare som ligger i kategorin.
+    const fittingMatch = kopplingVal;
     if (fittingMatch) {
       rows.push({
         sku: fittingMatch.sku, quantity: 4 * uc,
@@ -1080,14 +1139,16 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
           en: "Connects cylinder and valve to air tubing — select diameter (6/8/10 mm) matching cylinder G-port.",
           de: "Verbindet Zylinder und Ventil mit dem Luftschlauch — Durchmesser (6/8/10 mm) passend zum G-Anschluss des Zylinders wählen.",
           es: "Conecta el cilindro y la válvula al tubo de aire — seleccione el diámetro (6/8/10 mm) adecuado para el puerto G del cilindro.",
-        }),
+        }) + portNot(fittingMatch, { ganga: tillbehorsPort }, locale),
       });
     }
   }
 
   // ── 8b. Tubing (all pneumatic) ───────────────────────────────────
   if (isPneumatic) {
-    const tubeMatch = findCatalogProductByType("tubing", products);
+    const tubeMatch = slangOd
+      ? basta(kandidaterAvTyp("tubing", products), { od: slangOd })
+      : findCatalogProductByType("tubing", products);
     if (tubeMatch) {
       // quantity stays 1 regardless of uc -- it's a "per metre" placeholder
       // even for a single station (the real length is installation-specific
@@ -1114,7 +1175,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
           en: `Connects valve, FRL and cylinder — select outer diameter (6/8/10 mm) and length per the installation.${rulleM ? ` The article is a ${rulleM} m reel.` : " Sold per metre."}`,
           de: `Verbindet Ventil, FRL-Einheit und Zylinder — Außendurchmesser (6/8/10 mm) und Länge passend zur Installation wählen.${rulleM ? ` Der Artikel ist eine Rolle mit ${rulleM} m.` : " Wird pro Meter angegeben."}`,
           es: `Conecta la válvula, la unidad FRL y el cilindro — seleccione el diámetro exterior (6/8/10 mm) y la longitud según la instalación.${rulleM ? ` El artículo es un rollo de ${rulleM} m.` : " Se indica por metro."}`,
-        }) + tubeNote,
+        }) + tubeNote + portNot(tubeMatch, { od: slangOd }, locale),
       });
     }
   }
