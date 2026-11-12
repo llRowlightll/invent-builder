@@ -63,6 +63,27 @@ export interface PoKundorder {
   order_number: string | null;
 }
 
+/**
+ * Vart varorna ska. Vid direktleverans är det kundens adress ur ordern, med
+ * vårt PO-nummer och kundens referens som märkning; annars vår egen adress.
+ * allows_dropship null (inte utrett med leverantören) räknas som direkt men
+ * ger en varning som måste bekräftas.
+ */
+export interface PoLeverans {
+  direkt: boolean;
+  /** true när leverantören inte har sagt ja eller nej till direktleverans. */
+  direktOklar: boolean;
+  namn: string | null;
+  gata: string | null;
+  postnr: string | null;
+  ort: string | null;
+  land: string | null;
+  kontakt: string | null;
+  telefon: string | null;
+  instruktioner: string | null;
+  kundreferens: string | null;
+}
+
 export interface PoForetag {
   name: string; org: string; address: string; postal: string;
   email: string; phone: string; web: string; vat: string;
@@ -75,6 +96,9 @@ export interface PoDokument {
   foretag: PoForetag;
   kundorder: PoKundorder;
   rader: PoRad[];
+  leverans: PoLeverans | null;
+  /** Länken där leverantören bekräftar och anger försändelse; null i förhandsvisningen. */
+  leverantorsLank: string | null;
   valuta: string;
   onskadLeverans: string | null;
   summa: number | null;
@@ -94,8 +118,11 @@ export function byggPoDokument(input: {
   rader: PoRad[];
   kundorder: PoKundorder;
   foretag: PoForetag;
+  leverans?: PoLeverans | null;
+  leverantorsLank?: string | null;
 }): PoDokument {
   const { huvud, leverantor, rader, kundorder, foretag } = input;
+  const leverans = input.leverans ?? null;
 
   const raderUtanPris = rader.filter((r) => r.unit_purchase_price == null).length;
   const medPris = rader.filter((r) => r.line_total_ex_vat != null);
@@ -116,6 +143,19 @@ export function byggPoDokument(input: {
   }
   if (rader.length === 0) {
     hinder.push("Inköpsordern har inga rader.");
+  }
+  if (leverans) {
+    // Vår egen adress har postnummer och ort i samma fält (company.postal).
+    const finns = (v: string | null) => Boolean((v ?? "").trim());
+    const hel = finns(leverans.gata) && finns(leverans.postnr) && (finns(leverans.ort) || !leverans.direkt);
+    if (!hel) {
+      hinder.push(leverans.direkt
+        ? "Kundens leveransadress saknas på ordern (gata, postnummer och ort). Fyll i den innan inköpsordern skickas."
+        : "Vår egen leveransadress saknas. Fyll i adress och postnummer/ort i admin → Inställningar.");
+    }
+    if (leverans.direkt && leverans.direktOklar && leverantor) {
+      varningar.push(`Direktleverans till kund är inte bekräftad med ${leverantor.name} (admin → Leverantörer).`);
+    }
   }
 
   if (huvud.needs_review && huvud.review_reason) {
@@ -145,6 +185,8 @@ export function byggPoDokument(input: {
     foretag,
     kundorder,
     rader: [...rader].sort((a, b) => a.line_no - b.line_no),
+    leverans,
+    leverantorsLank: input.leverantorsLank ?? null,
     valuta: huvud.currency,
     onskadLeverans: huvud.expected_delivery,
     summa,

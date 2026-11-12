@@ -96,6 +96,8 @@ function LocaleLayout() {
   useEffect(() => {
     const GA_ID = import.meta.env.VITE_GA_ID as string | undefined;
     if (!GA_ID || cookieConsent !== "all") return;
+    // Leverantörslänken bär en hemlig token i sökvägen; den ska inte till Google.
+    if (window.location.pathname.includes("/leverantor/")) return;
     if (document.getElementById("ga4-script")) return; // already loaded
     const script1 = document.createElement("script");
     script1.id = "ga4-script";
