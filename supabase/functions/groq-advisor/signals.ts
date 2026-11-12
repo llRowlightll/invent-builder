@@ -9,7 +9,7 @@
 // bom-builder.ts or index.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { hastighetensObjekt, hastighetsKravId, langderITexten, MASSENHET, massfaktor, slagAvvisat, type Tolkningsbeslut } from "./kravbild.ts";
+import { hastighetensObjekt, hastighetsKravId, langderITexten, MASSENHET, massfaktor, personalUnderLasten, slagAvvisat, type Tolkningsbeslut } from "./kravbild.ts";
 import { type CatalogProduct, parseStrokeFromSpecs } from "./scoring.ts";
 
 // Found 2026-08-19: every LLM-facing "write your answer in ${lang}" instruction
@@ -758,6 +758,11 @@ export function needsRodLock(text: string): boolean {
   // ÄNDLÄGESLÅSNING är medvetet INTE med här. Det är en cylinderoption för att
   // låsa i ändläge, inte en säkerhetsbroms, och att blanda ihop dem skulle ge
   // falska träffar på varenda DSBC-konfiguration.
+  //
+  // Personal under lasten: lasten får inte falla, och det ska inte behöva
+  // frågas en gång till (genomgången 2026-11-12 frågade "får lasten sjunka
+  // ned?" med svaret "Ja, det gör inget" fast personalen stod under den).
+  if (personalUnderLasten(text)) return true;
   return /stångbroms|stång.?lås|rod.?lock|mekaniskt?\s+lås|fallskydd|spring.?applied|hållbroms|broms.*(strömavbrott|nödstopp|luftbortfall)|inte\s+fall(a|er)\s+(ner|ned)|får\s+inte\s+falla|extern[at]?\s+låsning|lastsäkring|lasthållning|håll[a]?\s+lasten|lås[a]?\s+(lasten|kolvstången|cylindern)|kolbenstangenbremse|mechanische\s?verriegelung|mechanisches\s?schloss|absturzsicherung|darf\s?nicht\s?fallen|externe[rnms]?\s?verriegelung|lastsicherung|freno\s?de\s?vástago|bloqueo\s?mecánico|bloqueo\s?extern[oa]|no\s?debe\s?caer|no\s?puede\s?caer|external\s+lock(ing)?|load\s+holding/i.test(text);
 }
 

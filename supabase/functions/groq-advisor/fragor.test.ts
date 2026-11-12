@@ -392,3 +392,20 @@ Deno.test("sortering från ett band: frågorna om tid, avstånd och följd stäl
   // Utan band är det ingen sortering.
   assertEquals(slutligaFragor([], "Skjuta ut en låda 200 mm, 5 kg", "sv").some((x) => x.id === "band_vid_utskjutning"), false);
 });
+
+Deno.test("personal under lasten: stångbroms krävs och frågan om fall ställs inte", () => {
+  const text = "Lyfta lådor 40 kilo vertikalt 400 mm, personal arbetar ibland under lasten";
+  assert(needsRodLock(text));
+  const ids = reservfragor(text, "sv").map((q) => q.id);
+  assert(!ids.includes("lasthallning"), ids.join(","));
+  // Utan personal under lasten frågas det fortfarande.
+  assert(reservfragor("Lyfta lådor 40 kilo vertikalt 400 mm", "sv").some((q) => q.id === "lasthallning"));
+});
+
+Deno.test("modellens fråga om lasten får falla stryks när det redan är sagt", () => {
+  const modell: Fraga[] = [{ id: "fall", type: "choice", label: "Får lasten sjunka ned om tryckluften försvinner?", options: ["Nej", "Ja"] }];
+  const text = "Lyfta lådor 40 kilo vertikalt 400 mm, personal arbetar ibland under lasten";
+  assert(!rensaFragor(modell, text, "sv").some((q) => q.id === "fall"));
+  assert(rensaFragor(modell, "Lyfta lådor 40 kilo vertikalt 400 mm", "sv").some((q) => q.id === "fall"));
+});
+

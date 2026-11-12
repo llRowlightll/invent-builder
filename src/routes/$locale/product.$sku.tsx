@@ -49,6 +49,8 @@ export const Route = createFileRoute("/$locale/product/$sku")({
       meta: [
         { title },
         { name: "description", content: desc },
+        // En artikel som inte finns ska inte indexeras (sidan svarar 200).
+        ...(product ? [] : [{ name: "robots", content: "noindex,follow" }]),
         { property: "og:title", content: ogTitle },
         { property: "og:type", content: "product" },
         { property: "og:url", content: canonical },

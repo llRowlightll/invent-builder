@@ -299,7 +299,11 @@ export function byggGripdonsalternativ(prods: CatalogProduct[], u: Griporgansund
   const ungefar = krav.angiven ? "" : "≈ ";
   const options: Array<Record<string, unknown>> = picks.map((b) => {
     const p = b.p;
-    const jaw = p.key_specs?.jaw_stroke_per_side ?? p.key_specs?.stroke_per_jaw;
+    // "1.5–25 mm" står ibland med enhet i katalogen: utan den blev det
+    // "1.5–25 mm mm/sida". På svenska med decimalkomma.
+    const jawRa = p.key_specs?.jaw_stroke_per_side ?? p.key_specs?.stroke_per_jaw;
+    const jawTal = jawRa != null ? String(jawRa).replace(/\s*mm\s*$/i, "").trim() : "";
+    const jaw = jawTal ? (locale === "sv" ? jawTal.replace(/(\d)\.(\d)/g, "$1,$2") : jawTal) : "";
     const gt = p.key_specs?.gripper_type ?? pick(locale, { sv: "Gripdon", en: "Gripper", de: "Greifer", es: "Pinza" });
     const badge = b.fN <= 0
       ? pick(locale, { sv: "Gripkraft ej angiven", en: "Grip force not stated", de: "Greifkraft nicht angegeben", es: "Fuerza de agarre no indicada" })
@@ -330,7 +334,7 @@ export function byggGripdonsalternativ(prods: CatalogProduct[], u: Griporgansund
       force_n: b.fN || null,
       kravstatus: b.kravstatus,
       why: pick(locale, {
-        sv: `${gt}${b.fN ? kraftOrd : ""}${jaw ? `, backslag ${jaw} mm/sida` : ""}. Dimensioneras på gripkraft mot detaljens vikt och friktion.`,
+        sv: `${gt}${b.fN ? kraftOrd : ""}${jaw ? `, slag ${jaw} mm per back` : ""}. Dimensioneras på gripkraft mot detaljens vikt och friktion.`,
         en: `${gt}${b.fN ? kraftOrd : ""}${jaw ? `, jaw stroke ${jaw} mm/side` : ""}. Sized by grip force vs. part weight and friction.`,
         de: `${gt}${b.fN ? kraftOrd : ""}${jaw ? `, Backenhub ${jaw} mm/Seite` : ""}. Dimensionierung nach Greifkraft im Verhältnis zu Gewicht und Reibung des Teils.`,
         es: `${gt}${b.fN ? kraftOrd : ""}${jaw ? `, carrera de mordaza ${jaw} mm/lado` : ""}. Dimensionado según la fuerza de agarre frente al peso y la fricción de la pieza.`,
