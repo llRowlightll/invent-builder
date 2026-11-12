@@ -55,6 +55,7 @@ import {
   detectHazards,
   type HazardFlags,
   griporgansKrav,
+  lyftMedGriporgan,
   detectEndEffectorIntent,
   endEffectorExplicitlyAsked,
   extractRequiredMaxTemp,
@@ -1157,7 +1158,10 @@ async function handleOptions(
   // Men har kunden skrivit "vakuumgrepp" är det ett angivet krav, och att
   // tyst leverera en cylinder i stället är sämre än att leda med greppet.
   const endEffector = detectEndEffectorIntent(combinedText);
-  if (endEffector && (endEffectorExplicitlyAsked(combinedText) || (!isMultiAxis && !isSystemScope))) {
+  // Lyft eller rörelse med griporgan: rörelsens aktuator är huvudvalet och
+  // griporganet läggs som egen rad i stycklistan (lyftMedGriporgan).
+  const griporganTillagg = !isMultiAxis && !isSystemScope ? lyftMedGriporgan(description ?? "", combinedText) : null;
+  if (endEffector && !griporganTillagg && (endEffectorExplicitlyAsked(combinedText) || (!isMultiAxis && !isSystemScope))) {
     return await handleEndEffectorOptions(endEffector, combinedText, hazards, loadKg, locale, t0, kravbild);
   }
 
@@ -1184,7 +1188,10 @@ async function handleOptions(
   // pool entirely, which is the more fundamental fix: a motor was never a
   // valid standalone answer to "recommend an actuator" regardless of
   // whether it happens to also dodge two unrelated filters.
-  const motionCats = categories.filter(c => ["cylinder","electric-actuator","linear-module","rotary-actuator"].includes(c));
+  const rorelseKat = categories.filter(c => ["cylinder","electric-actuator","linear-module","rotary-actuator"].includes(c));
+  // Lyft med griporgan: alternativen är lyftets aktuatorer, aldrig griporgan
+  // (de kommer som egen rad i stycklistan). Utan rörelsekategori: cylindrar.
+  const motionCats = griporganTillagg && rorelseKat.length === 0 ? ["cylinder"] : rorelseKat;
   const systemMotionCats = motionCats.length > 0 ? motionCats : categories;
 
   const [allProducts, pdfCtx] = await Promise.all([
@@ -1790,14 +1797,27 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
         es: `${topProducts.length} opciones seleccionadas para ${maxRequiredStroke > 0 ? `${maxRequiredStroke} mm de carrera` : "esta aplicación"}.`,
       }));
 
-  const finalSummary = optConflicts.length
+  const griporganNot = griporganTillagg ? " " + (griporganTillagg === "vacuum"
+    ? pick(locale, {
+        sv: "Lyftet är huvudkomponenten. Vakuumgreppet läggs som egen rad i stycklistan och ingår i offerten.",
+        en: "The lift is the main component. The vacuum grip is added as its own row in the bill of materials and is part of the quote.",
+        de: "Der Hub ist die Hauptkomponente. Der Vakuumgreifer wird als eigene Zeile in die Stückliste aufgenommen und ist Teil des Angebots.",
+        es: "La elevación es el componente principal. El agarre por vacío se añade como fila propia en la lista de materiales y forma parte de la oferta.",
+      })
+    : pick(locale, {
+        sv: `Lyftet är huvudkomponenten. Gripdonet läggs som egen rad i stycklistan, valt för ${griporgansKrav("gripper", hazards).angiven ? "" : "≈ "}${griporgansKrav("gripper", hazards).n} N gripkraft, och ingår i offerten.`,
+        en: `The lift is the main component. The gripper is added as its own row in the bill of materials, chosen for ${griporgansKrav("gripper", hazards).angiven ? "" : "≈ "}${griporgansKrav("gripper", hazards).n} N grip force, and is part of the quote.`,
+        de: `Der Hub ist die Hauptkomponente. Der Greifer wird als eigene Zeile in die Stückliste aufgenommen, ausgelegt auf ${griporgansKrav("gripper", hazards).angiven ? "" : "≈ "}${griporgansKrav("gripper", hazards).n} N Greifkraft, und ist Teil des Angebots.`,
+        es: `La elevación es el componente principal. La pinza se añade como fila propia en la lista de materiales, elegida para ${griporgansKrav("gripper", hazards).angiven ? "" : "≈ "}${griporgansKrav("gripper", hazards).n} N de fuerza de agarre, y forma parte de la oferta.`,
+      })) : "";
+  const finalSummary = (optConflicts.length
     ? `${summary} ` + pick(locale, {
         sv: `⚠️ Kravkonflikter att notera: ${optConflicts.join(" | ")}`,
         en: `⚠️ Requirement conflicts to note: ${optConflicts.join(" | ")}`,
         de: `⚠️ Zu beachtende Anforderungskonflikte: ${optConflicts.join(" | ")}`,
         es: `⚠️ Conflictos de requisitos a tener en cuenta: ${optConflicts.join(" | ")}`,
       })
-    : summary;
+    : summary) + griporganNot;
 
   const requirements = {
     load_kg: loadKg > 0 ? loadKg : null,
@@ -1937,8 +1957,12 @@ async function handleBom(
   const primaryIsFamilyProd = isFamilyProduct({ sku: primarySku, name: "", category: "", brand: "", key_specs: {} });
 
   const isPneumaticBom = !isElectric && !hazards.isAtex && !hazards.isAtexDust;
+  // Lyft med griporgan och en lyftande primär: griporganet blir en egen rad.
+  const griporganTillagg = primaryCategory !== "gripper" && primaryCategory !== "vacuum" && !hazards.isMultiAxis && !hazards.isSystemScope
+    ? lyftMedGriporgan(description ?? "", combinedText) : null;
   const bomCategories = [
     ...categories,
+    griporganTillagg                          ? griporganTillagg  : null,
     hazards.isVacuum                          ? "vacuum"         : null,
     hazards.valveTerminal                     ? "valve-terminal" : null,
     "sensor",
@@ -2007,6 +2031,7 @@ async function handleBom(
     kravTryckBar: kravbild.krav.find(k => k.objektId === "matning" && k.egenskap === "tryck" && k.bekraftelse !== "avvisat")?.varde ?? 0,
     kravSpanning: tolkaKravSpanning(kravbild.krav.find(k => k.objektId === "matning" && k.egenskap === "spanning" && k.bekraftelse !== "avvisat")?.text),
     kravMiljo: kravbild.krav.find(k => k.objektId === "maskin" && k.egenskap === "miljo" && k.bekraftelse !== "avvisat")?.text ?? "",
+    griporganTillagg, griporganText: combinedText,
   };
   const mandatoryBom = buildMandatoryBomRows(bomCtx);
   console.log(`[bom v49] primary=${primarySku} electric=${isElectric} vertical=${hazards.isVerticalLoad} highSpeed=${hazards.isHighSpeed} multiAxis=${hazards.isMultiAxis} mounting=${hazards.isMounting} mandatoryRows=${mandatoryBom.length}`);

@@ -551,6 +551,24 @@ export function harBefintligtLyft(text: string): boolean {
 }
 
 /**
+ * Kunden vill lyfta eller flytta med ett griporgan, och rörelsen står i
+ * beskrivningen ("lyfta lådor 40 kg vertikalt 400 mm med gripdon"). Då är
+ * rörelsens aktuator huvudvalet och griporganet en egen rad i stycklistan --
+ * båda ingår i offerten (ägarens beslut 2026-11-12). Utan rörelse i
+ * beskrivningen, eller med ett befintligt lyft, leder griporganet som förut.
+ *
+ * Bara beskrivningen räknas, inte svaren: slagfrågan ställs vid varje
+ * rörelse, och ett svar där gjorde förut gripdonsfall till cylinderfall
+ * (därför drogs en första version tillbaka i #369).
+ */
+export function lyftMedGriporgan(description: string, combinedText: string): "gripper" | "vacuum" | null {
+  const typ = detectEndEffectorIntent(combinedText);
+  if (!typ || harBefintligtLyft(combinedText)) return null;
+  const rorelse = langderITexten(description ?? "").some((l) => l.typ === "slag" || l.typ === "lyft" || l.typ === "sidled");
+  return rorelse ? typ : null;
+}
+
+/**
  * En IP-kods provvillkor inom parentes: "IP69K (högtryckstvätt/kemikalier,
  * 100 bar, 80°C)". Det beskriver hur kapslingen provas, inte miljön maskinen
  * står i.
@@ -1024,7 +1042,9 @@ export function extractStatedForceN(text: string, answers: Record<string, string
   if (kn) return parseFloat(kn[1].replace(",", ".")) * 1000;
   // Inte "trycker upp en last på 500 N": där är newton en vikt, och
   // säkerhetsfaktorn hör hemma (se requiredForceN).
-  const m = text.match(/(?:\bpress\w*|\bkläm\w*|\bspänn\w*|\bstans\w*|\bnit\w*|kraft)[^\d.]{0,12}(\d+(?:[.,]\d+)?)\s*N\b/i);
+  // Inte "gripkraft 500 N": det är griporganets krav, och med lyftet som
+  // huvudval skulle det annars dimensionera lyftcylindern (#369:s granskning).
+  const m = text.match(/(?:\bpress\w*|\bkläm\w*|\bspänn\w*|\bstans\w*|\bnit\w*|(?<!grip|grepp|håll|hålla|vakuum|sug)kraft)[^\d.]{0,12}(\d+(?:[.,]\d+)?)\s*N\b/i);
   return m ? parseFloat(m[1].replace(",", ".")) : 0;
 }
 
