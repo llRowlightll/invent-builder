@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { FORTNOX_INLOGGNING, fortnoxRad, type FortnoxStatus } from "@/lib/fortnox";
+import { fortnoxStatus, startaFortnox } from "@/lib/fortnox-anrop";
 
 // @ts-ignore
 export const Route = createFileRoute("/$locale/admin/integrations")({
@@ -301,44 +303,35 @@ export default function IntegrationsPage() {
  * Fortnox-anslutningen. "Anslut Fortnox" hämtar en inloggningslänk från
  * fortnox-anslut och skickar webbläsaren dit; Fortnox skickar tillbaka hit
  * med ?fortnox=ok eller ?fortnox=fel. Nycklarna syns aldrig i webbläsaren.
+ * Samma knapp finns på admin-översikten så länge Fortnox inte är kopplat.
  */
-const FORTNOX_ANSLUT = "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/fortnox-anslut";
-
 function FortnoxKort() {
-  const [status, setStatus] = useState<{ ansluten: boolean; nycklar: boolean; foretag?: string | null; fel?: string | null } | null>(null);
+  const [status, setStatus] = useState<FortnoxStatus | null>(null);
   const [arbetar, setArbetar] = useState(false);
   const [meddelande, setMeddelande] = useState<{ text: string; ok: boolean } | null>(null);
-
-  async function anropa(action: string) {
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch(FORTNOX_ANSLUT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token ?? ""}` },
-      body: JSON.stringify({ action }),
-    });
-    return await res.json().catch(() => ({ fel: `Svar ${res.status}` }));
-  }
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const utfall = q.get("fortnox");
     if (utfall === "ok") setMeddelande({ text: "Fortnox är anslutet.", ok: true });
     if (utfall === "fel") setMeddelande({ text: q.get("meddelande") ?? "Anslutningen misslyckades.", ok: false });
-    void anropa("status").then(setStatus);
+    if (utfall || window.location.hash === "#fortnox") document.getElementById("fortnox")?.scrollIntoView({ block: "center" });
+    void fortnoxStatus().then(setStatus);
   }, []);
 
   async function anslut() {
     setArbetar(true);
     setMeddelande(null);
-    const svar = await anropa("start");
-    if (svar?.url) { window.location.href = svar.url; return; }
+    const fel = await startaFortnox();
+    if (!fel) return;
     setArbetar(false);
-    setMeddelande({ text: svar?.fel ?? "Kunde inte starta anslutningen.", ok: false });
+    setMeddelande({ text: fel, ok: false });
   }
 
   const etikett = status == null ? "Kontrollerar…" : status.ansluten ? "Ansluten" : status.nycklar ? "Inte ansluten" : "Nycklar saknas";
+  const rad = fortnoxRad(meddelande && !meddelande.ok ? meddelande.text : status?.fel);
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div id="fortnox" className="rounded-xl border border-border bg-card p-5 scroll-mt-24">
       <div className="flex items-center gap-2 mb-3">
         <span className="text-xl">🟢</span>
         <span className="font-semibold">Fortnox</span>
@@ -353,12 +346,25 @@ function FortnoxKort() {
           Lägg <code className="bg-surface-alt px-1 rounded">FORTNOX_CLIENT_ID</code> och <code className="bg-surface-alt px-1 rounded">FORTNOX_CLIENT_SECRET</code> i Supabase → Edge Functions → Secrets.
         </p>
       )}
+      {status && status.nycklar && !status.ansluten && (
+        <ol className="mt-2 list-decimal pl-4 space-y-0.5 text-xs text-muted-foreground">
+          <li>Aktivera <strong>Fakturering</strong> under Köp &amp; Aktivera i Fortnox (licensen krävs för order och faktura).</li>
+          <li>Tryck <strong>Anslut Fortnox</strong>, välj företaget och godkänn.</li>
+        </ol>
+      )}
       {status?.fel && <p className="mt-2 text-xs text-destructive">{status.fel}</p>}
       {meddelande && <p className={`mt-2 text-xs ${meddelande.ok ? "text-success-deep" : "text-destructive"}`}>{meddelande.text}</p>}
-      <button onClick={anslut} disabled={arbetar || (status != null && !status.nycklar)}
-        className="mt-3 px-3 py-1.5 text-xs rounded-md border border-info text-info hover:bg-info/10 transition disabled:opacity-50">
-        {arbetar ? "Öppnar Fortnox…" : status?.ansluten ? "Anslut igen" : "Anslut Fortnox"}
-      </button>
+      {rad && <p className="mt-1 text-xs text-foreground/80">👉 {rad}</p>}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button onClick={anslut} disabled={arbetar || (status != null && !status.nycklar)}
+          className="px-3 py-1.5 text-xs rounded-md border border-info text-info hover:bg-info/10 transition disabled:opacity-50">
+          {arbetar ? "Öppnar Fortnox…" : status?.ansluten ? "Anslut igen" : "Anslut Fortnox"}
+        </button>
+        <a href={FORTNOX_INLOGGNING} target="_blank" rel="noopener noreferrer"
+          className="px-3 py-1.5 text-xs rounded-md border border-border text-foreground/80 hover:border-info transition">
+          Öppna Fortnox ↗
+        </a>
+      </div>
     </div>
   );
 }
