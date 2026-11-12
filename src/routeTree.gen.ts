@@ -51,6 +51,7 @@ import { Route as LocaleVerktygCylinderkraftRouteImport } from './routes/$locale
 import { Route as LocaleRfqRfqIdRouteImport } from './routes/$locale/rfq.$rfqId'
 import { Route as LocaleProductSkuRouteImport } from './routes/$locale/product.$sku'
 import { Route as LocalePlcProjektIdRouteImport } from './routes/$locale/plc.$projektId'
+import { Route as LocaleOrderOrderIdRouteImport } from './routes/$locale/order.$orderId'
 import { Route as LocaleOffertRfqIdRouteImport } from './routes/$locale/offert.$rfqId'
 import { Route as LocaleOcOrderIdRouteImport } from './routes/$locale/oc.$orderId'
 import { Route as LocaleMotsvarighetSkuRouteImport } from './routes/$locale/motsvarighet.$sku'
@@ -292,6 +293,11 @@ const LocalePlcProjektIdRoute = LocalePlcProjektIdRouteImport.update({
   path: '/$projektId',
   getParentRoute: () => LocalePlcRoute,
 } as any)
+const LocaleOrderOrderIdRoute = LocaleOrderOrderIdRouteImport.update({
+  id: '/order/$orderId',
+  path: '/order/$orderId',
+  getParentRoute: () => LocaleRoute,
+} as any)
 const LocaleOffertRfqIdRoute = LocaleOffertRfqIdRouteImport.update({
   id: '/offert/$rfqId',
   path: '/offert/$rfqId',
@@ -502,6 +508,7 @@ export interface FileRoutesByFullPath {
   '/$locale/motsvarighet/$sku': typeof LocaleMotsvarighetSkuRoute
   '/$locale/oc/$orderId': typeof LocaleOcOrderIdRoute
   '/$locale/offert/$rfqId': typeof LocaleOffertRfqIdRoute
+  '/$locale/order/$orderId': typeof LocaleOrderOrderIdRoute
   '/$locale/plc/$projektId': typeof LocalePlcProjektIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
@@ -571,6 +578,7 @@ export interface FileRoutesByTo {
   '/$locale/motsvarighet/$sku': typeof LocaleMotsvarighetSkuRoute
   '/$locale/oc/$orderId': typeof LocaleOcOrderIdRoute
   '/$locale/offert/$rfqId': typeof LocaleOffertRfqIdRoute
+  '/$locale/order/$orderId': typeof LocaleOrderOrderIdRoute
   '/$locale/plc/$projektId': typeof LocalePlcProjektIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
@@ -645,6 +653,7 @@ export interface FileRoutesById {
   '/$locale/motsvarighet/$sku': typeof LocaleMotsvarighetSkuRoute
   '/$locale/oc/$orderId': typeof LocaleOcOrderIdRoute
   '/$locale/offert/$rfqId': typeof LocaleOffertRfqIdRoute
+  '/$locale/order/$orderId': typeof LocaleOrderOrderIdRoute
   '/$locale/plc/$projektId': typeof LocalePlcProjektIdRoute
   '/$locale/product/$sku': typeof LocaleProductSkuRoute
   '/$locale/rfq/$rfqId': typeof LocaleRfqRfqIdRoute
@@ -720,6 +729,7 @@ export interface FileRouteTypes {
     | '/$locale/motsvarighet/$sku'
     | '/$locale/oc/$orderId'
     | '/$locale/offert/$rfqId'
+    | '/$locale/order/$orderId'
     | '/$locale/plc/$projektId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
@@ -789,6 +799,7 @@ export interface FileRouteTypes {
     | '/$locale/motsvarighet/$sku'
     | '/$locale/oc/$orderId'
     | '/$locale/offert/$rfqId'
+    | '/$locale/order/$orderId'
     | '/$locale/plc/$projektId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
@@ -862,6 +873,7 @@ export interface FileRouteTypes {
     | '/$locale/motsvarighet/$sku'
     | '/$locale/oc/$orderId'
     | '/$locale/offert/$rfqId'
+    | '/$locale/order/$orderId'
     | '/$locale/plc/$projektId'
     | '/$locale/product/$sku'
     | '/$locale/rfq/$rfqId'
@@ -1178,6 +1190,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/$locale/plc/$projektId'
       preLoaderRoute: typeof LocalePlcProjektIdRouteImport
       parentRoute: typeof LocalePlcRoute
+    }
+    '/$locale/order/$orderId': {
+      id: '/$locale/order/$orderId'
+      path: '/order/$orderId'
+      fullPath: '/$locale/order/$orderId'
+      preLoaderRoute: typeof LocaleOrderOrderIdRouteImport
+      parentRoute: typeof LocaleRoute
     }
     '/$locale/offert/$rfqId': {
       id: '/$locale/offert/$rfqId'
@@ -1515,6 +1534,7 @@ interface LocaleRouteChildren {
   LocaleMotsvarighetSkuRoute: typeof LocaleMotsvarighetSkuRoute
   LocaleOcOrderIdRoute: typeof LocaleOcOrderIdRoute
   LocaleOffertRfqIdRoute: typeof LocaleOffertRfqIdRoute
+  LocaleOrderOrderIdRoute: typeof LocaleOrderOrderIdRoute
   LocaleProductSkuRoute: typeof LocaleProductSkuRoute
   LocaleRfqRfqIdRoute: typeof LocaleRfqRfqIdRoute
   LocaleVerktygCylinderkraftRoute: typeof LocaleVerktygCylinderkraftRoute
@@ -1558,6 +1578,7 @@ const LocaleRouteChildren: LocaleRouteChildren = {
   LocaleMotsvarighetSkuRoute: LocaleMotsvarighetSkuRoute,
   LocaleOcOrderIdRoute: LocaleOcOrderIdRoute,
   LocaleOffertRfqIdRoute: LocaleOffertRfqIdRoute,
+  LocaleOrderOrderIdRoute: LocaleOrderOrderIdRoute,
   LocaleProductSkuRoute: LocaleProductSkuRoute,
   LocaleRfqRfqIdRoute: LocaleRfqRfqIdRoute,
   LocaleVerktygCylinderkraftRoute: LocaleVerktygCylinderkraftRoute,

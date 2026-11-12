@@ -95,6 +95,7 @@ jobs:
             hubspot-sync
             fortnox-order
             fortnox-anslut
+            orderhandelse
             book-shipment
             document-ai
             extract-prices

@@ -240,12 +240,18 @@ function buildEmail(p: Payload): { subject: string; html: string } {
   }
 
   if (p.status === "accepted" && ocUrl) {
+    // Spårningen ligger bredvid orderbekräftelsen: /order/<id> i stället för /oc/<id>.
+    const resaUrl = ocUrl.replace("/oc/", "/order/");
     extra = `
     <div style="margin:20px 0;">
+      <a href="${resaUrl}" style="display:inline-block;background:#1d3a6e;color:#fff;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;margin-right:8px;">
+        🚚 Följ ordern
+      </a>
       <a href="${ocUrl}" style="display:inline-block;background:#1e293b;color:#fff;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;">
         📄 Visa orderbekräftelse
       </a>
-    </div>`;
+    </div>
+    <p style="margin:0 0 16px;font-size:13px;color:#64748b;">Du får ett mejl när tillverkaren bekräftat leveransdagen och när paketet skickas.</p>`;
   }
 
   const html = emailWrap(`
@@ -350,7 +356,10 @@ Deno.serve(async (req) => {
       if (error || !order) {
         return new Response(JSON.stringify({ error: "order not found" }), { status: 404, headers: { ...cors, "Content-Type": "application/json" } });
       }
-      if (!ORDER_STATUSES.has(order.status) || !order.customer_email) {
+      // "Skickad" och "levererad" mejlas av orderhandelse, per försändelse och
+      // med spårningslänk, direkt från databasen (2026-11-12). Ett mejl här
+      // också vore samma besked två gånger.
+      if (!ORDER_STATUSES.has(order.status) || !order.customer_email || order.status === "shipped" || order.status === "delivered") {
         return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...cors, "Content-Type": "application/json" } });
       }
       payload = {
