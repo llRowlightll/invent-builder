@@ -144,7 +144,11 @@ export function normalizeKeySpecs(raw: Record<string, unknown>): Record<string, 
   // Canonical output key: force_n
   if (!out.force_n) {
     for (const k of ["piston_force_6bar_N", "thrust_force", "clamping_force", "gripping_force_N"]) {
-      if (raw[k] != null) { out.force_n = raw[k]; delete out[k]; break; }
+      // Gripdonens gripkraft står kvar under sin egen nyckel: gripkraften läses
+      // därifrån (gripkraftsnyckel i bom-builder.ts), aldrig ur force_n. Förut
+      // försvann clamping_force (19 gripdon) och gripdonen fick "Gripkraft ej
+      // angiven" och kunde aldrig väljas (2026-11-12).
+      if (raw[k] != null) { out.force_n = raw[k]; if (k !== "clamping_force" && k !== "gripping_force_N") delete out[k]; break; }
     }
   }
   // Calculate from bore if still missing

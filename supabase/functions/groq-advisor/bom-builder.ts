@@ -13,7 +13,7 @@
 import { basta, gangaAv, normGanga, slangOdAv, stammer } from "./porter.ts";
 import { provaGripkraft, provaSpanning, provaTryck, SPANNINGSSATTA, TRYCKSATTA, type Kontroll, type Spanning } from "./kontroller.ts";
 import { type CatalogProduct, arBorrningsspann, isAtexCapableProduct, isBeltDrivenProduct, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
-import { type HazardFlags, griporgansKrav, pick, isPneumaticByDrive, isNonArticulatingActuator, tolkaTempSpann } from "./signals.ts";
+import { type HazardFlags, griporgansKrav, onskadGripdonstyp, pick, isPneumaticByDrive, isNonArticulatingActuator, tolkaTempSpann } from "./signals.ts";
 
 export function buildCustomSolutionOption(
   minStroke: number, locale: string, maxCatalogStroke: number, catalogCanHandle: boolean,
@@ -290,6 +290,69 @@ function portNot(p: CatalogProduct | null, onskat: { ganga?: string | null; od?:
   });
 }
 
+/** Raden för ett griporgan som lagts till ett lyft. */
+function griporgansRad(ctx: BomCtx, uc: number): BomRow {
+  const { locale } = ctx;
+  if (ctx.griporganTillagg === "vacuum") {
+    const krav = griporgansKrav("vacuum", ctx);
+    return {
+      sku: "SPECIFY", quantity: uc, kind: "actuator", griporgan: "vacuum",
+      role: pick(locale, { sv: "Griporgan — vakuum", en: "End effector — vacuum", de: "Greiforgan — Vakuum", es: "Efector final — vacío" }),
+      reason: pick(locale, {
+        sv: `Sugkoppar och ejektor väljs efter lasten: ${krav.angiven ? "" : "≈ "}${krav.n} N hållkraft, med marginal för läckage. Antal koppar och storlek bestäms i offerten.`,
+        en: `Suction cups and ejector are chosen for the load: ${krav.angiven ? "" : "≈ "}${krav.n} N holding force, with a margin for leakage. Number and size of cups are set in the quote.`,
+        de: `Sauger und Ejektor werden nach der Last gewählt: ${krav.angiven ? "" : "≈ "}${krav.n} N Haltekraft, mit Reserve für Leckage. Anzahl und Größe der Sauger werden im Angebot festgelegt.`,
+        es: `Las ventosas y el eyector se eligen según la carga: ${krav.angiven ? "" : "≈ "}${krav.n} N de fuerza de sujeción, con margen para fugas. El número y tamaño de ventosas se fijan en la oferta.`,
+      }),
+      verifiering: "kraver_verifiering",
+      verifieringsskal: pick(locale, {
+        sv: "Vakuumgreppet konfigureras: välj koppar och ejektor som håller lasten före beställning.",
+        en: "The vacuum grip is configured: choose cups and ejector that hold the load before ordering.",
+        de: "Der Vakuumgreifer wird konfiguriert: Sauger und Ejektor, die die Last halten, vor der Bestellung wählen.",
+        es: "El agarre por vacío se configura: elija ventosas y eyector que sujeten la carga antes de pedir.",
+      }),
+    };
+  }
+  const krav = griporgansKrav("gripper", ctx);
+  const alla = ctx.products.filter((p) => p.category === "gripper");
+  const typ = onskadGripdonstyp(ctx.griporganText ?? "");
+  const avTyp = alla.filter((p) => gripperTypeOf(p) === typ);
+  const pool = avTyp.length ? avTyp : alla;
+  const kraft = (p: CatalogProduct) => Math.round(isGripperFamily(p) ? gripperForceMaxN(p.key_specs ?? {}) : gripperForceN(p.key_specs ?? {}));
+  const vald = krav.n > 0
+    ? pool.filter((p) => kraft(p) >= krav.n).sort((a, b) => kraft(a) - kraft(b))[0]
+    : undefined;
+  const role = pick(locale, { sv: "Griporgan — gripdon", en: "End effector — gripper", de: "Greiforgan — Greifer", es: "Efector final — pinza" });
+  const ungefar = krav.angiven ? "" : "≈ ";
+  if (vald) {
+    return {
+      sku: vald.sku, quantity: uc, kind: "actuator", griporgan: "gripper", role,
+      reason: pick(locale, {
+        sv: `Valt för ${ungefar}${krav.n} N gripkraft${krav.angiven ? "" : " (lastens massa × 100 vid friktionsgrepp)"}.`,
+        en: `Chosen for ${ungefar}${krav.n} N grip force${krav.angiven ? "" : " (load mass × 100 for a friction grip)"}.`,
+        de: `Ausgelegt auf ${ungefar}${krav.n} N Greifkraft${krav.angiven ? "" : " (Lastmasse × 100 bei Reibschluss)"}.`,
+        es: `Elegida para ${ungefar}${krav.n} N de fuerza de agarre${krav.angiven ? "" : " (masa de la carga × 100 en agarre por fricción)"}.`,
+      }),
+    };
+  }
+  return {
+    sku: "SPECIFY", quantity: uc, kind: "actuator", griporgan: "gripper", role,
+    reason: pick(locale, {
+      sv: `Inget gripdon i katalogen når ${ungefar}${krav.n} N gripkraft. Gripdonet specificeras i offerten.`,
+      en: `No gripper in the catalogue reaches ${ungefar}${krav.n} N grip force. The gripper is specified in the quote.`,
+      de: `Kein Greifer im Katalog erreicht ${ungefar}${krav.n} N Greifkraft. Der Greifer wird im Angebot spezifiziert.`,
+      es: `Ninguna pinza del catálogo alcanza ${ungefar}${krav.n} N de fuerza de agarre. La pinza se especifica en la oferta.`,
+    }),
+    verifiering: "ej_uppfyllt",
+    verifieringsskal: pick(locale, {
+      sv: `Inget gripdon i katalogen når kravet ${ungefar}${krav.n} N. Välj gripdon före beställning.`,
+      en: `No gripper in the catalogue meets ${ungefar}${krav.n} N. Choose a gripper before ordering.`,
+      de: `Kein Greifer im Katalog erfüllt ${ungefar}${krav.n} N. Greifer vor der Bestellung wählen.`,
+      es: `Ninguna pinza del catálogo cumple ${ungefar}${krav.n} N. Elija una pinza antes de pedir.`,
+    }),
+  };
+}
+
 export function findAxisActuator(products: CatalogProduct[], strokeMm: number, isElectric: boolean): CatalogProduct | null {
   const cands = products.filter(p => isElectric
     ? isElectricActuator(p) && !isPneumaticByDrive(p)
@@ -342,6 +405,10 @@ export interface BomCtx extends HazardFlags {
   /** Primärens kategori (slug). "gripper"/"vacuum" när kunden valt griporganet
    *  som huvudkomponent; då är det inte en lyftande cylinder. */
   primaryCategory?: string;
+  /** Lyft med griporgan: griporganet läggs som egen rad (signals.ts lyftMedGriporgan). */
+  griporganTillagg?: "gripper" | "vacuum" | null;
+  /** Beskrivning och svar, för önskad gripdonstyp. */
+  griporganText?: string;
   /** Primärens namn, ur fetchPrimaryInfo: `products` är ATEX-filtrerad och
    *  saknar ofta primären. */
   primaryName?: string;
@@ -404,6 +471,8 @@ export interface BomRow {
   sku: string;
   quantity: number;
   kind: BomKind;
+  /** Raden är ett griporgan som lagts till ett lyft (lyftMedGriporgan). */
+  griporgan?: "gripper" | "vacuum";
   role: string;
   reason: string;
   /** Utelämnad = "verifierad". Sätts av koden, aldrig av modellen. */
@@ -579,6 +648,13 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
       + (primaryAxisLabel ? pick(locale, { sv: ` — ${primaryAxisLabel}-axel`, en: ` — ${primaryAxisLabel}-axis`, de: ` — ${primaryAxisLabel}-Achse`, es: ` — eje ${primaryAxisLabel}` }) : ""),
     reason: pick(locale, { sv: "Vald primär aktuator", en: "Selected primary actuator", de: "Ausgewählter Primäraktuator", es: "Actuador primario seleccionado" }) + famNote,
   });
+
+  // ── 1a. Griporganet till ett lyft (ägarens beslut 2026-11-12) ─────────
+  // Lyftet är huvudvalet och griporganet en egen rad: båda ingår i offerten.
+  // Gripdonet väljs som det minsta som når gripkraften (vikt × 100 N eller
+  // angiven); räcker inget blir raden en lucka som stoppar beställningen.
+  // Vakuum konfigureras alltid (koppar och ejektor efter lasten).
+  if (ctx.griporganTillagg && !primarArGriporgan) rows.push(griporgansRad(ctx, uc));
 
   // Prefer the primary's brand when picking motor/drive/sensor/secondary axis, so
   // e.g. an SMC axis gets an SMC drive rather than a Festo one. Same-brand sorted
@@ -1520,9 +1596,9 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   // och en ejektor slutar suga. Till 2026-10-14 försvann kravet när lasten inte
   // var vertikal ("detaljen får inte falla vid tryckfall"), och lösningen blev
   // beställningsklar (granskningen).
-  if (primarArGriporgan && (isVerticalLoad || isRodLock)) {
-    const vakuum = ctx.primaryCategory === "vacuum";
-    const sakring = String(ctx.primarySpecs?.gripping_force_backup ?? "").trim();
+  if ((primarArGriporgan || ctx.griporganTillagg) && (isVerticalLoad || isRodLock)) {
+    const vakuum = primarArGriporgan ? ctx.primaryCategory === "vacuum" : ctx.griporganTillagg === "vacuum";
+    const sakring = primarArGriporgan ? String(ctx.primarySpecs?.gripping_force_backup ?? "").trim() : "";
     rows.push({
       sku: "SPECIFY", quantity: uc, kind: "warning",
       role: vakuum
@@ -1728,10 +1804,13 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
     // Till 2026-10-14 avbröt en saknad temperaturuppgift raden innan
     // gripkraften prövades: raden nämnde bara temperaturen, fast gripdonet
     // inte räckte (granskningen). En serie prövas i sin största storlek.
-    const primarGriporgan = r.sku === primarySku && (ctx.primaryCategory === "gripper" || ctx.primaryCategory === "vacuum");
-    const serie = primarGriporgan && ctx.primaryCategory === "gripper" && arGripdonsserie(specar ?? {});
+    // Ett griporgan som lagts till ett lyft (r.griporgan) prövas som en
+    // primär: gripkraften först, ATEX, och inga slagkontroller.
+    const griptyp = r.griporgan ?? (r.sku === primarySku ? ctx.primaryCategory : undefined);
+    const primarGriporgan = !!r.griporgan || (r.sku === primarySku && (ctx.primaryCategory === "gripper" || ctx.primaryCategory === "vacuum"));
+    const serie = primarGriporgan && griptyp === "gripper" && arGripdonsserie(specar ?? {});
     const gripKrav = griporgansKrav("gripper", ctx);
-    const gripKontroll = primarGriporgan && ctx.primaryCategory === "gripper"
+    const gripKontroll = primarGriporgan && griptyp === "gripper"
       ? provaGripkraft(gripKrav, serie ? gripperForceMaxN(specar ?? {}) : gripperForceN(specar ?? {}), sv, serie)
       : undefined;
     if (gripKontroll?.utfall === "ej_uppfyllt") {
@@ -1746,7 +1825,7 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
     // cylinder gör. Utan ATEX-märkning i katalogen får det inte användas i
     // zonen. Till 2026-10-14 blev raden grön så snart gripkraften räckte.
     if (primarGriporgan && (ctx.isAtex || ctx.isAtexDust) &&
-        !isAtexCapableProduct({ sku: r.sku, name: ctx.primaryName ?? products.find(p => p.sku === r.sku)?.name ?? "", category: ctx.primaryCategory ?? "", brand: "", key_specs: specar ?? {} })) {
+        !isAtexCapableProduct({ sku: r.sku, name: (r.griporgan ? undefined : ctx.primaryName) ?? products.find(p => p.sku === r.sku)?.name ?? "", category: griptyp ?? "", brand: "", key_specs: specar ?? {} })) {
       r.kontroller = [
         { krav: "ATEX", utfall: "underlag_saknas", text: sv ? "katalogen anger ingen ATEX-märkning för artikeln" : "the catalogue gives no ATEX marking for the item" },
         ...(gripKontroll ? [gripKontroll] : []),
