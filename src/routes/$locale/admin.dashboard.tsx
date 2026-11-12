@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { FORTNOX_INLOGGNING, fortnoxRad, type FortnoxStatus } from "@/lib/fortnox";
+import { fortnoxStatus, startaFortnox } from "@/lib/fortnox-anrop";
 
 export const Route = createFileRoute("/$locale/admin/dashboard")({
   component: AdminDashboard,
@@ -44,6 +46,7 @@ const ADMIN_LINKS = [
   { to: "/$locale/admin/pricing",   label: "Prissättning", icon: "💰" },
   { to: "/$locale/admin/leverantorer", label: "Leverantörer", icon: "🏭" },
   { to: "/$locale/admin/ekonomi",   label: "Ekonomi", icon: "📊" },
+  { to: "/$locale/admin/integrations", label: "Integrationer", icon: "🔌" },
   { to: "/$locale/admin/knowledge", label: "Knowledge base", icon: "🧠" },
   { to: "/$locale/admin/crm",       label: "CRM", icon: "👥" },
   { to: "/$locale/admin/images",    label: "Bilder", icon: "🖼" },
@@ -141,6 +144,8 @@ function AdminDashboard() {
           </Link>
         ))}
       </div>
+
+      <FortnoxGenvag locale={locale} />
 
       {/* Stats cards */}
       {loading ? (
@@ -246,6 +251,60 @@ function AdminDashboard() {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Genväg till Fortnox-kopplingen. Syns bara så länge Fortnox inte är kopplat
+ * (ägaren 2026-11-12: "en knapp så man snabbt kan komma dit sen"). Knappen
+ * går direkt till Fortnox inloggning, precis som kortet under Integrationer.
+ */
+function FortnoxGenvag({ locale }: { locale: string }) {
+  const [status, setStatus] = useState<FortnoxStatus | null>(null);
+  const [arbetar, setArbetar] = useState(false);
+  const [fel, setFel] = useState<string | null>(null);
+
+  useEffect(() => { void fortnoxStatus().then(setStatus); }, []);
+  if (!status || status.ansluten) return null;
+
+  async function anslut() {
+    setArbetar(true);
+    setFel(null);
+    const f = await startaFortnox();
+    if (!f) return;
+    setArbetar(false);
+    setFel(f);
+  }
+
+  const rad = fortnoxRad(fel ?? status.fel);
+  return (
+    <div className="mb-8 rounded-xl border border-warning/40 bg-warning/5 p-4 flex flex-wrap items-center gap-3">
+      <span className="text-xl">🟢</span>
+      <div className="flex-1 min-w-[16rem]">
+        <div className="text-sm font-semibold">Fortnox är inte kopplat än</div>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {status.nycklar
+            ? "Ordrar och fakturor går inte till bokföringen förrän det är kopplat. Aktivera Fakturering i Fortnox först, tryck sedan Anslut Fortnox och välj företaget."
+            : "FORTNOX_CLIENT_ID och FORTNOX_CLIENT_SECRET saknas i Supabase Secrets."}
+        </p>
+        {fel && <p className="text-xs text-destructive mt-1">{fel}</p>}
+        {rad && <p className="text-xs text-foreground/80 mt-1">👉 {rad}</p>}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button onClick={anslut} disabled={arbetar || !status.nycklar}
+          className="px-3 py-1.5 text-xs rounded-md bg-info text-primary-foreground hover:opacity-90 transition disabled:opacity-50">
+          {arbetar ? "Öppnar Fortnox…" : "Anslut Fortnox"}
+        </button>
+        <a href={FORTNOX_INLOGGNING} target="_blank" rel="noopener noreferrer"
+          className="px-3 py-1.5 text-xs rounded-md border border-border hover:border-info transition">
+          Öppna Fortnox ↗
+        </a>
+        <Link to={"/$locale/admin/integrations" as never} params={{ locale } as never} hash="fortnox"
+          className="px-3 py-1.5 text-xs rounded-md text-info hover:underline">
+          Detaljer
+        </Link>
       </div>
     </div>
   );
