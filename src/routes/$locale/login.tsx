@@ -4,9 +4,10 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { makeT, type Locale } from "@/lib/i18n";
 import { MailCheck } from "lucide-react";
+import { textParam } from "@/lib/sokparam";
 
 export const Route = createFileRoute("/$locale/login")({
-  validateSearch: z.object({ redirect: z.string().optional() }),
+  validateSearch: z.object({ redirect: textParam() }),
   head: ({ params }) => {
     const t = makeT(params.locale as Locale);
     return {
