@@ -151,6 +151,9 @@ function OrderCard({ order, t, locale }: { order: OrderRow; t: (k: string) => st
         </div>
 
         <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
+          <a href={`/${locale}/order/${order.id}`} className="font-semibold text-info hover:opacity-80">
+            <Truck className="size-3.5 inline -mt-0.5 mr-1" aria-hidden />{locale === "sv" ? "Följ ordern" : "Track order"} →
+          </a>
           {order.estimated_delivery && (
             <span><Package className="size-3.5 inline -mt-0.5 mr-1" aria-hidden />{t("ordersPage.deliveryDate")}: <strong className="text-foreground">
               {new Date(order.estimated_delivery).toLocaleDateString(locStr, { month:"short", day:"numeric" })}

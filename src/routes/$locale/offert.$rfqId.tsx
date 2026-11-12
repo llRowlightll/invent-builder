@@ -289,12 +289,20 @@ export default function PublicOffertPage() {
               {orderId ? (
                 <>
                   <p className="text-sm text-green-700">Din order är skapad. Orderbekräftelsen skickas även till din e-post.</p>
-                  <a
-                    href={`/${locale}/oc/${orderId}`}
-                    className="inline-block mt-1 px-6 py-2.5 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition"
-                  >
-                    Visa orderbekräftelse →
-                  </a>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <a
+                      href={`/${locale}/order/${orderId}`}
+                      className="inline-block mt-1 px-6 py-2.5 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition"
+                    >
+                      Följ din order →
+                    </a>
+                    <a
+                      href={`/${locale}/oc/${orderId}`}
+                      className="inline-block mt-1 px-6 py-2.5 rounded-lg border border-green-600 text-green-800 text-sm font-semibold hover:bg-green-100 transition"
+                    >
+                      Orderbekräftelse
+                    </a>
+                  </div>
                 </>
               ) : (
                 <p className="text-sm text-green-700">Orderbekräftelsen skickas till din e-post.</p>

@@ -3,3 +3,8 @@ project_id = "ccoksforzjgvimyqpmpr"
 # själv admin för start/status och ett engångs-state för återkomsten.
 [functions.fortnox-anslut]
 verify_jwt = false
+
+# Anropas av databasen (pg_net) utan inloggning; läser om raderna och mejlar
+# bara det som faktiskt hänt, en gång per händelse.
+[functions.orderhandelse]
+verify_jwt = false

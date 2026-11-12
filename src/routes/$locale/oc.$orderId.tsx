@@ -110,6 +110,12 @@ export default function PublicOCPage() {
           Orderbekräftelse {docRef(orderId)}
         </span>
         <div className="ml-auto flex items-center gap-2">
+          <a
+            href={`/${locale}/order/${orderId}`}
+            className="px-4 py-1.5 text-sm rounded-md border border-border hover:border-info transition"
+          >
+            Följ ordern
+          </a>
           <button
             onClick={() => window.print()}
             className="px-4 py-1.5 text-sm rounded-md bg-info text-primary-foreground hover:opacity-90 transition"
