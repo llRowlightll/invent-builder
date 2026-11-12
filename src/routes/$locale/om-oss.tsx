@@ -86,7 +86,6 @@ function OmOss() {
   const rader = bolag ? [
     bolag.org ? `${bolag.name} · org.nr ${bolag.org}` : "Maskinval",
     [bolag.address, bolag.postal].filter(Boolean).join(", "),
-    bolag.phone,
   ].filter(Boolean) : [];
 
   return (
@@ -107,6 +106,9 @@ function OmOss() {
       <h2 className="mt-10 text-lg font-semibold">{x.kontaktTitel}</h2>
       <div className="mt-3 space-y-1 text-sm text-foreground/80">
         {rader.map((r) => <div key={r}>{r}</div>)}
+        {bolag?.phone && (
+          <div><a href={`tel:${bolag.phone.replace(/[^\d+]/g, "")}`} className="text-info hover:underline">{bolag.phone}</a></div>
+        )}
         <div><a href={`mailto:${bolag?.email || "info@maskinval.se"}`} className="text-info hover:underline">{bolag?.email || "info@maskinval.se"}</a></div>
       </div>
       <Link to="/$locale/advisor" params={{ locale }} search={{ q: undefined } as never}
