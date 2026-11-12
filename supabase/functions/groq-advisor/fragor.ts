@@ -47,9 +47,9 @@
 import {
   arHorisontellRorelse, extractExplicitBoreMm, extractMinStroke, extractMoveTimeS, extractPrecisionMm, extractRotationDeg, extractSpeedMs,
   needsElectricAxis, needsEndPositionDetection, needsFoodGrade, needsMultiAxis, needsPharmaGmp,
-  needsSilSafety, needsSpolmiljo, needsValveTerminal, needsVerticalLoad, slagIMeterMm,
+  needsRodLock, needsSilSafety, needsSpolmiljo, needsValveTerminal, needsVerticalLoad, slagIMeterMm,
 } from "./signals.ts";
-import { langderITexten, MASSENHET } from "./kravbild.ts";
+import { langderITexten, MASSENHET, personalUnderLasten } from "./kravbild.ts";
 
 export type Fraga = {
   id: string;
@@ -455,6 +455,9 @@ export function rensaFragor(fragor: Fraga[], text: string, locale: string, kod?:
     if (a === "vridskydd" && elektrisk) continue;
     // I sidled faller ingenting när strömmen eller luften försvinner.
     if (a === "hallning" && horisontell) continue;
+    // Lasten får inte falla när personal står under den -- redan sagt, och
+    // motorn lägger stångbromsen (needsRodLock). Modellens fråga stryks också.
+    if (a === "hallning" && needsRodLock(text)) continue;
     // Fältbussen avgör bara valet av ventilterminal; till en enstaka cylinder
     // är den en fråga till elkonstruktören, inte till oss.
     if (a === "faltbuss" && (typ === "rorelse" || typ === "vridning") && !needsValveTerminal(text)) continue;
@@ -764,7 +767,7 @@ export function reservfragor(text: string, locale: string, kod?: Kodvarden): Fra
         : g(locale, "Lyfter cylindern lasten krävs mer kraft, och lasten kan behöva hållas kvar om luften försvinner.", "If the cylinder lifts the load, more force is needed, and the load may need to be held if air is lost."),
       options: [g(locale, "Horisontell rörelse", "Horizontal movement"), g(locale, "Vertikal, lyfter lasten", "Vertical, lifting the load"), g(locale, "Vertikal, trycker nedåt", "Vertical, pushing down"), g(locale, "Sned, i vinkel", "At an angle")] });
   }
-  if (needsVerticalLoad(text) && !/får\s+inte\s+falla|hållas?\s+kvar|stångbroms|fallskydd|broms/i.test(text)) {
+  if (needsVerticalLoad(text) && !/får\s+inte\s+falla|hållas?\s+kvar|stångbroms|fallskydd|broms/i.test(text) && !personalUnderLasten(text)) {
     q.push({ id: "lasthallning", type: "choice",
       label: vakuum
         ? g(locale, "Om tryckluften eller strömmen bryts, får lasten falla?", "If the compressed air or power is lost, may the load drop?")

@@ -68,6 +68,9 @@ const VIKTIGA: Array<[string, string]> = [
   ["aktuator", "noggrannhet"], ["aktuator", "takt"], ["kontrollstation", "signal"],
   ["matning", "tryck"], ["matning", "spanning"], ["styrsystem", "befintlig"], ["styrsystem", "io"],
   ["styrsystem", "modell"], ["maskin", "drifttid"], ["maskin", "miljo"],
+  // Riktningen och säkerhetskraven ("personal under lasten") stod inte i
+  // resultatets kravbild, fast de avgör lösningen (genomgången 2026-11-12).
+  ["aktuator", "riktning"], ["maskin", "sakerhet"],
 ];
 
 function kravrad(k: Krav, sv: boolean): string {

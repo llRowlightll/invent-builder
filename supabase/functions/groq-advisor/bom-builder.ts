@@ -1100,15 +1100,20 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
         de: ` Die Gesamtlänge skaliert mit der Stationsanzahl (${uc}) und dem Layout.`,
         es: ` La longitud total escala con el número de estaciones (${uc}) y el diseño.`,
       }) : "";
+      // En rulle är ingen metervara: "PAN-V0 … 50m" stod som "(per meter)"
+      // med antal 1 (genomgången 2026-11-12).
+      const rulleM = `${tubeMatch.name} ${tubeMatch.sku}`.match(/(?<![\d.,])(\d{2,3})\s*m\b(?![\w/])/i)?.[1];
       rows.push({
         sku: tubeMatch.sku, quantity: 1,
         kind: "tubing",
-        role: pick(locale, { sv: "Tryckluftsslang (per meter)", en: "Pneumatic tubing (per metre)", de: "Druckluftschlauch (pro Meter)", es: "Tubo neumático (por metro)" }),
+        role: rulleM
+          ? pick(locale, { sv: `Tryckluftsslang (rulle ${rulleM} m)`, en: `Pneumatic tubing (${rulleM} m reel)`, de: `Druckluftschlauch (Rolle ${rulleM} m)`, es: `Tubo neumático (rollo de ${rulleM} m)` })
+          : pick(locale, { sv: "Tryckluftsslang (per meter)", en: "Pneumatic tubing (per metre)", de: "Druckluftschlauch (pro Meter)", es: "Tubo neumático (por metro)" }),
         reason: pick(locale, {
-          sv: "Förbinder ventil, FRL och cylinder — välj ytterdiameter (6/8/10 mm) och längd efter installationen. Anges per meter.",
-          en: "Connects valve, FRL and cylinder — select outer diameter (6/8/10 mm) and length per the installation. Sold per metre.",
-          de: "Verbindet Ventil, FRL-Einheit und Zylinder — Außendurchmesser (6/8/10 mm) und Länge passend zur Installation wählen. Wird pro Meter angegeben.",
-          es: "Conecta la válvula, la unidad FRL y el cilindro — seleccione el diámetro exterior (6/8/10 mm) y la longitud según la instalación. Se indica por metro.",
+          sv: `Förbinder ventil, FRL och cylinder — välj ytterdiameter (6/8/10 mm) och längd efter installationen.${rulleM ? ` Artikeln är en rulle på ${rulleM} m.` : " Anges per meter."}`,
+          en: `Connects valve, FRL and cylinder — select outer diameter (6/8/10 mm) and length per the installation.${rulleM ? ` The article is a ${rulleM} m reel.` : " Sold per metre."}`,
+          de: `Verbindet Ventil, FRL-Einheit und Zylinder — Außendurchmesser (6/8/10 mm) und Länge passend zur Installation wählen.${rulleM ? ` Der Artikel ist eine Rolle mit ${rulleM} m.` : " Wird pro Meter angegeben."}`,
+          es: `Conecta la válvula, la unidad FRL y el cilindro — seleccione el diámetro exterior (6/8/10 mm) y la longitud según la instalación.${rulleM ? ` El artículo es un rollo de ${rulleM} m.` : " Se indica por metro."}`,
         }) + tubeNote,
       });
     }
