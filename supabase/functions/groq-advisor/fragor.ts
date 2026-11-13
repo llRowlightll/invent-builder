@@ -879,6 +879,17 @@ function ersattningar(text: string, locale: string): Map<string, Fraga> {
     const korrosion = reservfragor(text, locale).find((q) => q.id === "korrosion");
     if (korrosion) m.set("material", korrosion);
   }
+  // Säkerhetsnivån: alltid samma fråga, oavsett vad modellen skrev.
+  // Kundgranskningen 2026-11-13 fick "SIL 1/2/3 … PL c/d/e" i samma val och
+  // tipset "välj det lägre alternativet om du är osäker" -- med personal
+  // under lasten är det fel håll. ISO 13849-1 anger PL; PLr kommer ur
+  // riskbedömningen, så "inte bestämt än" är ett giltigt svar, aldrig en gissning.
+  if (arSakerhetskrav(text)) {
+    m.set("sakerhetsniva", { id: "sakerhetsniva", type: "choice",
+      label: g(locale, "Vilken Performance Level kräver riskbedömningen (PLr enligt ISO 13849-1)?", "Which Performance Level does the risk assessment require (PLr per ISO 13849-1)?"),
+      hint: g(locale, "PL anger hur pålitligt styrningen måste stoppa eller hålla vid fara. Nivån bestäms i maskinens riskbedömning, inte här. Vet du inte, välj \"Inte bestämt än\" och prata med er säkerhetsansvarige; gissa aldrig lägre.", "PL states how reliably the control system must stop or hold in a hazard. The level comes from the machine's risk assessment, not from here. If you don't know, choose \"Not decided yet\" and talk to your safety officer; never guess lower."),
+      options: ["PL c", "PL d", "PL e", g(locale, "Inte bestämt än (riskbedömningen avgör)", "Not decided yet (the risk assessment decides)")] });
+  }
   if (needsValveTerminal(text)) {
     m.set("faltbuss", { id: "ventil_inkoppling", type: "choice",
       label: g(locale, "Hur kopplas ventilerna till styrsystemet?", "How are the valves connected to the control system?"),

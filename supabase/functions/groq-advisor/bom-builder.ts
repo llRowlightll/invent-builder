@@ -177,6 +177,13 @@ export function arStyrventil52(p: CatalogProduct): boolean {
     !/spole|\bcoil\b|ejekt|ejector|vakuum|vacuum|kulventil|ball valve|vinkels|angle seat/i.test(p.name);
 }
 
+/** Pilotstyrd backventil (t.ex. Festo HGL), inte en vanlig backventil. */
+export function arPilotbackventil(p: CatalogProduct): boolean {
+  const text = `${p.name} ${p.sku}`;
+  const arBackventil = p.category === "check-valve" || /backslagsventil|backventil|check.valve|sperrventil|non.return/i.test(text);
+  return arBackventil && /pilot|\bHGL\b/i.test(text);
+}
+
 export function findCatalogProductByType(
   type: "valve" | "frl" | "check-valve" | "shock-absorber" | "sensor" | "valve-terminal" | "fitting" | "cable" | "mounting" | "servo-motor" | "servo-drive" | "silencer" | "flow-control" | "tubing",
   products: CatalogProduct[]
@@ -202,6 +209,12 @@ export function findCatalogProductByType(
   // i kön var en vakuumejektor (VADMI-95). Finns ingen 5/2-ventil blir raden
   // SPECIFY -- en ärlig lucka i stället för fel komponent.
   if (type === "valve") return ordered.find(arStyrventil52) ?? null;
+  // Stycklistans backventilrad är en PILOTSTYRD backventil på cylinderporten.
+  // Kategorin "check-valve" rymmer också vanliga backventiler (SMC AKH,
+  // öppningstryck 0,005 MPa) som stänger frånluften men aldrig släpper den
+  // på styrsignal. Kundgranskningen 2026-11-13 hittade AKH beskriven som
+  // lasthållande; här får bara en pilotstyrd ventil fylla raden, annars SPECIFY.
+  if (type === "check-valve") return ordered.find(arPilotbackventil) ?? null;
   // Exact category match wins (branded-first) so a loose name regex for one type
   // can't grab a product from another category — e.g. a "silencer" (ljuddämpare)
   // must never satisfy a "shock-absorber" (stötdämpare) lookup via "dämpare".
@@ -210,9 +223,6 @@ export function findCatalogProductByType(
   for (const p of ordered) {
     const nameSkuLower = (p.name + " " + p.sku).toLowerCase();
     switch (type) {
-      case "check-valve":
-        if (p.category === "check-valve" || /backslagsventil|check.valve|pilot.operated.check|sperrventil|non.return/i.test(nameSkuLower)) return p;
-        break;
       case "shock-absorber":
         if (p.category === "shock-absorber" || /st.tdämpare|shock.?absorber|st.tdämp/i.test(nameSkuLower)) return p;
         break;
