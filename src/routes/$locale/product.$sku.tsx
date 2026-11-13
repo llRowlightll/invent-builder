@@ -8,6 +8,7 @@ import type { ProductRow } from "@/lib/types";
 import { getProductImage } from "@/lib/product-images";
 import { ArticleNumber } from "@/components/ArticleNumber";
 import { addToShoppingList } from "@/lib/cart";
+import { arEnskiltVarde, arFamiljepost, SERIE_TEXT, uppTill } from "@/lib/serie";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { categoryName } from "@/lib/categories";
 import { beskrivning, kallor, produktnamn, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
@@ -196,6 +197,12 @@ function ProductDetail() {
   if (!product) throw notFound();
 
   const productImageUrl = getProductImage(product);
+  // Serie, inte artikel: max-slaget visas som "upp till" och knappen säger
+  // vad som händer (se serie.ts).
+  const familj = arFamiljepost(product);
+  const serieText = SERIE_TEXT[locale] ?? SERIE_TEXT.en;
+  const visaSpec = (k: string, v: { value: string; unit: string | null }) =>
+    familj && k === "stroke_mm" && arEnskiltVarde(v.value) ? `${uppTill(locale)} ${specVarde(k, v, locale)}` : specVarde(k, v, locale);
   const canonicalUrl = `${SITE}/${locale}/product/${encodeURIComponent(sku)}`;
 
   const breadcrumbSchema = {
@@ -227,7 +234,7 @@ function ProductDetail() {
       additionalProperty: synligaSpecar(product.specs).map(([k, v]) => ({
         "@type": "PropertyValue",
         name: specEtikett(k, locale),
-        value: specVarde(k, v, locale),
+        value: visaSpec(k, v),
       })),
     }),
   };
@@ -261,6 +268,7 @@ function ProductDetail() {
           {product.ip_rating && <Row k="IP" v={product.ip_rating} />}
           {product.fieldbus && <Row k={t("productPage.fieldbus")} v={product.fieldbus} />}
           {product.voltage && <Row k={t("productPage.voltage")} v={product.voltage} />}
+          {familj && <p className="text-xs text-foreground/80 leading-relaxed">{serieText.rad}</p>}
           <button
             type="button"
             onClick={() => {
@@ -274,7 +282,7 @@ function ProductDetail() {
                 : "bg-cta text-cta-foreground shadow-xs hover:bg-cta-hover active:translate-y-px"
             }`}
           >
-            {addedToCart ? t("productPage.addedToCart") : t("productPage.addToCart")}
+            {addedToCart ? t("productPage.addedToCart") : familj ? serieText.knapp : t("productPage.addToCart")}
           </button>
           {configSlug && (
             <Link
@@ -379,7 +387,7 @@ function ProductDetail() {
               {synligaSpecar(product.specs).map(([k, v]) => (
                 <tr key={k} className="border-b border-border last:border-0 odd:bg-surface-alt/50">
                   <td className="p-3 text-muted-foreground w-1/2">{specEtikett(k, locale)}</td>
-                  <td className="p-3 font-medium">{specVarde(k, v, locale)}</td>
+                  <td className="p-3 font-medium">{visaSpec(k, v)}</td>
                 </tr>
               ))}
             </tbody>

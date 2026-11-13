@@ -11,6 +11,7 @@ import { addToShoppingList } from "@/lib/cart";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { categoryName } from "@/lib/categories";
 import { beskrivning, kallor, produktnamn, specEtikett, specVarde, synligaSpecar } from "@/lib/spec-format";
+import { arEnskiltVarde, arFamiljepost, SERIE_TEXT, uppTill } from "@/lib/serie";
 import { matcharFraga } from "@/lib/sokord";
 import { cylinderstandard, harBorrning } from "@/lib/likvardiga";
 import { logga } from "@/lib/matning";
@@ -754,7 +755,7 @@ function ProductsPage() {
                         key={k}
                         className="text-[11px] bg-muted px-1.5 py-0.5 rounded-md text-muted-foreground"
                       >
-                        {specEtikett(k, locale)}: {specVarde(k, v, locale)}
+                        {specEtikett(k, locale)}: {k === "stroke_mm" && arFamiljepost(p) && arEnskiltVarde(v.value) ? `${uppTill(locale)} ${specVarde(k, v, locale)}` : specVarde(k, v, locale)}
                       </span>
                     ))}
                   </div>
@@ -775,6 +776,16 @@ function ProductsPage() {
                     >
                       {t("productsPage.datasheet")}
                     </Link>
+                    {arFamiljepost(p) ? (
+                      // En serie läggs inte i korgen härifrån: utförandet väljs på produktsidan.
+                      <Link
+                        to="/$locale/product/$sku"
+                        params={{ locale, sku: p.sku }}
+                        className="text-[11px] font-medium px-2 py-0.5 rounded text-muted-foreground hover:text-info transition"
+                      >
+                        {(SERIE_TEXT[locale] ?? SERIE_TEXT.en).valj}
+                      </Link>
+                    ) : (
                     <button
                       onClick={() => quickAddToList(p)}
                       className={`text-[11px] transition font-medium px-2 py-0.5 rounded ${
@@ -786,6 +797,7 @@ function ProductsPage() {
                     >
                       {addedSku === p.sku ? "✓ " + t("productsPage.added") : "+ " + t("productsPage.addToList")}
                     </button>
+                    )}
                     <Link
                       to="/$locale/compare"
                       params={{ locale }}
