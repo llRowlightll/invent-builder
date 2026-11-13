@@ -306,3 +306,38 @@ Deno.test("med ett uttryckligt lyft är ett mått utan rörelseord bara ett måt
   assertEquals(kb.osakra.filter((o) => o.kravId.startsWith("krav-slag")), []);
   assertEquals(extractMinStroke({}, text), 400);
 });
+
+// Kundgranskningen 2026-11-13: personornas egna ord som tolkningen missade.
+Deno.test("massa per styck, talord och gram nära 'väger' läses", () => {
+  const massa = (t: string) => tolkaKravbild(t).krav.filter((k) => k.objektId === "produkt" && k.egenskap === "massa").map((k) => k.varde);
+  assertEquals(massa("flaskor 1kg/st från bandet"), [1]);
+  assertEquals(massa("ca 1 kg/flaska, 30 st/min"), [1]);
+  assertEquals(massa("flaskorna väger ett kilo"), [1]);
+  assertEquals(massa("lådan väger en halv kilo"), [0.5]);
+  assertEquals(massa("flaskorna väger 800g"), [0.8]);
+  // Oförändrat: kg/m är ingen massa, och G1/4 är en gänga.
+  assertEquals(massa("profilen väger 5 kg/m"), []);
+  assertEquals(massa("anslutning G1/4, 6 bar"), []);
+});
+
+Deno.test("takt med vilket ord som helst före /min läses, men inte en fart", () => {
+  const flode = (t: string) => tolkaKravbild(t).krav.filter((k) => k.egenskap === "flode" || k.egenskap === "takt").map((k) => `${k.varde} ${k.enhet}`);
+  assertEquals(flode("30 flaskor/min"), ["30 st/min"]);
+  assertEquals(flode("30 flaskor per minut"), ["30 st/min"]);
+  assertEquals(flode("typ 30 st i minuten"), ["30 st/min"]);
+  assertEquals(flode("30 pcs/min"), ["30 st/min"]);
+  assertEquals(flode("30 bottles per minute"), ["30 st/min"]);
+  assertEquals(flode("40 cykler/min"), ["40 cykler/min"]);
+  assertEquals(flode("bandet går 12 m/min"), []);
+});
+
+Deno.test("slag utan enhet och Ø<borrning>×<slag> ger slaglängden", () => {
+  const slag = (t: string) => langderITexten(t).filter((l) => l.typ === "slag").map((l) => l.mm);
+  assertEquals(slag("Ø50 slag 200"), [200]);
+  assertEquals(slag("behöver DSBC Ø50×200"), [200]);
+  assertEquals(slag("ø32x100 mm, 6 bar"), [100]);
+  assertEquals(slag("slaglängd 150 mm"), [150]);
+  // Inte en takt eller ett tryck.
+  assertEquals(slag("30 slag/min"), []);
+  assertEquals(slag("slag 30/min"), []);
+});
