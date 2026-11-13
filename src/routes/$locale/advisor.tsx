@@ -259,13 +259,15 @@ function AdvisorPage() {
       {/* Direkt kontakt. Kundgranskningen 2026-11-13: "Kontakt" i menyn ledde
           hit och fyra av tjugo kunder såg bara "— Välj situation —", utan
           e-post eller telefon (e-posten låg dold i mobil och kom först efter
-          laddning). Adressen visas när den är ifylld i Inställningar. */}
+          laddning). Telefon och adress kommer från Inställningar (ägaren
+          2026-11-13: samma nummer överallt tills ett annat ersätter det). */}
       <div className="kort p-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
         <a href={`mailto:${co?.email || "info@maskinval.se"}`} className="inline-flex items-center gap-1.5 text-info font-medium hover:underline">
           <Mail className="size-4" aria-hidden />{co?.email || "info@maskinval.se"}
         </a>
-        {/* Telefonen visas först när ägaren bestämt att numret ska vara publikt
-            (det står i dag bara på offerter och orderbekräftelser). */}
+        {co?.phone && (
+          <a href={`tel:${co.phone.replace(/[^+\d]/g, "")}`} className="font-medium hover:underline">{co.phone}</a>
+        )}
         <span className="text-muted-foreground">{KONTAKT[locale as keyof typeof KONTAKT] ?? KONTAKT.en}</span>
         {co?.address && (
           <span className="text-xs text-muted-foreground w-full">{visningsnamn(co)} · {co.address}{co.postal ? `, ${co.postal}` : ""}{co.org ? ` · Org.nr ${co.org}` : ""}</span>

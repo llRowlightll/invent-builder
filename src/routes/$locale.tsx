@@ -16,6 +16,7 @@ import { ShoppingCart } from "lucide-react";
 import { Snabbsok } from "@/components/Snabbsok";
 import { delningsbildMeta } from "@/lib/site";
 import { besoksKalla, logga } from "@/lib/matning";
+import { fetchCompanySettings, visningsnamn, type CompanySettings } from "@/lib/company-settings";
 
 export const Route = createFileRoute("/$locale")({
   parseParams: (params) => {
@@ -526,7 +527,8 @@ function LocaleLayout() {
             <p className="mt-2 text-[11px]">{t("footer.productTypes")}</p>
           </div>
         </div>
-        <div className="container-page mt-6 pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-muted-foreground">
+        <Bolagsrad />
+        <div className="container-page mt-4 pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-muted-foreground">
           <span>© {new Date().getFullYear()} {t("common.appName")} — {t("footer.copyright")}</span>
           <div className="flex flex-wrap gap-4 justify-center sm:justify-end">
             <Link to="/$locale/om-oss" params={{ locale }} className="hover:text-info transition">{t("footer.about")}</Link>
@@ -569,6 +571,32 @@ function SidanSaknas() {
           <Link to="/$locale/products" params={{ locale }} className="underline hover:text-info">{x.katalog}</Link>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Vem som säljer, i sidfoten på varje sida. Kundgranskningen 2026-11-13: tolv
+ * av tjugo kunder hittade inget organisationsnummer, ingen adress och ingen
+ * telefon. Allt kommer från admin → Inställningar (site_content), så ett nytt
+ * telefonnummer eller ett org.nr syns överallt när det sparas där -- inget av
+ * det står i koden.
+ */
+function Bolagsrad() {
+  const [b, setB] = useState<CompanySettings | null>(null);
+  useEffect(() => { fetchCompanySettings().then(setB).catch(() => setB(null)); }, []);
+  if (!b) return null;
+  const delar = [
+    visningsnamn(b),
+    b.org ? `Org.nr ${b.org}` : "",
+    b.vat ? `Momsreg.nr ${b.vat}` : "",
+    [b.address, b.postal].filter(Boolean).join(", "),
+  ].filter(Boolean);
+  return (
+    <div className="container-page mt-6 text-[11px] text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span>{delar.join(" · ")}</span>
+      {b.phone && <a href={`tel:${b.phone.replace(/[^\d+]/g, "")}`} className="hover:text-info transition">{b.phone}</a>}
+      {b.email && <a href={`mailto:${b.email}`} className="hover:text-info transition">{b.email}</a>}
     </div>
   );
 }

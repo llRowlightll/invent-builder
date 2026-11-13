@@ -12,7 +12,7 @@ import type { Locale } from "@/lib/i18n";
  */
 type Text = {
   titel: string; ingress: string; gorTitel: string; gor: string[];
-  arbetarTitel: string; arbetar: string[]; kontaktTitel: string; kontaktLank: string; meta: string;
+  arbetarTitel: string; arbetar: string[]; vemTitel: string; vem: string; kontaktTitel: string; kontaktLank: string; meta: string;
 };
 
 const TEXT: Record<string, Text> = {
@@ -32,6 +32,8 @@ const TEXT: Record<string, Text> = {
       "AI:n föreslår – en människa bekräftar. Offertförfrågningar besvaras inom 1–2 arbetsdagar, och priset bekräftas innan något beställs.",
       "Fabrikaten jämförs på samma villkor, med skillnaderna utskrivna.",
     ],
+    vemTitel: "Människa och AI",
+    vem: "Maskinval är en människa och en kraftfull AI som arbetar tillsammans. AI-motorn har läst tillverkarnas kataloger och datablad för åtta fabrikat, tolkar vad maskinen ska göra, räknar på kraft, slag och tryck och prövar komponenterna mot kraven – på sekunder. Grundaren, som arbetat med industriell automation i tre år på ett bolag med automation som specialitet, granskar förslaget och svarar själv. Ingen kundtjänst emellan, och ingen offert eller beställning går vidare utan en människa.",
     kontaktTitel: "Kontakt",
     kontaktLank: "Skicka en fråga",
     meta: "Maskinval hjälper maskinbyggare och underhållsingenjörer att hitta rätt pneumatik- och automationskomponenter från åtta fabrikat.",
@@ -52,6 +54,8 @@ const TEXT: Record<string, Text> = {
       "The AI suggests – a person confirms. Quote requests are answered within 1–2 working days, and the price is confirmed before anything is ordered.",
       "The brands are compared on equal terms, with the differences spelled out.",
     ],
+    vemTitel: "A person and an AI",
+    vem: "Maskinval is a person and a powerful AI working together. The AI engine has read the manufacturers' catalogues and datasheets for eight brands, interprets what the machine has to do, calculates force, stroke and pressure and checks the components against the requirements – in seconds. The founder, who has worked with industrial automation for three years at a company that specialises in automation, reviews the proposal and replies personally. No call centre in between, and no quote or order goes out without a person.",
     kontaktTitel: "Contact",
     kontaktLank: "Send a question",
     meta: "Maskinval helps machine builders and maintenance engineers find the right pneumatic and automation components from eight brands.",
@@ -102,6 +106,11 @@ function OmOss() {
       <ul className="mt-3 space-y-2 text-sm text-foreground/80 leading-relaxed list-disc pl-5">
         {x.arbetar.map((g) => <li key={g}>{g}</li>)}
       </ul>
+
+      {/* Kundgranskningen 2026-11-13: "riktiga ingenjörer" utan ett enda namn
+          väckte misstro. Ägaren: tre års erfarenhet av automation. */}
+      <h2 className="mt-10 text-lg font-semibold">{x.vemTitel}</h2>
+      <p className="mt-3 text-sm text-foreground/80 leading-relaxed">{x.vem}</p>
 
       <h2 className="mt-10 text-lg font-semibold">{x.kontaktTitel}</h2>
       <div className="mt-3 space-y-1 text-sm text-foreground/80">
