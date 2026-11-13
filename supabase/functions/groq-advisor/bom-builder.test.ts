@@ -9,6 +9,7 @@ import {
   deriveBomConnections,
   deriveSubsystems,
   findAxisActuator,
+  axelnsBorrning,
   bedomLosning,
   arStyrventil52,
   findCatalogProductByType,
@@ -1194,4 +1195,52 @@ Deno.test("ingen PLC och servoaxlar i en pneumatisk station syns som egna rader 
   const rows = buildMandatoryBomRows(bomCtx({ ...h, unitCount: 12 }));
   assert(rows.some((r) => r.role === "⚠️ Styrning behövs"), "ingen PLC");
   assert(rows.some((r) => /Servoaxlarna ingår inte/.test(r.role)), "servoaxlarna");
+});
+
+// ── Axlarna i en fleraxlig vakuumlösning (kundgranskningen 2026-11-13) ────────
+// Drift: "Palleteringscell … 12 kg med sugkoppar: lyftslag 600 mm, sidled
+// 1200 mm" fick AVENTICS GPC-BV Ø12 100 mm på båda axlarna, en enda kopp och
+// ingen ejektor.
+
+const GPC12 = { sku: "0822061004", name: "AVENTICS GPC-BV Ø12 100mm Guide Cylinder", category: "cylinder", brand: "aventics", key_specs: { bore_mm: "12" } };
+const ISO_FAM = { sku: "FESTO-DSBC", name: "DSBC ISO 15552 cylinder", category: "cylinder", brand: "festo", key_specs: { bore_mm: "32–125", stroke_mm: "2000 mm", is_family: true } };
+const RUND16 = { sku: "R16-800", name: "Rundcylinder Ø16 800 mm", category: "cylinder", brand: "x", key_specs: { bore_mm: "16", stroke_mm: "800 mm" } };
+const STANGLOS = { sku: "SMC-MY1B", name: "MY1B Rodless cylinder", category: "cylinder", brand: "smc", key_specs: { bore_mm: "25–63", stroke_mm: "5000 mm", is_family: true, cylinder_type: "Rodless cylinder, ball rail guide" } };
+
+Deno.test("findAxisActuator: slaget ska räcka och en lyftaxel ska orka lasten", () => {
+  // 12 kg × 9,81 × 2 = 235 N -> minst Ø26 vid 6 bar med tätningsförluster.
+  assertEquals(findAxisActuator([GPC12], 600, false, { kraftN: 235 }), null, "100 mm slag räcker inte för 600");
+  assertEquals(findAxisActuator([RUND16], 600, false, { kraftN: 235 }), null, "Ø16 orkar inte 235 N");
+  assertEquals(findAxisActuator([GPC12, RUND16, ISO_FAM], 600, false, { kraftN: 235 })?.sku, "FESTO-DSBC");
+  assertEquals(axelnsBorrning(ISO_FAM, 235), 32);
+  // En lång vågrät axel med last tas helst kolvstångslös.
+  assertEquals(findAxisActuator([ISO_FAM, STANGLOS], 1200, false, { vagrat: true })?.sku, "SMC-MY1B");
+  // Utan slagkrav: som förut, första kandidaten.
+  assertEquals(findAxisActuator([GPC12, ISO_FAM], 0, false)?.sku, "0822061004");
+});
+
+Deno.test("vakuum med lyft- och sidledsaxel: koppar, ejektor, vakuumvakt, ejektorventil och riktiga axlar", () => {
+  const h = detectHazards("Palleteringscell som lyfter kartonger 12 kg med sugkoppar: lyftslag 600 mm, sidled 1200 mm, 8 cykler per minut, 6 bar", {}, "sv");
+  assert(h.isMultiAxis, "fleraxlig");
+  const rows = buildMandatoryBomRows(bomCtx({
+    ...h, primarySku: "VTCL-40", primaryCategory: "vacuum", primarySpecs: { cup_diameter_mm: 40 },
+    products: [
+      GPC12, ISO_FAM, STANGLOS,
+      { sku: "FESTO-VN", name: "VN – Vacuum Ejector", category: "vacuum", brand: "festo", key_specs: { type: "ejector" } },
+      { sku: "SMC-ZSE10", name: "ZSE10 Vacuum switch", category: "sensor", brand: "smc", key_specs: {} },
+      { sku: "V32", name: "3/2-ventil NC G1/8", category: "valve", brand: "smc", key_specs: {} },
+    ],
+  }));
+  // 379 N (lyft plus sidledsacceleration) / ≈ 50 N per Ø40-kopp -> 8 koppar.
+  assertEquals(rows[0].quantity, 8, rows[0].reason);
+  assert(rows.some((r) => r.kind === "ejector" && r.sku === "FESTO-VN"), "ejektor");
+  assert(rows.some((r) => r.role === "Vakuumvakt"), "vakuumvakt");
+  // Med flera ventiler blir det en ventilö; ejektorns ventil sitter där.
+  assert(rows.some((r) => (r.kind === "valve" && /ejektorn/.test(r.role)) || r.kind === "valve_terminal"), "ventil för ejektorn");
+  const z = rows.find((r) => /Z-axel/.test(r.role));
+  const x = rows.find((r) => /X-axel/.test(r.role));
+  assertEquals(z?.sku, "FESTO-DSBC", z?.reason);
+  assert(/Ø32/.test(z!.reason), z!.reason);
+  assertEquals(x?.sku, "SMC-MY1B", x?.reason);
+  assert(!rows.some((r) => r.sku === "0822061004"), "ingen Ø12/100 mm styrd cylinder");
 });

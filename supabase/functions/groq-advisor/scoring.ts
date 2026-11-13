@@ -53,6 +53,13 @@ export interface ScoringCtx {
   // Livsmedel: en rad med uttryckligt stöd i datan (FDA, NSF H1, EHEDG,
   // hygienisk konstruktion) ska gå före en som bara är korrosionsbeständig.
   isFood?: boolean;
+  // Cylinderstandarden kunden bad om ("ISO 15552"), null = ingen. Ett krav,
+  // inte en smakfråga: infästning och mått följer standarden, och en styrd
+  // enhet byggd på en ISO-cylinder passar inte i en ISO 15552-infästning.
+  begardStandard?: string | null;
+  // Kunden bad själv om en styrd enhet, släde eller kolvstångslös -- då är
+  // enhetstypen ingen avvikelse, bara standardnumret jämförs.
+  enhetBegard?: boolean;
 }
 
 /** Catalog categories whose products ARE primary linear/rotary actuators.
@@ -566,9 +573,54 @@ export function actuatorTier(p: CatalogProduct, requiredStroke: number): number 
  */
 export function rankActuators(candidates: CatalogProduct[], ctx: ScoringCtx): CatalogProduct[] {
   const req = ctx.requiredStroke;
+  // Begärd standard först: en ISO 15552-cylinder med slaget valt vid
+  // beställning går före en styrd enhet med rätt slag (kundgranskningen
+  // 2026-11-13: "Ø50 slag 200" gav en GPC-BV-styrd cylinder som "Bästa valet").
+  const std = (p: CatalogProduct) => {
+    if (!ctx.begardStandard) return 0;
+    const f = foljerStandard(p, ctx.begardStandard, ctx.enhetBegard === true);
+    return f === true ? 0 : f === null ? 1 : 2;
+  };
   return candidates
     .filter((p) => parseStrokeFromSpecs(p.key_specs ?? {}) > 0 || req === 0)
-    .map((p) => ({ p, tier: actuatorTier(p, req), s: scoreProduct(p, ctx) }))
-    .sort((a, b) => (a.tier - b.tier) || (b.s - a.s))
+    .map((p) => ({ p, st: std(p), tier: actuatorTier(p, req), s: scoreProduct(p, ctx) }))
+    .sort((a, b) => (a.st - b.st) || (a.tier - b.tier) || (b.s - a.s))
     .map((x) => x.p);
+}
+
+/** Standardnumret i en specvärdestext: ISO 6431 och VDMA 24562 är föregångarna till ISO 15552. */
+export function cylinderstandard(v: unknown): string | null {
+  const s = String(v ?? "");
+  if (/6432/.test(s)) return "ISO 6432";
+  if (/15552|6431|vdma/i.test(s)) return "ISO 15552";
+  if (/21287/.test(s)) return "ISO 21287";
+  return null;
+}
+
+/** Cylinderstandarden texten ber om, eller null. Kräver "ISO"/"VDMA" framför numret; VDMA 24563 är ventilstandarden. */
+export function begardStandard(text: string): string | null {
+  const m = String(text ?? "").match(/\b(?:ISO|EN\s?ISO)[\s-]?(15552|6431|6432|21287)\b|\bVDMA(?![\s-]?2456[3-9])(?:[\s-]?24562)?\b/i);
+  return m ? cylinderstandard(m[0]) : null;
+}
+
+/** Ber texten själv om en styrd enhet, släde eller kolvstångslös cylinder? */
+export function enhetBegard(text: string): boolean {
+  return ENHET.test(String(text ?? ""));
+}
+
+const ENHET = /guided|guide cylinder|guide rods|styrd|styrstänger|rodless|kolvstångslös|stånglös|band cylinder|linjärenhet|linear drive|\bslide\b|släde|slid(?:bord|enhet)/i;
+
+/**
+ * Följer produkten den begärda standarden? true/false, eller null när
+ * standarden inte står i datan. En styrd enhet, släde eller kolvstångslös
+ * cylinder följer aldrig en cylinderstandard -- dess infästning är enhetens
+ * egen, även när den är byggd på en ISO-cylinder (AVENTICS GPC-BV anger
+ * ISO 6431).
+ */
+export function foljerStandard(p: CatalogProduct, standard: string, enhetOk = false): boolean | null {
+  const typ = [p.name, p.key_specs?.cylinder_type].filter(Boolean).join(" ");
+  if (!enhetOk && ENHET.test(typ)) return false;
+  const egen = cylinderstandard(p.key_specs?.standard);
+  if (egen) return egen === standard;
+  return null;
 }

@@ -19,6 +19,9 @@ import {
   isBeltDrivenProduct,
   isBallScrewProduct,
   repeterbarhetMm,
+  begardStandard,
+  enhetBegard,
+  foljerStandard,
 } from "./scoring.ts";
 
 function prod(
@@ -298,3 +301,48 @@ Deno.test("långt och snabbt med ±0,1 mm: remaxeln före kulskruven", () => {
   assert(scoreProduct(skruvaxel("FESTO-EGC-BS", "±0.003"), kort) >= scoreProduct(remaxel("FESTO-EGC-TB", "±0.08"), kort));
 });
 
+
+// ── Begärd cylinderstandard (kundgranskningen 2026-11-13) ─────────────────────
+// "Ø50 slag 200" gav AVENTICS GPC-BV Ø50 "Guide Cylinder" som "Bästa valet"
+// med motiveringen "Passar mekaniskt". En styrd enhet har egen infästning och
+// passar inte där en ISO 15552-cylinder ska sitta.
+
+Deno.test("begardStandard läser ISO-numret och VDMA, men inte ventilstandarden", () => {
+  assertEquals(begardStandard("Cylinder ISO 15552 Ø50 slag 200"), "ISO 15552");
+  assertEquals(begardStandard("ersätter en gammal ISO6431-cylinder"), "ISO 15552");
+  assertEquals(begardStandard("VDMA-cylinder Ø63"), "ISO 15552");
+  assertEquals(begardStandard("rundcylinder iso 6432 Ø20"), "ISO 6432");
+  assertEquals(begardStandard("kompaktcylinder ISO-21287 Ø32"), "ISO 21287");
+  assertEquals(begardStandard("ventilö VDMA 24563"), null);
+  assertEquals(begardStandard("Ø50 slag 200"), null);
+  assertEquals(begardStandard("15552 mm"), null);
+});
+
+Deno.test("en styrd cylinder följer inte ISO 15552, en ISO 15552-cylinder gör det", () => {
+  const styrd: CatalogProduct = { sku: "0822066003", name: "AVENTICS GPC-BV Ø50 100mm Guide Cylinder", category: "cylinder", brand: "aventics", key_specs: normalizeKeySpecs({ bore_mm: "50", stroke_mm: "100 mm", standard: "ISO 6431" }) };
+  const iso: CatalogProduct = { sku: "63M2A050A200", name: "Camozzi 63 Ø50 200", category: "cylinder", brand: "camozzi", key_specs: normalizeKeySpecs({ bore_mm: "50", stroke_mm: "200 mm", standard: "ISO 15552" }) };
+  const okand: CatalogProduct = { sku: "X-50-200", name: "Cylinder Ø50", category: "cylinder", brand: "x", key_specs: normalizeKeySpecs({ bore_mm: "50", stroke_mm: "200 mm" }) };
+  assertEquals(foljerStandard(styrd, "ISO 15552"), false);
+  assertEquals(foljerStandard(iso, "ISO 15552"), true);
+  assertEquals(foljerStandard(iso, "ISO 6432"), false);
+  assertEquals(foljerStandard(okand, "ISO 15552"), null);
+  // Bad kunden om en styrd enhet jämförs bara numret.
+  assertEquals(foljerStandard(styrd, "ISO 15552", true), true);
+});
+
+Deno.test("rankActuators: begärd standard går före rätt slag på en styrd enhet", () => {
+  const styrd: CatalogProduct = { sku: "GPC-50-200", name: "AVENTICS GPC-BV Ø50 200mm Guide Cylinder", category: "cylinder", brand: "aventics", key_specs: normalizeKeySpecs({ bore_mm: "50", stroke_mm: "200 mm" }) };
+  const iso: CatalogProduct = { sku: "63M2A050A200", name: "Camozzi 63 Ø50 200", category: "cylinder", brand: "camozzi", key_specs: normalizeKeySpecs({ bore_mm: "50", stroke_mm: "200 mm", standard: "ISO 15552" }) };
+  const okand: CatalogProduct = { sku: "X-50-200", name: "Cylinder Ø50", category: "cylinder", brand: "x", key_specs: normalizeKeySpecs({ bore_mm: "50", stroke_mm: "200 mm" }) };
+  const ordning = rankActuators([styrd, okand, iso], ctx({ requiredStroke: 200, begardStandard: "ISO 15552" })).map((p) => p.sku);
+  assertEquals(ordning, ["63M2A050A200", "X-50-200", "GPC-50-200"]);
+  // Utan begärd standard ändras ingenting i ordningen mellan dem.
+  const utan = rankActuators([styrd, okand, iso], ctx({ requiredStroke: 200 })).map((p) => p.sku);
+  assertEquals(utan.length, 3);
+});
+
+Deno.test("enhetBegard känner igen en uttryckligen styrd eller kolvstångslös enhet", () => {
+  assertEquals(enhetBegard("styrd cylinder ISO 15552 Ø32"), true);
+  assertEquals(enhetBegard("kolvstångslös cylinder 1200 mm"), true);
+  assertEquals(enhetBegard("Cylinder ISO 15552 Ø50 slag 200"), false);
+});
