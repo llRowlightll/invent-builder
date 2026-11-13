@@ -494,6 +494,9 @@ export function needsMultiAxis(text: string): boolean {
   // letters: the old `x.*y|y.*x|x.*z|z.*x` matched any x/y/z across the whole string,
   // so "Cylinder … exakt" (y…x) was falsely flagged multi-axis — which disabled the
   // precision hard-filter and triggered per-axis BOM logic on single-axis jobs.
+  // Lyft och sidled i samma beskrivning är två axlar (kundgranskningen
+  // 2026-11-13: "lyftslag 600 mm, sidled 1200 mm" blev en enda cylinder).
+  if (/(?:lyft|höjd|vertikal)\w*[^.]{0,60}\bsidled|\bsidled\w*[^.]{0,60}(?:lyft|höjd|vertikal)/i.test(text)) return true;
   if (/\b[xyz][-_\s]?ax(el|is|e)|\bxyz\b|\b[xyz]\s*[\/-]\s*[xyz]\b|två axl|två rörel|horisontell.*vertikal|vertikal.*horisontell|pick.and.place|pick.*place|plocka.*placera|plocka.*flytta|plocka.{0,80}\b(ställ|lägg|sätt)(a|er)\b|lyfter.*flytta|flytta.*lyft|2-axl|2 axl|multi.*axl|cartesian|portalsystem|lyfter.*flyttar|lyfter.*och.*flyttar/i.test(text)) return true;
 
   // Adversarial test finding 2026-08-16: "en enda cylinder som SAMTIDIGT lyfter,
