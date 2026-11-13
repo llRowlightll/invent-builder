@@ -19,6 +19,19 @@ import { textParam } from "@/lib/sokparam";
 
 type FilterKey = "brands" | "cats" | "grades";
 
+/** Artiklar som server-renderas när inget filter är valt. */
+const KATALOG_SSR = 48;
+
+type KatalogData = {
+  items: ProductRow[] | null;
+  /** Antal aktiva artiklar i hela katalogen. */
+  totalt: number;
+  /** Sant när items är hela katalogen; annars hämtar webbläsaren resten. */
+  komplett: boolean;
+  category: string | null;
+  brand: string | null;
+};
+
 export const Route = createFileRoute("/$locale/products")({
   validateSearch: z.object({
     q: textParam(),
@@ -35,19 +48,30 @@ export const Route = createFileRoute("/$locale/products")({
   // the catalog server-side so the grid itself SSRs instead of starting empty
   // (a non-JS crawler used to see nothing here at all).
   loaderDeps: ({ search }) => ({ category: search.category ?? null, brand: search.brand ?? null }),
-  loader: async ({ deps }): Promise<{ items: ProductRow[] | null; category: string | null; brand: string | null }> => {
+  // Lättare sidor 2026-11-13: hela katalogen (800 artiklar med specifikationer)
+  // följde med i varje sidas HTML, ~1 MB inline-skript även på en kategori med
+  // 15 artiklar och 2,7 MB på /products. Under kundgranskningens last gav det
+  // Cloudflare 503 "error code: 1102" (Workers resursgräns) gång på gång.
+  // Servern skickar nu bara kategorins/fabrikatets artiklar, eller de första
+  // KATALOG_SSR utan filter; webbläsaren hämtar resten direkt från databasen
+  // efter laddningen (loadCatalog körs med anon-nyckeln, se catalog.ts).
+  loader: async ({ deps }): Promise<KatalogData> => {
     try {
-      const items = await loadCatalog();
-      return { items, category: deps.category, brand: deps.brand };
+      const alla = await loadCatalog();
+      let items = alla;
+      if (deps.category) items = items.filter((p) => p.category.slug === deps.category);
+      if (deps.brand) items = items.filter((p) => p.brand.slug === deps.brand);
+      if (!deps.category && !deps.brand) items = items.slice(0, KATALOG_SSR);
+      return { items, totalt: alla.length, komplett: items.length === alla.length, category: deps.category, brand: deps.brand };
     } catch {
-      return { items: null, category: deps.category, brand: deps.brand };
+      return { items: null, totalt: 0, komplett: false, category: deps.category, brand: deps.brand };
     }
   },
   head: ({ params, loaderData }) => {
     const t = makeT(params.locale as Locale);
     const locale = params.locale;
     const sv = locale === "sv";
-    const ld = loaderData as { items: ProductRow[] | null; category: string | null; brand: string | null } | undefined;
+    const ld = loaderData as KatalogData | undefined;
     const cat = ld?.category ?? null;
     const brandSlug = ld?.brand ?? null;
     const catSeo = cat ? CATEGORY_SEO[cat] : null;
@@ -252,8 +276,17 @@ function ProductsPage() {
   const t = makeT(locale as Locale);
   const aiSearch = useServerFn(aiSearchProducts);
 
-  const ld = Route.useLoaderData() as { items: ProductRow[] | null; category: string | null; brand: string | null };
+  const ld = Route.useLoaderData() as KatalogData;
   const [items, setItems] = useState<ProductRow[] | null>(ld.items);
+  // Servern skickade bara en del av katalogen (se loadern); resten hämtas här,
+  // så att filter, sökning och fabrikatslistor gäller hela sortimentet.
+  useEffect(() => {
+    if (ld.komplett) return;
+    let avbruten = false;
+    loadCatalog().then((alla) => { if (!avbruten) setItems(alla); }).catch(() => {});
+    return () => { avbruten = true; };
+  }, [ld.komplett]);
+  const totalt = Math.max(items?.length ?? 0, ld.totalt ?? 0);
   const [q, setQ] = useState(search.q ?? search.ai ?? "");
   const [brands, setBrands] = useState<Set<string>>(new Set(search.brand ? [search.brand] : []));
   const [cats, setCats] = useState<Set<string>>(new Set(search.category ? [search.category] : []));
@@ -486,7 +519,7 @@ function ProductsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-primary">{t("nav.products")}</h1>
           <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
-            {filtered.length} {t("products.of")} {items.length} {t("products.count")}
+            {filtered.length} {t("products.of")} {totalt} {t("products.count")}
             {familjefall && (
               <span className="ml-2 text-warning-deep">
                 Inga träffar på hela koden; visar familjen <strong>{familjefall.toUpperCase()}</strong>
@@ -767,7 +800,12 @@ function ProductsPage() {
               </li>
             );
           })}
-          {filtered.length === 0 && (
+          {filtered.length === 0 && items.length < totalt && (
+            <li className="col-span-full text-center py-16 text-sm text-muted-foreground">
+              {locale === "sv" ? "Hämtar hela katalogen …" : locale === "de" ? "Gesamter Katalog wird geladen …" : locale === "es" ? "Cargando el catálogo completo …" : "Loading the full catalogue …"}
+            </li>
+          )}
+          {filtered.length === 0 && items.length >= totalt && (
             <li className="col-span-full text-center py-16 text-sm text-muted-foreground">
               <div className="text-2xl mb-3">◎</div>
               <p className="mb-3">
