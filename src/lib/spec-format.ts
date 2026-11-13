@@ -125,6 +125,98 @@ const ENHET_UR_NYCKEL: [RegExp, string][] = [
   [/_mpa$/i, "MPa"], [/_kpa$/i, "kPa"], [/_bar$/i, "bar"],
 ];
 
+/**
+ * Tyska och spanska etiketter för de vanligaste fälten. Kundgranskningen
+ * 2026-11-13: /de och /es visade "Bore :" 484 gånger och "Stroke :" 457 --
+ * menyerna var översatta men inte specifikationerna. Saknas en nyckel här
+ * används den engelska etiketten.
+ */
+const ETIKETT_DE_ES: Record<string, [de: string, es: string]> = {
+  bore_mm: ["Kolbendurchmesser", "Diámetro del émbolo"],
+  bore_range: ["Kolbendurchmesser", "Diámetros del émbolo"],
+  stroke_mm: ["Hub", "Carrera"],
+  stroke_max: ["Max. Hub", "Carrera máx."],
+  stroke_max_mm: ["Max. Hub", "Carrera máx."],
+  stroke_range: ["Hubbereich", "Rango de carrera"],
+  standard_strokes_mm: ["Standardhübe", "Carreras estándar"],
+  max_pressure: ["Max. Druck", "Presión máx."],
+  max_pressure_bar: ["Max. Druck", "Presión máx."],
+  min_pressure: ["Min. Druck", "Presión mín."],
+  min_pressure_mpa: ["Min. Druck", "Presión mín."],
+  min_pressure_kpa: ["Min. Druck", "Presión mín."],
+  operating_pressure: ["Betriebsdruck", "Presión de trabajo"],
+  pressure_range: ["Druckbereich", "Rango de presión"],
+  pressure_range_mpa: ["Druckbereich", "Rango de presión"],
+  pressure_regulation_range: ["Regelbereich", "Rango de regulación"],
+  temp_range: ["Temperaturbereich", "Rango de temperatura"],
+  mode_of_operation: ["Wirkungsweise", "Modo de funcionamiento"],
+  medium: ["Medium", "Fluido"],
+  series: ["Baureihe", "Serie"],
+  cylinder_type: ["Zylinderbauart", "Tipo de cilindro"],
+  actuator_type: ["Antriebsart", "Tipo de actuador"],
+  type: ["Typ", "Tipo"],
+  standard: ["Norm", "Norma"],
+  material: ["Werkstoff", "Material"],
+  body_material: ["Gehäusewerkstoff", "Material del cuerpo"],
+  port: ["Anschluss", "Conexión"],
+  port_size: ["Anschlussgröße", "Tamaño de conexión"],
+  port_connection: ["Anschluss", "Conexión"],
+  connection: ["Anschluss", "Conexión"],
+  thread: ["Gewinde", "Rosca"],
+  rod_thread: ["Kolbenstangengewinde", "Rosca del vástago"],
+  piston_rod: ["Kolbenstange", "Vástago"],
+  cushioning: ["Dämpfung", "Amortiguación"],
+  cushioning_types: ["Dämpfungsvarianten", "Tipos de amortiguación"],
+  magnetic_piston: ["Magnetkolben", "Émbolo magnético"],
+  position_sensing: ["Positionserfassung", "Detección de posición"],
+  position_output: ["Schaltausgang", "Salida de conmutación"],
+  feedback: ["Geber", "Realimentación"],
+  piston_force_6bar_N: ["Kolbenkraft bei 6 bar, Vorhub", "Fuerza del émbolo a 6 bar, avance"],
+  piston_force_retract_6bar_N: ["Kolbenkraft bei 6 bar, Rückhub", "Fuerza del émbolo a 6 bar, retroceso"],
+  piston_force_6_3bar_N: ["Kolbenkraft bei 6,3 bar", "Fuerza del émbolo a 6,3 bar"],
+  force_n: ["Kraft", "Fuerza"],
+  max_thrust_n: ["Max. Vorschubkraft", "Empuje máx."],
+  thrust_force: ["Vorschubkraft", "Fuerza de empuje"],
+  clamping_force: ["Klemmkraft", "Fuerza de sujeción"],
+  torque: ["Drehmoment", "Par"],
+  rotation_angle: ["Schwenkwinkel", "Ángulo de giro"],
+  swivel_angle_max: ["Max. Schwenkwinkel", "Ángulo de giro máx."],
+  max_speed: ["Max. Geschwindigkeit", "Velocidad máx."],
+  repeatability_mm: ["Wiederholgenauigkeit", "Repetibilidad"],
+  tube_od_mm: ["Schlauchaußendurchmesser", "Diámetro exterior del tubo"],
+  inner_diameter_mm: ["Innendurchmesser", "Diámetro interior"],
+  outer_diameter_mm: ["Außendurchmesser", "Diámetro exterior"],
+  length_m: ["Länge", "Longitud"],
+  ip_rating: ["Schutzart", "Grado de protección"],
+  function: ["Funktion", "Función"],
+  valve_function: ["Ventilfunktion", "Función de la válvula"],
+  valve_type: ["Ventilbauart", "Tipo de válvula"],
+  actuation: ["Betätigung", "Accionamiento"],
+  solenoid_voltage: ["Spulenspannung", "Tensión de la bobina"],
+  voltage: ["Spannung", "Tensión"],
+  fieldbus: ["Feldbus", "Bus de campo"],
+  stations: ["Ventilplätze", "Estaciones"],
+  flow_direction: ["Durchflussrichtung", "Dirección del caudal"],
+  flow_rate_l_min: ["Durchfluss", "Caudal"],
+  filter_grade: ["Filterfeinheit", "Grado de filtración"],
+  gripper_type: ["Greiferbauart", "Tipo de pinza"],
+  jaw_stroke_per_side: ["Hub je Backe", "Carrera por mordaza"],
+  stroke_per_jaw: ["Hub je Backe", "Carrera por mordaza"],
+  number_of_jaws: ["Anzahl Backen", "Número de mordazas"],
+  max_vacuum: ["Max. Vakuum", "Vacío máx."],
+  vacuum_level: ["Vakuumniveau", "Nivel de vacío"],
+  cup_diameter_mm: ["Saugerdurchmesser", "Diámetro de la ventosa"],
+  mounting_standard: ["Befestigungsnorm", "Norma de montaje"],
+  corrosion_resistance: ["Korrosionsbeständigkeit", "Resistencia a la corrosión"],
+  size: ["Baugröße", "Tamaño"],
+  guide: ["Führung", "Guía"],
+  guide_type: ["Führungsart", "Tipo de guía"],
+  drive: ["Antrieb", "Accionamiento"],
+  weight: ["Gewicht", "Peso"],
+  weight_g: ["Gewicht", "Peso"],
+  weight_kg: ["Gewicht", "Peso"],
+};
+
 /** Källanteckningar (t.ex. temp_range_kalla) är inga egenskaper. */
 export function arKalla(key: string): boolean {
   return /_kalla$/i.test(key);
@@ -132,6 +224,7 @@ export function arKalla(key: string): boolean {
 
 export function specEtikett(key: string, locale: string): string {
   const par = ETIKETT[key];
+  if ((locale === "de" || locale === "es") && ETIKETT_DE_ES[key]) return ETIKETT_DE_ES[key][locale === "de" ? 0 : 1];
   if (par) return locale === "sv" ? par[0] : par[1];
   // Okänd nyckel: läsbar text i stället för snake_case, utan enhetssuffix.
   const ord = key.replace(/_+/g, " ").replace(/\b(n|mm|m|g|kg|mpa|kpa|bar)$/i, "").trim();
