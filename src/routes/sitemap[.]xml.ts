@@ -19,10 +19,24 @@ const STATIC_PATHS = [
   "/verktyg/cylinderkraft",
 ];
 
+// Den färdiga XML:en sparas en timme per Worker-instans. Motsvarigheterna
+// nedan jämför varje cylinder med hela katalogen; under kundgranskningens
+// last 2026-11-12 gav /sitemap.xml (3,3 MB) Cloudflare 503 "error code: 1102"
+// i 4 av 6 anrop. Cache-Control räcker inte -- Workers svar cachas inte av sig själva.
+let sparad: { xml: string; tid: number } | null = null;
+const SPARA_MS = 60 * 60 * 1000;
+
+function sitemapSvar(xml: string): Response {
+  return new Response(xml, {
+    headers: { "Content-Type": "application/xml; charset=utf-8", "Cache-Control": "public, max-age=3600" },
+  });
+}
+
 export const Route = createFileRoute("/sitemap.xml")({
   server: {
     handlers: {
       GET: async () => {
+        if (sparad && Date.now() - sparad.tid < SPARA_MS) return sitemapSvar(sparad.xml);
         const supabaseUrl = process.env.SUPABASE_URL ?? "";
         const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? "";
 
@@ -97,12 +111,10 @@ export const Route = createFileRoute("/sitemap.xml")({
 ${urls.join("\n")}
 </urlset>`;
 
-        return new Response(xml, {
-          headers: {
-            "Content-Type": "application/xml; charset=utf-8",
-            "Cache-Control": "public, max-age=3600",
-          },
-        });
+        // Spara bara en fullständig karta; en tom produktlista (fel mot
+        // databasen) ska inte ligga kvar en timme.
+        if (products.length > 0) sparad = { xml, tid: Date.now() };
+        return sitemapSvar(xml);
       },
     },
   },
