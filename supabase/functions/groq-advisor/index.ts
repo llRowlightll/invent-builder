@@ -656,7 +656,12 @@ async function handleQuestions(description: string, locale: string): Promise<Res
     isKorrosiv
       ? `- CORROSIVE OR MARINE ENVIRONMENT (not food). Ask what it is exposed to (moisture, salt-water spray, chemicals, submersion) to choose stainless A2 vs acid-proof A4/316 and seals. Do NOT ask about food certifications, NSF-H1, EHEDG or IP69K.` : "",
     typ === "rorelse" && isVertical && isSafety
-      ? `- VERTICAL AXIS WITH A STATED SAFETY REQUIREMENT. You MUST ask:\n  (1) Required safety level: SIL 1 / SIL 2 / SIL 3 (IEC 62061) or Performance Level PL c / PL d / PL e (ISO 13849)?\n  (2) Mechanical holding: spring-applied rod lock (pneumatic cylinder) OR integrated motor brake (electric axis) OR external locking unit?\n  (3) Fail-safe behaviour: hold position on power loss or controlled retract?`
+      // Rättat 2026-11-13 (kundgranskning, säkerhetskonstruktör): frågan
+      // blandade SIL (IEC 62061) och PL (ISO 13849-1) i samma val, och
+      // exempeltipset sa "välj det lägre alternativet om du är osäker".
+      // Med personal under lasten är det fel håll. PLr kommer ur maskinens
+      // riskbedömning; vi frågar bara vad den har kommit fram till.
+      ? `- VERTICAL AXIS WITH A STATED SAFETY REQUIREMENT. You MUST ask:\n  (1) The required Performance Level from the machine's risk assessment (PLr per ISO 13849-1). Options exactly: PL c, PL d, PL e, and "not decided yet (the risk assessment decides)". NEVER offer SIL levels in this question (SIL belongs to IEC 62061) and NEVER suggest choosing a lower level when unsure.\n  (2) Mechanical holding: spring-applied rod lock (pneumatic cylinder) OR integrated motor brake (electric axis) OR external locking unit?\n  (3) Fail-safe behaviour: hold position on power loss or controlled retract?`
       : (typ === "rorelse" && isVertical
         ? `- VERTICAL LOAD. Ask whether the load must be held if air or power is lost (spring-applied rod lock or brake). Do NOT ask about SIL/PL — no safety requirement is stated.`
         : `- No safety requirement is stated: do NOT ask about SIL or PL.`),
@@ -679,6 +684,9 @@ async function handleQuestions(description: string, locale: string): Promise<Res
     // believes it may ask, and it returns one padded question instead of four.
     `- NEVER ask for a value the customer has ALREADY stated in the description. Re-asking something they just told you is the fastest way to lose their trust. Read the description first, then ask only about what is genuinely still open — typically: mounting and orientation, guiding/anti-rotation, control system and fieldbus, ambient temperature, duty cycle, and available installation space. If a parameter is already given, treat it as settled.`,
     `- Do NOT ask hypothetical questions. Only ask what is needed to select the right product.`,
+    // 2026-11-13: ett tips påstod "enkelverkande har bara en kolv,
+    // dubbelverkande har kolv i båda riktningarna". Rätt definition här.
+    `- If you explain single- vs double-acting: single-acting = air drives ONE direction and a spring returns it (less force, the spring decides the rest position); double-acting = air drives BOTH directions. Both have one piston.`,
     `- If programmable stops: ask about number of positions and accuracy.`,
     `- CRITICAL: Every question MUST have a completely unique id AND unique label. NEVER repeat the same question twice. No duplicates allowed.`,
     // Found 2026-08-18 (user feedback): most people using this tool are NOT
@@ -687,13 +695,13 @@ async function handleQuestions(description: string, locale: string): Promise<Res
     // e.g. "SIL 1 / SIL 2 / SIL 3 (IEC 62061) or PL c / PL d / PL e
     // (ISO 13849)?" with no idea what any of that means or how to choose.
     `- PLAIN-LANGUAGE HINTS (mandatory): assume the person answering is NOT an automation engineer. Whenever a question's label contains a technical term, standard, or code a non-specialist wouldn't know (SIL/PL, IP rating, ball screw vs belt, repeatability, ATEX zone, EHEDG, etc.), the "hint" field MUST explain in one plain, jargon-free sentence what it means in practice and how to decide — not just restate why it "matters" in other technical words. Example — label "${pick(locale, {
-      sv: "Krävd säkerhetsnivå: SIL 2 eller PL d?", en: "Required safety level: SIL 2 or PL d?",
-      de: "Erforderliches Sicherheitsniveau: SIL 2 oder PL d?", es: "Nivel de seguridad requerido: ¿SIL 2 o PL d?",
+      sv: "Vilken Performance Level kräver riskbedömningen (PLr enligt ISO 13849-1)?", en: "Which Performance Level does the risk assessment require (PLr per ISO 13849-1)?",
+      de: "Welchen Performance Level fordert die Risikobeurteilung (PLr nach ISO 13849-1)?", es: "¿Qué Performance Level exige la evaluación de riesgos (PLr según ISO 13849-1)?",
     })}" needs a hint like "${pick(locale, {
-      sv: "Handlar om hur pålitligt systemet måste stoppa vid fara — vid osäkerhet, fråga er säkerhetsansvarige eller välj det lägre alternativet och justera senare.",
-      en: "This is about how reliably the system must stop in a hazard — if unsure, ask your safety officer or pick the lower option and adjust later.",
-      de: "Es geht darum, wie zuverlässig das System bei Gefahr stoppen muss — bei Unsicherheit die verantwortliche Sicherheitsperson fragen oder die niedrigere Option wählen und später anpassen.",
-      es: "Se trata de con qué fiabilidad debe detenerse el sistema ante un peligro — si no está seguro, consulte a su responsable de seguridad o elija la opción más baja y ajústela más adelante.",
+      sv: "PL anger hur pålitligt styrningen måste stoppa eller hålla vid fara. Nivån bestäms i maskinens riskbedömning, inte här — vet du inte, välj 'inte bestämt än' och prata med er säkerhetsansvarige. Gissa aldrig lägre.",
+      en: "PL states how reliably the control system must stop or hold in a hazard. The level comes from the machine's risk assessment, not from here — if you don't know, choose 'not decided yet' and talk to your safety officer. Never guess lower.",
+      de: "Der PL gibt an, wie zuverlässig die Steuerung bei Gefahr stoppen oder halten muss. Er ergibt sich aus der Risikobeurteilung der Maschine, nicht von hier — wenn Sie es nicht wissen, wählen Sie 'noch nicht festgelegt' und sprechen Sie mit Ihrer Sicherheitsfachkraft. Nie niedriger raten.",
+      es: "El PL indica con qué fiabilidad el control debe detener o sostener ante un peligro. El nivel sale de la evaluación de riesgos de la máquina, no de aquí — si no lo sabe, elija 'aún no decidido' y hable con su responsable de seguridad. Nunca suponga uno más bajo.",
     })}", NOT "${pick(locale, {
       sv: "Krävs för säkerhetscertifiering.", en: "Required for safety certification.",
       de: "Erforderlich für die Sicherheitszertifizierung.", es: "Requerido para la certificación de seguridad.",

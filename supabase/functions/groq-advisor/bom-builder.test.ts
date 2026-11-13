@@ -1127,3 +1127,13 @@ Deno.test("fleraxligt med Z-axel: fallskyddet sitter på Z-axeln, inte på gripd
     assert(kopplingar.some((c) => c.fromIndex === i && c.toIndex === z && c.relation === "mounted_on"), `${kind} sitter inte på Z-axeln: ${JSON.stringify(kopplingar.filter((c) => c.fromIndex === i))}`);
   }
 });
+
+Deno.test("backventilraden fylls bara av en pilotstyrd backventil, aldrig av SMC AKH (kundgranskning 2026-11-13)", async () => {
+  const { findCatalogProductByType, arPilotbackventil } = await import("./bom-builder.ts");
+  const akh = { sku: "SMC-AKH08A-02S", name: "AKH08A-02S Check valve 8mm tube G1/4", category: "check-valve" } as never;
+  const hgl = { sku: "FE-HGL-1-4-B", name: "HGL-1/4-B Backslagsventil (pilot-operated check valve) G1/4", category: "check-valve" } as never;
+  assertEquals(arPilotbackventil(akh), false);
+  assertEquals(arPilotbackventil(hgl), true);
+  assertEquals(findCatalogProductByType("check-valve", [akh, hgl])?.sku, "FE-HGL-1-4-B");
+  assertEquals(findCatalogProductByType("check-valve", [akh]), null);
+});

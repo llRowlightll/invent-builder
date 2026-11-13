@@ -42,8 +42,8 @@ export const GUIDES: Guide[] = [
             en: "The force a cylinder delivers is pressure times piston area: F = P × A, where A = π/4 × D². At 6 bar, common bores give roughly: Ø32 ≈ 480 N, Ø40 ≈ 750 N, Ø50 ≈ 1,180 N, Ø63 ≈ 1,870 N, Ø80 ≈ 3,000 N, Ø100 ≈ 4,700 N.",
           },
           {
-            sv: "Lägg på marginal för friktion och dynamik — räkna med 25–50 % över den statiska lasten. Vid drag (instången kolvstång) blir kraften lägre eftersom stångens area dras bort.",
-            en: "Add margin for friction and dynamics — plan for 25–50 % above the static load. On the pull stroke the force is lower because the rod area is subtracted.",
+            sv: "Lägg på marginal på lasten: 25–50 % vid vågrät rörelse i normal fart, faktor 2 vid lodrät last eller snabba rörelser (se guiden om vertikal last). Jämför sedan med cylinderns användbara kraft, inte den teoretiska: tätningarna tar 10–25 %, och cylinderverktyget räknar med 75 % av F = P × A. Vid drag (indragen kolvstång) blir kraften lägre eftersom stångens area dras bort.",
+            en: "Add margin to the load: 25–50 % for horizontal motion at normal speed, a factor of 2 for vertical loads or fast moves (see the guide on vertical loads). Then compare with the cylinder's usable force, not the theoretical one: the seals take 10–25 %, and the cylinder tool uses 75 % of F = P × A. On the pull stroke the force is lower because the rod area is subtracted.",
           },
         ],
       },
@@ -79,8 +79,8 @@ export const GUIDES: Guide[] = [
       {
         q: { sv: "Hur beräknar jag vilken cylinderdiameter jag behöver?", en: "How do I calculate what cylinder bore I need?" },
         a: {
-          sv: "Använd F = P × A (kraft = tryck × kolvarea), lägg på 25–50 % marginal för friktion och dynamik, och avrunda upp till närmaste standardborrning. Vid 6 bar ger vanliga borrningar ungefär: Ø32 ≈ 480 N, Ø40 ≈ 750 N, Ø50 ≈ 1 180 N, Ø63 ≈ 1 870 N, Ø80 ≈ 3 000 N, Ø100 ≈ 4 700 N.",
-          en: "Use F = P × A (force = pressure × piston area), add 25–50 % margin for friction and dynamics, and round up to the nearest standard bore. At 6 bar, common bores give roughly: Ø32 ≈ 480 N, Ø40 ≈ 750 N, Ø50 ≈ 1,180 N, Ø63 ≈ 1,870 N, Ø80 ≈ 3,000 N, Ø100 ≈ 4,700 N.",
+          sv: "Använd F = P × A (kraft = tryck × kolvarea). Lasten plus marginal (25–50 % vågrätt, faktor 2 lodrätt) ska rymmas i den användbara kraften, ungefär 75 % av den teoretiska efter tätningsfriktion. Avrunda upp till närmaste standardborrning. Vid 6 bar ger vanliga borrningar ungefär: Ø32 ≈ 480 N, Ø40 ≈ 750 N, Ø50 ≈ 1 180 N, Ø63 ≈ 1 870 N, Ø80 ≈ 3 000 N, Ø100 ≈ 4 700 N.",
+          en: "Use F = P × A (force = pressure × piston area). The load plus margin (25–50 % horizontal, a factor of 2 vertical) must fit within the usable force, roughly 75 % of the theoretical force after seal friction. Round up to the nearest standard bore. At 6 bar, common bores give roughly: Ø32 ≈ 480 N, Ø40 ≈ 750 N, Ø50 ≈ 1,180 N, Ø63 ≈ 1,870 N, Ø80 ≈ 3,000 N, Ø100 ≈ 4,700 N.",
         },
       },
       {
@@ -93,8 +93,8 @@ export const GUIDES: Guide[] = [
       {
         q: { sv: "Varför räcker det inte att räkna bara på den statiska lasten?", en: "Why isn't it enough to size for the static load alone?" },
         a: {
-          sv: "Friktion i tätningar och styrningar, samt acceleration/inbromsning vid start och stopp, kräver extra kraft utöver den rena statiska lasten. En marginal på 25–50 % täcker normalt detta utan att cylindern blir överdimensionerad och slösar luft.",
-          en: "Seal and guide friction, plus acceleration/deceleration at start and stop, need extra force beyond the pure static load. A 25–50 % margin normally covers this without oversizing the cylinder and wasting air.",
+          sv: "Friktion i tätningar och styrningar, samt acceleration/inbromsning vid start och stopp, kräver extra kraft utöver den rena statiska lasten. Vid vågrät rörelse i normal fart täcker en marginal på 25–50 % normalt detta utan att cylindern blir överdimensionerad och slösar luft. Lodrät last och snabba rörelser kräver faktor 2.",
+          en: "Seal and guide friction, plus acceleration/deceleration at start and stop, need extra force beyond the pure static load. For horizontal motion at normal speed a 25–50 % margin normally covers this without oversizing the cylinder and wasting air. Vertical loads and fast moves need a factor of 2.",
         },
       },
     ],
@@ -124,8 +124,8 @@ export const GUIDES: Guide[] = [
         h: { sv: "1. Funktion: 5/2 eller 3/2", en: "1. Function: 5/2 or 3/2" },
         p: [
           {
-            sv: "Dubbelverkande cylindrar styrs av en 5/2-ventil (tryck på båda sidor). Enkelverkande cylindrar och vakuum klarar sig med en 3/2-ventil. Behöver du ett definierat säkert läge vid strömbortfall, välj enkelmagnet med fjäderretur eller en 5/3-ventil med spärrat mittläge.",
-            en: "Double-acting cylinders are driven by a 5/2 valve (pressure on both sides). Single-acting cylinders and vacuum get by with a 3/2 valve. If you need a defined safe state on power loss, choose a single-solenoid spring-return valve or a 5/3 valve with a closed centre.",
+            sv: "Dubbelverkande cylindrar styrs av en 5/2-ventil (tryck på båda sidor). Enkelverkande cylindrar och vakuum klarar sig med en 3/2-ventil. Vilket läge som är säkert vid strömbortfall avgör riskbedömningen. En enkelmagnetventil med fjäderretur går alltid till samma läge. En 5/3-ventil med spärrat mittläge stoppar rörelsen men är ingen hållfunktion: luft läcker och en hängande last sjunker. Ska en lodrät last hållas används avluftat mittläge med pilotstyrda backventiler direkt på cylinderportarna, och mekanisk stånglåsning där någon kan komma under lasten (se guiden om vertikal last).",
+            en: "Double-acting cylinders are driven by a 5/2 valve (pressure on both sides). Single-acting cylinders and vacuum get by with a 3/2 valve. Which state is safe on power loss is decided by the risk assessment. A single-solenoid spring-return valve always goes to the same position. A 5/3 valve with a closed centre stops the motion but is not a holding function: air leaks and a hanging load sinks. To hold a vertical load, use an exhausted centre with pilot-operated check valves directly on the cylinder ports, and a mechanical rod lock wherever someone can get under the load (see the guide on vertical loads).",
           },
         ],
       },
@@ -161,8 +161,8 @@ export const GUIDES: Guide[] = [
       {
         q: { sv: "Ska jag välja en 5/2- eller 3/2-ventil?", en: "Should I choose a 5/2 or a 3/2 valve?" },
         a: {
-          sv: "Dubbelverkande cylindrar (tryck styr rörelsen åt båda hållen) behöver en 5/2-ventil. Enkelverkande cylindrar och vakuumapplikationer klarar sig med en enklare 3/2-ventil. Behövs ett definierat säkert läge vid strömbortfall, välj enkelmagnet med fjäderretur eller en 5/3-ventil med spärrat mittläge.",
-          en: "Double-acting cylinders (pressure drives both directions) need a 5/2 valve. Single-acting cylinders and vacuum applications get by with a simpler 3/2 valve. If you need a defined safe state on power loss, choose a single-solenoid spring-return valve or a 5/3 valve with a closed centre.",
+          sv: "Dubbelverkande cylindrar (tryck styr rörelsen åt båda hållen) behöver en 5/2-ventil. Enkelverkande cylindrar och vakuumapplikationer klarar sig med en enklare 3/2-ventil. Vilket läge som är säkert vid strömbortfall avgör riskbedömningen. En enkelmagnetventil med fjäderretur går alltid till samma läge. En 5/3-ventil med spärrat mittläge stoppar rörelsen men är ingen hållfunktion: luft läcker och en hängande last sjunker. Ska en lodrät last hållas används avluftat mittläge med pilotstyrda backventiler direkt på cylinderportarna, och mekanisk stånglåsning där någon kan komma under lasten (se guiden om vertikal last).",
+          en: "Double-acting cylinders (pressure drives both directions) need a 5/2 valve. Single-acting cylinders and vacuum applications get by with a simpler 3/2 valve. Which state is safe on power loss is decided by the risk assessment. A single-solenoid spring-return valve always goes to the same position. A 5/3 valve with a closed centre stops the motion but is not a holding function: air leaks and a hanging load sinks. To hold a vertical load, use an exhausted centre with pilot-operated check valves directly on the cylinder ports, and a mechanical rod lock wherever someone can get under the load (see the guide on vertical loads).",
         },
       },
       {
@@ -215,8 +215,8 @@ export const GUIDES: Guide[] = [
         h: { sv: "2. Räkneexempel", en: "2. Worked example" },
         p: [
           {
-            sv: "En Ø50-cylinder med 200 mm slag vid 6 bar: kolvarean är ~19,6 cm², slagvolymen ~0,39 liter. Kompressionsförhållande ≈ 6,9 ger ~2,7 Nl per utslag, alltså ~5,4 Nl per dubbelslag. Vid 60 cykler/min blir det ~320 Nl/min (~0,3 Nm³/min).",
-            en: "A Ø50 cylinder with 200 mm stroke at 6 bar: piston area ≈ 19.6 cm², stroke volume ≈ 0.39 litre. A compression ratio ≈ 6.9 gives ≈ 2.7 Nl per extend, so ≈ 5.4 Nl per full cycle. At 60 cycles/min that's ≈ 320 Nl/min (≈ 0.3 Nm³/min).",
+            sv: "En Ø50-cylinder med 200 mm slag vid 6 bar: kolvarean är ~19,6 cm², slagvolymen ~0,39 liter. Kompressionsförhållande ≈ 6,9 ger ~2,7 Nl per utslag. På returslaget tar kolvstången (Ø20) plats, så det går åt ~2,3 Nl. Det blir ~5,0 Nl per dubbelslag, och vid 60 cykler/min ~300 Nl/min (~0,3 Nm³/min). Samma siffror ger cylinderverktyget.",
+            en: "A Ø50 cylinder with 200 mm stroke at 6 bar: piston area ≈ 19.6 cm², stroke volume ≈ 0.39 litre. A compression ratio ≈ 6.9 gives ≈ 2.7 Nl per extend. On the return stroke the piston rod (Ø20) takes up space, so it uses ≈ 2.3 Nl. That is ≈ 5.0 Nl per full cycle, and at 60 cycles/min ≈ 300 Nl/min (≈ 0.3 Nm³/min). The cylinder tool gives the same figures.",
           },
         ],
       },
@@ -421,8 +421,8 @@ export const GUIDES: Guide[] = [
       {
         q: { sv: "Skiljer sig säkerhetsfaktorn för vertikala jämfört med horisontella laster?", en: "Does the safety factor differ for vertical vs. horizontal loads?" },
         a: {
-          sv: "Samma grundregel gäller båda — räkna med marginal (faktor 2 är en vanlig utgångspunkt) och med tätningsfriktion — men vertikala laster har ett extra krav: håll-funktionen vid tryckfall. Det är inte en högre siffra i själva kraftberäkningen, utan ett extra säkerhetslager (backslagsventil eller mekanisk broms) som horisontella laster oftast klarar sig utan.",
-          en: "The same base rule applies to both — allow a margin (a factor of 2 is a common starting point) and seal friction — but vertical loads have one extra requirement: holding on pressure loss. It's not a higher number in the force calculation itself, but an extra layer of safety (check valve or mechanical brake) that horizontal loads usually don't need.",
+          sv: "Metoden är densamma (marginal på lasten, friktionen dras från cylinderns kraft), men marginalen är större: faktor 2 lodrätt mot 25–50 % vågrätt, eftersom tyngden verkar hela tiden. Lodrätt tillkommer dessutom håll-funktionen vid tryckfall: pilotstyrd backventil, och mekanisk stånglåsning där någon kan komma under lasten.",
+          en: "The method is the same (margin on the load, friction subtracted from the cylinder's force), but the margin is larger: a factor of 2 vertically versus 25–50 % horizontally, because gravity acts all the time. Vertically there is also the holding function on pressure loss: a pilot-operated check valve, and a mechanical rod lock wherever someone can get under the load.",
         },
       },
     ],
@@ -591,8 +591,9 @@ export const GUIDES: Guide[] = [
       },
     ],
     cta: {
-      sv: "Beskriv miljön så filtrerar AI-rådgivaren fram komponenter med rätt kapslingsklass automatiskt.",
-      en: "Describe the environment and the AI advisor will automatically filter for components with the right IP rating.",
+      // Rättat 2026-11-13: lovade en automatisk IP-filtrering som motorn inte gör.
+      sv: "Beskriv miljön så hjälper vi dig välja. IP-klass och material kontrolleras mot tillverkarens datablad före offerten; AI:n gör inte den kontrollen åt dig.",
+      en: "Describe the environment and we will help you choose. IP rating and material are checked against the manufacturer's datasheet before the quote; the AI does not do that check for you.",
     },
     ctaTo: "advisor",
   },
@@ -673,8 +674,10 @@ export const GUIDES: Guide[] = [
       },
     ],
     cta: {
-      sv: "Beskriv zonen och applikationen så filtrerar AI-rådgivaren fram ATEX-klassade komponenter i hela kedjan.",
-      en: "Describe the zone and the application and the AI advisor will filter for ATEX-rated components across the whole chain.",
+      // Rättat 2026-11-13: lovade en ATEX-filtrering som inte finns (ingen
+      // ventil eller givare i katalogen är ATEX-märkt).
+      sv: "Ange zon, gas- eller dammgrupp och temperaturklass, så tar en av oss fram ATEX-märkta komponenter för hela kedjan med tillverkarens EU-försäkran. ATEX-cylindrar lämnas på offert; ventiler och givare tar vi fram på förfrågan.",
+      en: "State the zone, gas or dust group and temperature class, and one of us will put together ATEX-marked components for the whole chain with the manufacturer's EU declaration. ATEX cylinders are quoted; valves and sensors are sourced on request.",
     },
     ctaTo: "advisor",
   },

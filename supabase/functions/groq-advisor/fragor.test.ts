@@ -409,3 +409,23 @@ Deno.test("modellens fråga om lasten får falla stryks när det redan är sagt"
   assert(rensaFragor(modell, "Lyfta lådor 40 kilo vertikalt 400 mm", "sv").some((q) => q.id === "fall"));
 });
 
+
+Deno.test("säkerhetskrav: frågan om PL är alltid bankens, bara PL och aldrig 'välj lägre' (kundgranskning 2026-11-13)", () => {
+  const text = "Vertikal lyft av en 35 kg fixtur, slag 400 mm, personal arbetar under lasten vid omställning, PL d krävs enligt riskbedömningen";
+  const modellen: Fraga[] = [{
+    id: "safety_integrity_level", type: "choice",
+    label: "Vilken säkerhetsnivå krävs enligt ISO 13849‑1?",
+    hint: "välj det lägre alternativet om du är osäker och justera senare.",
+    options: ["SIL 1", "SIL 2", "SIL 3", "PL c", "PL d", "PL e"],
+  }];
+  for (const locale of ["sv", "en"]) {
+    const ut = slutligaFragor(modellen, text, locale);
+    const sak = ut.filter((q) => amne(q) === "sakerhetsniva");
+    assertEquals(sak.length, 1, `en säkerhetsfråga (${locale})`);
+    const q = sak[0];
+    assertEquals(q.id, "sakerhetsniva");
+    assert(!(q.options ?? []).some((o) => /sil/i.test(o)), `inga SIL-alternativ (${locale})`);
+    assertEquals((q.options ?? []).slice(0, 3), ["PL c", "PL d", "PL e"]);
+    assert(!/lägre|lower/i.test(q.hint ?? "") || /aldrig lägre|never guess lower/i.test(q.hint ?? ""), `inget råd att välja lägre (${locale})`);
+  }
+});

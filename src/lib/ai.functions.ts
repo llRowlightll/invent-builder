@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { PhysicsDimensions } from "./physics";
 import { avslutaKlipptSvar, skiljKallrad } from "./chattsvar";
 import { matcharFraga } from "./sokord";
+import { arAtexFraga, atexSvar } from "./atex-svar";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 // llama-3.3-70b-versatile decommissioned by Groq 2026-08-16. Moved to openai/gpt-oss-120b
@@ -164,6 +165,12 @@ export const aiAskKnowledge = createServerFn({ method: "POST" })
   .inputValidator((d: { question: string; locale?: string; history?: ChatMessage[] }) => d)
   .handler(async ({ data }): Promise<{ answer: string; sources: string[]; source: "ai" | "fallback" }> => {
     const isSv = data.locale === "sv";
+
+    // ATEX och Ex-skydd: fast, granskat svar i stället för språkmodellen
+    // (se atex-svar.ts -- kundgranskningen fick "T4 = 300 °C").
+    if (arAtexFraga(data.question, data.history ?? [])) {
+      return { answer: atexSvar(data.locale), sources: [], source: "fallback" };
+    }
 
     // 1. Search knowledge base for relevant chunks
     const context = await searchKnowledge(data.question, 8);
