@@ -1,6 +1,7 @@
 // Regression tests for pure text/spec extraction and hazard-detection helpers.
 // Run: deno test supabase/functions/groq-advisor/signals.test.ts
 import { assert, assertEquals } from "jsr:@std/assert@^1";
+import { langderITexten } from "./kravbild.ts";
 import {
   griporgansKrav, onskadGripdonstyp, harBefintligtLyft,
   angivenSakerhetsniva, needsSpolmiljo,
@@ -207,9 +208,14 @@ for (const { text, answers } of EQUIVALENCE_CASES) {
     // unconditionally, which would just restate detectHazards's own
     // implementation back at itself instead of checking it against the
     // ground truth those two call sites already agreed on.
-    const expectedPerAxisStrokes = needsMultiAxis(text) ? extractPerAxisStrokes(answers) : [];
+    // Sedan 2026-11-13 läses axlarna också ur beskrivningen ("X-axel 300mm"),
+    // och en systembeskrivning behåller uttryckliga slag, lyft och sidled.
+    const expectedPerAxisStrokes = needsMultiAxis(text) ? extractPerAxisStrokes(answers, text) : [];
     assertEquals(h.perAxisStrokes, expectedPerAxisStrokes);
-    const expectedRequiredStroke = isMultiFunctionSystem(text) ? 0
+    const uttryckligt = Math.max(0, ...expectedPerAxisStrokes.map((a) => a.stroke),
+      ...langderITexten(text + " " + Object.values(answers).join(" "))
+        .filter((l) => l.typ === "slag" || l.typ === "lyft" || l.typ === "sidled").map((l) => Math.round(l.mm)));
+    const expectedRequiredStroke = isMultiFunctionSystem(text) ? uttryckligt
       : expectedPerAxisStrokes.length > 0 ? Math.max(...expectedPerAxisStrokes.map((a) => a.stroke))
       : extractMinStroke(answers, text);
     assertEquals(h.requiredStrokeMm, expectedRequiredStroke);
@@ -1000,4 +1006,23 @@ Deno.test("backar som lådor och yttre backar är inget radialgripdon", () => {
 
 Deno.test("en liten massa ger ett krav, inte 'okänd massa'", () => {
   assertEquals(griporgansKrav("vacuum", { gripForceN: 0, holdingForceN: 0, loadKg: 0.02 }).n, 1);
+});
+
+// Kundgranskningen 2026-11-13: plocka-och-placera och palleteringscellen.
+Deno.test("slag i höjdled och sidled läses ur svar och beskrivning, per axel", () => {
+  assertEquals(extractPerAxisStrokes({ slag_z_hojd_mm: "300" }), [{ axis: "Z", stroke: 300 }]);
+  assertEquals(extractPerAxisStrokes({ hojd_rorelse: "300 mm" }), [{ axis: "Z", stroke: 300 }]);
+  assertEquals(extractPerAxisStrokes({ lyftkraft: "500 N" }), []);
+  assertEquals(extractPerAxisStrokes({}, "X-axel 300mm Z-axel 150mm"), [{ axis: "X", stroke: 300 }, { axis: "Z", stroke: 150 }]);
+  const pall = extractPerAxisStrokes({}, "portallyft: lyftslag 600 mm, sidled 1200 mm, kartonger 12 kg");
+  assertEquals(pall.find((a) => a.axis === "Z")?.stroke, 600);
+  assertEquals(pall.find((a) => a.axis === "X")?.stroke, 1200);
+});
+
+Deno.test("0,5 m/s är ingen hög fart; 1,5 m/s och 1200 mm/s är det", () => {
+  assertEquals(needsHighSpeed("slaghastighet 0,5 m/s", {}), false);
+  assertEquals(needsHighSpeed("0.5 m/s", {}), false);
+  assertEquals(needsHighSpeed("fart 1,5 m/s", {}), true);
+  assertEquals(needsHighSpeed("1200 mm/s", {}), true);
+  assertEquals(needsHighSpeed("1 m/s", {}), false);
 });

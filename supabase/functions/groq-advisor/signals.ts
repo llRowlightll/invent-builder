@@ -385,9 +385,29 @@ export function strokeLabel(specs: Record<string, unknown>): string {
   return "?";
 }
 
+/**
+ * Är svaret en slaglängd? Nyckeln "slag/stroke/rörelse …" räcker. Höjd,
+ * lyft och sidled räknas när svaret är i mm (kundgranskningen 2026-11-13:
+ * "Hur lång är rörelsen i höjdled? 300" gav inget slag, och plocka-och-
+ * placera blev bara ett gripdon). "lyftkraft 500 N" är ingen längd.
+ */
+export function arSlagsvar(k: string, v: string): boolean {
+  if (/stroke|slag|sträcka|stracka|avstånd|avstand|rörelse|rorelse|längd|langd|travel|distance/i.test(k)) return true;
+  return /höjd|hojd|lyft|lift|height|sidled|horisont|lateral/i.test(k) && (/_mm$|mm\b/i.test(k) || /\d\s*(mm|cm)\b/i.test(v) || /^\s*\d+(?:[.,]\d+)?\s*$/.test(v));
+}
+
+/** Axeln ett slagsvar gäller: x/y/z i nyckeln, annars höjd = Z, sidled = X. */
+export function slagsvaretsAxel(k: string): string {
+  const m = k.match(/(?:^|[^a-z])([xyz])(?:[^a-z]|$)/i) ?? k.match(/([xyz])/i);
+  if (m) return m[1].toUpperCase();
+  if (/höjd|hojd|lyft|lift|height|vertikal|vertical/i.test(k)) return "Z";
+  if (/sidled|horisont|lateral|horizontal/i.test(k)) return "X";
+  return "?";
+}
+
 export function extractMinStroke(answers: Record<string, string>, description: string, tolkning: Tolkningsbeslut = {}): number {
   for (const [k, v] of Object.entries(answers)) {
-    if (/stroke|slag|sträcka|avstånd|rörelse|längd|travel|distance/i.test(k)) {
+    if (arSlagsvar(k, v)) {
       const digits = v.replace(/[^0-9.]/g, "");
       const n = parseFloat(digits);
       if (!isNaN(n) && n >= 5 && n <= 15000) return n;
@@ -439,18 +459,32 @@ export function slagIMeterMm(text: string): number {
   return max >= 50 && max <= 20000 ? Math.round(max) : 0;
 }
 
-export function extractPerAxisStrokes(answers: Record<string, string>): { axis: string; stroke: number }[] {
+export function extractPerAxisStrokes(answers: Record<string, string>, description = ""): { axis: string; stroke: number }[] {
   const result: { axis: string; stroke: number }[] = [];
   for (const [k, v] of Object.entries(answers)) {
-    if (/stroke|slag|sträcka|avstånd|rörelse|längd|travel|distance/i.test(k)) {
+    if (arSlagsvar(k, v)) {
       const digits = v.replace(/[^0-9.]/g, "");
       const n = parseFloat(digits);
-      if (!isNaN(n) && n >= 5 && n <= 15000) {
-        // Match x/y/z anywhere in the key name (e.g. "x_stroke", "stroke_z", "x")
-        const axisMatch = k.match(/([xyz])/i);
-        result.push({ axis: axisMatch ? axisMatch[1].toUpperCase() : "?", stroke: n });
-      }
+      if (!isNaN(n) && n >= 5 && n <= 15000) result.push({ axis: slagsvaretsAxel(k), stroke: n });
     }
+  }
+  // Lyft och sidled som står i beskrivningen ("lyft 600 mm, sidled 1200 mm")
+  // gäller också, om svaren inte redan har den axeln (kundgranskningen
+  // 2026-11-13: palleteringscellen fick "Lyftet ingår inte i förslaget").
+  const har = new Set(result.map((r) => r.axis));
+  // Uttryckligt axelnamn först: "X-axel 300mm Z-axel 150mm".
+  for (const m of description.matchAll(/\b([xyz])[-\s]?(?:axel|axis|achse|eje)\w*\D{0,15}?(\d+(?:[.,]\d+)?)\s*(mm|cm|m)\b/gi)) {
+    const axel = m[1].toUpperCase();
+    const n = Number(m[2].replace(",", ".")) * (m[3].toLowerCase() === "cm" ? 10 : m[3].toLowerCase() === "m" ? 1000 : 1);
+    if (!har.has(axel) && n >= 5 && n <= 15000) { result.push({ axis: axel, stroke: Math.round(n) }); har.add(axel); }
+  }
+  if (result.length >= 2) return result;
+  for (const l of langderITexten(description)) {
+    // "lyftslag 600 mm" läses som ett slag; ordet före avgör att det är lyftet.
+    const fore = description.slice(Math.max(0, l.index - 16), l.index).toLowerCase();
+    const axel = l.typ === "lyft" || (l.typ === "slag" && /lyft|höjd|hojd|vertikal|vertical|lift/.test(fore)) ? "Z"
+      : l.typ === "sidled" ? "X" : null;
+    if (axel && !har.has(axel) && l.mm >= 5 && l.mm <= 15000) { result.push({ axis: axel, stroke: Math.round(l.mm) }); har.add(axel); }
   }
   return result;
 }
@@ -489,7 +523,7 @@ export function needsVacuumGrip(text: string): boolean {
 export function needsValveTerminal(text: string): boolean {
   return (
     needsMultiAxis(text) ||
-    /ventilterminal|valve.terminal|vtug|vtsa|mpa\b|cpv\b|ventilblock|manifold|ventilramp/i.test(text) ||
+    /ventilterminal|valve.terminal|valve.island|ventilö|ventilinsel|isla de válvulas|vtug|vtsa|mpa\b|cpv\b|ventilblock|manifold|ventilramp/i.test(text) ||
     /tre.*cylindr|fyra.*cylindr|3\s*cylindr|4\s*cylindr|3\s*cyl|4\s*cyl|several.*actuat|multiple.*actuat|multiple.*cyl|två.*cylindr|två cyl/i.test(text)
   );
 }
@@ -642,7 +676,17 @@ export function needsHighCycle(text: string, answers: Record<string, string>): b
 export function needsHighSpeed(text: string, answers: Record<string, string>): boolean {
   const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
   // \b[1-9]\d{3,}\s*mm\/s\b catches "1200mm/s", "2000 mm/s" etc (≥1000 mm/s = >1 m/s)
-  return /\b[1-9](?:[.,]\d+)?\s*m\/s\b|\b[1-9]\d{3,}\s*mm\/s\b|\bsnabb.*rörelse\b|\bhigh.*speed\b|\bhög.*hastighet\b|\bfast.*actuat\b|\bsnabb.*stans\b|\bslaghastighet.*[1-9]\b|\bschnelle\s?bewegung\b|\bhohe\s?geschwindigkeit\b|\bmovimiento\s?rápido\b|\balta\s?velocidad\b/i.test(allText);
+  // Farten läses som tal (kundgranskningen 2026-11-13): "0,5 m/s" matchade
+  // förr "5 m/s" efter kommat, och stötdämpare blev "OBLIGATORISK vid >1 m/s"
+  // på en axel som gick 0,5 m/s. Bara fart över 1 m/s räknas.
+  let max = 0;
+  for (const m of allText.matchAll(/(?<![\d.,])(\d+(?:[.,]\d+)?)\s*(mm\/s|m\/s|m\/min)\b/gi)) {
+    const n = Number(m[1].replace(",", "."));
+    const ms = m[2].toLowerCase() === "mm/s" ? n / 1000 : m[2].toLowerCase() === "m/min" ? n / 60 : n;
+    if (ms > max) max = ms;
+  }
+  if (max > 1) return true;
+  return /\bsnabb.*rörelse\b|\bhigh.*speed\b|\bhög.*hastighet\b|\bfast.*actuat\b|\bsnabb.*stans\b|\bschnelle\s?bewegung\b|\bhohe\s?geschwindigkeit\b|\bmovimiento\s?rápido\b|\balta\s?velocidad\b/i.test(allText);
 }
 
 /** SIL/functional safety required — safety relay, guard interlock, emergency stop function. */
@@ -1188,7 +1232,9 @@ export function extractCycleTimeS(text: string, answers: Record<string, string>)
  */
 export function extractUnitCount(text: string, answers: Record<string, string>): number {
   const allText = text + " " + Object.entries(answers).map(([k, v]) => `${k} ${v}`).join(" ");
-  const m = allText.match(/(\d{1,3})\s*(?:st(?:ycken)?|identiska|parallella|stationer|celler|linjer|enheter|maskiner|units?|identical|parallel|stations?|cells?|lines?|machines?)\b/i)
+  // "12 cylindrar" räknas sedan 2026-11-13 (kundgranskningen: en station med
+  // 12 cylindrar och 24 givare fick en cylinder och två givare).
+  const m = allText.match(/(\d{1,3})\s*(?:st(?:ycken)?|identiska|parallella|stationer|celler|linjer|enheter|maskiner|cylindrar|cylinders|units?|identical|parallel|stations?|cells?|lines?|machines?)\b/i)
     || allText.match(/\b(?:st(?:ycken)?|identiska|antal)\s*(\d{1,3})\b/i);
   if (!m) return 1;
   const n = parseInt(m[1], 10);
@@ -1558,10 +1604,17 @@ export interface Griporganskrav {
   angivetN: number;
 }
 
+/** Sidledsacceleration och friktion för vakuum i lastfall II (Schmalz):
+ *  F = m · (g + a/μ) · S. Kundgranskningen 2026-11-13: en kartong som förs
+ *  1200 mm i sidled räknades som ett rent lyft (m · g · 2). */
+export const VAKUUM_SIDLED_A = 3;
+export const VAKUUM_FRIKTION = 0.5;
+
 export function griporgansKrav(
-  typ: "gripper" | "vacuum", h: { gripForceN: number; holdingForceN: number; loadKg: number },
+  typ: "gripper" | "vacuum", h: { gripForceN: number; holdingForceN: number; loadKg: number; isMultiAxis?: boolean },
 ): Griporganskrav {
-  const tumregelN = h.loadKg > 0 ? Math.max(1, Math.round(typ === "gripper" ? Math.max(h.loadKg * 100, 20) : h.loadKg * 9.81 * 2)) : 0;
+  const vakuumFaktor = h.isMultiAxis ? (9.81 + VAKUUM_SIDLED_A / VAKUUM_FRIKTION) * 2 : 9.81 * 2;
+  const tumregelN = h.loadKg > 0 ? Math.max(1, Math.round(typ === "gripper" ? Math.max(h.loadKg * 100, 20) : h.loadKg * vakuumFaktor)) : 0;
   if (typ === "gripper" && h.gripForceN > 0) {
     const n = Math.round(h.gripForceN);
     return { n, angiven: true, tumregelN, angivetN: n };
@@ -1614,7 +1667,36 @@ export function needsFoodGrade(text: string): boolean {
 // be a non-sequitur, not a fix.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Fältbussen kunden angav, eller null. Kundgranskningen 2026-11-13: ventil-
+ * rampen motiverades alltid med "OBLIGATORISK för fältbussanslutning
+ * (PROFINET/EtherCAT)" och kunde vara en IO-Link-ö mot en S7-1500 på PROFINET.
+ */
+export function angivenFaltbuss(text: string): string | null {
+  const t = text ?? "";
+  if (/profinet/i.test(t)) return "PROFINET";
+  if (/ethercat/i.test(t)) return "EtherCAT";
+  if (/ethernet[\s/-]?ip/i.test(t)) return "EtherNet/IP";
+  if (/io-?link/i.test(t)) return "IO-Link";
+  if (/profibus/i.test(t)) return "PROFIBUS";
+  if (/modbus/i.test(t)) return "Modbus";
+  if (/devicenet/i.test(t)) return "DeviceNet";
+  if (/cc-?link/i.test(t)) return "CC-Link";
+  return null;
+}
+
+/** Både pneumatiska cylindrar och servo-/elaxlar i samma uppgift. */
+export function blandadDrift(text: string): boolean {
+  return /cylind/i.test(text) && /servo|elektrisk\w* axel|elaxel|elcylinder|electric axis|servo axis/i.test(text);
+}
+
 export interface HazardFlags {
+  /** Kunden har ingen PLC ("har ingen PLC", "No PLC yet"). */
+  saknarPlc?: boolean;
+  /** Cylindrar och servoaxlar i samma station (blandadDrift). */
+  blandadDrift?: boolean;
+  /** Angiven fältbuss (angivenFaltbuss), null om ingen. */
+  faltbuss?: string | null;
   /** Spolning/tvätt (IP69K-krav), till skillnad från bara korrosiv miljö. */
   isSpolmiljo?: boolean;
   /** Kunden har redan ett lyft (en Z-axel, en lyftanordning) som griporganet
@@ -1743,11 +1825,16 @@ export function detectHazards(
   // separate axes, so ungated it can wrongly treat e.g. two independently-
   // keyed stroke answers on a single-axis request as multiple axes and take
   // their max instead of minStrokeMm's single (first-match) value.
-  const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers) : [];
+  const perAxisStrokes = isMultiAxis ? extractPerAxisStrokes(answers, text) : [];
   // System scope: a number like "200-500 mm" is carton SIZE, not actuator
   // stroke -- don't treat it as a stroke requirement (it would falsely fail
-  // every cylinder).
-  const requiredStrokeMm = isSystemScope ? 0
+  // every cylinder). Uttryckliga slag, lyft och sidled (svar eller "lyft 600
+  // mm") gäller ändra: längdläsningen skiljer dem från mått sedan 2026-11-12.
+  const uttryckligtSlag = Math.max(0,
+    ...perAxisStrokes.map(a => a.stroke),
+    ...langderITexten(text + " " + Object.values(answers).join(" "))
+      .filter(l => l.typ === "slag" || l.typ === "lyft" || l.typ === "sidled").map(l => Math.round(l.mm)));
+  const requiredStrokeMm = isSystemScope ? uttryckligtSlag
     : perAxisStrokes.length > 0 ? Math.max(...perAxisStrokes.map(a => a.stroke))
     : minStrokeMm;
   const speedMs = extractSpeedMs(text, answers, tolkning);
@@ -1799,6 +1886,9 @@ export function detectHazards(
   });
 
   return {
+    faltbuss: angivenFaltbuss(text + " " + Object.values(answers).join(" ")),
+    blandadDrift: blandadDrift(text),
+    saknarPlc: /\b(ingen|utan)\s+plc\b|har inte (någon )?plc|no plc|without (a )?plc/i.test(text + " " + Object.values(answers).join(" ")),
     isSystemScope, isMultiAxis, isVacuum, valveTerminal,
     isAtex, isAtexDust, isVerticalLoad, isHighTemp, isLowTemp, isHydraulic, isVeryHighForce,
     isOxygenClean, isEsdSafe, isHighCycle, isHighSpeed, isSilSafety, isOutdoor, isPharmaGmp,
