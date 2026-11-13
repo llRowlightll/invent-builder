@@ -93,13 +93,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // den skiljer noll från O och ett från l, och ger likbreda siffror så en
       // kolumn med artikelnummer går att jämföra kolumnvis.
       // Utan dessa renderar hela sajten i system-ui.
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href:
-          "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap",
-      },
+      // Typsnittet ligger på vår egen server sedan 2026-11-13 (@fontsource i
+      // styles.css). Från fonts.googleapis.com fick Google besökarens IP-adress
+      // innan något samtycke getts -- kundgranskningen pekade på det.
       { rel: "stylesheet", href: appCss },
       // Favicons — Google Search picks the 48px-multiple PNG; browsers prefer SVG.
       { rel: "icon", href: "/favicon.ico", sizes: "48x48 32x32" },

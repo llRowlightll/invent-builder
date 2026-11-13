@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { aiVarning } from "@/lib/ai-varning";
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { makeT, type Locale } from "@/lib/i18n";
@@ -596,6 +597,7 @@ function ChatPage() {
             {t("chatPage.sendButton")}
           </button>
         </div>
+        <p className="px-3 pb-2 -mt-1 text-[11px] text-muted-foreground">{aiVarning(locale)}</p>
 
         {/* Compare bar */}
         {compare.length > 0 && (

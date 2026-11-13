@@ -6,7 +6,7 @@ import { OFFERT_GILTIG_DAGAR, VILLKOR_DATUM, VILLKOR_VERSION } from "@/lib/villk
 
 /**
  * Allmänna villkor, på svenska och engelska (övriga språk visar engelska).
- * Den svenska texten gäller vid skillnader (avsnitt 13).
+ * Den svenska texten gäller vid skillnader (avsnitt 14).
  *
  * Version 1.2 (2026-10-08): offertens giltighet och när avtal uppstår,
  * fast pris efter accept, frakt i offerten, undantag från ansvarsbegränsningen
@@ -16,6 +16,12 @@ import { OFFERT_GILTIG_DAGAR, VILLKOR_DATUM, VILLKOR_VERSION } from "@/lib/villk
  *
  * Version 1.3 (2026-10-08, samma dag): frakt tillkommer (beslut att ta betalt
  * för frakt). Den sätts i offertverktyget och på orderbekräftelsen.
+ *
+ * Version 1.4 (2026-11-13), efter kundgranskningen: avtal binder bara till
+ * priser kunden har sett; serier bekräftas i offerten; nytt avsnitt om moms
+ * och valuta (momsregeln och offert i euro); direktleverans och
+ * delleveranser; returprocess i steg; transportskada noteras vid mottagandet.
+ * Avsnittsnumren efter 4 har flyttats ett steg. Läses av jurist före lansering.
  */
 export const Route = createFileRoute("/$locale/terms")({
   head: ({ params }) => {
@@ -64,46 +70,56 @@ function avsnitt(sv: boolean, leverantor: string): Avsnitt[] {
     ] },
     { titel: "3. Offerter, priser och avtal", stycken: [
       "Priser på plattformen är **indikativa** och exklusive moms om inget annat anges. En offertförfrågan (RFQ) utgör inte ett bindande anbud.",
-      `En offert från Maskinval gäller i **${dagar} dagar** från offertdatum om inget annat anges i offerten. Avtal uppstår när kunden accepterar en giltig offert, eller när Maskinval skriftligen har bekräftat en beställning (orderbekräftelse).`,
+      `En offert från Maskinval gäller i **${dagar} dagar** från offertdatum om inget annat anges i offerten. Avtal uppstår när kunden accepterar en giltig offert, eller när Maskinval skriftligen har bekräftat en beställning (orderbekräftelse) till de priser kunden har sett i beställningen. En beställning av en artikel utan angivet pris räknas som en offertförfrågan.`,
+      "För en serie (till exempel en cylinderfamilj) anger kunden storlek och slaglängd i förfrågan. Det exakta artikelnumret bekräftas i offerten.",
       "Priset i en accepterad offert eller i en orderbekräftelse gäller för den ordern. Dessförinnan kan priser ändras utan föregående avisering till följd av valutakurser, leverantörspriser eller marknadssituation. Vi förbehåller oss rätten att korrigera uppenbara fel i pris eller artikel.",
       "Frakt tillkommer och anges i offerten eller orderbekräftelsen.",
     ] },
     { titel: "4. Leverans och ledtider", stycken: [
-      "Angivna ledtider är uppskattningar baserade på leverantörsinformation och är inte garanterade. Maskinval ansvarar inte för förseningar orsakade av leverantörer, tullformaliteter, transportstörningar eller force majeure-händelser (avsnitt 9).",
-      "Leverans sker till angiven adress via PostNord eller annan speditör. Risken för godset övergår till köparen när det lämnas till transportören.",
+      "Angivna ledtider är uppskattningar baserade på leverantörsinformation och är inte garanterade. Maskinval ansvarar inte för förseningar orsakade av leverantörer, tullformaliteter, transportstörningar eller force majeure-händelser (avsnitt 10).",
+      "Leverans sker till angiven adress via PostNord eller annan speditör. Varor kan skickas direkt från tillverkaren eller leverantören, och en order kan levereras i flera försändelser; varje försändelse aviseras med spårningsuppgifter. Risken för godset övergår till köparen när det lämnas till transportören.",
+      "Leverans till länder utanför Sverige sker enligt vad som anges i offerten.",
     ] },
-    { titel: "5. Betalningsvillkor", lista: [
+    { titel: "5. Moms och valuta", stycken: [
+      "Priserna anges exklusive moms. Svensk moms (25 %) tillkommer för kunder i Sverige och för kunder i andra EU-länder som saknar momsregistreringsnummer.",
+      "Till företag i ett annat EU-land med giltigt momsregistreringsnummer faktureras utan svensk moms med **omvänd betalningsskyldighet** (artikel 196 i mervärdesskattedirektivet). Kunden ansvarar för att numret är giltigt.",
+      "Vid leverans till länder utanför EU faktureras utan svensk moms. Tull, importmoms och andra avgifter i mottagarlandet betalas av mottagaren.",
+      "Kunder utanför Sverige kan få offerten i euro. Priserna räknas då om från kronor med Riksbankens dagskurs och ett valutapåslag; kursen och påslaget anges i offerten, och priset i den accepterade offerten gäller.",
+    ] },
+    { titel: "6. Betalningsvillkor", lista: [
       "Standardbetalningsvillkor: 30 dagar netto från fakturadatum",
       "Vid försenad betalning debiteras dröjsmålsränta enligt räntelagen (referensräntan + 8 procentenheter)",
       "Äganderättsförbehåll gäller tills full betalning erlagts",
       "Kreditbedömning kan ske för nya kunder",
     ] },
-    { titel: "6. Reklamationer, garanti och returer", stycken: [
+    { titel: "7. Reklamationer, garanti och returer", stycken: [
       "Synliga fel och transportskador ska reklameras inom **8 dagar** från mottagandet av godset. Dolda fel ska reklameras inom skälig tid efter att felet upptäckts eller borde ha upptäckts, dock senast **12 månader** efter leverans, eller inom tillverkarens garantitid om den är längre.",
       "Produkterna omfattas av tillverkarens garanti enligt tillverkarens villkor. Maskinval tar emot reklamationer och garantianspråk och driver dem mot tillverkaren eller leverantören.",
-      "Fel som omfattas avhjälps genom utbyte eller kreditering efter godkännande. Returer accepteras endast efter skriftligt godkännande från Maskinval. Returkostnaden bärs av köparen om inte felet ligger hos Maskinval, tillverkaren eller leverantören.",
+      "Synlig transportskada ska noteras på fraktsedeln eller hos transportören vid mottagandet, och anmälas till Maskinval med foto inom 8 dagar.",
+      "Fel som omfattas avhjälps genom utbyte eller kreditering efter godkännande. Returer accepteras endast efter skriftligt godkännande från Maskinval: kontakta oss med ordernummer och skäl, så får du ett returnummer och instruktioner. Returkostnaden bärs av köparen om inte felet ligger hos Maskinval, tillverkaren eller leverantören.",
+      "Felbeställda standardartiklar i oskadat originalskick kan returneras om tillverkaren tar emot dem; en eventuell returavgift från tillverkaren anges i godkännandet. Konfigurerade eller specialtillverkade artiklar kan inte returneras.",
     ] },
-    { titel: "7. AI-verktyg och produktrekommendationer", stycken: [
+    { titel: "8. AI-verktyg och produktrekommendationer", stycken: [
       "Maskinvals AI-chatt och konfigurationsverktyg är **beslutsstöd** — inte ersättning för professionell ingenjörsbedömning. Maskinval ansvarar inte för skador som uppstår till följd av felaktiga specifikationer, dimensioneringsfel eller felaktig användning av produkter som valts med hjälp av AI-verktyg.",
       "Kontrollera alltid att valda produkter uppfyller din applikations krav med en kvalificerad ingenjör innan installation.",
     ] },
-    { titel: "8. Ansvarsbegränsning", stycken: [
+    { titel: "9. Ansvarsbegränsning", stycken: [
       "Maskinvals ansvar är begränsat till ordervärdet för den aktuella affären. Vi ansvarar inte för indirekta skador, utebliven vinst, produktionsbortfall eller följdskador. Begränsningarna gäller inte om skadan har orsakats uppsåtligen eller genom grov vårdslöshet.",
-      "Utöver tillverkarens garanti (avsnitt 6) lämnar Maskinval inga garantier, utom där tvingande lag säger annat.",
+      "Utöver tillverkarens garanti (avsnitt 7) lämnar Maskinval inga garantier, utom där tvingande lag säger annat.",
     ] },
-    { titel: "9. Force majeure", stycken: [
+    { titel: "10. Force majeure", stycken: [
       "En part är befriad från påföljder för underlåtenhet att fullgöra en förpliktelse om underlåtenheten beror på omständigheter utanför partens kontroll som parten inte skäligen kunde ha förutsett, till exempel krig, naturkatastrof, epidemi, myndighetsbeslut, arbetskonflikt, transportstörning eller fel eller förseningar hos tillverkare eller leverantör som beror på sådana omständigheter. Den part som drabbas ska utan dröjsmål underrätta den andra parten.",
     ] },
-    { titel: "10. Immateriella rättigheter", stycken: [
+    { titel: "11. Immateriella rättigheter", stycken: [
       "Allt innehåll på plattformen — inklusive produktbeskrivningar, bilder, konfigurationsverktyg och AI-funktioner — är Maskinvals eller dess licensgivares egendom. Varumärken och produktnamn tillhör respektive tillverkare. Kopiering, scraping eller vidareutnyttjande utan skriftligt tillstånd är förbjudet.",
     ] },
-    { titel: "11. Tillämplig lag och tvistlösning", stycken: [
+    { titel: "12. Tillämplig lag och tvistlösning", stycken: [
       "Svensk rätt tillämpas. Tvister ska i första hand lösas genom förhandling. Om parterna inte kan enas hänskjuts tvisten till **Stockholms tingsrätt** som första instans, om inte parterna skriftligen avtalar om skiljeförfarande enligt Stockholms Handelskammares Skiljedomsinstituts regler.",
     ] },
-    { titel: "12. Ändringar av villkoren", stycken: [
+    { titel: "13. Ändringar av villkoren", stycken: [
       "Maskinval kan uppdatera dessa villkor. Väsentliga ändringar meddelas via e-post minst 30 dagar i förväg. Ändringarna gäller inte offerter som redan har lämnats eller order som redan har bekräftats. Fortsatt användning av tjänsten efter ikraftträdandedatum innebär accept av de nya villkoren.",
     ] },
-    { titel: "13. Språk", stycken: [
+    { titel: "14. Språk", stycken: [
       "Villkoren finns på svenska och engelska. Vid skillnader mellan versionerna gäller den svenska.",
     ] },
   ];
@@ -120,46 +136,56 @@ function avsnitt(sv: boolean, leverantor: string): Avsnitt[] {
     ] },
     { titel: "3. Quotes, prices and agreement", stycken: [
       "Prices on the platform are **indicative** and exclude VAT unless otherwise stated. A request for quotation (RFQ) is not a binding offer.",
-      `A quote from Maskinval is valid for **${dagar} days** from the quote date unless otherwise stated in the quote. An agreement is formed when the customer accepts a valid quote, or when Maskinval has confirmed an order in writing (order confirmation).`,
+      `A quote from Maskinval is valid for **${dagar} days** from the quote date unless otherwise stated in the quote. An agreement is formed when the customer accepts a valid quote, or when Maskinval has confirmed an order in writing (order confirmation) at the prices the customer saw in the order. An order for an item without a stated price counts as a request for quotation.`,
+      "For a series (for example a cylinder family), the customer states the size and stroke in the request. The exact part number is confirmed in the quote.",
       "The price in an accepted quote or in an order confirmation applies to that order. Before then, prices may change without prior notice due to exchange rates, supplier prices or market conditions. We reserve the right to correct obvious errors in price or item.",
       "Freight is charged in addition and is stated in the quote or the order confirmation.",
     ] },
     { titel: "4. Delivery and lead times", stycken: [
-      "Stated lead times are estimates based on supplier information and are not guaranteed. Maskinval is not liable for delays caused by suppliers, customs formalities, transport disruptions or force majeure events (section 9).",
-      "Delivery is made to the given address by PostNord or another carrier. The risk for the goods passes to the buyer when they are handed over to the carrier.",
+      "Stated lead times are estimates based on supplier information and are not guaranteed. Maskinval is not liable for delays caused by suppliers, customs formalities, transport disruptions or force majeure events (section 10).",
+      "Delivery is made to the given address by PostNord or another carrier. Goods may be shipped directly from the manufacturer or supplier, and an order may be delivered in several shipments; each shipment is notified with tracking details. The risk for the goods passes to the buyer when they are handed over to the carrier.",
+      "Delivery to countries outside Sweden is made as stated in the quote.",
     ] },
-    { titel: "5. Payment terms", lista: [
+    { titel: "5. VAT and currency", stycken: [
+      "Prices exclude VAT. Swedish VAT (25 %) is added for customers in Sweden and for customers in other EU countries without a VAT registration number.",
+      "Businesses in another EU country with a valid VAT registration number are invoiced without Swedish VAT under the **reverse charge** (Article 196 of the VAT Directive). The customer is responsible for the number being valid.",
+      "Deliveries to countries outside the EU are invoiced without Swedish VAT. Customs duty, import VAT and other charges in the destination country are paid by the recipient.",
+      "Customers outside Sweden may receive the quote in euro. Prices are then converted from Swedish kronor at the Riksbank daily rate plus a currency surcharge; the rate and surcharge are stated in the quote, and the price in the accepted quote applies.",
+    ] },
+    { titel: "6. Payment terms", lista: [
       "Standard payment terms: 30 days net from the invoice date",
       "Late payment incurs interest under the Swedish Interest Act (the reference rate + 8 percentage points)",
       "Title to the goods is retained until full payment has been made",
       "A credit assessment may be made for new customers",
     ] },
-    { titel: "6. Claims, warranty and returns", stycken: [
+    { titel: "7. Claims, warranty and returns", stycken: [
       "Visible defects and transport damage must be reported within **8 days** of receipt of the goods. Hidden defects must be reported within a reasonable time after the defect was discovered or should have been discovered, but no later than **12 months** after delivery, or within the manufacturer's warranty period if that is longer.",
       "The products are covered by the manufacturer's warranty on the manufacturer's terms. Maskinval receives claims and warranty requests and pursues them with the manufacturer or supplier.",
-      "Covered defects are remedied by replacement or credit after approval. Returns are accepted only after written approval from Maskinval. The buyer bears the return cost unless the defect lies with Maskinval, the manufacturer or the supplier.",
+      "Visible transport damage must be noted on the consignment note or with the carrier on receipt, and reported to Maskinval with a photo within 8 days.",
+      "Covered defects are remedied by replacement or credit after approval. Returns are accepted only after written approval from Maskinval: contact us with the order number and reason, and you will receive a return number and instructions. The buyer bears the return cost unless the defect lies with Maskinval, the manufacturer or the supplier.",
+      "Wrongly ordered standard items in undamaged original condition may be returned if the manufacturer accepts them; any return fee from the manufacturer is stated in the approval. Configured or custom-made items cannot be returned.",
     ] },
-    { titel: "7. AI tools and product recommendations", stycken: [
+    { titel: "8. AI tools and product recommendations", stycken: [
       "Maskinval's AI chat and configuration tools are **decision support** — not a substitute for professional engineering judgement. Maskinval is not liable for damage resulting from incorrect specifications, sizing errors or incorrect use of products selected with the help of AI tools.",
       "Always have a qualified engineer check that the selected products meet the requirements of your application before installation.",
     ] },
-    { titel: "8. Limitation of liability", stycken: [
+    { titel: "9. Limitation of liability", stycken: [
       "Maskinval's liability is limited to the order value of the transaction concerned. We are not liable for indirect damage, loss of profit, loss of production or consequential damage. These limitations do not apply if the damage was caused intentionally or through gross negligence.",
-      "Beyond the manufacturer's warranty (section 6), Maskinval gives no warranties, except where mandatory law provides otherwise.",
+      "Beyond the manufacturer's warranty (section 7), Maskinval gives no warranties, except where mandatory law provides otherwise.",
     ] },
-    { titel: "9. Force majeure", stycken: [
+    { titel: "10. Force majeure", stycken: [
       "A party is released from liability for failure to perform an obligation if the failure is due to circumstances beyond the party's control that the party could not reasonably have foreseen, such as war, natural disaster, epidemic, decisions by authorities, labour disputes, transport disruptions, or defects or delays at a manufacturer or supplier caused by such circumstances. The affected party shall notify the other party without delay.",
     ] },
-    { titel: "10. Intellectual property", stycken: [
+    { titel: "11. Intellectual property", stycken: [
       "All content on the platform — including product descriptions, images, configuration tools and AI features — is the property of Maskinval or its licensors. Trademarks and product names belong to their respective manufacturers. Copying, scraping or reuse without written permission is prohibited.",
     ] },
-    { titel: "11. Governing law and disputes", stycken: [
+    { titel: "12. Governing law and disputes", stycken: [
       "Swedish law applies. Disputes shall primarily be resolved through negotiation. If the parties cannot agree, the dispute shall be referred to the **Stockholm District Court** as the court of first instance, unless the parties agree in writing on arbitration under the rules of the Arbitration Institute of the Stockholm Chamber of Commerce.",
     ] },
-    { titel: "12. Changes to the terms", stycken: [
+    { titel: "13. Changes to the terms", stycken: [
       "Maskinval may update these terms. Material changes are announced by email at least 30 days in advance. Changes do not apply to quotes already issued or orders already confirmed. Continued use of the service after the effective date means acceptance of the new terms.",
     ] },
-    { titel: "13. Language", stycken: [
+    { titel: "14. Language", stycken: [
       "These terms are available in Swedish and English. In the event of any discrepancy, the Swedish version prevails.",
     ] },
   ];
