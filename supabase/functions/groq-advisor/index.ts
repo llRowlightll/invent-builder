@@ -29,7 +29,7 @@ import {
   familjeborrning,
   kraftVid6Bar,
 } from "./scoring.ts";
-import { LANGRE_SLAG_PRO, rensaSerieslag, rensaPositionsPros } from "./prosavakt.ts";
+import { LANGRE_SLAG_PRO, rensaSerieslag, rensaPositionsPros, rensaMotsagelser, produktdataText } from "./prosavakt.ts";
 import { delaSvar, tolkaKravbild, type Kravbild, type Tolkningsbeslut } from "./kravbild.ts";
 import { provaTryck, tolkaKravSpanning } from "./kontroller.ts";
 import { byggResultat, utanSakerhetspastaenden } from "./resultat.ts";
@@ -760,7 +760,7 @@ async function handleQuestions(description: string, locale: string): Promise<Res
       // är sagt, inget som inte hör till förfrågan, avgörande frågor först och
       // högst sex (T19).
       parsed.questions = slutligaFragor(parsed.questions as Fraga[], description, locale, kod);
-      parsed.summary = String(parsed.summary ?? "").replace(/^\s*(sammanfattning|summary|zusammenfassung|resumen)\s*:\s*/i, "");
+      parsed.summary = utanSakerhetspastaenden(String(parsed.summary ?? "").replace(/^\s*(sammanfattning|summary|zusammenfassung|resumen)\s*:\s*/i, ""));
       // Teknikvalet först, när det följer av kraven (Geminis punkt 1).
       parsed.summary = [teknikval(description, locale), parsed.summary].filter(Boolean).join(" ");
       // A valid JSON body carrying zero questions is still a failed step for the
@@ -1534,7 +1534,8 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
   if (rawOptions) {
     try {
       const llm = JSON.parse(rawOptions);
-      llmSummary = typeof llm.summary === "string" ? llm.summary : "";
+      // Sammanfattningen är modellskriven prosa precis som motiveringarna.
+      llmSummary = typeof llm.summary === "string" ? utanSakerhetspastaenden(llm.summary) : "";
       const llmBySkuMap = new Map<string, Record<string, unknown>>();
       for (const o of (llm.options ?? [])) if (o?.sku) llmBySkuMap.set(o.sku as string, o);
       finalOptions = finalOptions.map(opt => {
@@ -1567,6 +1568,8 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     if (!cat) return opt;
     // Pneumatik har två ändlägen. Se prosavakt.ts.
     opt.pros = rensaPositionsPros((opt.pros as string[] | undefined) ?? [], isPneumaticActuatorProduct(cat));
+    // Nackdelar som produktens egna specar motsäger. Se prosavakt.ts.
+    opt.cons = rensaMotsagelser((opt.cons as string[] | undefined) ?? [], produktdataText(cat.name, cat.key_specs ?? {}));
     const actualMax = parseStrokeFromSpecs(cat.key_specs ?? {});
     opt.stroke_mm = actualMax > 0 ? actualMax : null;
     // Family / configurable product: never present it as a silent exact match.

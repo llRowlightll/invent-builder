@@ -56,3 +56,46 @@ export function rensaSerieslag(
   const stryk = (t: string) => LANGRE_SLAG_PRO.test(t) || (omMaxslaget?.test(t) ?? false);
   return { pros: pros.filter((t) => !stryk(t)), cons: cons.filter((t) => !stryk(t)) };
 }
+
+/**
+ * Nackdelar som produktens egna data motsäger.
+ *
+ * Hittat i kundgranskningen 2026-11-13 ("Ø50 slag 200"): Camozzi
+ * 63M2A050A200 fick "Ingen magnetkolv" fast specen säger "Magnetic piston,
+ * T-slot sensor", och AVENTICS 0822122007 fick "Ingen justerbar dämpning"
+ * fast specen säger "Adjustable cushioning (both ends)". Modellen hade
+ * specarna framför sig. Stryk påståendet när datan säger motsatsen; en
+ * nackdel som saknar stöd är värre än ingen.
+ */
+const NEG = String.raw`\b(?:ingen|inga|saknar|utan|ej|inte|no|not|without|lacks?|lacking|keine?n?|ohne|sin|carece)\b`;
+const MAGNETKOLV = String.raw`(?:magnet(?:kolv|ring)|magnetisk\w*\s+kolv|magnetic\s+(?:piston|ring)|magnetkolben|(?:émbolo|pistón)\s+magnético)`;
+const DAMPNING = String.raw`(?:dämpning|cushion\w*|dämpfung|amortigua\w*)`;
+const JUSTERBAR = String.raw`(?:justerbar\w*|adjustable|einstellbar\w*|ajustable)`;
+const NEJ_MAGNET = new RegExp(`${NEG}[^.;:]{0,30}${MAGNETKOLV}`, "i");
+const NEJ_JUSTERBAR = new RegExp(`${NEG}[^.;:]{0,20}${JUSTERBAR}[^.;:]{0,20}${DAMPNING}`, "i");
+const NEJ_DAMPNING = new RegExp(`${NEG}[^.;:]{0,20}${DAMPNING}`, "i");
+
+export function rensaMotsagelser(cons: string[], data: string): string[] {
+  const d = String(data ?? "");
+  const harMagnet = /magnet/i.test(d) && !/non-?magnetic|without magnet|utan magnet|ingen magnet/i.test(d);
+  const harJusterbar = new RegExp(JUSTERBAR, "i").test(d);
+  const harDampning = new RegExp(DAMPNING, "i").test(d) && !/no cushion|without cushion|ingen dämpning|utan dämpning/i.test(d);
+  return cons.filter((c) => {
+    if (harMagnet && NEJ_MAGNET.test(c)) return false;
+    if (harJusterbar && NEJ_JUSTERBAR.test(c)) return false;
+    if (harDampning && !NEJ_JUSTERBAR.test(c) && NEJ_DAMPNING.test(c)) return false;
+    return true;
+  });
+}
+
+/**
+ * Texten rensaMotsagelser läser: namnet och specvärdena. Nyckeln används bara
+ * som etikett när den säger vad värdet är -- "cushioning_types: Pneumatic,
+ * self-adjusting" är dämpning fast värdet inte säger ordet.
+ */
+export function produktdataText(namn: string, specar: Record<string, unknown>): string {
+  return [namn, ...Object.entries(specar ?? {}).map(([k, v]) => {
+    const s = String(v ?? "");
+    return /cushion|dämp|damp/i.test(k) && s.trim() && !/^(none|ingen|no|-)$/i.test(s.trim()) ? `cushioning ${s}` : s;
+  })].join(" ; ");
+}

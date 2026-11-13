@@ -263,8 +263,20 @@ export function byggResultat(o: {
  */
 const SAKERHETSPASTAENDE = /säkerhet\w*\s+(?:säkerställ|garanter|uppfyll)\w*|säkerställ\w*\s+(?:säkerhet|säker drift)|garanter\w*\s+(?:säkerhet|säker)|\bsafety\s+is\s+(?:ensured|guaranteed)|ensur\w*\s+safety|guarantee\w*\s+safety|\bsafe\s+operation\s+is\s+ensured/i;
 
+// Lämplighet för säkerhet som underlaget inte bär (kundgranskningen
+// 2026-11-13): "uppfyller PL d", "lämplig för säkerhetskritiska
+// tillämpningar", "säker för operatören", "montering med hög säkerhet".
+// Ingen komponent i en stycklista uppfyller en prestandanivå -- det gör
+// säkerhetsfunktionen, efter riskbedömning och validering.
+const LAMPLIGHETSPASTAENDE = new RegExp([
+  String.raw`\b(?:uppfyller|klarar|motsvarar|meets|complies\s+with|compliant\s+with|achieves|erfüllt|erreicht|cumple)\s+(?:kraven\s+(?:för|på|i)\s+|the\s+requirements\s+of\s+|die\s+anforderungen\s+(?:von|der)\s+)?(?:PL\s?[a-e]\b|SIL\s?\d|kategori\s?[B1-4]\b|category\s?[B1-4]\b|kategorie\s?[B1-4]\b|(?:EN\s?)?ISO\s?13849|IEC\s?6(?:2061|1508))`,
+  String.raw`(?:lämplig\w*|passar|godkänd|suitable|approved|geeignet|zugelassen|adecuad\w*|apt[oa]s?)\s+(?:för|for|für|para)\s+(?:\w+\s+){0,2}(?:säkerhetskritisk|säkerhetsfunktion|personsäkerhet|personskydd|safety[- ]critical|safety\s+functions?|personnel\s+safety|sicherheitskritisch|sicherheitsfunktion|seguridad\s+crítica|funciones\s+de\s+seguridad)`,
+  String.raw`\bsäker\w*\s+för\s+(?:personal|operatör\w*|människor|personer)|\bsafe\s+for\s+(?:operators?|personnel|people|workers)|\bsicher\s+für\s+(?:bediener|personal|menschen)|\bsegur[oa]\s+para\s+(?:operarios|personal|personas)`,
+  String.raw`\bhög\s+säkerhet|\bhigh\s+(?:level\s+of\s+)?safety\b|\bhohe[rn]?\s+sicherheit|\balta\s+seguridad`,
+].join("|"), "i");
+
 export function utanSakerhetspastaenden(text: string): string {
   if (!text) return text;
   const meningar = text.match(/[^.!?]+[.!?]*/g) ?? [text];
-  return meningar.filter((m) => !SAKERHETSPASTAENDE.test(m)).join("").trim();
+  return meningar.filter((m) => !SAKERHETSPASTAENDE.test(m) && !LAMPLIGHETSPASTAENDE.test(m)).join("").trim();
 }
