@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { aiVarning } from "@/lib/ai-varning";
 import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { Machine3DSceneProps } from "@/components/Machine3DScene";
 const Machine3DScene = lazy(() =>
@@ -732,6 +733,7 @@ function DescribeStep({ t, locale, description, setDescription, onSubmit }: {
           autoFocus
           className="mt-1 block w-full resize-y rounded-xl bg-transparent px-3 py-2 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/80 focus:outline-none"
         />
+        <p className="px-3 pb-1 text-[11px] text-muted-foreground">{aiVarning(locale)}</p>
         <div className="flex flex-wrap items-center gap-2 border-t border-line px-3 pt-3 pb-1.5">
           <input
             ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden
