@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { loadCatalog } from "@/lib/catalog";
 import type { ProductRow } from "@/lib/types";
 import { SITE, hreflangLinks } from "@/lib/site";
-import { fetchCompanySettings, type CompanySettings } from "@/lib/company-settings";
+import { fetchCompanySettings, visningsnamn, type CompanySettings } from "@/lib/company-settings";
 import { analyzeDocument, type ComponentIdentification } from "@/lib/document-ai";
 import { categoryName } from "@/lib/categories";
 import { Camera, Mail } from "lucide-react";
@@ -60,6 +60,13 @@ type UseCase = {
 };
 
 type Step = "select" | "ai" | "form";
+
+const KONTAKT = {
+  sv: "Vi svarar inom 1–2 arbetsdagar, på svenska eller engelska.",
+  en: "We reply within 1–2 business days, in English or Swedish.",
+  de: "Wir antworten innerhalb von 1–2 Werktagen, auf Englisch oder Schwedisch.",
+  es: "Respondemos en 1–2 días laborables, en inglés o sueco.",
+};
 
 function AdvisorPage() {
   const { locale } = Route.useParams();
@@ -247,10 +254,21 @@ function AdvisorPage() {
           <h1 className="text-xl font-semibold tracking-tight">{t("advisorPage2.title")}</h1>
           <p className="text-xs text-muted-foreground mt-0.5 max-w-xl">{t("advisorPage2.subtitle")}</p>
         </div>
-        {co?.email && (
-          <a href={`mailto:${co.email}`} className="hidden sm:flex items-center gap-1.5 text-xs text-info font-medium hover:underline shrink-0">
-            <Mail className="size-4 inline -mt-0.5 mr-1" aria-hidden />{co.email} →
-          </a>
+      </div>
+
+      {/* Direkt kontakt. Kundgranskningen 2026-11-13: "Kontakt" i menyn ledde
+          hit och fyra av tjugo kunder såg bara "— Välj situation —", utan
+          e-post eller telefon (e-posten låg dold i mobil och kom först efter
+          laddning). Adressen visas när den är ifylld i Inställningar. */}
+      <div className="kort p-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+        <a href={`mailto:${co?.email || "info@maskinval.se"}`} className="inline-flex items-center gap-1.5 text-info font-medium hover:underline">
+          <Mail className="size-4" aria-hidden />{co?.email || "info@maskinval.se"}
+        </a>
+        {/* Telefonen visas först när ägaren bestämt att numret ska vara publikt
+            (det står i dag bara på offerter och orderbekräftelser). */}
+        <span className="text-muted-foreground">{KONTAKT[locale as keyof typeof KONTAKT] ?? KONTAKT.en}</span>
+        {co?.address && (
+          <span className="text-xs text-muted-foreground w-full">{visningsnamn(co)} · {co.address}{co.postal ? `, ${co.postal}` : ""}{co.org ? ` · Org.nr ${co.org}` : ""}</span>
         )}
       </div>
 
