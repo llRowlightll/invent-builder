@@ -141,3 +141,28 @@ export function provaSpanning(krav: Spanning, specar: Record<string, unknown> | 
     ? { krav: kravText, utfall: "uppfyllt", text: sv ? `artikeln anges för ${lista}` : `the item is specified for ${lista}` }
     : { krav: kravText, utfall: "ej_uppfyllt", text: sv ? `artikeln anges för ${lista}` : `the item is specified for ${lista}` };
 }
+
+/**
+ * Kapslingsklass mot kravet (sedan 2026-11-13). Kundgranskningen: guiden
+ * lovade att AI:n "filtrerar fram komponenter med rätt kapslingsklass" men
+ * motorn svarade "ingen automatisk kontroll". IP69K kräver 69K i artikelns
+ * uppgift (IP67 är inte provad för högtryckstvätt); IPxx jämförs siffra för
+ * siffra. Ingen uppgift: underlag saknas, aldrig ett tyst godkännande.
+ */
+export function provaIp(krav: string, specar: Record<string, unknown> | undefined, sv: boolean): Kontroll {
+  const kravText = sv ? `kapslingsklass ${krav}` : `IP rating ${krav}`;
+  const ra = String(specar?.ip_rating ?? specar?.ip ?? specar?.protection_class ?? "");
+  const koder = [...ra.matchAll(/IP\s?(\d)(\d)(K?)/gi)].map((m) => ({ a: Number(m[1]), b: Number(m[2]), k: m[3].toUpperCase() === "K", text: `IP${m[1]}${m[2]}${m[3].toUpperCase()}` }));
+  if (!koder.length) {
+    return { krav: kravText, utfall: "underlag_saknas", text: sv ? "katalogen anger ingen kapslingsklass för artikeln" : "the catalogue gives no IP rating for the item" };
+  }
+  const m = krav.toUpperCase().match(/IP(\d)(\d)(K?)/);
+  if (!m) return { krav: kravText, utfall: "underlag_saknas", text: sv ? "kravet kunde inte läsas" : "the requirement could not be read" };
+  const ka = Number(m[1]); const kb = Number(m[2]); const kk = m[3] === "K";
+  const anges = koder.map((k) => k.text).join("/");
+  const ok = kk ? koder.some((k) => k.k && k.b >= kb && k.a >= ka) : koder.some((k) => k.a >= ka && k.b >= kb);
+  return ok
+    ? { krav: kravText, utfall: "uppfyllt", text: sv ? `artikeln anges ${anges}` : `the item is rated ${anges}` }
+    : { krav: kravText, utfall: "ej_uppfyllt", text: sv ? `artikeln anges bara ${anges}` : `the item is only rated ${anges}` };
+}
+

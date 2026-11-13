@@ -341,3 +341,8 @@ Deno.test("slag utan enhet och Ø<borrning>×<slag> ger slaglängden", () => {
   assertEquals(slag("30 slag/min"), []);
   assertEquals(slag("slag 30/min"), []);
 });
+
+Deno.test("kapslingsklassen står kvar i kravbilden (kundgranskning 2026-11-13)", () => {
+  const kb = tolkaKravbild("6 rostfria cylindrar Ø32 slag 100 och en ventilö för tvättzonen, IP69K, livsmedelsgodkänt fett");
+  assertEquals(kb.krav.find((k) => k.egenskap === "kapslingsklass")?.text, "IP69K");
+});

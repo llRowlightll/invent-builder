@@ -66,7 +66,7 @@ export type Egenskap =
   | "sidoforflyttning" | "kraft" | "tryck" | "spanning" | "befintlig" | "io" | "modell"
   | "drifttid" | "miljo" | "hantering" | "avstand" | "signal" | "takt" | "cykeltid"
   | "noggrannhet" | "temperatur" | "minsta_avstand" | "vid_utskjutning" | "utsorteringar_i_foljd"
-  | "rorlig_massa" | "riktning" | "sakerhet" | "svar";
+  | "rorlig_massa" | "riktning" | "sakerhet" | "kapslingsklass" | "svar";
 
 /** En tolkning systemet inte kan avgöra själv. Avgörs av användaren. */
 export interface OsakerTolkning {
@@ -657,6 +657,11 @@ export function tolkaKravbild(beskrivning: string, svarIn: Record<string, string
       lagg({ objektId: "maskin", egenskap: "miljo", text: unika.join(", "), ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
     }
 
+    // Kapslingsklass: "IP69K", "IP67". Kundgranskningen 2026-11-13: IP69K
+    // stod i beskrivningen men försvann ur kravbilden ("miljö livsmedel").
+    const ip = s.match(/\bIP\s?(\d{2}K?)\b/i);
+    if (ip) lagg({ objektId: "maskin", egenskap: "kapslingsklass", text: `IP${ip[1].toUpperCase()}`, ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
+
     // Rörelseriktning: avgör broms, lasthållning och säkerhetsgranskning.
     if (/\b(?:lodrät\w*|vertikal\w*|lyft\w*|hissa\w*|sänk\w*|upp och ned|vertical\w*|lift\w*)\b/i.test(s)) {
       lagg({ objektId: "aktuator", egenskap: "riktning", text: "Lodrät (lyft)", ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
@@ -845,6 +850,7 @@ export const EGENSKAPSNAMN: Record<string, [string, string]> = {
   modell: ["PLC-modell", "PLC model"],
   drifttid: ["Drifttid", "Operating time"],
   miljo: ["Miljö", "Environment"],
+  kapslingsklass: ["Kapslingsklass", "IP rating"],
   hantering: ["Hantering", "Handling"],
   avstand: ["Produktavstånd", "Product spacing"],
   signal: ["Signal", "Signal"],
