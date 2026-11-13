@@ -11,7 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { basta, gangaAv, normGanga, slangOdAv, stammer } from "./porter.ts";
-import { provaGripkraft, provaSpanning, provaTryck, SPANNINGSSATTA, TRYCKSATTA, type Kontroll, type Spanning } from "./kontroller.ts";
+import { provaGripkraft, provaSpanning, provaTryck, SPANNINGSSATTA, TRYCKSATTA, type Kontroll, type Spanning, provaIp } from "./kontroller.ts";
 import { type CatalogProduct, arBorrningsspann, isAtexCapableProduct, isBeltDrivenProduct, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
 import { type HazardFlags, griporgansKrav, onskadGripdonstyp, pick, isPneumaticByDrive, isNonArticulatingActuator, tolkaTempSpann } from "./signals.ts";
 
@@ -412,6 +412,8 @@ export interface BomCtx extends HazardFlags {
   kravSpanning?: Spanning | null;
   /** Miljön kunden beskrivit (kravbilden), t.ex. "torr, lätt damm". */
   kravMiljo?: string;
+  /** Angiven kapslingsklass ur kravbilden ("IP69K"), prövas per rad (provaIp). */
+  kravIp?: string;
   /** Primärens kategori (slug). "gripper"/"vacuum" när kunden valt griporganet
    *  som huvudkomponent; då är det inte en lyftande cylinder. */
   primaryCategory?: string;
@@ -2058,7 +2060,9 @@ function satteVerifiering(rows: BomRow[], ctx: BomCtx): void {
     // (fetchPrimaryInfo) -- gripkraften står där som clamping_force m.fl.
     if (gripKontroll) kontroller.push(gripKontroll);
     if (ctx.kravSpanning && SPANNINGSSATTA.has(r.kind)) kontroller.push(provaSpanning(ctx.kravSpanning, specar, sv));
-    if (ctx.kravMiljo && (r.kind === "actuator" || r.kind === "valve" || r.kind === "valve_terminal" || r.kind === "sensor")) {
+    const miljoRad = r.kind === "actuator" || r.kind === "valve" || r.kind === "valve_terminal" || r.kind === "sensor";
+    if (ctx.kravIp && miljoRad) kontroller.push(provaIp(ctx.kravIp, specar, sv));
+    else if (ctx.kravMiljo && miljoRad) {
       kontroller.push({
         krav: sv ? `miljö (${ctx.kravMiljo})` : `environment (${ctx.kravMiljo})`,
         utfall: "stods_inte",

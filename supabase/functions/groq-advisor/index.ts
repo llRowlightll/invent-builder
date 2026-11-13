@@ -2039,6 +2039,7 @@ async function handleBom(
     kravTryckBar: kravbild.krav.find(k => k.objektId === "matning" && k.egenskap === "tryck" && k.bekraftelse !== "avvisat")?.varde ?? 0,
     kravSpanning: tolkaKravSpanning(kravbild.krav.find(k => k.objektId === "matning" && k.egenskap === "spanning" && k.bekraftelse !== "avvisat")?.text),
     kravMiljo: kravbild.krav.find(k => k.objektId === "maskin" && k.egenskap === "miljo" && k.bekraftelse !== "avvisat")?.text ?? "",
+    kravIp: kravbild.krav.find(k => k.objektId === "maskin" && k.egenskap === "kapslingsklass" && k.bekraftelse !== "avvisat")?.text ?? "",
     griporganTillagg, griporganText: combinedText,
   };
   const mandatoryBom = buildMandatoryBomRows(bomCtx);

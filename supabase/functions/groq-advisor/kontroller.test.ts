@@ -63,3 +63,13 @@ Deno.test("gripkraft utan krav saknar underlag; en angiven kraft under tumregeln
   const serie = provaGripkraft({ n: 5000, angiven: false, tumregelN: 5000, angivetN: 0 }, 6300, true, true);
   assertEquals([serie.utfall, serie.text], ["uppfyllt", "serien ger ≈ 6300 N i största storleken"]);
 });
+
+Deno.test("kapslingsklass: IP69K kräver 69K, IPxx jämförs siffra för siffra (kundgranskning 2026-11-13)", async () => {
+  const { provaIp } = await import("./kontroller.ts");
+  assertEquals(provaIp("IP69K", { ip_rating: "IP65" }, true).utfall, "ej_uppfyllt");
+  assertEquals(provaIp("IP69K", { ip_rating: "IP67" }, true).utfall, "ej_uppfyllt");
+  assertEquals(provaIp("IP69K", { ip_rating: "IP65/IP67/IP69K" }, true).utfall, "uppfyllt");
+  assertEquals(provaIp("IP65", { ip_rating: "IP67" }, true).utfall, "uppfyllt");
+  assertEquals(provaIp("IP67", { ip_rating: "IP65" }, true).utfall, "ej_uppfyllt");
+  assertEquals(provaIp("IP69K", {}, true).utfall, "underlag_saknas");
+});
