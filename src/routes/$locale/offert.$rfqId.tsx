@@ -5,6 +5,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { lasMomsbesked, momsnot, momsrad, SVENSK_MOMS, type Momsbesked } from "@/lib/moms";
 import { fetchCompanySettings, visningsnamn, type CompanySettings } from "@/lib/company-settings";
 import { CheckCircle2 } from "lucide-react";
 import { OFFERT_GILTIG_DAGAR, VILLKOR_VERSION, offertGiltigTill } from "@/lib/villkor";
@@ -39,7 +40,6 @@ type Rfq = {
   freight_ex_vat?: number | null;
 };
 
-const VAT = 0.25;
 
 function fmt(n: number, currency = "SEK") {
   return n.toLocaleString("sv-SE", { style: "currency", currency, maximumFractionDigits: 0 });
@@ -55,6 +55,15 @@ export default function PublicOffertPage() {
   const [rfq, setRfq] = useState<Rfq | null>(null);
   const [items, setItems] = useState<RfqItem[]>([]);
   const [loading, setLoading] = useState(true);
+  // Momsen följer kunden (momsregel i databasen): 25 %, omvänd
+  // betalningsskyldighet inom EU med momsnummer, eller export.
+  const [moms, setMoms] = useState<Momsbesked>(SVENSK_MOMS);
+  useEffect(() => {
+    (supabase as unknown as { rpc: (fn: string, a: Record<string, unknown>) => Promise<{ data: unknown }> })
+      .rpc("momsbesked", { p_rfq_id: rfqId })
+      .then(({ data }) => setMoms(lasMomsbesked(data)))
+      .catch(() => setMoms(SVENSK_MOMS));
+  }, [rfqId]);
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [declined, setDeclined] = useState(false);
@@ -100,7 +109,7 @@ export default function PublicOffertPage() {
   const discountAmt = totalEx * (discountPct / 100);
   const frakt = Number(rfq?.freight_ex_vat ?? 0);
   const netEx = totalEx - discountAmt + frakt;
-  const vatAmt   = netEx * VAT;
+  const vatAmt   = netEx * moms.sats;
   const totalInc = netEx + vatAmt;
   const currency = rfq?.quote_currency ?? "SEK";
 
@@ -262,7 +271,7 @@ export default function PublicOffertPage() {
                   </tr>
                 )}
                 <tr>
-                  <td className="py-1 text-muted-foreground">Moms 25 %</td>
+                  <td className="py-1 text-muted-foreground">{momsrad(moms, "sv")}</td>
                   <td className="py-1 text-right text-foreground">{fmt(vatAmt, currency)}</td>
                 </tr>
                 <tr className="border-t-2 border-foreground/30">
@@ -271,6 +280,7 @@ export default function PublicOffertPage() {
                 </tr>
               </tbody>
             </table>
+            {momsnot(moms, "sv") && <p className="mt-2 text-[11px] text-muted-foreground leading-snug">{momsnot(moms, "sv")}</p>}
           </div>
 
           {/* Villkoren blir en del av avtalet först när de hänvisats till innan det ingås. */}

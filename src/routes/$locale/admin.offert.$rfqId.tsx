@@ -7,6 +7,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { analyzeDocument, type QuoteExtraction } from "@/lib/document-ai";
 import { supabase } from "@/integrations/supabase/client";
+import { lasMomsbesked, momsnot, momsrad, SVENSK_MOMS, type Momsbesked } from "@/lib/moms";
 import { useAdminGuard } from "@/lib/auth-context";
 import { fetchCompanySettings, type CompanySettings } from "@/lib/company-settings";
 
@@ -45,7 +46,6 @@ type Rfq = {
   created_at: string;
 };
 
-const VAT = 0.25;
 
 function fmt(n: number, currency = "SEK") {
   return n.toLocaleString("sv-SE", { style: "currency", currency, maximumFractionDigits: 0 });
@@ -64,6 +64,15 @@ export default function AdminOffertPage() {
   const [rfq, setRfq] = useState<Rfq | null>(null);
   const [items, setItems] = useState<RfqItem[]>([]);
   const [loading, setLoading] = useState(true);
+  // Momsen följer kunden (momsregel i databasen): 25 %, omvänd
+  // betalningsskyldighet inom EU med momsnummer, eller export.
+  const [moms, setMoms] = useState<Momsbesked>(SVENSK_MOMS);
+  useEffect(() => {
+    (supabase as unknown as { rpc: (fn: string, a: Record<string, unknown>) => Promise<{ data: unknown }> })
+      .rpc("momsbesked", { p_rfq_id: rfqId })
+      .then(({ data }) => setMoms(lasMomsbesked(data)))
+      .catch(() => setMoms(SVENSK_MOMS));
+  }, [rfqId]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [sending, setSending] = useState(false);
@@ -155,7 +164,7 @@ export default function AdminOffertPage() {
   const totalEx = lineItems.reduce((s, l) => s + l.lineTotal, 0);
   const discountAmt = totalEx * (discountPct / 100);
   const netEx = totalEx - discountAmt + frakt;
-  const vatAmt  = netEx * VAT;
+  const vatAmt  = netEx * moms.sats;
   const totalInc = netEx + vatAmt;
 
   function setLine(id: string, field: "qty" | "price" | "note", value: string | number) {
@@ -577,7 +586,7 @@ ${co.name}`;
                   <td className="py-1 text-right text-foreground">{frakt > 0 ? fmt(frakt, currency) : "Ingår"}</td>
                 </tr>
                 <tr>
-                  <td className="py-1 text-muted-foreground">Moms 25 %</td>
+                  <td className="py-1 text-muted-foreground">{momsrad(moms, "sv")}</td>
                   <td className="py-1 text-right text-foreground">{fmt(vatAmt, currency)}</td>
                 </tr>
                 <tr className="border-t-2 border-foreground/30">
@@ -586,6 +595,7 @@ ${co.name}`;
                 </tr>
               </tbody>
             </table>
+            {momsnot(moms, "sv") && <p className="mt-2 text-[11px] text-muted-foreground leading-snug">{momsnot(moms, "sv")}</p>}
           </div>
 
           {/* Terms */}

@@ -5,6 +5,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { lasMomsbesked, momsnot, momsrad, SVENSK_MOMS, type Momsbesked } from "@/lib/moms";
 import { fetchCompanySettings, visningsnamn, type CompanySettings } from "@/lib/company-settings";
 import { VILLKOR_VERSION } from "@/lib/villkor";
 import { Printer } from "lucide-react";
@@ -41,7 +42,6 @@ type Order = {
   freight_ex_vat?: number | null;
 };
 
-const VAT = 0.25;
 
 function fmt(n: number, currency = "SEK") {
   return n.toLocaleString("sv-SE", { style: "currency", currency, maximumFractionDigits: 0 });
@@ -55,6 +55,15 @@ export default function PublicOCPage() {
   const [company, setCompany] = useState<CompanySettings | null>(null);
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  // Momsen följer kunden (momsregel i databasen): 25 %, omvänd
+  // betalningsskyldighet inom EU med momsnummer, eller export.
+  const [moms, setMoms] = useState<Momsbesked>(SVENSK_MOMS);
+  useEffect(() => {
+    (supabase as unknown as { rpc: (fn: string, a: Record<string, unknown>) => Promise<{ data: unknown }> })
+      .rpc("momsbesked", { p_order_id: orderId })
+      .then(({ data }) => setMoms(lasMomsbesked(data)))
+      .catch(() => setMoms(SVENSK_MOMS));
+  }, [orderId]);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
@@ -95,7 +104,7 @@ export default function PublicOCPage() {
 
   const frakt    = Number(order.freight_ex_vat ?? 0);
   const totalEx  = lineItems.reduce((s, l) => s + l.lineTotal, 0) + frakt;
-  const vatAmt   = totalEx * VAT;
+  const vatAmt   = totalEx * moms.sats;
   const totalInc = totalEx + vatAmt;
 
   const issuedDate = new Date(order.created_at).toLocaleDateString(
@@ -204,7 +213,7 @@ export default function PublicOCPage() {
                   </tr>
                 )}
                 <tr>
-                  <td className="py-1 text-muted-foreground">Moms 25 %</td>
+                  <td className="py-1 text-muted-foreground">{momsrad(moms, "sv")}</td>
                   <td className="py-1 text-right text-foreground">{fmt(vatAmt, currency)}</td>
                 </tr>
                 <tr className="border-t-2 border-foreground/30">
@@ -213,6 +222,7 @@ export default function PublicOCPage() {
                 </tr>
               </tbody>
             </table>
+            {momsnot(moms, "sv") && <p className="mt-2 text-[11px] text-muted-foreground leading-snug">{momsnot(moms, "sv")}</p>}
           </div>
 
           {/* Terms */}
