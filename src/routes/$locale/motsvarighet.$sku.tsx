@@ -1,8 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { ArrowLeftRight } from "lucide-react";
 import { loadCatalog } from "@/lib/catalog";
 import { categoryName } from "@/lib/categories";
 import { borrningar, cylindergrupp, gruppnamn, likvardigaCylindrar, motsvarighetsrepresentant } from "@/lib/likvardiga";
+import { hittaArtikel } from "@/lib/ersattning";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { produktnamn, specVarde } from "@/lib/spec-format";
 import type { ProductRow } from "@/lib/types";
@@ -91,8 +92,13 @@ export const Route = createFileRoute("/$locale/motsvarighet/$sku")({
     } catch {
       return { produkt: null, rader: [], grupp: null, representant: null };
     }
-    const produkt = katalog.find((p) => p.sku === params.sku) ?? null;
-    if (!produkt) return { produkt: null, rader: [], grupp: null, representant: null };
+    // Typskyltens kod är sällan vårt artikelnummer. Kundgranskningen
+    // 2026-11-13: /motsvarighet/DSBC-50-200-PPVA-N3 sa "ingen motsvarighet"
+    // fast tre exakta Ø50×200 ISO 15552 finns. Typbeteckningar (QSM-1/8-4)
+    // hittas via hittaArtikel; orderkoder går till Ersätt, som läser
+    // borrning och slag ur koden.
+    const produkt = katalog.find((p) => p.sku === params.sku) ?? hittaArtikel(params.sku, katalog);
+    if (!produkt) throw redirect({ to: "/$locale/replace", params: { locale: params.locale }, search: { kod: params.sku } as never });
     const sv = params.locale === "sv";
     const lika = likvardigaCylindrar(produkt, katalog, 8) ?? [];
     const g = cylindergrupp(produkt);
