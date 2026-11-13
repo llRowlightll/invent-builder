@@ -111,3 +111,20 @@ Deno.test("ett griporgan räknas på gripkraften, och en ejektor kallas ejektor"
   });
   assertEquals(ej.princip, "Vakuumalstring med ejektor");
 });
+
+Deno.test("påståenden om säkerhetslämplighet tas bort, tekniska fakta står kvar (kundgranskningen 2026-11-13)", () => {
+  const fall: [string, string][] = [
+    ["Cylindern uppfyller PL d. Ger 1178 N vid 6 bar.", "Ger 1178 N vid 6 bar."],
+    ["Lösningen uppfyller kraven för kategori 3 enligt EN ISO 13849. Slaget är 200 mm.", "Slaget är 200 mm."],
+    ["Lämplig för säkerhetskritiska tillämpningar. Rostfri kolvstång.", "Rostfri kolvstång."],
+    ["Säker för operatören tack vare stångbromsen. Ø50.", "Ø50."],
+    ["Kompakt cylinder för montering med hög säkerhet och precision. 100 mm slag.", "100 mm slag."],
+    ["Meets PL d and SIL 2. Good stroke.", "Good stroke."],
+    ["Suitable for safety-critical applications. Stainless rod.", "Stainless rod."],
+    ["Erfüllt PL d. Edelstahl.", "Edelstahl."],
+  ];
+  for (const [in_, ut] of fall) assertEquals(utanSakerhetspastaenden(in_), ut, in_);
+  // Att nämna ett krav är inget påstående om att det uppfylls.
+  assertEquals(utanSakerhetspastaenden("Kräver PL d enligt er riskbedömning. Ø50."), "Kräver PL d enligt er riskbedömning. Ø50.");
+  assertEquals(utanSakerhetspastaenden("Stångbromsen håller lasten vid tryckfall."), "Stångbromsen håller lasten vid tryckfall.");
+});

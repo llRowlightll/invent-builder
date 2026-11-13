@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@^1";
-import { LANGRE_SLAG_PRO, rensaPositionsPros, rensaSerieslag } from "./prosavakt.ts";
+import { LANGRE_SLAG_PRO, produktdataText, rensaMotsagelser, rensaPositionsPros, rensaSerieslag } from "./prosavakt.ts";
 
 Deno.test("pneumatik: 'exakt positionering' stryks", () => {
   const pros = [
@@ -43,4 +43,36 @@ Deno.test("en series maxslag stryks ur fördelar och nackdelar", () => {
   assertEquals(rensaSerieslag(["Slag 500 mm", "IP67‑klassning"], [], 500).pros, ["IP67‑klassning"]);
   // Ett annat tal med mm berörs inte.
   assertEquals(rensaSerieslag(["Borrdiameter 32 mm"], [], 300).pros, ["Borrdiameter 32 mm"]);
+});
+
+// Kundgranskningen 2026-11-13: nackdelar som produktens egna specar motsäger.
+// Som index.ts skickar in: namnet och specvärdena, inte nycklarna
+// ("cushioning_types" i sig är inget belägg för dämpning).
+const CAMOZZI_63 = "Serie 63 – ISO 15552 Cylinder Ø50×200 ; Pneumatic, self-adjusting ; Magnetic piston, T-slot sensor";
+const AVENTICS_PRA = "AVENTICS PRA Ø50 200mm ISO 15552 Cylinder ; Adjustable cushioning (both ends) ; Optional reed/PNP sensor";
+const UTAN = "Mini cylinder Ø16 ; Elastic bumpers";
+
+Deno.test("rensaMotsagelser stryker 'ingen magnetkolv' när specen har magnetkolv", () => {
+  assertEquals(rensaMotsagelser(["Ingen magnetkolv", "Tyngre än en kompaktcylinder"], CAMOZZI_63), ["Tyngre än en kompaktcylinder"]);
+  assertEquals(rensaMotsagelser(["No magnetic piston"], CAMOZZI_63), []);
+  // Givaren säljs separat -- det är sant och står kvar.
+  assertEquals(rensaMotsagelser(["Givare ingår inte"], CAMOZZI_63), ["Givare ingår inte"]);
+  // Utan magnet i datan står påståendet kvar.
+  assertEquals(rensaMotsagelser(["Ingen magnetkolv"], UTAN), ["Ingen magnetkolv"]);
+});
+
+Deno.test("rensaMotsagelser stryker 'ingen justerbar dämpning' när specen har justerbar dämpning", () => {
+  assertEquals(rensaMotsagelser(["Ingen justerbar dämpning"], AVENTICS_PRA), []);
+  assertEquals(rensaMotsagelser(["No adjustable cushioning"], AVENTICS_PRA), []);
+  // Självjusterande är inte justerbar: där står påståendet kvar.
+  assertEquals(rensaMotsagelser(["Ingen justerbar dämpning"], CAMOZZI_63), ["Ingen justerbar dämpning"]);
+  // Med bara gummibuffertar i datan står "ingen dämpning" kvar.
+  assertEquals(rensaMotsagelser(["Ingen dämpning"], AVENTICS_PRA), []);
+  assertEquals(rensaMotsagelser(["Ingen dämpning"], UTAN), ["Ingen dämpning"]);
+});
+
+Deno.test("produktdataText märker dämpningsnyckelns värde, inte andra nycklar", () => {
+  const d = produktdataText("Serie 63", { cushioning_types: "Pneumatic, self-adjusting", position_sensing: "Magnetic piston", bore_mm: "50" });
+  assertEquals(rensaMotsagelser(["Ingen dämpning", "Ingen magnetkolv", "Dyr"], d), ["Dyr"]);
+  assertEquals(rensaMotsagelser(["Ingen dämpning"], produktdataText("Mini", { cushioning_types: "none" })), ["Ingen dämpning"]);
 });
