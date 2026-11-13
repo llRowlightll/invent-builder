@@ -244,6 +244,30 @@ export function hastighetsKravId(varde: number): string {
  *  ("G1/4" är en gänga, "5 g" kan vara en acceleration). */
 export const MASSENHET = String.raw`(?:kg(?!f)|kilo(?:gram)?s?|ton(?:nes?)?|gram)`;
 
+/** Det som står efter "kg/" när det är en massa per styck. */
+const PER_STYCK = String.raw`(?:st\b|styck\w*|flask\w*|låd\w*|detalj\w*|produkt\w*|paket\w*|kartong\w*|pc\b|pcs\b|piece\w*|each\b|bottle\w*|box\w*|part\b)`;
+
+const TALORD: Record<string, string> = {
+  ett: "1", en: "1", one: "1", a: "1", två: "2", two: "2", tre: "3", three: "3", fyra: "4", four: "4",
+  fem: "5", five: "5", sex: "6", six: "6", sju: "7", seven: "7", åtta: "8", eight: "8", nio: "9", nine: "9", tio: "10", ten: "10",
+};
+
+/**
+ * Skriver om massor som tolkningen annars missar till siffror och kg:
+ * "ett kilo" -> "1 kg", "en halv kilo" -> "0,5 kg", och gram nära "väger"
+ * ("flaskorna väger 800g" -> "0,8 kg"). Ensamt "g" läses annars inte:
+ * "G1/4" är en gänga och "5 g" kan vara en acceleration. Massorna läses och
+ * indexeras i den omskrivna texten; utdragen är hela meningen, så att
+ * längden kan ändras gör ingenting.
+ */
+export function normalMassa(s: string): string {
+  const behall = (ny: string, gammal: string) => ny.padEnd(gammal.length, " ").slice(0, Math.max(ny.length, gammal.length));
+  return s
+    .replace(/\b(?:en\s+halv|ett\s+halvt|half\s+a)\s+(kilo\w*|kg)\b/gi, (hel) => behall("0,5 kg", hel))
+    .replace(/(?<![\wåäö])(ett|en|one|a|två|two|tre|three|fyra|four|fem|five|sex|six|sju|seven|åtta|eight|nio|nine|tio|ten)\s+(kilo\w*|kg)\b/gi, (hel, ord: string) => behall(`${TALORD[ord.toLowerCase()]} kg`, hel))
+    .replace(/((?:väger|vikt|vikten|weighs?|weight|massa)\D{0,15}?)(\d+(?:[.,]\d+)?)\s*g\b(?![\d\/])/gi, (hel, fore: string, n: string) => behall(`${fore}${String(Math.round(Number(n.replace(",", ".")) ) / 1000).replace(".", ",")} kg`, hel));
+}
+
 /** Faktor till kg för en massenhet. */
 export function massfaktor(enhet: string): number {
   const e = enhet.toLowerCase();
@@ -276,6 +300,11 @@ const LANGD_RE = /(\d+(?:[.,]\d+)?)\s*(mm|cm|meter|metre|meters|m)\b(?!\s*(?:\/|
 const FYLL = String.raw`(?:\s*(?:är|blir|på|om|av|med|of|is|by|ca\.?|cirka|ungefär|about|approx\.?|max\.?|minst|högst|upp till|up to|=|:))*\s*\W*$`;
 const SLAG_FORE = new RegExp(String.raw`(?:slaglängd\w*|\bslag(?:et)?|\bstroke|\bhub|lyfthöjd\w*|lyftslag\w*|\blift height|\btravel|vandring\w*|rörelselängd\w*|\brörelse(?:n|ns)?|\bsträcka\w*)${FYLL}`, "i");
 const SLAG_EFTER = /^\s*(?:slag\w*|stroke)/i;
+// Naket slagtal: "slag 200", "slaglängd: 150", "stroke 80" -- men inte "slag
+// 200 mm" (läses ovan), "slag 30/min" (en takt) eller "slag 2 bar".
+const SLAG_NAKET_RE = /(?:slaglängd\w*|\bslag(?:et)?|\bstroke|\bhub)\s*(?:är|på|of|is|=|:)?\s*(?:ca\.?\s*|cirka\s*|ungefär\s*)?(\d+(?:[.,]\d+)?)(?![\d.,]|\s*(?:mm|cm|m\b|meter|metre|bar|kg|g\b|n\b|nm|%|°|st\b|x|×|\*|\/|per\b|i\s+minut|slag|cykl))/gi;
+// "Ø50×200", "ø32x100 mm", "Ø40/150": borrning × slag.
+const BORR_GANGER_SLAG_RE = /[Øø]\s*(\d{1,3})\s*[×xX*\/]\s*(\d{1,4})(?!\s*[×xX*]\s*\d)(?![\d.,])/g;
 // En borrning är cylinderns mått, varken produktens eller ett slag.
 const BORRNING_FORE = /(?:[Øø]|\bborrning\w*|\bbore|kolvdiameter\w*|\bD\s*=)\s*\W{0,2}$/i;
 const MATT_FORE = new RegExp(String.raw`(?:längd|bredd|höjd|diameter|djup|tjocklek|length|width|height|depth|thickness)\w*${FYLL}`, "i");
@@ -328,7 +357,18 @@ export function langderITexten(text: string): Langd[] {
     const minst = typ === "avstand" && /\b(?:minst|minsta|min\.?|at least|minimum)\b/i.test(fore);
     ut.push({ mm, typ, enhet, index: i, ...(minst ? { minst } : {}) });
   }
-  return ut;
+  // Kundgranskningen 2026-11-13: "Ø50 slag 200" och "DSBC Ø50×200" lästes
+  // inte -- slaget kräver en enhet ovan. I pneumatik är ett naket slagtal mm,
+  // och Ø<borrning>×<slag> är branschens skrivsätt.
+  for (const m of (text ?? "").matchAll(SLAG_NAKET_RE)) {
+    const n = tal(m[1]);
+    if (Number.isFinite(n) && n > 0) ut.push({ mm: n, typ: "slag", enhet: "mm", index: (m.index ?? 0) + m[0].indexOf(m[1]) });
+  }
+  for (const m of (text ?? "").matchAll(BORR_GANGER_SLAG_RE)) {
+    const n = tal(m[2]);
+    if (Number.isFinite(n) && n > 0) ut.push({ mm: n, typ: "slag", enhet: "mm", index: (m.index ?? 0) + m[0].lastIndexOf(m[2]) });
+  }
+  return ut.sort((a, b) => a.index - b.index);
 }
 
 /** Kravets id för en längd som systemet inte vet är en slaglängd. Samma i
@@ -439,8 +479,9 @@ export function tolkaKravbild(beskrivning: string, svarIn: Record<string, string
       });
     }
     if (!krav.some((k) => k.egenskap === "massa" && k.kalla.utdrag === utdrag)) {
-      for (const m of s.matchAll(new RegExp(String.raw`(?<![\d.,–—-])(\d+(?:[.,]\d+)?)\s*(${MASSENHET})(?![\wåäö])(?!\s*\/)`, "gi"))) {
-        const forre = s.slice(0, m.index ?? 0);
+      // "1 kg/st" och "1 kg/flaska" är en massa per styck; "5 kg/m" är det inte.
+      for (const m of normalMassa(s).matchAll(new RegExp(String.raw`(?<![\d.,–—-])(\d+(?:[.,]\d+)?)\s*(${MASSENHET})(?![\wåäö])(?!\s*\/(?!\s*${PER_STYCK}))`, "gi"))) {
+        const forre = normalMassa(s).slice(0, m.index ?? 0);
         if (/[–—-]\s*$|\btill\s*$/.test(forre)) continue; // del av ett intervall
         const max = /\b(?:max|högst|upp till|up to)\s*$/i.test(forre.slice(-12));
         lagg({ objektId: "produkt", egenskap: "massa", varde: Math.round(tal(m[1]) * massfaktor(m[2]) * 1000) / 1000, enhet: "kg", grans: max ? "max" : undefined, ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
@@ -455,10 +496,13 @@ export function tolkaKravbild(beskrivning: string, svarIn: Record<string, string
     }
 
     // Flöde: "15 lådor per minut". Passerande produkter -- inte utsorteringar.
-    for (const m of s.matchAll(/(\d+(?:[.,]\d+)?)\s*(låd\w*|kartong\w*|produkt\w*|detalj\w*|st|stycken|paket|cykler|slag|items?|parts?|boxes|crates)?\s*(?:per|\/|i|a)\s*(minut|min|timme|tim|h|sekund|s)\b/gi)) {
-      const per = /^(?:minut|min)$/i.test(m[3]) ? "/min" : /^(?:timme|tim|h)$/i.test(m[3]) ? "/h" : "/s";
+    // Kundgranskningen 2026-11-13: "30 flaskor/min", "30 st i minuten" och
+    // "30 bottles per minute" lästes inte -- bara en kort lista ord fick stå
+    // före "/min". Nu vilket ord som helst utom en enhet (mm/min är en fart).
+    for (const m of s.matchAll(/(\d+(?:[.,]\d+)?)\s*(?!(?:mm|cm|m|km|nl|l|kg|g|bar|n|nm|kw|w|v|rpm|varv)(?![a-zåäö]))([a-zåäö]+\.?)?\s*(?:per|\/|i|a|an|each)\s*(minut(?:en)?|minute|min|timme[n]?|tim|hour|h|sekund(?:en)?|second|s)\b/gi)) {
+      const per = /^(?:minut|minuten|minute|min)$/i.test(m[3]) ? "/min" : /^(?:timme|timmen|tim|hour|h)$/i.test(m[3]) ? "/h" : "/s";
       const vad = (m[2] ?? "").toLowerCase();
-      const arCykler = /^(?:cykler|slag)$/.test(vad);
+      const arCykler = /^(?:cykler|cykel|slag|cycles?|strokes?|gånger|times)$/.test(vad);
       // Passerande produkter räknas i styck, en aktuators takt i cykler.
       const enhet = (arCykler ? "cykler" : "st") + per;
       const uppTill = /\b(?:upp till|max|högst|up to)\s*$/i.test(s.slice(0, m.index ?? 0).slice(-12));
