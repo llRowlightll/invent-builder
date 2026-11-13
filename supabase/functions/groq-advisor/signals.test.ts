@@ -1026,3 +1026,12 @@ Deno.test("0,5 m/s är ingen hög fart; 1,5 m/s och 1200 mm/s är det", () => {
   assertEquals(needsHighSpeed("1200 mm/s", {}), true);
   assertEquals(needsHighSpeed("1 m/s", {}), false);
 });
+
+Deno.test("lyft och sidled i samma beskrivning är fleraxligt, med båda slagen (drift 2026-11-13)", () => {
+  const t = "Palleteringscell som lyfter kartonger 12 kg med sugkoppar: lyftslag 600 mm, sidled 1200 mm, 8 cykler per minut, 6 bar";
+  assert(needsMultiAxis(t));
+  const h = detectHazards(t, {}, "sv");
+  assertEquals(h.perAxisStrokes.find((a) => a.axis === "Z")?.stroke, 600);
+  assertEquals(h.perAxisStrokes.find((a) => a.axis === "X")?.stroke, 1200);
+  assertEquals(needsMultiAxis("Cylinder Ø50 slag 200 för en lucka"), false);
+});
