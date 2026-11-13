@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { ShoppingCart } from "lucide-react";
 import { Snabbsok } from "@/components/Snabbsok";
 import { delningsbildMeta } from "@/lib/site";
-import { besoksKalla, logga } from "@/lib/matning";
+import { besoksKalla, lasInternFranAdressen, logga, markeraIntern } from "@/lib/matning";
 import { fetchCompanySettings, visningsnamn, type CompanySettings } from "@/lib/company-settings";
 
 export const Route = createFileRoute("/$locale")({
@@ -89,6 +89,7 @@ function LocaleLayout() {
   // Egen mätning: varifrån besöket kom (LinkedIn, Google, direkt). En gång per
   // sidladdning; navigering inom sajten laddar inte om layouten.
   useEffect(() => {
+    lasInternFranAdressen();
     const kalla = besoksKalla();
     if (kalla.fran !== "intern") logga("besok", kalla);
   }, []);
@@ -173,6 +174,8 @@ function LocaleLayout() {
 
 
   const isAdmin = useIsAdmin();
+  // En enhet där en admin loggat in är ägarens: dess besök räknas inte längre.
+  useEffect(() => { if (isAdmin) markeraIntern(true); }, [isAdmin]);
   const { isEditMode, toggleEditMode } = useEditMode();
 
   return (
