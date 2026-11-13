@@ -6,6 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lasMomsbesked, momsnot, momsrad, SVENSK_MOMS, type Momsbesked } from "@/lib/moms";
+import { valutanot } from "@/lib/valuta";
 import { fetchCompanySettings, visningsnamn, type CompanySettings } from "@/lib/company-settings";
 import { CheckCircle2 } from "lucide-react";
 import { OFFERT_GILTIG_DAGAR, VILLKOR_VERSION, offertGiltigTill } from "@/lib/villkor";
@@ -58,6 +59,14 @@ export default function PublicOffertPage() {
   // Momsen följer kunden (momsregel i databasen): 25 %, omvänd
   // betalningsskyldighet inom EU med momsnummer, eller export.
   const [moms, setMoms] = useState<Momsbesked>(SVENSK_MOMS);
+  // Offert i euro: vilken kurs och vilket påslag priserna räknades om med.
+  const [valuta, setValuta] = useState<{ valuta: string; kurs: number | null; datum: string | null; paslag: number | null } | null>(null);
+  useEffect(() => {
+    (supabase as unknown as { rpc: (fn: string, a: Record<string, unknown>) => Promise<{ data: unknown }> })
+      .rpc("offertens_valuta", { p_rfq_id: rfqId })
+      .then(({ data }) => { if (data && typeof data === "object") setValuta(data as typeof valuta); })
+      .catch(() => setValuta(null));
+  }, [rfqId]);
   useEffect(() => {
     (supabase as unknown as { rpc: (fn: string, a: Record<string, unknown>) => Promise<{ data: unknown }> })
       .rpc("momsbesked", { p_rfq_id: rfqId })
@@ -281,6 +290,7 @@ export default function PublicOffertPage() {
               </tbody>
             </table>
             {momsnot(moms, "sv") && <p className="mt-2 text-[11px] text-muted-foreground leading-snug">{momsnot(moms, "sv")}</p>}
+            {valuta && valutanot(valuta, "sv") && <p className="mt-1 text-[11px] text-muted-foreground leading-snug">{valutanot(valuta, "sv")}</p>}
           </div>
 
           {/* Villkoren blir en del av avtalet först när de hänvisats till innan det ingås. */}

@@ -164,6 +164,7 @@ export default function AdminSettingsPage() {
       </form>
 
       <PrisVisning />
+      <ValutaPaslag />
     </div>
   );
 }
@@ -173,6 +174,43 @@ export default function AdminSettingsPage() {
  * funktionen publika_priser lämnar inget pris förrän den står på 'ja', så en
  * inläst prislista kan kontrolleras i Prissättning innan kunderna ser den.
  */
+/**
+ * Valutapåslaget på offerter i euro (ägaren 2026-11-13: "kör på det alla
+ * brukar ha"). Täcker bankens växlingsavgift och kursrörelsen fram till
+ * betalning. Kursen hämtas från Riksbanken när offerten räknas om.
+ */
+function ValutaPaslag() {
+  const [varde, setVarde] = useState("2");
+  const [sparat, setSparat] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.from("site_content").select("value").eq("key", "valuta.paslag").maybeSingle()
+      .then(({ data }) => { if (data?.value) setVarde(data.value); });
+  }, []);
+  async function spara() {
+    const n = Number(varde.replace(",", "."));
+    if (!Number.isFinite(n) || n < 0 || n > 20) { setSparat("Ange 0–20 %."); return; }
+    const { error } = await supabase.from("site_content")
+      .upsert({ key: "valuta.paslag", locale: "all", value: String(n) }, { onConflict: "key,locale" });
+    setSparat(error ? "Kunde inte spara." : "Sparat.");
+  }
+  return (
+    <section className="mt-10 rounded-lg border border-border p-4 text-sm">
+      <h2 className="text-base font-semibold text-foreground">Valutapåslag</h2>
+      <p className="mt-1 text-muted-foreground">
+        Utländska kunder får offerten i euro. Priserna räknas om från kronor med Riksbankens dagskurs
+        plus det här påslaget, som täcker växlingsavgiften och kursrörelsen fram till betalningen.
+        2 % är vanligt i B2B. Kursen och påslaget sparas på varje offert.
+      </p>
+      <div className="mt-3 flex items-center gap-2">
+        <input value={varde} onChange={(e) => { setVarde(e.target.value); setSparat(null); }}
+          className="w-20 border border-border rounded px-2 py-1" inputMode="decimal" /> <span>%</span>
+        <button onClick={spara} className="px-3 py-1 rounded-md border border-info text-info hover:bg-info/10 transition">Spara</button>
+        {sparat && <span className="text-xs text-muted-foreground">{sparat}</span>}
+      </div>
+    </section>
+  );
+}
+
 function PrisVisning() {
   const [pa, setPa] = useState<boolean | null>(null);
   const [lage, setLage] = useState<{ medPris: number; visas: number; felMarginal: number } | null>(null);

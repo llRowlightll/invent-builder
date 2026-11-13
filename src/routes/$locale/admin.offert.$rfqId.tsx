@@ -8,6 +8,8 @@ import { useEffect, useRef, useState } from "react";
 import { analyzeDocument, type QuoteExtraction } from "@/lib/document-ai";
 import { supabase } from "@/integrations/supabase/client";
 import { lasMomsbesked, momsnot, momsrad, SVENSK_MOMS, type Momsbesked } from "@/lib/moms";
+import { arValuta, lasPaslag, omraknat, STANDARD_PASLAG, valutanot } from "@/lib/valuta";
+import { hamtaValutakurs } from "@/lib/valuta.functions";
 import { useAdminGuard } from "@/lib/auth-context";
 import { fetchCompanySettings, type CompanySettings } from "@/lib/company-settings";
 
@@ -91,6 +93,12 @@ export default function AdminOffertPage() {
   const [paymentTerms, setPaymentTerms] = useState("30 dagar netto");
   const [footerNote, setFooterNote] = useState("");
   const [currency, setCurrency] = useState("SEK");
+  // Offert i kundens valuta (ägaren 2026-11-13): Riksbankens kurs + påslag.
+  // kursInfo finns när priserna har räknats om från kronor.
+  const [kursInfo, setKursInfo] = useState<{ kurs: number; datum: string; paslag: number } | null>(null);
+  const [paslag, setPaslag] = useState(STANDARD_PASLAG);
+  const [valutaArbetar, setValutaArbetar] = useState(false);
+  const [valutaFel, setValutaFel] = useState<string | null>(null);
 
   // Per-line edit state: { [itemId]: { qty, price, note } }
   const [lineEdits, setLineEdits] = useState<
@@ -118,6 +126,10 @@ export default function AdminOffertPage() {
     if (rfqData) {
       setRfq(rfqData as Rfq);
       setCurrency((rfqData as Rfq).quote_currency ?? "SEK");
+      const v = rfqData as unknown as { valutakurs?: number | null; valutakurs_datum?: string | null; valutapaslag?: number | null };
+      if (v.valutakurs) setKursInfo({ kurs: Number(v.valutakurs), datum: v.valutakurs_datum ?? "", paslag: Number(v.valutapaslag ?? STANDARD_PASLAG) });
+      supabase.from("site_content").select("value").eq("key", "valuta.paslag").maybeSingle()
+        .then(({ data }) => setPaslag(lasPaslag(data?.value)));
       setDiscountPct(Number((rfqData as Rfq).discount_pct ?? 0));
       setFrakt(Number((rfqData as Rfq).freight_ex_vat ?? 0));
       // First-time customer? (no other RFQs from this contact email)
@@ -156,6 +168,11 @@ export default function AdminOffertPage() {
     setLoading(false);
   }
 
+  // Kund utanför Sverige: föreslå euro (ägaren 2026-11-13).
+  const kundland = String((rfq as unknown as { invoice_country?: string | null; address_country?: string | null } | null)?.invoice_country
+    || (rfq as unknown as { address_country?: string | null } | null)?.address_country || "").toUpperCase();
+  const utlandsk = kundland !== "" && !["SE", "SVERIGE", "SWEDEN"].includes(kundland);
+
   // Computed totals
   const lineItems = items.map((it) => {
     const e = lineEdits[it.id] ?? { qty: it.qty ?? 1, price: it.unit_price ?? 0, note: "" };
@@ -175,6 +192,45 @@ export default function AdminOffertPage() {
     setSaved(false);
   }
 
+  /** Räknar om alla radpriser och frakten från kronor till valutan. */
+  async function raknaOm(valuta: string) {
+    if (!arValuta(valuta) || currency !== "SEK") return;
+    setValutaArbetar(true);
+    setValutaFel(null);
+    const svar = await hamtaValutakurs({ data: { valuta } });
+    setValutaArbetar(false);
+    if ("fel" in svar) { setValutaFel(svar.fel); return; }
+    setLineEdits((prev) => Object.fromEntries(Object.entries(prev).map(([id, e]) => [id, { ...e, price: omraknat(e.price, svar.kurs, paslag) }])));
+    setFrakt((f) => omraknat(f, svar.kurs, paslag));
+    setCurrency(valuta);
+    setKursInfo({ kurs: svar.kurs, datum: svar.datum, paslag });
+    setSaved(false);
+  }
+
+  /** Tillbaka till kronor med samma kurs och påslag som omräkningen. */
+  function tillbakaTillKronor() {
+    if (!kursInfo) { setCurrency("SEK"); return; }
+    const k = (x: number) => Math.round((x / (1 + kursInfo.paslag / 100)) * kursInfo.kurs * 100) / 100;
+    setLineEdits((prev) => Object.fromEntries(Object.entries(prev).map(([id, e]) => [id, { ...e, price: k(e.price) }])));
+    setFrakt((f) => k(f));
+    setCurrency("SEK");
+    setKursInfo(null);
+    setSaved(false);
+  }
+
+  /**
+   * Sparar offerten med kursen den räknades om med. Saknas kurskolumnerna
+   * (migrationen 20261113070000 inte körd) sparas offerten ändå, utan dem --
+   * en offert får aldrig stoppas av spårningsuppgifterna.
+   */
+  async function uppdateraOffert(falt: Record<string, unknown>) {
+    const medKurs = { ...falt, valutakurs: kursInfo?.kurs ?? null, valutakurs_datum: kursInfo?.datum || null, valutapaslag: kursInfo ? kursInfo.paslag : null };
+    const { error } = await supabase.from("rfqs").update(medKurs as never).eq("id", rfqId);
+    if (error && /valuta/i.test(error.message)) {
+      await supabase.from("rfqs").update(falt as never).eq("id", rfqId);
+    }
+  }
+
   async function save() {
     setSaving(true);
     // Save each line's unit_price, qty, note back to rfq_items
@@ -185,10 +241,7 @@ export default function AdminOffertPage() {
         .eq("id", it.id);
     }
     // Also update quote_amount on the RFQ
-    await supabase
-      .from("rfqs")
-      .update({ quote_amount: totalInc, quote_currency: currency, discount_pct: discountPct, freight_ex_vat: frakt > 0 ? frakt : null })
-      .eq("id", rfqId);
+    await uppdateraOffert({ quote_amount: totalInc, quote_currency: currency, discount_pct: discountPct, freight_ex_vat: frakt > 0 ? frakt : null });
     setSaving(false);
     setSaved(true);
   }
@@ -201,7 +254,7 @@ export default function AdminOffertPage() {
     setSending(true);
     // Write the quote first — order-status-email re-reads status/amount straight
     // from this row by id, so it must already reflect what we're about to send.
-    await supabase.from("rfqs").update({ status: "quoted", quote_amount: totalInc, quote_currency: currency, freight_ex_vat: frakt > 0 ? frakt : null }).eq("id", rfqId);
+    await uppdateraOffert({ status: "quoted", quote_amount: totalInc, quote_currency: currency, freight_ex_vat: frakt > 0 ? frakt : null });
     await fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -478,10 +531,24 @@ ${co.name}`;
             </label>
             <label className="block">
               <span className="text-muted-foreground uppercase tracking-wide">Valuta</span>
-              <select value={currency} onChange={e => setCurrency(e.target.value)}
+              {/* Valutan byts aldrig utan att priserna räknas om: ett pris i
+                  kronor märkt "EUR" vore elva gånger för högt. */}
+              <select value={currency} disabled={valutaArbetar}
+                onChange={e => { const v = e.target.value; if (v === "SEK") tillbakaTillKronor(); else if (currency === "SEK") void raknaOm(v); }}
                 className="mt-1 w-full border border-border rounded px-2 py-1">
-                <option>SEK</option><option>EUR</option><option>USD</option>
+                <option>SEK</option><option>EUR</option><option>USD</option><option>GBP</option>
               </select>
+              {valutaArbetar && <span className="mt-1 block text-[11px] text-muted-foreground">Hämtar Riksbankens kurs …</span>}
+              {valutaFel && <span className="mt-1 block text-[11px] text-destructive">{valutaFel}</span>}
+              {kursInfo && currency !== "SEK" && (
+                <span className="mt-1 block text-[11px] text-muted-foreground">{valutanot({ valuta: currency, kurs: kursInfo.kurs, datum: kursInfo.datum, paslag: kursInfo.paslag }, "sv")}</span>
+              )}
+              {currency === "SEK" && utlandsk && !valutaArbetar && (
+                <button type="button" onClick={() => void raknaOm("EUR")}
+                  className="mt-1 block text-[11px] text-info underline">
+                  Kunden är utanför Sverige – räkna om offerten till EUR ({paslag} % valutapåslag)
+                </button>
+              )}
             </label>
             <label className="block col-span-2">
               <span className="text-muted-foreground uppercase tracking-wide">
@@ -596,6 +663,7 @@ ${co.name}`;
               </tbody>
             </table>
             {momsnot(moms, "sv") && <p className="mt-2 text-[11px] text-muted-foreground leading-snug">{momsnot(moms, "sv")}</p>}
+            {kursInfo && currency !== "SEK" && <p className="mt-1 text-[11px] text-muted-foreground leading-snug">{valutanot({ valuta: currency, kurs: kursInfo.kurs, datum: kursInfo.datum, paslag: kursInfo.paslag }, "sv")}</p>}
           </div>
 
           {/* Terms */}
