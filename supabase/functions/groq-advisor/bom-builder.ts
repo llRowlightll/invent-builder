@@ -12,8 +12,8 @@
 
 import { basta, gangaAv, normGanga, slangOdAv, stammer } from "./porter.ts";
 import { provaGripkraft, provaSpanning, provaTryck, SPANNINGSSATTA, TRYCKSATTA, type Kontroll, type Spanning, provaIp } from "./kontroller.ts";
-import { type CatalogProduct, arBorrningsspann, isAtexCapableProduct, isBeltDrivenProduct, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
-import { type HazardFlags, griporgansKrav, onskadGripdonstyp, pick, isPneumaticByDrive, isNonArticulatingActuator, tolkaTempSpann } from "./signals.ts";
+import { type CatalogProduct, arBorrningsspann, borrningstal, familjeborrning, isAtexCapableProduct, isBeltDrivenProduct, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
+import { type HazardFlags, SEAL_EFFICIENCY, requiredForceN, griporgansKrav, onskadGripdonstyp, pick, isPneumaticByDrive, isNonArticulatingActuator, tolkaTempSpann } from "./signals.ts";
 
 export function buildCustomSolutionOption(
   minStroke: number, locale: string, maxCatalogStroke: number, catalogCanHandle: boolean,
@@ -363,16 +363,56 @@ function griporgansRad(ctx: BomCtx, uc: number): BomRow {
   };
 }
 
-export function findAxisActuator(products: CatalogProduct[], strokeMm: number, isElectric: boolean): CatalogProduct | null {
+/**
+ * En verklig katalogaktuator för en axel, eller null när ingen räcker.
+ *
+ * Kundgranskningen 2026-11-13 (palleteringscell, lyft 600 mm och sidled
+ * 1200 mm, 12 kg): båda axlarna fick en AVENTICS GPC-BV Ø12 med 100 mm slag.
+ * En artikel utan slaguppgift räknades som "passar", inget slag krävdes när
+ * ingen passade (då togs den första), och ingen jämförde kraften med lasten.
+ * Nu gäller: slaget ska räcka, en lyftande pneumatisk axel ska orka lasten
+ * vid 6 bar (minsta borrning i en familj som gör det), och en lång vågrät
+ * axel med last tas helst som kolvstångslös enhet. Räcker inget blir raden
+ * en lucka -- en felaktig artikel är sämre än ingen.
+ */
+export function findAxisActuator(
+  products: CatalogProduct[], strokeMm: number, isElectric: boolean,
+  krav: { kraftN?: number; vagrat?: boolean } = {},
+): CatalogProduct | null {
   const cands = products.filter(p => isElectric
     ? isElectricActuator(p) && !isPneumaticByDrive(p)
     : isPneumaticActuatorProduct(p) && !isElectricActuator(p));
   if (cands.length === 0) return null;
-  if (strokeMm > 0) {
-    const fit = cands.find(p => { const s = parseStrokeFromSpecs(p.key_specs ?? {}); return s === 0 || s >= strokeMm; });
-    if (fit) return fit;
+  if (!(strokeMm > 0)) return cands[0];
+  const kraftN = krav.kraftN ?? 0;
+  const racker = cands.filter(p => {
+    const s = parseStrokeFromSpecs(p.key_specs ?? {});
+    if (!(s >= strokeMm)) return false;
+    if (kraftN > 0 && !isElectric) return axelnsBorrning(p, kraftN) > 0;
+    return true;
+  });
+  if (racker.length === 0) return null;
+  if (krav.vagrat && strokeMm >= 500) {
+    const stanglos = racker.find(p => /rodless|kolvstångslös|stånglös|linear drive|linjärenhet|band cylinder/i.test(`${p.name} ${p.key_specs?.cylinder_type ?? ""}`) || p.category === "linear-module");
+    if (stanglos) return stanglos;
   }
-  return cands[0];
+  return racker[0];
+}
+
+/**
+ * Minsta borrning hos artikeln som ger kraften vid 6 bar (med tätnings-
+ * förlusterna i SEAL_EFFICIENCY), 0 om ingen gör det eller borrningen saknas.
+ */
+export function axelnsBorrning(p: CatalogProduct, kraftN: number): number {
+  const behov = minstaBorrning(kraftN);
+  const borr = borrningstal(p.key_specs?.bore_mm);
+  if (borr.length === 0) return 0;
+  if (borr.length > 1) return familjeborrning(p.key_specs?.bore_mm, behov);
+  return borr[0] >= behov ? borr[0] : 0;
+}
+
+function minstaBorrning(kraftN: number): number {
+  return Math.ceil(2 * Math.sqrt(kraftN / (6 * 0.1 * SEAL_EFFICIENCY) / Math.PI));
 }
 
 // `extends HazardFlags` (not `Pick<HazardFlags, ...>`) is deliberate: every
@@ -634,6 +674,9 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     ? perAxisStrokes.reduce((best, a, i, arr) => (a.stroke > arr[best].stroke ? i : best), 0)
     : -1;
   const primaryAxisLabel = (isMultiAxis && primaryAxisIdx >= 0) ? perAxisStrokes[primaryAxisIdx].axis.toUpperCase() : "";
+  // En lyftande axel ska orka lasten; en vågrät axel bär den i sidled.
+  const axelkrav = (axel: string): { kraftN?: number; vagrat?: boolean } =>
+    /^z$/i.test(axel) ? { kraftN: requiredForceN(ctx.loadKg ?? 0, ctx.statedForceN ?? 0) } : { vagrat: true };
   const famStorlek = primarArFamiljespann(ctx) && !primarArGriporgan ? primaryBoreMm : 0;
   const famNote = primaryIsFamilyProd && primarArGriporgan ? pick(locale, {
     sv: " ⚠️ Produktfamilj — välj storleken efter gripkraften och ange komplett beställningskod vid order.",
@@ -676,13 +719,16 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   // Vakuum konfigureras alltid (koppar och ejektor efter lasten).
   if (ctx.griporganTillagg && !primarArGriporgan) rows.push(griporgansRad(ctx, uc));
 
-  // ── 1b. Vakuum som huvudkomponent, utan lyft ─────────────────────────
+  // ── 1b. Vakuum som huvudkomponent ─────────────────────────────────────
   // Kundgranskningen 2026-11-13 (palleteringscell): stycklistan hade en
   // sugkopp VTCL-40 i antal 1 fast steg 3 sa "≈ 5 koppar behövs", ingen
   // ejektor och ingen vakuumvakt -- beställd efter listan ger den inget vakuum
   // alls. Nu: antalet koppar ur kravet, och ejektor och vakuumvakt som rader.
+  // Koppar, ejektor och vakuumvakt behövs lika mycket när en Z-axel lyfter
+  // greppet (samma granskning: med lyft- och sidledsaxel stod en enda kopp
+  // kvar, utan ejektor).
   const vakuumUtanLyft = ctx.primaryCategory === "vacuum" && !lyftetIngar;
-  if (vakuumUtanLyft) {
+  if (ctx.primaryCategory === "vacuum") {
     const dia = firstNumAbs(ctx.primarySpecs?.cup_diameter_mm ?? ctx.primarySpecs?.pad_diameter_mm);
     const krav = griporgansKrav("vacuum", ctx);
     const perKopp = dia > 0 ? Math.PI * (dia / 2) ** 2 * 0.04 : 0; // ≈ 0,4 bar effektivt, marginal för läckage
@@ -878,8 +924,9 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   if (isRodLock && isPneumatic && lyftetIngar) {
     // Griporganets borrning är inte lyftaxelns: med ett griporgan som primär
     // matchas stångbromsen mot Z-axelns artikel (samma val som raden nedan).
-    const zAxel = lyftaxel ? findAxisActuator(brandSorted, perAxisStrokes.find(a => a.axis === "Z")?.stroke ?? 0, isElectric) : null;
-    const pBore = primarArGriporgan ? firstNumAbs(zAxel?.key_specs?.bore_mm) : primarBorrning(ctx);
+    const zAxel = lyftaxel ? findAxisActuator(brandSorted, perAxisStrokes.find(a => a.axis === "Z")?.stroke ?? 0, isElectric, axelkrav("Z")) : null;
+    const zBorr = zAxel && !isElectric ? axelnsBorrning(zAxel, axelkrav("Z").kraftN ?? 0) : 0;
+    const pBore = primarArGriporgan ? (zBorr || firstNumAbs(zAxel?.key_specs?.bore_mm)) : primarBorrning(ctx);
     const boreTxt = pBore > 0 ? `Ø${pBore}` : pick(locale, { sv: "cylinderns borrning", en: "the cylinder's bore", de: "die Zylinderbohrung", es: "el diámetro del cilindro" });
     const lock = products.find(p =>
       p.category === "rod-lock" && pBore > 0 &&
@@ -1010,8 +1057,9 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
           es: " Elija la conexión según el tamaño de puerto del cilindro.",
         });
 
-    if (ctx.primaryCategory === "vacuum" && !lyftetIngar) {
-      // Ingen cylinder att styra: ventilen slår på och av ejektorn.
+    if (ctx.primaryCategory === "vacuum") {
+      // Ejektorn slås på och av med en egen ventil. Utan lyft är den den enda
+      // ventilen; med en lyftaxel tillkommer axelns ventil nedan.
       const v32 = products.find((p) => /\b3\/2\b/.test(`${p.name} ${JSON.stringify(p.key_specs ?? {})}`) && !/spole|coil|kulventil|ball valve/i.test(p.name));
       rows.push({
         sku: v32?.sku ?? "SPECIFY", quantity: uc, kind: "valve",
@@ -1023,7 +1071,8 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
           es: "Conecta el aire comprimido al eyector para agarrar y cierra para soltar. Seleccione bobina de 24 V CC.",
         }),
       });
-    } else rows.push({
+    }
+    if (ctx.primaryCategory !== "vacuum" || lyftetIngar) rows.push({
       sku: valveMatch?.sku ?? "SPECIFY", quantity: uc,
       kind: "valve",
       role: pick(locale, { sv: "Magnetventil (5/2-vägs styrventil)", en: "Solenoid valve (5/2-way directional)", de: "Magnetventil (5/2-Wege-Steuerventil)", es: "Electroválvula (5/2 vías)" }),
@@ -1465,15 +1514,18 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     for (const ax of secondaryAxes) {
       const axLabel = ax.axis.toUpperCase();
       // P0: match a REAL catalog actuator for this axis instead of a placeholder.
-      const axMatch = findAxisActuator(brandSorted, ax.stroke, isElectric);
+      const axMatch = findAxisActuator(brandSorted, ax.stroke, isElectric, axelkrav(ax.axis));
+      const axBorr = axMatch && !isElectric && axelkrav(ax.axis).kraftN ? axelnsBorrning(axMatch, axelkrav(ax.axis).kraftN!) : 0;
+      const borrTxt = axBorr > 0 && arBorrningsspann(axMatch?.key_specs?.bore_mm) ? ` Beställ i Ø${axBorr} (minsta storlek som lyfter lasten vid 6 bar).` : "";
+      const borrTxtEn = axBorr > 0 && arBorrningsspann(axMatch?.key_specs?.bore_mm) ? ` Order it in Ø${axBorr} (the smallest size that lifts the load at 6 bar).` : "";
       rows.push({
         sku: axMatch?.sku ?? "SPECIFY", quantity: uc,
         kind: "actuator",
         role: pick(locale, { sv: `Aktuator — ${axLabel}-axel`, en: `Actuator — ${axLabel}-axis`, de: `Aktuator — ${axLabel}-Achse`, es: `Actuador — eje ${axLabel}` }),
         reason: axMatch
           ? pick(locale, {
-              sv: `${ax.stroke > 0 ? ax.stroke + " mm slag — " : ""}${axMatch.name} (${axMatch.brand}). Samma drivtyp/spänning som primäraxeln; konfigurera slaglängd och fäste för ${axLabel}-axeln.`,
-              en: `${ax.stroke > 0 ? ax.stroke + " mm stroke — " : ""}${axMatch.name} (${axMatch.brand}). Same drive type/voltage as the primary axis; configure stroke and mounting for the ${axLabel}-axis.`,
+              sv: `${ax.stroke > 0 ? ax.stroke + " mm slag — " : ""}${axMatch.name} (${axMatch.brand}). Samma drivtyp/spänning som primäraxeln; konfigurera slaglängd och fäste för ${axLabel}-axeln.${borrTxt}`,
+              en: `${ax.stroke > 0 ? ax.stroke + " mm stroke — " : ""}${axMatch.name} (${axMatch.brand}). Same drive type/voltage as the primary axis; configure stroke and mounting for the ${axLabel}-axis.${borrTxtEn}`,
               de: `${ax.stroke > 0 ? ax.stroke + " mm Hub — " : ""}${axMatch.name} (${axMatch.brand}). Gleicher Antriebstyp/Spannung wie die Primärachse; Hub und Befestigung für die ${axLabel}-Achse konfigurieren.`,
               es: `${ax.stroke > 0 ? ax.stroke + " mm de carrera — " : ""}${axMatch.name} (${axMatch.brand}). Mismo tipo de accionamiento/tensión que el eje primario; configure la carrera y el montaje para el eje ${axLabel}.`,
             })

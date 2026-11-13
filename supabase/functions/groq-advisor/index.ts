@@ -22,6 +22,9 @@ import {
   isAtexCapableProduct,
   isWashdownProduct,
   rankActuators,
+  begardStandard,
+  enhetBegard,
+  foljerStandard,
   arBorrningsspann,
   familjeborrning,
   kraftVid6Bar,
@@ -1322,7 +1325,8 @@ async function handleOptions(
   // ── v40/v51: Server-side product selection ───────────────────────
   // rankActuators() tiers candidates so a configurable family NEVER outranks a
   // concrete-stroke product that meets the requirement (regression-tested).
-  const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, requiredForceN, isHighPrecision, isHighSpeed, precisionMm, speedMs, isVertical: isVerticalLoad, isWashdown: needsCorrosionResistant, isAtex, preferredBrands: detectRequestedBrands(combinedText), explicitBoreMm, isFood: hazards.isFoodGrade };
+  const kravStandard = begardStandard(combinedText);
+  const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, requiredForceN, isHighPrecision, isHighSpeed, precisionMm, speedMs, isVertical: isVerticalLoad, isWashdown: needsCorrosionResistant, isAtex, preferredBrands: detectRequestedBrands(combinedText), explicitBoreMm, isFood: hazards.isFoodGrade, begardStandard: kravStandard, enhetBegard: enhetBegard(combinedText) };
   const topProducts = rankActuators(catalogProducts, scoringCtx).slice(0, 3);
 
   // Build server-side option objects (correct data, LLM fills in text)
@@ -1393,6 +1397,9 @@ async function handleOptions(
 
   const reqSummary = [
     maxRequiredStroke > 0 ? `Stroke: ${maxRequiredStroke} mm` : "",
+    // Kundgranskningen 2026-11-13: modellen kallade en styrd enhet "Passar
+    // mekaniskt" när kunden bad om ISO 15552.
+    kravStandard ? `Required cylinder standard: ${kravStandard} (a guided, rodless or slide unit has its own mounting and is NOT interchangeable; never call it a mechanical fit)` : "",
     // Found 2026-09-08 (user-reported bad answer): the LLM was never given the
     // load or the required force, only the raw description, so it did its own
     // arithmetic -- 35 kg x 9.81 = "≈343 N required" -- silently dropping the
@@ -1745,6 +1752,26 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     }
     if (miljoKrav) {
       status.push({ krav: sv ? `miljö (${miljoKrav.text})` : `environment (${miljoKrav.text})`, utfall: "kan_inte_bedomas", text: sv ? "automatisk kontroll stöds inte" : "no automatic check" });
+    }
+    if (kravStandard) {
+      const f = foljerStandard(cat, kravStandard, scoringCtx.enhetBegard === true);
+      const egen = String(cat.key_specs?.standard ?? "").trim();
+      status.push({
+        krav: sv ? `standard ${kravStandard}` : `standard ${kravStandard}`,
+        utfall: f === true ? "uppfyllt" : f === false ? "ej_uppfyllt" : "kan_inte_bedomas",
+        text: f === true
+          ? (sv ? `alternativet är ${egen}` : `the option is ${egen}`)
+          : f === false
+          ? (egen && !/guid|styrd|rodless|kolvstångslös|slide|släde/i.test(`${cat.name} ${cat.key_specs?.cylinder_type ?? ""}`)
+            ? (sv ? `alternativet är ${egen}` : `the option is ${egen}`)
+            : (sv ? `alternativet är en ${String(cat.key_specs?.cylinder_type ?? "styrd eller kolvstångslös enhet").toLowerCase()} med egen infästning, inte en ${kravStandard}-cylinder` : `the option is a ${String(cat.key_specs?.cylinder_type ?? "guided or rodless unit").toLowerCase()} with its own mounting, not an ${kravStandard} cylinder`))
+          : (sv ? "standarden anges inte för alternativet" : "the option's standard is not stated"),
+      });
+      // Ett märke är ett påstående: "Bästa valet" på en artikel som inte
+      // följer standarden kunden bad om vore fel.
+      if (f === false && /^(Bästa valet|Best choice|Beste Wahl|Mejor opción)$/.test(String(opt.badge ?? ""))) {
+        opt = { ...opt, badge: pick(locale, { sv: `Närmaste – inte ${kravStandard}`, en: `Closest – not ${kravStandard}`, de: `Nächstgelegen – nicht ${kravStandard}`, es: `Más cercano – no ${kravStandard}` }) };
+      }
     }
     return { ...opt, kravstatus: status };
   });
