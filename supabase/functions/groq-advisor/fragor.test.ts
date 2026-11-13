@@ -429,3 +429,20 @@ Deno.test("säkerhetskrav: frågan om PL är alltid bankens, bara PL och aldrig 
     assert(!/lägre|lower/i.test(q.hint ?? "") || /aldrig lägre|never guess lower/i.test(q.hint ?? ""), `inget råd att välja lägre (${locale})`);
   }
 });
+
+Deno.test("plocka-och-placera: höjdfrågan täcker inte sidled -- sidledsfrågan läggs till (kundgranskning 2026-11-13)", () => {
+  const text = "behöver en grej som plockar flaskor från bandet o ställer i låda typ 30 st/min, flaskorna väger kanske 1 kilo, har tryckluft 6 bar";
+  const modellen: Fraga[] = [{ id: "rorelse_hojd", type: "number", unit: "mm", label: "Hur lång är rörelsen i höjdled?" }];
+  const ut = slutligaFragor(modellen, text, "sv");
+  const amnen = ut.map((q) => amne(q));
+  assert(amnen.includes("slag_z"), JSON.stringify(amnen));
+  assert(amnen.includes("slag_x"), JSON.stringify(amnen));
+});
+
+Deno.test("angiven lyfthöjd frågas inte igen, men sidled frågas", () => {
+  const text = "plocka kartonger från bandet och ställa på pall, lyft 600 mm";
+  const ut = slutligaFragor([], text, "sv");
+  const ids = ut.map((q) => q.id);
+  assert(ids.includes("slag_x_sidled_mm"), JSON.stringify(ids));
+  assert(!ids.includes("slag_z_hojd_mm"), JSON.stringify(ids));
+});

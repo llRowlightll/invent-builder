@@ -442,7 +442,7 @@ export type BomKind =
   | "valve" | "valve_terminal" | "check_valve" | "flow_control" | "silencer"
   | "frl" | "tubing" | "fitting"
   | "rod_lock" | "shock_absorber" | "mount"
-  | "sensor" | "cable"
+  | "sensor" | "cable" | "ejector"
   | "warning";
 
 /**
@@ -532,6 +532,14 @@ export function bedomLosning(rows: BomRow[]): {
       verifiering: r.verifiering as Verifiering,
       skal: r.verifieringsskal ?? "",
     }));
+  // En komponentrad utan vald artikel går inte att beställa. Kundgranskningen
+  // 2026-11-13: en stycklista med ventiler utan spolar och en ventilö som
+  // "SPECIFY" kallades ändå beställningsklar.
+  for (const r of komponenter) {
+    if (r.sku === "SPECIFY" && !(r.verifiering && BLOCKERANDE.has(r.verifiering))) {
+      blockerande.push({ sku: r.sku, role: r.role, verifiering: "kraver_konfiguration" as Verifiering, skal: "Artikeln är inte vald än – den bestäms i offerten." });
+    }
+  }
   return {
     bestallningsklar: blockerande.length === 0,
     blockerande,
@@ -665,6 +673,52 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   // angiven); räcker inget blir raden en lucka som stoppar beställningen.
   // Vakuum konfigureras alltid (koppar och ejektor efter lasten).
   if (ctx.griporganTillagg && !primarArGriporgan) rows.push(griporgansRad(ctx, uc));
+
+  // ── 1b. Vakuum som huvudkomponent, utan lyft ─────────────────────────
+  // Kundgranskningen 2026-11-13 (palleteringscell): stycklistan hade en
+  // sugkopp VTCL-40 i antal 1 fast steg 3 sa "≈ 5 koppar behövs", ingen
+  // ejektor och ingen vakuumvakt -- beställd efter listan ger den inget vakuum
+  // alls. Nu: antalet koppar ur kravet, och ejektor och vakuumvakt som rader.
+  const vakuumUtanLyft = ctx.primaryCategory === "vacuum" && !lyftetIngar;
+  if (vakuumUtanLyft) {
+    const dia = firstNumAbs(ctx.primarySpecs?.cup_diameter_mm ?? ctx.primarySpecs?.pad_diameter_mm);
+    const krav = griporgansKrav("vacuum", ctx);
+    const perKopp = dia > 0 ? Math.PI * (dia / 2) ** 2 * 0.04 : 0; // ≈ 0,4 bar effektivt, marginal för läckage
+    const kopparPerStation = krav.n > 0 && perKopp > 0 ? Math.max(1, Math.ceil(krav.n / perKopp)) : 0;
+    if (kopparPerStation > 1 && rows[0]?.kind === "actuator") {
+      rows[0] = {
+        ...rows[0], quantity: kopparPerStation * uc,
+        reason: rows[0].reason + pick(locale, {
+          sv: ` ${kopparPerStation} koppar per station: kravet ${krav.angiven ? "" : "≈ "}${krav.n} N delat på ≈ ${Math.round(perKopp)} N per kopp (Ø${dia} vid ≈ 0,4 bar effektivt).`,
+          en: ` ${kopparPerStation} cups per station: the requirement ${krav.angiven ? "" : "≈ "}${krav.n} N divided by ≈ ${Math.round(perKopp)} N per cup (Ø${dia} at ≈ 0.4 bar effective).`,
+          de: ` ${kopparPerStation} Sauger je Station: Anforderung ${krav.angiven ? "" : "≈ "}${krav.n} N geteilt durch ≈ ${Math.round(perKopp)} N je Sauger (Ø${dia} bei ≈ 0,4 bar effektiv).`,
+          es: ` ${kopparPerStation} ventosas por estación: el requisito ${krav.angiven ? "" : "≈ "}${krav.n} N dividido por ≈ ${Math.round(perKopp)} N por ventosa (Ø${dia} a ≈ 0,4 bar efectivo).`,
+        }),
+      };
+    }
+    const ejektor = products.find((p) => /eject|ejekt|venturi/i.test(`${p.name} ${p.sku} ${p.key_specs?.type ?? ""}`));
+    rows.push({
+      sku: ejektor?.sku ?? "SPECIFY", quantity: uc, kind: "ejector",
+      role: pick(locale, { sv: "Vakuumejektor", en: "Vacuum ejector", de: "Vakuumejektor", es: "Eyector de vacío" }),
+      reason: pick(locale, {
+        sv: "OBLIGATORISK — ejektorn skapar vakuumet ur tryckluften. Dimensionera sugflödet efter antal koppar och hur tät ytan är; porös kartong läcker och kräver mer flöde.",
+        en: "MANDATORY — the ejector generates the vacuum from compressed air. Size the suction flow by the number of cups and how tight the surface is; porous cardboard leaks and needs more flow.",
+        de: "ZWINGEND ERFORDERLICH — der Ejektor erzeugt das Vakuum aus Druckluft. Saugvolumenstrom nach Anzahl der Sauger und Dichtheit der Oberfläche auslegen; poröser Karton leckt und braucht mehr Durchfluss.",
+        es: "OBLIGATORIO — el eyector genera el vacío a partir del aire comprimido. Dimensione el caudal de aspiración según el número de ventosas y la estanqueidad de la superficie; el cartón poroso fuga y necesita más caudal.",
+      }),
+    });
+    const vakt = products.find((p) => /vakuumvakt|vacuum switch|vacuum sensor|vakuumgivare|\bZSE|\bPSE|\bSDE|\bSPAB/i.test(`${p.name} ${p.sku}`));
+    rows.push({
+      sku: vakt?.sku ?? "SPECIFY", quantity: uc, kind: "sensor",
+      role: pick(locale, { sv: "Vakuumvakt", en: "Vacuum switch", de: "Vakuumschalter", es: "Vacuostato" }),
+      reason: pick(locale, {
+        sv: "OBLIGATORISK — bekräftar till styrsystemet att greppet håller innan lyftet startar, och larmar om vakuumet faller.",
+        en: "MANDATORY — confirms to the control system that the grip holds before the move starts, and alarms if the vacuum drops.",
+        de: "ZWINGEND ERFORDERLICH — bestätigt der Steuerung, dass der Griff hält, bevor die Bewegung startet, und meldet Vakuumabfall.",
+        es: "OBLIGATORIO — confirma al sistema de control que el agarre sujeta antes de iniciar el movimiento y avisa si cae el vacío.",
+      }),
+    });
+  }
 
   // Prefer the primary's brand when picking motor/drive/sensor/secondary axis, so
   // e.g. an SMC axis gets an SMC drive rather than a Festo one. Same-brand sorted
@@ -891,7 +945,13 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   let tillbehorsPort: string | null = null;
   // ── 4. Valve terminal (multi-actuator / fieldbus) OR single directional valve ─
   if (valveTerminal && isPneumatic) {
-    const vtMatch = findCatalogProductByType("valve-terminal", products);
+    // Med angiven buss: en ventilö med den bussen, annars en ärlig lucka.
+    const bus = ctx.faltbuss ?? null;
+    const vtKandidater = products.filter((p) => p.category === "valve-terminal" || /\bCPV\b|\bVTSA\b|\bMPA\b|\bventilramp\b|\bventilterminal\b/i.test(`${p.name} ${p.sku}`));
+    const busRe = bus ? new RegExp(bus.replace("/", "[\\s/-]?").replace("-", "-?"), "i") : null;
+    const vtMatch = busRe
+      ? vtKandidater.find((p) => busRe.test(`${p.name} ${JSON.stringify(p.key_specs ?? {})}`)) ?? null
+      : findCatalogProductByType("valve-terminal", products);
     // Shared infrastructure -- one manifold consolidates N stations' valves by
     // design, so this row does NOT scale by uc the way per-station hardware
     // does. When uc > 1, the valve count it needs to be sized for is stated
@@ -906,12 +966,19 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
       sku: vtMatch?.sku ?? "SPECIFY", quantity: 1,
       kind: "valve_terminal",
       role: pick(locale, { sv: "Ventilramp (ventilterminal)", en: "Valve terminal (manifold)", de: "Ventilinsel (Ventilterminal)", es: "Terminal de válvulas (colector)" }),
-      reason: pick(locale, {
-        sv: "OBLIGATORISK för fältbussanslutning (PROFINET/EtherCAT) — ventilramp (CPV, VTSA, MPA) samlar alla ventiler i en enhet och reducerar kabelkostnad. Specificera bussmodul och ventilantal.",
-        en: "MANDATORY for fieldbus (PROFINET/EtherCAT) — valve terminal (CPV, VTSA, MPA) consolidates all valves, reduces wiring. Specify bus module and valve count.",
-        de: "ZWINGEND ERFORDERLICH für Feldbusanbindung (PROFINET/EtherCAT) — die Ventilinsel (CPV, VTSA, MPA) fasst alle Ventile in einer Einheit zusammen und reduziert den Verkabelungsaufwand. Busmodul und Ventilanzahl angeben.",
-        es: "OBLIGATORIO para conexión de bus de campo (PROFINET/EtherCAT) — el terminal de válvulas (CPV, VTSA, MPA) agrupa todas las válvulas en una unidad y reduce el cableado. Especifique el módulo de bus y el número de válvulas.",
-      }) + vtSizingNote,
+      reason: (bus
+        ? pick(locale, {
+            sv: `OBLIGATORISK för fältbussanslutning (${bus}) — ventilön samlar alla ventiler i en enhet med en bussnod.${vtMatch ? "" : ` Katalogen saknar en ventilö med ${bus}; den bestäms i offerten.`} Ange ventilantal och funktion per plats (5/2, 5/3).`,
+            en: `MANDATORY for the fieldbus connection (${bus}) — the valve terminal combines all valves in one unit with a bus node.${vtMatch ? "" : ` The catalogue has no valve terminal with ${bus}; it is set in the quote.`} State the number of valves and the function per station (5/2, 5/3).`,
+            de: `ZWINGEND ERFORDERLICH für die Feldbusanbindung (${bus}) — die Ventilinsel fasst alle Ventile in einer Einheit mit Busknoten zusammen.${vtMatch ? "" : ` Der Katalog führt keine Ventilinsel mit ${bus}; sie wird im Angebot festgelegt.`} Ventilanzahl und Funktion je Platz (5/2, 5/3) angeben.`,
+            es: `OBLIGATORIO para la conexión de bus de campo (${bus}) — el terminal agrupa todas las válvulas en una unidad con nodo de bus.${vtMatch ? "" : ` El catálogo no tiene un terminal con ${bus}; se define en la oferta.`} Indique el número de válvulas y la función por estación (5/2, 5/3).`,
+          })
+        : pick(locale, {
+            sv: "Rekommenderas med flera ventiler — ventilön samlar dem i en enhet och minskar kablaget. Välj inkoppling efter styrsystemet: multipolkontakt, IO-Link eller fältbussnod. Ange ventilantal och funktion per plats (5/2, 5/3).",
+            en: "Recommended with several valves — the valve terminal combines them in one unit and reduces wiring. Choose the connection to suit the control system: multipole, IO-Link or a fieldbus node. State the number of valves and the function per station (5/2, 5/3).",
+            de: "Empfohlen bei mehreren Ventilen — die Ventilinsel fasst sie in einer Einheit zusammen und reduziert die Verkabelung. Anschluss passend zur Steuerung wählen: Multipol, IO-Link oder Feldbusknoten. Ventilanzahl und Funktion je Platz (5/2, 5/3) angeben.",
+            es: "Recomendado con varias válvulas — el terminal las agrupa en una unidad y reduce el cableado. Elija la conexión según el sistema de control: multipolo, IO-Link o nodo de bus de campo. Indique el número de válvulas y la función por estación (5/2, 5/3).",
+          })) + vtSizingNote,
     });
   } else if (isPneumatic) {
     const valveMatch = findCatalogProductByType("valve", products);
@@ -941,7 +1008,20 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
           es: " Elija la conexión según el tamaño de puerto del cilindro.",
         });
 
-    rows.push({
+    if (ctx.primaryCategory === "vacuum" && !lyftetIngar) {
+      // Ingen cylinder att styra: ventilen slår på och av ejektorn.
+      const v32 = products.find((p) => /\b3\/2\b/.test(`${p.name} ${JSON.stringify(p.key_specs ?? {})}`) && !/spole|coil|kulventil|ball valve/i.test(p.name));
+      rows.push({
+        sku: v32?.sku ?? "SPECIFY", quantity: uc, kind: "valve",
+        role: pick(locale, { sv: "Magnetventil för ejektorn (3/2, normalt stängd)", en: "Solenoid valve for the ejector (3/2, normally closed)", de: "Magnetventil für den Ejektor (3/2, stromlos geschlossen)", es: "Electroválvula para el eyector (3/2, normalmente cerrada)" }),
+        reason: pick(locale, {
+          sv: "Slår på tryckluften till ejektorn för att greppa och stänger för att släppa. Välj 24 V DC spole.",
+          en: "Switches compressed air to the ejector to grip and closes to release. Select a 24 V DC coil.",
+          de: "Schaltet die Druckluft zum Ejektor zum Greifen und schließt zum Lösen. 24-V-DC-Spule wählen.",
+          es: "Conecta el aire comprimido al eyector para agarrar y cierra para soltar. Seleccione bobina de 24 V CC.",
+        }),
+      });
+    } else rows.push({
       sku: valveMatch?.sku ?? "SPECIFY", quantity: uc,
       kind: "valve",
       role: pick(locale, { sv: "Magnetventil (5/2-vägs styrventil)", en: "Solenoid valve (5/2-way directional)", de: "Magnetventil (5/2-Wege-Steuerventil)", es: "Electroválvula (5/2 vías)" }),
@@ -966,9 +1046,15 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
       : findCatalogProductByType("silencer", products);
     // Kopplingarna väljs här, före strypventilerna, så att slangdimensionen
     // är känd: ventilens gänga, sedan slangen kopplingen tar.
+    // Tvättzon och livsmedel: rostfria kopplingar om katalogen har dem
+    // (kundgranskningen 2026-11-13: mässingskopplingar i en washdown-zon
+    // fast MW-MRFX-SS i AISI 316L fanns).
+    const allaKopplingar = kandidaterAvTyp("fitting", products);
+    const rostfria = allaKopplingar.filter((p) => /rostfri|stainless|inox|aisi\s*3[01]6|\b316l?\b|\b304\b|-SS\b/i.test(`${p.name} ${p.sku} ${String(p.key_specs?.material ?? "")}`));
+    const kopplingsPool = (isSpolmiljo || isFoodGrade) && rostfria.length ? rostfria : allaKopplingar;
     kopplingVal = tillbehorsPort
-      ? basta(kandidaterAvTyp("fitting", products), { ganga: tillbehorsPort })
-      : findCatalogProductByType("fitting", products);
+      ? basta(kopplingsPool, { ganga: tillbehorsPort })
+      : ((isSpolmiljo || isFoodGrade) && rostfria.length ? rostfria[0] : findCatalogProductByType("fitting", products));
     slangOd = slangOdAv(kopplingVal);
     rows.push({
       // valveTerminal case: one central exhaust unit serves all stations by
@@ -992,7 +1078,8 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     const fcMatch = cylPort || slangOd
       ? basta(kandidaterAvTyp("flow-control", products), fcOnskat)
       : findCatalogProductByType("flow-control", products);
-    rows.push({
+    // Vakuum utan lyft har ingen cylinder vars fart ska ställas.
+    if (!vakuumUtanLyft) rows.push({
       sku: fcMatch?.sku ?? "SPECIFY", quantity: 2 * uc,
       kind: "flow_control",
       role: pick(locale, { sv: "Strypbackventil (hastighetsreglering)", en: "One-way flow control (speed)", de: "Drosselrückschlagventil (Geschwindigkeitsregelung)", es: "Regulador de caudal unidireccional (velocidad)" }),
@@ -1171,7 +1258,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
         es: "OBLIGATORIO — se requieren 2 sensores de posición certificados ATEX/IECEx (uno por posición final) para la retroalimentación al PLC. Los sensores estándar de 24 V NO están permitidos en la zona; no tenemos en stock un sensor certificado para la zona, solicite una oferta.",
       }),
     });
-  } else if (isEndPosDetect && isPneumatic) {
+  } else if (isEndPosDetect && isPneumatic && !vakuumUtanLyft) {
     // Found 2026-08-21 (adversarial test): this used plain `products` — the
     // catalog has both T-slot AND C-slot sensors (e.g. SMC-D-A72H is C-slot,
     // SMC-D-A73/D-A93 are T-slot; Festo's SIES/SIET/SMT lines are all T-slot)
@@ -1396,6 +1483,36 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
             }),
       });
     }
+  }
+
+  // ── 8a. Ingen PLC ────────────────────────────────────────────────
+  if (ctx.saknarPlc) {
+    rows.push({
+      sku: "SPECIFY", quantity: 1, kind: "warning",
+      role: pick(locale, { sv: "⚠️ Styrning behövs", en: "⚠️ A control system is needed", de: "⚠️ Eine Steuerung wird benötigt", es: "⚠️ Se necesita un sistema de control" }),
+      reason: pick(locale, {
+        sv: "Du har ingen PLC. Något måste styra ventilerna i rätt ordning och läsa givarna: en liten PLC eller ett programmerbart relä räcker ofta. Vi föreslår styrningen i offerten -- se också Styrning & PLC.",
+        en: "You have no PLC. Something must switch the valves in the right order and read the sensors: a small PLC or a programmable relay is often enough. We suggest the control in the quote -- see also Control & PLC.",
+        de: "Sie haben keine SPS. Etwas muss die Ventile in der richtigen Reihenfolge schalten und die Sensoren lesen: eine kleine SPS oder ein Steuerrelais reicht oft. Wir schlagen die Steuerung im Angebot vor.",
+        es: "No tiene PLC. Algo debe conmutar las válvulas en el orden correcto y leer los sensores: suele bastar un PLC pequeño o un relé programable. Proponemos el control en la oferta.",
+      }),
+    });
+  }
+
+  // ── 8b. Servoaxlar i en pneumatisk station ───────────────────────
+  // Stycklistan väljer en drivtyp. Kundgranskningen 2026-11-13: "12 cylindrar
+  // … 2 servoaxlar" gav bara cylindrar och tystnad om servona.
+  if (ctx.blandadDrift && !isElectric) {
+    rows.push({
+      sku: "SPECIFY", quantity: 1, kind: "warning",
+      role: pick(locale, { sv: "⚠️ Servoaxlarna ingår inte i den här stycklistan", en: "⚠️ The servo axes are not in this bill of materials", de: "⚠️ Die Servoachsen sind nicht in dieser Stückliste", es: "⚠️ Los ejes servo no están en esta lista de materiales" }),
+      reason: pick(locale, {
+        sv: "Stycklistan gäller cylindrarna. Servoaxlarna (axel, motor, drivsteg och kablar) väljs separat efter slag, last och hastighet -- beskriv dem som en egen axel eller begär offert.",
+        en: "The bill of materials covers the cylinders. The servo axes (axis, motor, drive and cables) are chosen separately for stroke, load and speed -- describe them as a separate axis or request a quote.",
+        de: "Die Stückliste umfasst die Zylinder. Die Servoachsen (Achse, Motor, Regler und Kabel) werden separat nach Hub, Last und Geschwindigkeit gewählt -- als eigene Achse beschreiben oder Angebot anfordern.",
+        es: "La lista cubre los cilindros. Los ejes servo (eje, motor, accionamiento y cables) se eligen por separado según carrera, carga y velocidad: descríbalos como un eje aparte o solicite una oferta.",
+      }),
+    });
   }
 
   // ── 9. Washdown / food-grade IP69K warning ───────────────────────

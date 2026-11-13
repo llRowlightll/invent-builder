@@ -117,7 +117,7 @@ export function arUtbyte(text: string, kod?: Kodvarden): boolean {
 }
 
 export type Kanda = {
-  slag: boolean; last: boolean; kraft: boolean; takt: boolean; hastighet: boolean;
+  slag: boolean; slagX: boolean; slagZ: boolean; last: boolean; kraft: boolean; takt: boolean; hastighet: boolean;
   precision: boolean; borrning: boolean; tryck: boolean; flode: boolean; temperatur: boolean;
   riktning: boolean; styrning: boolean; faltbuss: boolean; spanning: boolean; anslutning: boolean; miljo: boolean;
   greppsatt: boolean; givare: boolean;
@@ -130,6 +130,8 @@ export function kandaVarden(text: string, kod?: Kodvarden): Kanda {
     // Samma läsning av längder som motorn och tolkningspanelen (kravbild.ts):
     // "lådor 400 mm långa" och "avstånd 150 mm" är inga slag, så frågan ställs.
     slag: !!kod?.slagMm || slagIMeterMm(text) > 0 || langderITexten(text).some((l) => l.typ === "slag" || l.typ === "lyft" || l.typ === "sidled"),
+    slagX: langderITexten(text).some((l) => l.typ === "sidled"),
+    slagZ: langderITexten(text).some((l) => l.typ === "lyft"),
     last: new RegExp(String.raw`\d+(?:[.,]\d+)?\s*${MASSENHET}(?![\wåäö])`, "i").test(text),
     kraft: /\d+(?:[.,]\d+)?\s*k?N\b/.test(text),
     takt: /(\d+|en|ett|två|tre|fyra|fem|sex|sju|åtta|nio|tio|tjugo|trettio|hundra)\s*(gånger|ggr|cykler|slag|takter?|st|lyft|rörelser)\s*(per|i|om|\/)\s*(sekund\w*|sek|s\b|minut\w*|min\b|timme\w*|tim\b|h\b|dag\w*|dygn\w*|vecka\w*|skift\w*)|\d+\s*\/\s*(min|h|s)\b|cykeltid|takttid|per\s+minut|i\s+minuten/i.test(text),
@@ -262,7 +264,7 @@ function g(locale: string, sv: string, en: string): string {
 
 /** Bankens frågor har kända ämnen; modellens tolkas ur id och etikett. */
 const BANKENS_AMNEN: Record<string, string> = {
-  slaglangd_mm: "slag", slag_x_sidled_mm: "slag", slag_z_hojd_mm: "slag", last_kg: "last",
+  slaglangd_mm: "slag", slag_x_sidled_mm: "slag_x", slag_z_hojd_mm: "slag_z", last_kg: "last",
   kraft_n: "kraft", greppsatt: "grepp", rorelseriktning: "riktning", lasthallning: "hallning",
   takt: "takt", precision: "precision", andlagesavkanning: "givare", manovrering: "styrning",
   miljo: "miljo", korrosion: "korrosion", livsmedelskontakt: "livsmedel", luft_anslutning: "anslutning", luft_flode: "flode", luft_tryck: "tryck",
@@ -277,6 +279,17 @@ const BANKENS_AMNEN: Record<string, string> = {
   antal_lagen: "lagen", noggrannhet_typ: "noggrannhetstyp", forflyttningstid_s: "tid",
   lastplacering: "lastplacering", styrning_axel: "styrning",
 };
+
+/**
+ * Höjdled och sidled är olika frågor (kundgranskningen 2026-11-13): när
+ * modellen bara frågade om höjden räknades sidledsfrågan som besvarad, och
+ * plocka-och-placera fick aldrig sitt sidledsslag.
+ */
+function slagAxel(l: string): string {
+  if (/höjd|hojd|lyft|vertikal|upp och ned|uppåt|nedåt|height|vertical|\bz\b|z-ax/.test(l)) return "slag_z";
+  if (/sidled|horisont|lateral|horizontal|i sidled|\bx\b|x-ax|mellan plock|bort till/.test(l)) return "slag_x";
+  return "slag";
+}
 
 /** Ämnet en fråga handlar om. Används för att rensa och fylla på. */
 export function amne(q: Pick<Fraga, "id" | "label"> & { options?: string[]; unit?: string }): string | null {
@@ -321,8 +334,8 @@ export function amne(q: Pick<Fraga, "id" | "label"> & { options?: string[]; unit
   // Före lasthållningen: "Vilken slaglängd krävs för att öppna/låsa luckan?"
   // är en slaglängdsfråga, inte en fråga om lås. Modellen stavar ibland fel
   // ("slägelängd"), och en sifferfråga i mm om en rörelse är en slaglängd.
-  if (/sl[aäe]+g\w*längd|slaglangd|\bstroke\b/.test(s)) return "slag";
-  if (/^\s*mm\s*$/i.test(q.unit ?? "") && /rörelse|lyfthöjd|hur lång|sträcka/.test(l)) return "slag";
+  if (/sl[aäe]+g\w*längd|slaglangd|\bstroke\b/.test(s)) return slagAxel(l);
+  if (/^\s*mm\s*$/i.test(q.unit ?? "") && /rörelse|lyfthöjd|hur lång|sträcka/.test(l)) return slagAxel(l);
   if (/vridmoment|torque|\bnm\b/.test(s)) return "vridmoment";
   if (/hävarm|lever.?arm|vridcentrum/.test(s)) return "havarm";
   // Temperaturen före vinkeln: "°C" och "minusgrader" är inga vinklar.
@@ -336,7 +349,7 @@ export function amne(q: Pick<Fraga, "id" | "label"> & { options?: string[]; unit
   if (/orienter|riktning|vertikal|horisontell|monteringsläge|montera.*i|direction|rör sig/.test(s)) return "riktning";
   if (/givare|sensor|ändläge|end.?position/.test(s)) return "givare";
   if (/per minut|per timme|\/min\b|frekvens|hur ofta|takt|cycles? per/.test(l)) return "takt";
-  if (/slag|travel|lyfthöjd|rörelsens längd|längd.*rörelse|hur lång/.test(s)) return "slag";
+  if (/slag|travel|lyfthöjd|rörelsens längd|längd.*rörelse|hur lång/.test(s)) return slagAxel(l);
   if (/cykl|gånger|frekvens|takt|cycle|hur ofta|per timme|per minut/.test(s)) return "takt";
   if (/vikt|väger|\blast\b|massa|\bload\b|weight|\bkg\b|hur tung/.test(s)) return "last";
   if (/kraft|force|\(n\)/.test(s)) return "kraft";
@@ -364,13 +377,13 @@ export function amne(q: Pick<Fraga, "id" | "label"> & { options?: string[]; unit
 const TEMPERATURLEDTRAD = /utomhus|outdoor|\bute\b|vinter|frys|kyl(rum|lager|hus|container)|\bugn|värme|varm|\bhet[at]?\b|gjuteri|svets|bastu|torkugn|°\s*c|minusgrad|ånga|steam|bageri|bakery/i;
 
 /** Ämnen som bara hör till en rörelse. */
-const RORELSEAMNEN = new Set(["slag", "takt", "last", "kraft", "hastighet", "precision", "riktning", "vridskydd", "givare", "hallning", "grepp", "sakerhetsniva", "vinkel", "vridmoment", "havarm"]);
+const RORELSEAMNEN = new Set(["slag", "slag_x", "slag_z", "takt", "last", "kraft", "hastighet", "precision", "riktning", "vridskydd", "givare", "hallning", "grepp", "sakerhetsniva", "vinkel", "vridmoment", "havarm"]);
 
 /** Ämnen som en ren vridning inte har: ingen slaglängd i mm, ingen kraft i N, ingen riktning. */
-const INTE_VRIDNING = new Set(["slag", "kraft", "riktning", "borrning", "precision", "vridskydd", "hastighet"]);
+const INTE_VRIDNING = new Set(["slag", "slag_x", "slag_z", "kraft", "riktning", "borrning", "precision", "vridskydd", "hastighet"]);
 
 /** Ämnen som orderkoden i ett utbyte redan har bestämt. */
-const INTE_UTBYTE = new Set(["slag", "last", "kraft", "riktning", "borrning", "takt", "precision", "grepp", "hastighet", "hallning", "vridskydd"]);
+const INTE_UTBYTE = new Set(["slag", "slag_x", "slag_z", "last", "kraft", "riktning", "borrning", "takt", "precision", "grepp", "hastighet", "hallning", "vridskydd"]);
 
 const ENGELSKA = /\b(the|with|without|and|or|none|yes|no|standard|steel|plastic|coating|grease|lubricant|high|low|pressure|immersion|splash|horizontal|vertical|inclined|other|required|chemical|jets|food-grade)\b/i;
 
@@ -419,6 +432,8 @@ export function rensaFragor(fragor: Fraga[], text: string, locale: string, kod?:
     if (a === "esd" && !arElektronikhantering(text)) continue;
     if (a === "renrum" && !/renrum|cleanroom|clean\s+room/i.test(text)) continue;
     if (a === "slag" && (k.slag || (typ !== "rorelse"))) continue;
+    if (a === "slag_x" && (k.slagX || typ !== "rorelse")) continue;
+    if (a === "slag_z" && (k.slagZ || typ !== "rorelse")) continue;
     if (a === "takt" && k.takt) continue;
     if (a === "last" && (k.last || (typ !== "rorelse"))) continue;
     if (a === "kraft" && k.kraft) continue;
@@ -489,7 +504,9 @@ function manovreringsfraga(locale: string): Fraga {
     id: "manovrering", type: "choice",
     label: g(locale, "Hur ska rörelsen startas?", "How is the movement started?"),
     hint: g(locale, "Avgör om det behövs en magnetventil eller en handmanövrerad ventil.", "Determines whether a solenoid valve or a manually operated valve is needed."),
-    options: [g(locale, "Från en PLC", "From a PLC"), g(locale, "Med tryckknapp eller handventil", "With a push button or hand valve")],
+    // "Har ingen PLC" (kundgranskningen 2026-11-13): ett eget svar, så att
+    // styrningen föreslås i stället för en handventil vid 30 cykler/min.
+    options: [g(locale, "Från en PLC", "From a PLC"), g(locale, "Med tryckknapp eller handventil", "With a push button or hand valve"), g(locale, "Har ingen PLC än – föreslå något", "No PLC yet – suggest something")],
   };
 }
 
@@ -706,14 +723,15 @@ export function reservfragor(text: string, locale: string, kod?: Kodvarden): Fra
       varfor: g(locale, "Kraften och dämpningen ska klara lådan plus de rörliga delarna.", "Force and cushioning must handle the box plus the moving parts.") });
   }
 
-  if (multi && !k.slag) {
-    q.push({ id: "slag_x_sidled_mm", type: "number", unit: "mm",
+  if (multi && (!k.slagX || !k.slagZ)) {
+    // Varje axel för sig: en angiven lyfthöjd betyder inte att sidledet är känt.
+    if (!k.slagX) q.push({ id: "slag_x_sidled_mm", type: "number", unit: "mm",
       label: g(locale, "Hur lång är rörelsen i sidled?", "How long is the horizontal movement?"),
       hint: g(locale, "Avståndet mellan plock- och lämningsplatsen, i millimeter.", "The distance between the pick and place positions, in millimetres.") });
-    q.push({ id: "slag_z_hojd_mm", type: "number", unit: "mm",
+    if (!k.slagZ) q.push({ id: "slag_z_hojd_mm", type: "number", unit: "mm",
       label: g(locale, "Hur lång är rörelsen i höjdled?", "How long is the vertical movement?"),
       hint: g(locale, "Hur långt ned och upp föremålet ska, i millimeter.", "How far down and up the object goes, in millimetres.") });
-  } else if (!k.slag) {
+  } else if (!multi && !k.slag) {
     q.push({ id: "slaglangd_mm", type: "number", unit: "mm",
       label: g(locale, "Hur lång ska rörelsen vara (slaglängd)?", "How long should the movement be (stroke)?"),
       hint: stopp
@@ -917,7 +935,37 @@ const ALLTID = new Set([
  * sedan modellens rensade frågor, och banken igen tills det finns minst fyra.
  * Högst sex.
  */
+/**
+ * "Varför behöver vi detta?" per ämne, när frågan saknar egen motivering.
+ * Kundgranskningen 2026-11-13: ingen av modellens fyra frågor hade "varfor",
+ * så länken visades aldrig. Bara ämnen där svaret faktiskt ändrar valet.
+ */
+const VARFOR: Record<string, [string, string]> = {
+  slag: ["Slaglängden avgör vilken cylinder eller axel som räcker och står i artikelnumret.", "The stroke decides which cylinder or axis is long enough and is part of the part number."],
+  slag_x: ["Sidledet avgör axeln som flyttar föremålet mellan plock- och lämningsplatsen.", "The horizontal travel decides the axis that moves the object between the pick and place positions."],
+  slag_z: ["Höjdledet avgör lyftaxeln och om lasten behöver hållas vid tryckfall.", "The vertical travel decides the lifting axis and whether the load must be held on pressure loss."],
+  last: ["Vikten avgör kraften, storleken och hur greppet dimensioneras.", "The weight decides the force, the size and how the grip is sized."],
+  kraft: ["Kraften avgör borrningen eller axelns storlek.", "The force decides the bore or the axis size."],
+  takt: ["Takten avgör luftflöde, dämpning och slitage, och ibland om el passar bättre än pneumatik.", "The rate decides air flow, cushioning and wear, and sometimes whether electric suits better than pneumatic."],
+  precision: ["Noggrannheten avgör om en pneumatisk cylinder räcker eller om det krävs en elektrisk axel.", "The accuracy decides whether a pneumatic cylinder is enough or an electric axis is needed."],
+  grepp: ["Greppsättet avgör om det blir gripdon eller sugkoppar, och hur kraften räknas.", "The grip method decides gripper or suction cups, and how the force is calculated."],
+  styrning: ["Styrningen avgör ventil, spänning och om något kan styras alls utan PLC.", "The control decides valve, voltage and whether anything can be controlled without a PLC."],
+  givare: ["Givare behövs om styrsystemet ska veta att rörelsen är klar.", "Sensors are needed if the control system must know the movement is complete."],
+  hallning: ["Avgör om det behövs backventil eller stånglås så att lasten inte faller vid tryckfall.", "Decides whether a check valve or rod lock is needed so the load does not fall on pressure loss."],
+  miljo: ["Miljön avgör material, tätningar och kapslingsklass.", "The environment decides materials, seals and IP rating."],
+  sakerhetsniva: ["Säkerhetsnivån avgör hur lasthållningen och ventilerna ska utföras.", "The safety level decides how the load holding and valves must be designed."],
+  faltbuss: ["Inkopplingen avgör ventilön och dess bussnod.", "The connection decides the valve terminal and its bus node."],
+};
+
 export function slutligaFragor(fran_modellen: Fraga[], text: string, locale: string, kod?: Kodvarden): Fraga[] {
+  return slutligaFragorInre(fran_modellen, text, locale, kod).map((q) => {
+    if (q.varfor) return q;
+    const v = VARFOR[amne(q) ?? ""];
+    return v ? { ...q, varfor: g(locale, v[0], v[1]) } : q;
+  });
+}
+
+function slutligaFragorInre(fran_modellen: Fraga[], text: string, locale: string, kod?: Kodvarden): Fraga[] {
   const bank = reservfragor(text, locale, kod);
   // Där banken har en egen fråga om samma ämne ersätter den modellens: bankens
   // alternativ är prövade mot detektorerna i nästa steg, modellens inte

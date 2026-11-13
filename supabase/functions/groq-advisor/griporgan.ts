@@ -131,7 +131,7 @@ export function byggVakuumalternativ(prods: CatalogProduct[], u: Griporgansunder
   const picks = cups.length <= 3 ? cups : [cups[0], cups[Math.floor(cups.length / 2)], cups[cups.length - 1]];
   // En angiven håll-kraft används som den är, men med känd massa aldrig under
   // vad massan kräver (griporgansKrav).
-  const krav = griporgansKrav("vacuum", { gripForceN: hazards.gripForceN, holdingForceN: hazards.holdingForceN, loadKg });
+  const krav = griporgansKrav("vacuum", { gripForceN: hazards.gripForceN, holdingForceN: hazards.holdingForceN, loadKg, isMultiAxis: hazards.isMultiAxis });
   const reqN = krav.n;
   const antal = angivetKoppantal(u.text);
   // Små koppar ger under 1 N: visas med en decimal i stället för som 0, och
@@ -140,6 +140,9 @@ export function byggVakuumalternativ(prods: CatalogProduct[], u: Griporgansunder
   const visa = (n: number) => (n >= 10 ? String(Math.round(n)) : n < 0.05 ? (komma ? "< 0,1" : "< 0.1") : n.toFixed(1).replace(".", komma ? "," : "."));
   const kravText = krav.angiven
     ? (sv ? `håll-kraft ${reqN} N` : `holding force ${reqN} N`)
+    : hazards.isMultiAxis
+    ? (sv ? `håll-kraft ≈ ${reqN} N (vikt × (9,81 + 3/0,5) × 2: lyft plus sidledsacceleration 3 m/s², friktion 0,5)`
+          : `holding force ≈ ${reqN} N (weight × (9.81 + 3/0.5) × 2: lift plus 3 m/s² lateral acceleration, friction 0.5)`)
     : (sv ? `håll-kraft ≈ ${reqN} N (vikt × 9,81 × 2)` : `holding force ≈ ${reqN} N (weight × 9.81 × 2)`);
 
   const options: Array<Record<string, unknown>> = picks.map((p, i) => {
@@ -313,6 +316,11 @@ export function byggGripdonsalternativ(prods: CatalogProduct[], u: Griporgansund
         : pick(locale, { sv: `Gripkraft ≈ ${b.fN} N`, en: `Grip force ≈ ${b.fN} N`, de: `Greifkraft ≈ ${b.fN} N`, es: `Fuerza de agarre ≈ ${b.fN} N` }))
       : b.helt && b.serie
       ? pick(locale, { sv: "Välj storlek vid order", en: "Choose size when ordering", de: "Größe bei Bestellung wählen", es: "Elegir tamaño al pedir" })
+      : b.helt && reqN > 0 && b.fN < reqN * 1.1
+      // Under 10 % marginal är ingen "rätt storlek": gripkraften anges ofta
+      // vid 6,3 bar och avståndet från backen, och takten sliter (kund-
+      // granskningen 2026-11-13: 100 N mot kravet 100 N fick "Rätt storlek").
+      ? pick(locale, { sv: "På gränsen – välj större vid hög takt", en: "Borderline – choose larger at high rates", de: "Grenzwertig – bei hoher Taktrate größer wählen", es: "Al límite – elija mayor con ritmo alto" })
       : b.helt
       ? (pick(locale, {
           sv: ["Rätt storlek", "Mer marginal", "Mest marginal"], en: ["Right size", "More margin", "Most margin"],

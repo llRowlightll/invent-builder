@@ -1137,3 +1137,61 @@ Deno.test("backventilraden fylls bara av en pilotstyrd backventil, aldrig av SMC
   assertEquals(findCatalogProductByType("check-valve", [akh, hgl])?.sku, "FE-HGL-1-4-B");
   assertEquals(findCatalogProductByType("check-valve", [akh]), null);
 });
+
+Deno.test("vakuum som huvudkomponent: antal koppar ur kravet, ejektor, vakuumvakt, inga cylinderrader (kundgranskning 2026-11-13)", () => {
+  const h = detectHazards("Sugkoppar som håller kartonger på 12 kg medan de lyfts av med handkraft, 6 bar, ändlägesgivare", {}, "sv");
+  const rows = buildMandatoryBomRows(bomCtx({
+    ...h, primarySku: "VTCL-40", primaryCategory: "vacuum", primarySpecs: { cup_diameter_mm: 40 },
+    products: [
+      { sku: "FESTO-VN", name: "VN – Vacuum Ejector", category: "vacuum", brand: "festo", key_specs: { type: "ejector" } },
+      { sku: "SMC-ZSE10", name: "ZSE10 Vacuum switch", category: "sensor", brand: "smc", key_specs: {} },
+      { sku: "V32", name: "3/2-ventil NC G1/8", category: "valve", brand: "smc", key_specs: {} },
+    ],
+  }));
+  const kopp = rows[0];
+  // 12 kg × 9,81 × 2 ≈ 235 N; Ø40 ≈ 50 N per kopp -> 5 koppar.
+  assertEquals(kopp.quantity, 5, kopp.reason);
+  assert(rows.some((r) => r.kind === "ejector" && r.sku === "FESTO-VN"), "ejektor");
+  assert(rows.some((r) => r.role === "Vakuumvakt" && r.sku === "SMC-ZSE10"), "vakuumvakt");
+  assert(rows.some((r) => r.kind === "valve" && /ejektorn/.test(r.role)), "ventil för ejektorn, inte en 5/2 för en cylinder");
+  assert(!rows.some((r) => r.kind === "flow_control"), "inga strypbackventiler på cylinderportar");
+  assert(!rows.some((r) => r.kind === "sensor" && /ändläge/i.test(`${r.role} ${r.reason}`)), "inga ändlägesgivare");
+});
+
+Deno.test("vakuum med sidledsrörelse räknar med acceleration (lastfall II)", async () => {
+  const { griporgansKrav } = await import("./signals.ts");
+  assertEquals(griporgansKrav("vacuum", { gripForceN: 0, holdingForceN: 0, loadKg: 12 }).n, 235);
+  assertEquals(griporgansKrav("vacuum", { gripForceN: 0, holdingForceN: 0, loadKg: 12, isMultiAxis: true }).n, 379);
+});
+
+Deno.test("en rad utan vald artikel gör stycklistan icke beställningsklar", () => {
+  const dom = bedomLosning([
+    { sku: "P1D-S050MS-0200", quantity: 1, kind: "actuator", role: "Primär aktuator", reason: "" },
+    { sku: "SPECIFY", quantity: 1, kind: "valve_terminal", role: "Ventilö", reason: "" },
+  ]);
+  assertEquals(dom.bestallningsklar, false);
+  assert(dom.blockerande.some((b) => b.role === "Ventilö"));
+});
+
+Deno.test("ventilön följer angiven fältbuss, och utan buss kallas den inte obligatorisk (kundgranskning 2026-11-13)", () => {
+  const produkter = [
+    { sku: "FE-MPA-S-EX1-8", name: "Ventilterminal MPA-S, 8 ventilplatser, IO-Link", category: "valve-terminal", brand: "festo", key_specs: { fieldbus: "IO-Link" } },
+    { sku: "FESTO-CPX-AP", name: "CPX-AP ventilterminal", category: "valve-terminal", brand: "festo", key_specs: { fieldbus: "EtherNet/IP, PROFINET, EtherCAT" } },
+  ];
+  const medBuss = detectHazards("Station med 12 cylindrar, S7-1500 via PROFINET", {}, "sv");
+  const a = buildMandatoryBomRows(bomCtx({ ...medBuss, valveTerminal: true, products: produkter }));
+  const vtA = a.find((r) => r.kind === "valve_terminal")!;
+  assertEquals(vtA.sku, "FESTO-CPX-AP");
+  assert(/PROFINET/.test(vtA.reason) && /OBLIGATORISK/.test(vtA.reason), vtA.reason);
+  const utanBuss = detectHazards("Station med fyra cylindrar som styrs av en PLC", {}, "sv");
+  const b = buildMandatoryBomRows(bomCtx({ ...utanBuss, valveTerminal: true, products: produkter }));
+  const vtB = b.find((r) => r.kind === "valve_terminal")!;
+  assert(/^Rekommenderas/.test(vtB.reason) && !/OBLIGATORISK/.test(vtB.reason), vtB.reason);
+});
+
+Deno.test("ingen PLC och servoaxlar i en pneumatisk station syns som egna rader (kundgranskning 2026-11-13)", () => {
+  const h = detectHazards("Station med 12 cylindrar Ø32 och 2 servoaxlar, 24 givare", { manovrering: "Har ingen PLC än – föreslå något" }, "sv");
+  const rows = buildMandatoryBomRows(bomCtx({ ...h, unitCount: 12 }));
+  assert(rows.some((r) => r.role === "⚠️ Styrning behövs"), "ingen PLC");
+  assert(rows.some((r) => /Servoaxlarna ingår inte/.test(r.role)), "servoaxlarna");
+});
