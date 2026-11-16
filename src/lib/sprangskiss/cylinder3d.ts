@@ -21,6 +21,11 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { BokehPass } from "three/examples/jsm/postprocessing/BokehPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 
 export interface CylinderScen {
   /** Scrollframsteg 0 (hel) till 1 (isärplockad). */
@@ -43,17 +48,37 @@ const ss = (a: number, b: number, x: number) => {
 };
 
 // ── Material ───────────────────────────────────────────────────────────────
+/** Borstningsränder: brus i längsled, används som ytstruktur på aluminium. */
+function borstning(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 1024; c.height = 128;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#8a8a8a"; g.fillRect(0, 0, c.width, c.height);
+  for (let i = 0; i < 2600; i++) {
+    const y = Math.random() * c.height, v = 110 + Math.random() * 60;
+    g.fillStyle = `rgba(${v},${v},${v},${0.10 + Math.random() * 0.18})`;
+    g.fillRect(Math.random() * c.width, y, 60 + Math.random() * 520, 0.6 + Math.random() * 0.9);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 6);
+  return tex;
+}
+
 function material() {
+  const b = borstning();
   return {
-    alu: new THREE.MeshPhysicalMaterial({ color: 0xd2d7dd, metalness: 1, roughness: 0.34, clearcoat: 0.25, clearcoatRoughness: 0.35 }),
-    gavel: new THREE.MeshPhysicalMaterial({ color: 0xb7bec7, metalness: 1, roughness: 0.42 }),
-    krom: new THREE.MeshPhysicalMaterial({ color: 0xf3f5f8, metalness: 1, roughness: 0.06 }),
-    stal: new THREE.MeshPhysicalMaterial({ color: 0x9aa1aa, metalness: 1, roughness: 0.24 }),
-    svartStal: new THREE.MeshPhysicalMaterial({ color: 0x2a2e35, metalness: 0.85, roughness: 0.32 }),
-    gummi: new THREE.MeshPhysicalMaterial({ color: 0x111317, metalness: 0, roughness: 0.55, clearcoat: 0.15, clearcoatRoughness: 0.6 }),
-    magnet: new THREE.MeshPhysicalMaterial({ color: 0x3b4048, metalness: 0.6, roughness: 0.42 }),
-    brons: new THREE.MeshPhysicalMaterial({ color: 0xb8894a, metalness: 1, roughness: 0.3 }),
-    pom: new THREE.MeshPhysicalMaterial({ color: 0xe6e2d8, metalness: 0, roughness: 0.45 }),
+    // Eloxerat profilrör: borstat, satin
+    alu: new THREE.MeshPhysicalMaterial({ color: 0xb9bfc7, metalness: 0.72, roughness: 0.46, clearcoat: 0.2, clearcoatRoughness: 0.5, roughnessMap: b, bumpMap: b, bumpScale: 0.25, anisotropy: 0.6 }),
+    // Gavlarna: blästrade, mattare
+    gavel: new THREE.MeshPhysicalMaterial({ color: 0xaeb5bd, metalness: 0.78, roughness: 0.58 }),
+    krom: new THREE.MeshPhysicalMaterial({ color: 0xeef1f4, metalness: 1, roughness: 0.13 }),
+    stal: new THREE.MeshPhysicalMaterial({ color: 0x9aa1aa, metalness: 1, roughness: 0.32 }),
+    svartStal: new THREE.MeshPhysicalMaterial({ color: 0x24272d, metalness: 0.8, roughness: 0.42 }),
+    gummi: new THREE.MeshPhysicalMaterial({ color: 0x141619, metalness: 0, roughness: 0.62, sheen: 0.3, sheenRoughness: 0.8 }),
+    magnet: new THREE.MeshPhysicalMaterial({ color: 0x3b4048, metalness: 0.6, roughness: 0.48 }),
+    brons: new THREE.MeshPhysicalMaterial({ color: 0xb08249, metalness: 1, roughness: 0.4 }),
+    pom: new THREE.MeshPhysicalMaterial({ color: 0xe3dfd4, metalness: 0, roughness: 0.5, sheen: 0.2 }),
     hal: new THREE.MeshStandardMaterial({ color: 0x050608, metalness: 0, roughness: 1 }),
   };
 }
@@ -104,7 +129,7 @@ function profilror(m: Mat) {
   for (const [y, z] of [[-22.5, -22.5], [22.5, -22.5], [22.5, 22.5], [-22.5, 22.5]]) {
     const h = new THREE.Path(); h.absarc(y, z, 3, 0, Math.PI * 2, true); s.holes.push(h);
   }
-  const g = new THREE.ExtrudeGeometry(s, { depth: L, bevelEnabled: true, bevelThickness: 0.8, bevelSize: 0.6, bevelSegments: 2, curveSegments: 48 });
+  const g = new THREE.ExtrudeGeometry(s, { depth: L, bevelEnabled: true, bevelThickness: 1.4, bevelSize: 1.1, bevelSegments: 4, curveSegments: 48 });
   g.translate(0, 0, -L / 2);
   g.rotateY(Math.PI / 2);
   return mesh(g, m.alu);
@@ -112,7 +137,7 @@ function profilror(m: Mat) {
 
 function gavel(m: Mat, fram: boolean) {
   const g = new THREE.Group();
-  const kropp = mesh(new RoundedBoxGeometry(KAP, 66, 66, 4, 4), m.gavel);
+  const kropp = mesh(new RoundedBoxGeometry(KAP, 66, 66, 6, 6), m.gavel);
   g.add(kropp);
   const ut = fram ? 1 : -1;
   // Försänkningar för skruvarna på yttre sidan
@@ -256,24 +281,87 @@ function byggDelar(m: Mat): Del[] {
 }
 
 // ── Scenen ─────────────────────────────────────────────────────────────────
-export function skapaCylinderScen(canvas: HTMLCanvasElement, opts: { statisk?: boolean } = {}): CylinderScen {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+// Heroens bakgrund (src/styles.css): marinblå, fotot på 18 %, guldglöd uppe till höger.
+const MARIN = "#203159";
+const GULD = "235,136,59";
+
+/** Ritar heroens bakgrund i scenen, så att skärpedjupet kan göra den mjuk. */
+function malaBakgrund(w: number, h: number, bild: HTMLImageElement | null): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  const skala = Math.min(1, 1600 / Math.max(w, 1));
+  c.width = Math.max(2, Math.round(w * skala)); c.height = Math.max(2, Math.round(h * skala));
+  const g = c.getContext("2d")!;
+  g.fillStyle = MARIN; g.fillRect(0, 0, c.width, c.height);
+  if (bild && bild.naturalWidth) {
+    const k = Math.max(c.width / bild.naturalWidth, c.height / bild.naturalHeight);
+    const bw = bild.naturalWidth * k, bh = bild.naturalHeight * k;
+    g.globalAlpha = 0.18;
+    g.drawImage(bild, (c.width - bw) / 2, (c.height - bh) * 0.4, bw, bh);
+    g.globalAlpha = 1;
+  }
+  g.save();
+  g.translate(c.width * 0.8, c.height * 0.2);
+  g.scale(c.width * 0.6, c.height * 0.5);
+  const r = g.createRadialGradient(0, 0, 0, 0, 0, 0.7);
+  r.addColorStop(0, `rgba(${GULD},0.18)`); r.addColorStop(1, `rgba(${GULD},0)`);
+  g.fillStyle = r; g.fillRect(-2, -2, 4, 4);
+  g.restore();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** Filmkorn och vinjett: det sista som gör en rendering till ett fotografi. */
+const KORN = {
+  uniforms: { tDiffuse: { value: null }, uKorn: { value: 0.035 }, uVinj: { value: 0.35 }, uUpp: { value: new THREE.Vector2(1920, 1080) } },
+  vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uKorn; uniform float uVinj; uniform vec2 uUpp; varying vec2 vUv;
+    float rnd(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    void main(){
+      vec4 c = texture2D(tDiffuse, vUv);
+      float n = rnd(floor(vUv * uUpp)) - 0.5;
+      c.rgb += n * uKorn * (0.6 + 0.4 * (1.0 - dot(c.rgb, vec3(0.333))));
+      float d = distance(vUv, vec2(0.5, 0.52));
+      c.rgb *= mix(1.0, smoothstep(0.95, 0.28, d), uVinj);
+      gl_FragColor = c;
+    }`,
+};
+
+export function skapaCylinderScen(canvas: HTMLCanvasElement, opts: { statisk?: boolean; bakgrund?: string } = {}): CylinderScen {
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: "high-performance" });
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  renderer.setPixelRatio(dpr);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.12;
+  // Neutral tonmappning håller heroens marinblå och guld nära originalet.
+  renderer.toneMapping = THREE.NeutralToneMapping;
+  renderer.toneMappingExposure = 1.0;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
+  scene.background = new THREE.Color(MARIN);
   const pmrem = new THREE.PMREMGenerator(renderer);
   const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environment = env;
-  scene.environmentIntensity = 0.7;
+  scene.environmentIntensity = 0.72;
+
+  let bild: HTMLImageElement | null = null;
+  let bakgrundTex: THREE.CanvasTexture | null = null;
+  const nyBakgrund = () => {
+    const w = canvas.clientWidth || 1600, h = canvas.clientHeight || 900;
+    bakgrundTex?.dispose();
+    bakgrundTex = malaBakgrund(w, h, bild);
+    scene.background = bakgrundTex;
+  };
+  if (opts.bakgrund) {
+    bild = new Image();
+    bild.onload = () => { nyBakgrund(); vack(); };
+    bild.src = opts.bakgrund;
+  }
 
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 200);
 
-  const nyckel = new THREE.DirectionalLight(0xffffff, 2.8);
+  const nyckel = new THREE.DirectionalLight(0xfff6ee, 1.35);
   nyckel.position.set(4, 9, 6);
   nyckel.castShadow = true;
   nyckel.shadow.mapSize.set(2048, 2048);
@@ -281,14 +369,16 @@ export function skapaCylinderScen(canvas: HTMLCanvasElement, opts: { statisk?: b
   nyckel.shadow.camera.top = 6; nyckel.shadow.camera.bottom = -6;
   nyckel.shadow.camera.near = 1; nyckel.shadow.camera.far = 30;
   nyckel.shadow.bias = -0.0004;
-  nyckel.shadow.radius = 6;
-  const kant = new THREE.DirectionalLight(0xffb070, 1.6); // varm kant, Maskinvals orange
+  nyckel.shadow.radius = 12;
+  const kant = new THREE.DirectionalLight(0xffb070, 1.5); // varm kant, Maskinvals orange
   kant.position.set(-6, 3, -5);
   const fyll = new THREE.DirectionalLight(0x9db8e0, 0.5); // kall fyllnad från heron
   fyll.position.set(-3, -2, 6);
-  scene.add(nyckel, kant, fyll);
+  // Studions reflexskiva underifrån: undersidorna blir aldrig svarta.
+  const studsljus = new THREE.HemisphereLight(0xe9eef5, 0x2a3a66, 0.55);
+  scene.add(nyckel, kant, fyll, studsljus);
 
-  const golv = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: 0.32 }));
+  const golv = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: 0.22 }));
   golv.rotation.x = -Math.PI / 2;
   golv.position.y = -2.2;
   golv.receiveShadow = true;
@@ -305,6 +395,16 @@ export function skapaCylinderScen(canvas: HTMLCanvasElement, opts: { statisk?: b
     del.obj.position.copy(del.hop);
     modell.add(del.obj);
   }
+
+  // Efterbehandling: skärpedjup som ett objektiv, tonmappning och filmkorn. Kantutjämning med 4x MSAA i målbufferten.
+  const mal0 = new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, samples: 4 });
+  const composer = new EffectComposer(renderer, mal0);
+  composer.addPass(new RenderPass(scene, camera));
+  const skarpa = new BokehPass(scene, camera, { focus: 9, aperture: 0.0016, maxblur: 0.006 });
+  composer.addPass(skarpa);
+  composer.addPass(new OutputPass());
+  const korn = new ShaderPass(KORN);
+  composer.addPass(korn);
 
   let mal = opts.statisk ? 1 : 0, visad = mal, raf = 0, aktiv = true, senast = 0;
   const t0 = performance.now();
@@ -344,6 +444,11 @@ export function skapaCylinderScen(canvas: HTMLCanvasElement, opts: { statisk?: b
     rot.position.x = THREE.MathUtils.lerp(x0, -0.35, g);
     rot.position.y = THREE.MathUtils.lerp(y0, 0.12, g);
     camera.position.set(0, THREE.MathUtils.lerp(0.9, 2.2, g), avst);
+    // Skärpan ligger på cylinderns mitt; mindre skärpedjup när den är hel och nära.
+    const fokusPunkt = tmp.set(rot.position.x + 0.4 * (1 - g), rot.position.y, 0);
+    (skarpa.uniforms as Record<string, { value: number }>)["focus"].value = camera.position.distanceTo(fokusPunkt);
+    (skarpa.uniforms as Record<string, { value: number }>)["aperture"].value = THREE.MathUtils.lerp(0.0022, 0.0011, g);
+    (korn.uniforms as Record<string, { value: number }>)["uVinj"].value = THREE.MathUtils.lerp(0.3, 0.55, g);
     camera.lookAt(0, THREE.MathUtils.lerp(-0.1, 0.1, g), 0);
   }
 
@@ -353,7 +458,7 @@ export function skapaCylinderScen(canvas: HTMLCanvasElement, opts: { statisk?: b
     visad += (mal - visad) * (1 - Math.pow(1 - 0.12, dt / 16.667));
     if (Math.abs(mal - visad) < 0.0004) visad = mal;
     stall(visad, nu);
-    renderer.render(scene, camera);
+    composer.render();
     // Andningen håller loopen vid liv bara medan cylindern är hel och syns.
     const andas = !opts.statisk && visad < 0.8;
     raf = aktiv && (visad !== mal || andas) ? requestAnimationFrame(rita) : 0;
@@ -365,8 +470,12 @@ export function skapaCylinderScen(canvas: HTMLCanvasElement, opts: { statisk?: b
     const w = canvas.clientWidth || canvas.width, h = canvas.clientHeight || canvas.height;
     if (!w || !h) return;
     renderer.setSize(w, h, false);
+    composer.setPixelRatio(dpr);
+    composer.setSize(w, h);
+    (korn.uniforms as Record<string, { value: THREE.Vector2 }>)["uUpp"].value.set(w * dpr, h * dpr);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    nyBakgrund();
     vack();
   }
   resize();
@@ -380,7 +489,7 @@ export function skapaCylinderScen(canvas: HTMLCanvasElement, opts: { statisk?: b
       aktiv = false; if (raf) cancelAnimationFrame(raf);
       scene.traverse((o) => { const me = o as THREE.Mesh; if (me.geometry) me.geometry.dispose(); });
       Object.values(m).forEach((x) => x.dispose());
-      env.dispose(); pmrem.dispose(); renderer.dispose();
+      env.dispose(); pmrem.dispose(); bakgrundTex?.dispose(); mal0.dispose(); composer.dispose(); renderer.dispose();
     },
   };
 }
