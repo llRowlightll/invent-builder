@@ -13,6 +13,7 @@ import featureImg from "@/assets/feature-component.jpg";
 import { getProductImage, getCategoryImage } from "@/lib/product-images";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { EditableText } from "@/components/EditableText";
+import { Sprangskiss } from "@/components/startsida/Sprangskiss";
 import { categoryName } from "@/lib/categories";
 import {
   ArrowRight, ArrowRightToLine, Cable, CircleDashed, CircleDot, CircuitBoard, Cog, Cpu, Cylinder, FileText, Funnel,
@@ -292,6 +293,9 @@ function Landing() {
           </div>
         </div>
       </section>
+
+      {/* Sprängskiss: cylindern plockas isär medan man scrollar */}
+      <Sprangskiss locale={locale} />
 
       {/* FEATURED PRODUCTS */}
       {featured.length > 0 && (
