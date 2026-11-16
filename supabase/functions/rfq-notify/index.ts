@@ -2,7 +2,7 @@
  * rfq-notify — körs när en kund skickar en RFQ från maskinbyggaren.
  *
  * Skickar TWO mejl via Resend:
- *   1. Admin-notis  → ADMIN_NOTIFY_EMAIL (intern; default info@maskinval.se)
+ *   1. Admin-notis  → ADMIN_NOTIFY_EMAIL (intern; default alexandro@maskinval.se)
  *   2. Orderbekräftelse → kunden (professionell HTML)
  *
  * SECURITY: this endpoint has no auth (verify_jwt=false) because it's called
@@ -21,10 +21,10 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API = "https://api.resend.com/emails";
 const RESEND_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const FROM        = "Maskinval <noreply@maskinval.se>";
+const FROM        = "Maskinval <alexandro@maskinval.se>";
 // Company notification inbox — configurable so the upcoming firmwide address can
 // be set without a code change (Supabase → Edge Functions → Secrets).
-const ADMIN_EMAIL = Deno.env.get("ADMIN_NOTIFY_EMAIL") ?? "info@maskinval.se";
+const ADMIN_EMAIL = Deno.env.get("ADMIN_NOTIFY_EMAIL") ?? "alexandro@maskinval.se";
 const SITE        = "https://maskinval.se";
 
 const cors = {
@@ -176,7 +176,7 @@ function customerHtml(p: Payload): string {
     <!-- Contact -->
     <p style="font-size:13px;color:#64748b;margin:0;">
       Frågor? Svara på detta mejl eller kontakta oss på
-      <a href="mailto:info@maskinval.se" style="color:#3b82f6;">info@maskinval.se</a>
+      <a href="mailto:alexandro@maskinval.se" style="color:#3b82f6;">alexandro@maskinval.se</a>
     </p>
   `);
 }

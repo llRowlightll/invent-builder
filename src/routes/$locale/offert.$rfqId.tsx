@@ -190,7 +190,7 @@ export default function PublicOffertPage() {
     </div>
   );
 
-  const co = company ?? { name: "Maskinval", org: "", address: "", postal: "", email: "info@maskinval.se", phone: "", web: "", bankgiro: "", vat: "" };
+  const co = company ?? { name: "Maskinval", org: "", address: "", postal: "", email: "alexandro@maskinval.se", phone: "", web: "", bankgiro: "", vat: "" };
   // Offertdatum = när offerten lämnades, inte när förfrågan kom in. Giltigheten
   // räknas därifrån (allmänna villkor, avsnitt 3).
   const offertdatum = rfq.quoted_at ?? rfq.created_at;

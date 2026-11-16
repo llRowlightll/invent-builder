@@ -39,7 +39,7 @@ const DEFAULTS: CompanySettings = {
   org: "",
   address: "",
   postal: "",
-  email: "info@maskinval.se",
+  email: "alexandro@maskinval.se",
   phone: "",
   web: "maskinval.se",
   bankgiro: "",

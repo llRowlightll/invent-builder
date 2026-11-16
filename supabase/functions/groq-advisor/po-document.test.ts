@@ -17,7 +17,7 @@ import {
 
 const foretag = {
   name: "Maskinval AB", org: "556000-0000", address: "Industrivägen 1",
-  postal: "123 45 Stockholm", email: "info@maskinval.se", phone: "+46 8 000 00 00",
+  postal: "123 45 Stockholm", email: "alexandro@maskinval.se", phone: "+46 8 000 00 00",
   web: "maskinval.se", vat: "SE556000000001",
 };
 
