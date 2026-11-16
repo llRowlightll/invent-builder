@@ -674,9 +674,13 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     ? perAxisStrokes.reduce((best, a, i, arr) => (a.stroke > arr[best].stroke ? i : best), 0)
     : -1;
   const primaryAxisLabel = (isMultiAxis && primaryAxisIdx >= 0) ? perAxisStrokes[primaryAxisIdx].axis.toUpperCase() : "";
-  // En lyftande axel ska orka lasten; en vågrät axel bär den i sidled.
-  const axelkrav = (axel: string): { kraftN?: number; vagrat?: boolean } =>
-    /^z$/i.test(axel) ? { kraftN: requiredForceN(ctx.loadKg ?? 0, ctx.statedForceN ?? 0) } : { vagrat: true };
+  // Varje pneumatisk axel ska orka lasten: lyftet 2 × tyngden, och i sidled
+  // samma tumregel som motorn använder för en cylinder i sidled (signals.ts).
+  // En vågrät axel tas dessutom helst kolvstångslös.
+  const axelkrav = (axel: string): { kraftN?: number; vagrat?: boolean } => {
+    const kraftN = requiredForceN(ctx.loadKg ?? 0, ctx.statedForceN ?? 0);
+    return /^z$/i.test(axel) ? { kraftN } : { kraftN, vagrat: true };
+  };
   const famStorlek = primarArFamiljespann(ctx) && !primarArGriporgan ? primaryBoreMm : 0;
   const famNote = primaryIsFamilyProd && primarArGriporgan ? pick(locale, {
     sv: " ⚠️ Produktfamilj — välj storleken efter gripkraften och ange komplett beställningskod vid order.",
@@ -1516,8 +1520,9 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
       // P0: match a REAL catalog actuator for this axis instead of a placeholder.
       const axMatch = findAxisActuator(brandSorted, ax.stroke, isElectric, axelkrav(ax.axis));
       const axBorr = axMatch && !isElectric && axelkrav(ax.axis).kraftN ? axelnsBorrning(axMatch, axelkrav(ax.axis).kraftN!) : 0;
-      const borrTxt = axBorr > 0 && arBorrningsspann(axMatch?.key_specs?.bore_mm) ? ` Beställ i Ø${axBorr} (minsta storlek som lyfter lasten vid 6 bar).` : "";
-      const borrTxtEn = axBorr > 0 && arBorrningsspann(axMatch?.key_specs?.bore_mm) ? ` Order it in Ø${axBorr} (the smallest size that lifts the load at 6 bar).` : "";
+      const lyft = /^z$/i.test(ax.axis);
+      const borrTxt = axBorr > 0 && arBorrningsspann(axMatch?.key_specs?.bore_mm) ? ` Beställ i Ø${axBorr} (minsta storlek som ${lyft ? "lyfter" : "flyttar"} lasten vid 6 bar).` : "";
+      const borrTxtEn = axBorr > 0 && arBorrningsspann(axMatch?.key_specs?.bore_mm) ? ` Order it in Ø${axBorr} (the smallest size that ${lyft ? "lifts" : "moves"} the load at 6 bar).` : "";
       rows.push({
         sku: axMatch?.sku ?? "SPECIFY", quantity: uc,
         kind: "actuator",

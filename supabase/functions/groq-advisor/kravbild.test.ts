@@ -346,3 +346,17 @@ Deno.test("kapslingsklassen står kvar i kravbilden (kundgranskning 2026-11-13)"
   const kb = tolkaKravbild("6 rostfria cylindrar Ø32 slag 100 och en ventilö för tvättzonen, IP69K, livsmedelsgodkänt fett");
   assertEquals(kb.krav.find((k) => k.egenskap === "kapslingsklass")?.text, "IP69K");
 });
+
+Deno.test("borrning/slag utan Ø läses intill ett cylinderord, men inte datum, mått eller spänning (kundgranskningen 2026-11-13)", () => {
+  const slag = (t: string) => langderITexten(t).filter((l) => l.typ === "slag").map((l) => l.mm);
+  assertEquals(slag("50/200 cylinder"), [200]);
+  assertEquals(slag("cylinder 32x100"), [100]);
+  assertEquals(slag("DSBC 40/160"), [160]);
+  assertEquals(slag("cylinder 50/200 mm"), [200]);
+  assertEquals(slag("Ø50/200"), [200]);
+  assertEquals(slag("levereras 13/11, cylinder"), []);
+  assertEquals(slag("10/2026 cylinderbyte"), []);
+  assertEquals(slag("motor 3x400 V cylinder"), []);
+  assertEquals(slag("låda 250x200 mm, cylinder skjuter"), []);
+  assertEquals(slag("transportband 400x600"), []);
+});
