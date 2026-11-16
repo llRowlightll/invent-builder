@@ -131,7 +131,11 @@ export function kandaVarden(text: string, kod?: Kodvarden): Kanda {
     // "lådor 400 mm långa" och "avstånd 150 mm" är inga slag, så frågan ställs.
     slag: !!kod?.slagMm || slagIMeterMm(text) > 0 || langderITexten(text).some((l) => l.typ === "slag" || l.typ === "lyft" || l.typ === "sidled"),
     slagX: langderITexten(text).some((l) => l.typ === "sidled"),
-    slagZ: langderITexten(text).some((l) => l.typ === "lyft"),
+    // "lyftslag 600 mm" läses som ett slag (SLAG_FORE), men är höjdledet:
+    // driftprovet 2026-11-16 frågade "Hur lång är rörelsen i höjdled?" efter
+    // just den uppgiften.
+    slagZ: langderITexten(text).some((l) => l.typ === "lyft" ||
+      (l.typ === "slag" && /(?:lyft|höjd|vertikal|z-?ax)\w*\W*(?:slag\w*)?\W*$/i.test(text.slice(Math.max(0, l.index - 20), l.index)))),
     last: new RegExp(String.raw`\d+(?:[.,]\d+)?\s*${MASSENHET}(?![\wåäö])`, "i").test(text),
     kraft: /\d+(?:[.,]\d+)?\s*k?N\b/.test(text),
     takt: /(\d+|en|ett|två|tre|fyra|fem|sex|sju|åtta|nio|tio|tjugo|trettio|hundra)\s*(gånger|ggr|cykler|slag|takter?|st|lyft|rörelser)\s*(per|i|om|\/)\s*(sekund\w*|sek|s\b|minut\w*|min\b|timme\w*|tim\b|h\b|dag\w*|dygn\w*|vecka\w*|skift\w*)|\d+\s*\/\s*(min|h|s)\b|cykeltid|takttid|per\s+minut|i\s+minuten/i.test(text),
