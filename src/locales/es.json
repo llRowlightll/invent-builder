@@ -442,6 +442,10 @@
     "askAi": "¿Dudas? Pregunta al ingeniero IA",
     "contactForDelivery": "Consultar plazo de entrega",
     "leadEstConfirm": "aprox. {d} días, confirmada en la oferta",
+    "freightRow": "Envío",
+    "freightValue": "Se indica en la oferta",
+    "paymentRow": "Pago",
+    "paymentValue": "Pago anticipado en el primer pedido, después factura a 30 días",
     "orderAvailable": "Pedir",
     "hittaLiknande": "Todos los {vad} de todas las marcas"
   },
