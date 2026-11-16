@@ -452,6 +452,41 @@ async function fetchProductsByCategoryAndBrand(categorySlug: string, brandSlug: 
 }
 
 /**
+ * Kandidater till axlarna i en fleraxlig stycklista: serier (beställs i valfritt
+ * slag) och kolvstångslösa enheter. Kundgranskningen 2026-11-13: lyft 600 mm
+ * och sidled 1200 mm fick inga axlar, för fetchProducts 30 första cylindrar
+ * (bokstavsordning, Bosch Rexroth/AVENTICS först) är fasta korta slag. Samma
+ * resonemang som fetchProductsByCategoryAndBrand: en smal, egen fråga i
+ * stället för att vidga den delade.
+ */
+async function fetchAxelkandidater(limit = 250): Promise<CatalogProduct[]> {
+  try {
+    const eller = [
+      "name.ilike.*rodless*", "name.ilike.*kolvstångslös*", "name.ilike.*linear drive*",
+      "sku.like.FESTO-*", "sku.like.SMC-*", "sku.like.PARKER-*", "sku.like.MW-*",
+      "sku.like.CAMOZZI-*", "sku.like.NORGREN-*", "sku.like.BOSCH-*",
+    ].join(",");
+    const q = `select=sku,name,family,categories!inner(slug),brands!inner(slug),specs:product_specs(key,value)` +
+      `&categories.slug=in.(cylinder,linear-module)&status=eq.active&or=(${encodeURIComponent(eller)})&limit=${limit}`;
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/products?${q}`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!Array.isArray(data)) return [];
+    return data.map((p: { sku: string; name: string; categories?: { slug?: string }; brands?: { slug?: string }; specs?: Array<{ key: string; value: unknown }> }) => ({
+      sku: p.sku,
+      name: p.name,
+      category: p.categories?.slug ?? "cylinder",
+      brand: p.brands?.slug ?? "",
+      key_specs: normalizeKeySpecs(Object.fromEntries((p.specs ?? []).map((s) => [s.key, s.value]))),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Värdet med sin enhet, som katalogens RPC lämnar det ("0.1–0.7 MPa"). En
  * direkt läsning av product_specs fick bara talet, och "0.1–0.7" i MPa
  * prövades som bar (granskningen 2026-10-14).
@@ -2018,19 +2053,22 @@ async function handleBom(
     hazards.isRodLock                         ? "rod-lock"       : null,
   ].filter(Boolean) as string[];
 
-  const [fetchedProducts, brandProducts] = await Promise.all([
+  const flerAxlar = hazards.isMultiAxis && (hazards.perAxisStrokes?.length ?? 0) >= 2;
+  const [fetchedProducts, brandProducts, axelProducts] = await Promise.all([
     fetchProducts([...new Set(bomCategories)], 30),
     // Guarantee the primary's own brand+category is represented (see
     // fetchProductsByCategoryAndBrand's comment) - only actually needed for
     // categories fetchProducts' 30-cap can plausibly exclude a brand from,
     // but cheap and harmless to run generally rather than special-case it.
     fetchProductsByCategoryAndBrand(primaryCategory, primaryBrand),
+    flerAxlar ? fetchAxelkandidater() : Promise.resolve([] as CatalogProduct[]),
   ]);
   // Merge, primary's own brand first so brandSorted's stable sort keeps it
   // there; dedupe by SKU in case fetchProducts already had some of these.
+  // Axelkandidaterna sist: de ska bara fylla luckan, inte tränga undan.
   const seenSkus = new Set<string>();
   const products: CatalogProduct[] = [];
-  for (const p of [...brandProducts, ...fetchedProducts]) {
+  for (const p of [...brandProducts, ...fetchedProducts, ...axelProducts]) {
     if (seenSkus.has(p.sku)) continue;
     seenSkus.add(p.sku);
     products.push(p);

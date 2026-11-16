@@ -305,6 +305,12 @@ const SLAG_EFTER = /^\s*(?:slag\w*|stroke)/i;
 const SLAG_NAKET_RE = /(?:slaglängd\w*|\bslag(?:et)?|\bstroke|\bhub)\s*(?:är|på|of|is|=|:)?\s*(?:ca\.?\s*|cirka\s*|ungefär\s*)?(\d+(?:[.,]\d+)?)(?![\d.,]|\s*(?:mm|cm|m\b|meter|metre|bar|kg|g\b|n\b|nm|%|°|st\b|x|×|\*|\/|per\b|i\s+minut|slag|cykl))/gi;
 // "Ø50×200", "ø32x100 mm", "Ø40/150": borrning × slag.
 const BORR_GANGER_SLAG_RE = /[Øø]\s*(\d{1,3})\s*[×xX*\/]\s*(\d{1,4})(?!\s*[×xX*]\s*\d)(?![\d.,])/g;
+// "50/200 cylinder", "cylinder 32x100": samma skrivsätt utan Ø. Bara intill
+// ett cylinderord och när första talet är en standardborrning -- "13/11" och
+// "3x400 V" är inga cylindrar.
+const BORR_SLAG_UTAN_O_RE = /(?<![\d.,\/Øø]|[Øø]\s)(\d{1,3})\s*[×xX\/]\s*(\d{2,4})(?![\d.,]|\s*(?:mm\s*)?[×xX*]\s*\d|\s*(?:V|bar|kg|st|min|mm²)\b)/g;
+const CYLINDERORD = /cylind|zylind|cilind|ISO\s?(?:15552|6432|21287|6431)|\bDSBC|\bDNC|\bADN|\bCP96|\bP1D|\bPRA\b|\bVDMA/i;
+const STANDARDBORR = new Set([8, 10, 12, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 320]);
 // En borrning är cylinderns mått, varken produktens eller ett slag.
 const BORRNING_FORE = /(?:[Øø]|\bborrning\w*|\bbore|kolvdiameter\w*|\bD\s*=)\s*\W{0,2}$/i;
 const MATT_FORE = new RegExp(String.raw`(?:längd|bredd|höjd|diameter|djup|tjocklek|length|width|height|depth|thickness)\w*${FYLL}`, "i");
@@ -367,6 +373,19 @@ export function langderITexten(text: string): Langd[] {
   for (const m of (text ?? "").matchAll(BORR_GANGER_SLAG_RE)) {
     const n = tal(m[2]);
     if (Number.isFinite(n) && n > 0) ut.push({ mm: n, typ: "slag", enhet: "mm", index: (m.index ?? 0) + m[0].lastIndexOf(m[2]) });
+  }
+  for (const m of (text ?? "").matchAll(BORR_SLAG_UTAN_O_RE)) {
+    const i = m.index ?? 0;
+    const omgivning = (text ?? "").slice(Math.max(0, i - 30), i + m[0].length + 30);
+    const n = tal(m[2]);
+    if (!STANDARDBORR.has(Number(m[1])) || !CYLINDERORD.test(omgivning) || !(n >= 5)) continue;
+    if (/\//.test(m[0]) && /^(?:19|20)\d\d$/.test(m[2])) continue; // "10/2026" är ett datum
+    // "låda 250x200 mm": ett mått, även om en cylinder nämns i samma mening.
+    if (/(?:låd|kartong|box|paket|mått|storlek|format|platt|skiv|detalj|produkt|pall|ark|bräd)\w*[^.\d]{0,12}$/i.test((text ?? "").slice(Math.max(0, i - 25), i))) continue;
+    const index = i + m[0].lastIndexOf(m[2]);
+    const fanns = ut.find((l) => l.index === index);
+    if (fanns) { if (fanns.typ === "okand") fanns.typ = "slag"; continue; }
+    ut.push({ mm: n, typ: "slag", enhet: "mm", index });
   }
   return ut.sort((a, b) => a.index - b.index);
 }
