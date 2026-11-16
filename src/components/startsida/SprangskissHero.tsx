@@ -102,7 +102,29 @@ export function SprangskissHero({ locale, bakgrund, children }: { locale: Locale
       if (scrolla.current && u !== sista.u) { sista.u = u; scrolla.current.style.opacity = String(u); }
     };
     const vidScroll = () => { if (!ram) ram = requestAnimationFrame(uppdatera); };
-    const vidResize = () => { scen?.resize(); vidScroll(); };
+    // Var texten faktiskt slutar (glyferna, inte blockens bredd), så att den
+    // hela cylindern kan ställas bredvid eller under den.
+    const matReserv = () => {
+      const tx = text.current;
+      if (!scen || !tx) return;
+      const c = cv.getBoundingClientRect();
+      if (!c.width || !c.height) return;
+      let hoger = 0, under = 0;
+      const rng = document.createRange();
+      tx.querySelectorAll(":scope > *").forEach((el) => {
+        // Sökformuläret räknas som ruta; övrigt efter sin text.
+        let r: DOMRect;
+        if (el.tagName === "FORM") r = el.getBoundingClientRect();
+        else { rng.selectNodeContents(el); r = rng.getBoundingClientRect(); }
+        if (!r.width) return;
+        hoger = Math.max(hoger, r.right); under = Math.max(under, r.bottom);
+      });
+      // Slutraden: offsetTop bortser från dess inglidning (transform).
+      const sl = slut.current;
+      const slutAndel = sl && sl.offsetHeight ? sl.offsetTop / c.height : 1;
+      scen.setReserv({ hoger: (hoger - c.left) / c.width, under: (under - c.top) / c.height, slut: slutAndel });
+    };
+    const vidResize = () => { scen?.resize(); matReserv(); vidScroll(); };
 
     const starta = async () => {
       try {
@@ -111,6 +133,7 @@ export function SprangskissHero({ locale, bakgrund, children }: { locale: Locale
         scen?.dispose();
         scen = skapaCylinderScen(cv, { statisk: statiskt(), bakgrund });
         cv.dataset.klar = "1";
+        matReserv();
         uppdatera();
       } catch (e) {
         console.warn("Sprängskissen kunde inte starta", e);
