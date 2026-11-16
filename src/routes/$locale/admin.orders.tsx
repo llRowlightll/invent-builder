@@ -54,6 +54,10 @@ interface SupplierPoRow {
   rader: SupplierPoLine[];
   /** När leverantören först öppnade länken i inköpsorderns mejl. */
   lank_oppnad: string | null;
+  /** När och hur inköpsordern lades: mejl härifrån eller i leverantörens webbutik. */
+  sent_at: string | null;
+  sent_to: string | null;
+  sent_method: string | null;
 }
 
 const NIVA_ETIKETT: Record<string, { text: string; klass: string }> = {
@@ -531,6 +535,70 @@ function ForsandelseModal({ spo, onClose, onSaved }: {
   );
 }
 
+/**
+ * Inköpsordern är lagd i leverantörens webbutik (ägarens beslut 2026-11-16:
+ * de första ordrarna köps i RS företagskonto tills tillverkarna svarat).
+ * admin_bestalld_i_webbutik sätter den som beställd utan mejl; kunden ser
+ * "Beställd". Bekräftelse och försändelse registreras som vanligt.
+ */
+function WebbutikModal({ spo, onClose, onSaved }: {
+  spo: SupplierPoRow;
+  onClose: () => void;
+  onSaved: (text: string) => void;
+}) {
+  const [kanal, setKanal] = useState("RS Sverige");
+  const [ordernr, setOrdernr] = useState("");
+  const [sparar, setSparar] = useState(false);
+  const [fel, setFel] = useState<string | null>(null);
+
+  async function spara() {
+    setFel(null);
+    const k = kanal.trim();
+    if (k.length < 2) { setFel("Skriv var du lade ordern, t.ex. RS Sverige."); return; }
+    setSparar(true);
+    const { error } = await (supabase as unknown as {
+      rpc: (fn: string, a: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
+    }).rpc("admin_bestalld_i_webbutik", { p_spo_id: spo.id, p_kanal: k, p_ordernr: ordernr.trim() });
+    setSparar(false);
+    if (error) { setFel(error.message); return; }
+    onSaved(`${spo.po_number}: registrerad som beställd hos ${k}. Kunden ser nu "Beställd".`);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-xl bg-card p-5 shadow-xl space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-base font-semibold">Beställd i webbutik — {spo.po_number}</h2>
+        <p className="text-xs text-muted-foreground">
+          {spo.leverantor}, {spo.rader.filter(l => l.status !== "cancelled").length} rader. Använd det här när du själv har lagt
+          ordern i en webbutik, till exempel RS. Inget mejl skickas till {spo.leverantor}.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <label className="text-xs text-muted-foreground">Var lade du ordern?
+            <input value={kanal} onChange={(e) => setKanal(e.target.value)} maxLength={80}
+              className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm" />
+          </label>
+          <label className="text-xs text-muted-foreground">Deras ordernummer (valfritt)
+            <input value={ordernr} onChange={(e) => setOrdernr(e.target.value)} maxLength={60}
+              className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm" />
+          </label>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Leveransadressen i webbutiken ska vara kundens om varorna går direkt dit. När leverantören bekräftat:
+          "Registrera svar" (ange deras pris om det skiljer sig). När det skickats: "Försändelse".
+        </p>
+        {fel && <p className="text-sm text-destructive">{fel}</p>}
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm rounded-md border border-border">Avbryt</button>
+          <button onClick={spara} disabled={sparar}
+            className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:opacity-90 transition disabled:opacity-50">
+            {sparar ? "Sparar…" : "Registrera som beställd"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminOrdersPage() {
   const { locale } = Route.useParams();
   const { isAdmin, authLoading } = useAdminGuard();
@@ -548,6 +616,7 @@ function AdminOrdersPage() {
   const [spoOk, setSpoOk] = useState<string | null>(null);
   const [ackFor, setAckFor] = useState<SupplierPoRow | null>(null);
   const [forsFor, setForsFor] = useState<SupplierPoRow | null>(null);
+  const [webbFor, setWebbFor] = useState<SupplierPoRow | null>(null);
   /** rfq_id -> sökväg till kundens PO-fil i bucketen kund-po. */
   const [poFiler, setPoFiler] = useState<Record<string, string>>({});
 
@@ -573,7 +642,7 @@ function AdminOrdersPage() {
   async function laddaInkopsordrar() {
     const { data, error } = await supabase
       .from("supplier_purchase_orders")
-      .select("id, po_number, order_id, supplier_id, status, total_purchase_ex_vat, expected_delivery, needs_review, review_reason, leverantor_lank_oppnad_at, suppliers(name), supplier_purchase_order_items(id, line_no, sku, supplier_sku, name, qty, unit_purchase_price, status, ack_qty, ack_unit_price, ack_delivery_date, ack_status, ack_reason, ack_substitute_sku)")
+      .select("id, po_number, order_id, supplier_id, status, total_purchase_ex_vat, expected_delivery, needs_review, review_reason, leverantor_lank_oppnad_at, sent_at, sent_to, sent_method, suppliers(name), supplier_purchase_order_items(id, line_no, sku, supplier_sku, name, qty, unit_purchase_price, status, ack_qty, ack_unit_price, ack_delivery_date, ack_status, ack_reason, ack_substitute_sku)")
       .order("po_number", { ascending: true });
     if (error) { setSpoFel(error.message); return; }
     const per: Record<string, SupplierPoRow[]> = {};
@@ -591,6 +660,9 @@ function AdminOrdersPage() {
         antal_rader: ((rad.supplier_purchase_order_items as unknown[]) ?? []).length,
         leverantor: (rad.suppliers as { name?: string } | null)?.name ?? "Okänd leverantör",
         lank_oppnad: (rad.leverantor_lank_oppnad_at as string | null) ?? null,
+        sent_at: (rad.sent_at as string | null) ?? null,
+        sent_to: (rad.sent_to as string | null) ?? null,
+        sent_method: (rad.sent_method as string | null) ?? null,
         rader: (((rad.supplier_purchase_order_items as SupplierPoLine[]) ?? [])
           .slice()
           .sort((a, b) => a.line_no - b.line_no)),
@@ -857,6 +929,11 @@ function AdminOrdersPage() {
                                 länken öppnad {new Date(spo.lank_oppnad).toLocaleDateString("sv-SE", { month: "short", day: "numeric" })}
                               </span>
                             )}
+                            {spo.sent_method === "webbutik" && spo.sent_to && (
+                              <span className="text-xs text-muted-foreground" title="Lagd i leverantörens webbutik, inget mejl skickat">
+                                beställd i webbutik: {spo.sent_to}
+                              </span>
+                            )}
                             {spo.needs_review && (
                               <span className="text-xs px-2 py-0.5 rounded-full bg-gold-surface text-gold-deep">
                                 granska: {spo.review_reason ?? "okänt"}
@@ -886,6 +963,16 @@ function AdminOrdersPage() {
                               >
                                 PDF
                               </button>
+                              {!spo.sent_at && spo.status !== "cancelled" && (
+                                <button
+                                  onClick={() => setWebbFor(spo)}
+                                  disabled={spo.rader.length === 0}
+                                  className="px-2.5 py-1 text-xs rounded-md border border-border hover:border-primary transition disabled:opacity-50"
+                                  title="Du har lagt ordern själv i leverantörens webbutik, t.ex. RS. Inget mejl skickas."
+                                >
+                                  Beställd i webbutik
+                                </button>
+                              )}
                               <button
                                 onClick={() => skickaPo(spo.id, spo.status === "sent")}
                                 disabled={arbetar === spo.id}
@@ -963,6 +1050,18 @@ function AdminOrdersPage() {
           onClose={() => setForsFor(null)}
           onSaved={async (text) => {
             setForsFor(null);
+            setSpoOk(text);
+            await laddaInkopsordrar();
+          }}
+        />
+      )}
+
+      {webbFor && (
+        <WebbutikModal
+          spo={webbFor}
+          onClose={() => setWebbFor(null)}
+          onSaved={async (text) => {
+            setWebbFor(null);
             setSpoOk(text);
             await laddaInkopsordrar();
           }}
