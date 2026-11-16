@@ -13,6 +13,7 @@ import featureImg from "@/assets/feature-component.jpg";
 import { getProductImage, getCategoryImage } from "@/lib/product-images";
 import { SITE, hreflangLinks } from "@/lib/site";
 import { EditableText } from "@/components/EditableText";
+import { SprangskissHero } from "@/components/startsida/SprangskissHero";
 import { categoryName } from "@/lib/categories";
 import {
   ArrowRight, ArrowRightToLine, Cable, CircleDashed, CircleDot, CircuitBoard, Cog, Cpu, Cylinder, FileText, Funnel,
@@ -207,25 +208,8 @@ function Landing() {
 
   return (
     <div>
-      {/* HERO */}
-      <section className="relative overflow-hidden bg-primary text-primary-foreground">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `url(${heroImg})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center 40%",
-            opacity: 0.18,
-          }}
-        />
-        <div
-          className="absolute inset-0 opacity-30"
-          style={{
-            background:
-              "radial-gradient(60% 50% at 80% 20%, color-mix(in oklab, var(--gold) 60%, transparent), transparent 70%)",
-          }}
-        />
-        <div className="container-page py-20 md:py-28 relative">
+      {/* HERO med sprängskissen: cylindern plockas isär när man scrollar */}
+      <SprangskissHero locale={locale} bakgrund={heroImg}>
           <div className="flex items-center gap-2 mb-4 rorelse-in">
             <span className="text-[10px] uppercase tracking-[0.22em] text-primary-foreground/60 border border-primary-foreground/20 rounded-full px-3 py-0.5">
               {t("index.b2bBadge")}
@@ -269,8 +253,13 @@ function Landing() {
             ))}
           </div>
 
+      </SprangskissHero>
+
+      {/* Vägarna in ligger direkt efter scrollmomentet, i heroens färg */}
+      <section className="bg-primary text-primary-foreground">
+        <div className="container-page pb-16 pt-2">
           {/* Vägar in */}
-          <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl rorelse-in rorelse-steg-3">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl rorelse-in rorelse-steg-3">
             {VAGAR.map((v) => (
               <Link
                 key={v.to}

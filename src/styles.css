@@ -333,3 +333,25 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Startsidans sprängskiss (src/components/startsida/SprangskissHero.tsx) ──
+   Hög, fäst hero under den klistrade menyn (64 px). Samma fem villkor som i
+   komponenten ger en stillbild i stället för scroll. */
+.sprang-hero { height: 420vh; }
+.sprang-scen { position: sticky; top: 64px; height: calc(100vh - 64px); height: calc(100dvh - 64px); }
+.sprang-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.sprang-innehall { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; pointer-events: none; }
+.sprang-innehall > div { pointer-events: auto; will-change: opacity, transform; }
+.sprang-slut { position: absolute; left: 0; right: 0; bottom: calc(8vh + env(safe-area-inset-bottom, 0px)); text-align: center; padding-inline: 1.25rem; will-change: opacity, transform; }
+.sprang-raknare { position: absolute; right: 1.25rem; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); font: 500 12px/1 ui-monospace, "SFMono-Regular", Menlo, monospace; letter-spacing: 0.14em; color: color-mix(in oklab, var(--primary-foreground) 55%, transparent); }
+.sprang-scrolla { position: absolute; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: color-mix(in oklab, var(--primary-foreground) 50%, transparent); transition: opacity 0.4s var(--ease-rorelse); pointer-events: none; }
+.sprang-scrolla i { width: 1px; height: 28px; background: linear-gradient(var(--gold), transparent); animation: sprang-scrolla 1.8s ease-in-out infinite; animation-delay: -0.6s; }
+@keyframes sprang-scrolla { 0%, 100% { transform: translateY(-3px); opacity: 0.4; } 50% { transform: translateY(4px); opacity: 1; } }
+@media (max-width: 720px), (orientation: portrait) and (max-width: 1024px), (orientation: portrait) and (pointer: coarse), (orientation: landscape) and (pointer: coarse) and (max-height: 560px), (prefers-reduced-motion: reduce) {
+  .sprang-hero { height: auto; }
+  .sprang-scen { position: relative; top: auto; height: auto; display: flex; flex-direction: column; }
+  .sprang-innehall { position: relative; inset: auto; padding-block: 3.5rem 0; }
+  .sprang-canvas { position: relative; inset: auto; order: 2; height: 62vw; max-height: 420px; margin-top: 0.5rem; }
+  .sprang-slut, .sprang-raknare, .sprang-scrolla { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .sprang-scrolla i { animation: none; } }
