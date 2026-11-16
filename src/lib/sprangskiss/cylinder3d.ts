@@ -51,10 +51,10 @@ const ss = (a: number, b: number, x: number) => {
 /** Borstningsränder: brus i längsled, används som ytstruktur på aluminium. */
 function borstning(): THREE.CanvasTexture {
   const c = document.createElement("canvas");
-  c.width = 1024; c.height = 128;
+  c.width = 2048; c.height = 256;
   const g = c.getContext("2d")!;
   g.fillStyle = "#8a8a8a"; g.fillRect(0, 0, c.width, c.height);
-  for (let i = 0; i < 2600; i++) {
+  for (let i = 0; i < 9000; i++) {
     const y = Math.random() * c.height, v = 110 + Math.random() * 60;
     g.fillStyle = `rgba(${v},${v},${v},${0.10 + Math.random() * 0.18})`;
     g.fillRect(Math.random() * c.width, y, 60 + Math.random() * 520, 0.6 + Math.random() * 0.9);
@@ -70,6 +70,8 @@ function material() {
   return {
     // Eloxerat profilrör: borstat, satin
     alu: new THREE.MeshPhysicalMaterial({ color: 0xb9bfc7, metalness: 0.72, roughness: 0.46, clearcoat: 0.2, clearcoatRoughness: 0.5, roughnessMap: b, bumpMap: b, bumpScale: 0.25, anisotropy: 0.6 }),
+    // Kolven: svarvad aluminium, jämn satin utan borstning
+    svarvad: new THREE.MeshPhysicalMaterial({ color: 0xc4cad1, metalness: 0.9, roughness: 0.34 }),
     // Gavlarna: blästrade, mattare
     gavel: new THREE.MeshPhysicalMaterial({ color: 0xaeb5bd, metalness: 0.78, roughness: 0.58 }),
     krom: new THREE.MeshPhysicalMaterial({ color: 0xeef1f4, metalness: 1, roughness: 0.13 }),
@@ -189,7 +191,7 @@ function kolv(m: Mat) {
     [5, -14], [23.5, -14], [24.4, -13.2], [24.4, -12], [21, -12], [21, -8.6], [24.4, -8.6],
     [24.4, -4.4], [23, -4.4], [23, 4.4], [24.4, 4.4], [24.4, 8.6], [21, 8.6], [21, 12],
     [24.4, 12], [24.4, 13.2], [23.5, 14], [5, 14], [5, -14],
-  ]), m.alu);
+  ]), m.svarvad);
 }
 
 const lapptatning = (m: Mat) => mesh(svarv([[21.2, -1.7], [24.9, -1.7], [25.2, -0.6], [24.2, 0.2], [25.1, 1.7], [21.2, 1.7], [21.2, -1.7]]), m.gummi);
@@ -277,6 +279,13 @@ function byggDelar(m: Mat): Del[] {
   add(damphylsa(m), { hop: V(KOLV_X + 23), isar: V(52), fonster: [0.5, 0.7] });
   add(stang(m), { hop: V(KOLV_X + 14 + 150), isar: V(150, -128, 0), fonster: [0.5, 0.72] });
   add(mutter(m, 24, 8, 7.6), { hop: V(KOLV_X + 14 + 300 - 14), isar: V(358, -128, 0), fonster: [0.56, 0.76], varv: 4 });
+  // Tätare sprängskiss: kameran kan gå närmare och varje del får fler pixlar.
+  const SPRID = 0.82;
+  for (const del of d) {
+    del.isar.x *= SPRID;
+    del.isar.y *= 0.92;
+    if (del.via) del.via.pos.x *= SPRID;
+  }
   return d;
 }
 
@@ -288,7 +297,7 @@ const GULD = "235,136,59";
 /** Ritar heroens bakgrund i scenen, så att skärpedjupet kan göra den mjuk. */
 function malaBakgrund(w: number, h: number, bild: HTMLImageElement | null): THREE.CanvasTexture {
   const c = document.createElement("canvas");
-  const skala = Math.min(1, 1600 / Math.max(w, 1));
+  const skala = Math.min(2, 2400 / Math.max(w, 1));
   c.width = Math.max(2, Math.round(w * skala)); c.height = Math.max(2, Math.round(h * skala));
   const g = c.getContext("2d")!;
   g.fillStyle = MARIN; g.fillRect(0, 0, c.width, c.height);
@@ -296,7 +305,9 @@ function malaBakgrund(w: number, h: number, bild: HTMLImageElement | null): THRE
     const k = Math.max(c.width / bild.naturalWidth, c.height / bild.naturalHeight);
     const bw = bild.naturalWidth * k, bh = bild.naturalHeight * k;
     g.globalAlpha = 0.18;
+    g.filter = "blur(5px)"; // som ett objektiv med kort skärpedjup, utan att delarna blir suddiga
     g.drawImage(bild, (c.width - bw) / 2, (c.height - bh) * 0.4, bw, bh);
+    g.filter = "none";
     g.globalAlpha = 1;
   }
   g.save();
@@ -313,7 +324,7 @@ function malaBakgrund(w: number, h: number, bild: HTMLImageElement | null): THRE
 
 /** Filmkorn och vinjett: det sista som gör en rendering till ett fotografi. */
 const KORN = {
-  uniforms: { tDiffuse: { value: null }, uKorn: { value: 0.035 }, uVinj: { value: 0.35 }, uUpp: { value: new THREE.Vector2(1920, 1080) } },
+  uniforms: { tDiffuse: { value: null }, uKorn: { value: 0.014 }, uVinj: { value: 0.35 }, uUpp: { value: new THREE.Vector2(1920, 1080) } },
   vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
   fragmentShader: `uniform sampler2D tDiffuse; uniform float uKorn; uniform float uVinj; uniform vec2 uUpp; varying vec2 vUv;
     float rnd(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
@@ -329,7 +340,7 @@ const KORN = {
 
 export function skapaCylinderScen(canvas: HTMLCanvasElement, opts: { statisk?: boolean; bakgrund?: string } = {}): CylinderScen {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: "high-performance" });
-  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
   renderer.setPixelRatio(dpr);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   // Neutral tonmappning håller heroens marinblå och guld nära originalet.
@@ -364,12 +375,12 @@ export function skapaCylinderScen(canvas: HTMLCanvasElement, opts: { statisk?: b
   const nyckel = new THREE.DirectionalLight(0xfff6ee, 1.35);
   nyckel.position.set(4, 9, 6);
   nyckel.castShadow = true;
-  nyckel.shadow.mapSize.set(2048, 2048);
+  nyckel.shadow.mapSize.set(4096, 4096);
   nyckel.shadow.camera.left = -8; nyckel.shadow.camera.right = 8;
   nyckel.shadow.camera.top = 6; nyckel.shadow.camera.bottom = -6;
   nyckel.shadow.camera.near = 1; nyckel.shadow.camera.far = 30;
   nyckel.shadow.bias = -0.0004;
-  nyckel.shadow.radius = 12;
+  nyckel.shadow.radius = 8;
   const kant = new THREE.DirectionalLight(0xffb070, 1.5); // varm kant, Maskinvals orange
   kant.position.set(-6, 3, -5);
   const fyll = new THREE.DirectionalLight(0x9db8e0, 0.5); // kall fyllnad från heron
@@ -385,6 +396,12 @@ export function skapaCylinderScen(canvas: HTMLCanvasElement, opts: { statisk?: b
   scene.add(golv);
 
   const m = material();
+  const maxAniso = renderer.capabilities.getMaxAnisotropy();
+  for (const mat of Object.values(m)) {
+    const pm = mat as THREE.MeshPhysicalMaterial;
+    if (pm.roughnessMap) pm.roughnessMap.anisotropy = maxAniso;
+    if (pm.bumpMap) pm.bumpMap.anisotropy = maxAniso;
+  }
   const rot = new THREE.Group(); // vrids och flyttas med scrollen
   const modell = new THREE.Group(); modell.scale.setScalar(S);
   rot.add(modell);
@@ -400,7 +417,7 @@ export function skapaCylinderScen(canvas: HTMLCanvasElement, opts: { statisk?: b
   const mal0 = new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, samples: 4 });
   const composer = new EffectComposer(renderer, mal0);
   composer.addPass(new RenderPass(scene, camera));
-  const skarpa = new BokehPass(scene, camera, { focus: 9, aperture: 0.0016, maxblur: 0.006 });
+  const skarpa = new BokehPass(scene, camera, { focus: 9, aperture: 0.0006, maxblur: 0.0035 });
   composer.addPass(skarpa);
   composer.addPass(new OutputPass());
   const korn = new ShaderPass(KORN);
@@ -429,7 +446,7 @@ export function skapaCylinderScen(canvas: HTMLCanvasElement, opts: { statisk?: b
     const asp = Math.max(0.5, camera.aspect);
     const tanV = Math.tan(THREE.MathUtils.degToRad(15));
     // Isärplockad ska hela skissen få plats med marginal (±5,8 enheter i bredd).
-    const avstandIsar = Math.max(11, 5.8 / (tanV * asp));
+    const avstandIsar = Math.max(9.2, 4.9 / (tanV * asp));
     const bred = asp > 1.25;
     const avstandHel = avstandIsar * (bred ? 0.74 : 0.8);
     const avst = THREE.MathUtils.lerp(avstandHel, avstandIsar, g);
@@ -447,7 +464,7 @@ export function skapaCylinderScen(canvas: HTMLCanvasElement, opts: { statisk?: b
     // Skärpan ligger på cylinderns mitt; mindre skärpedjup när den är hel och nära.
     const fokusPunkt = tmp.set(rot.position.x + 0.4 * (1 - g), rot.position.y, 0);
     (skarpa.uniforms as Record<string, { value: number }>)["focus"].value = camera.position.distanceTo(fokusPunkt);
-    (skarpa.uniforms as Record<string, { value: number }>)["aperture"].value = THREE.MathUtils.lerp(0.0022, 0.0011, g);
+    (skarpa.uniforms as Record<string, { value: number }>)["aperture"].value = THREE.MathUtils.lerp(0.0007, 0.00028, g);
     (korn.uniforms as Record<string, { value: number }>)["uVinj"].value = THREE.MathUtils.lerp(0.3, 0.55, g);
     camera.lookAt(0, THREE.MathUtils.lerp(-0.1, 0.1, g), 0);
   }
