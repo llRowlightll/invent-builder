@@ -558,7 +558,7 @@ function buildQuoteMailto(rfq: Rfq, items: RfqItem[], quoteAmount: string): stri
     "",
     "Med vänliga hälsningar",
     "Maskinval",
-    "info@maskinval.se",
+    "alexandro@maskinval.se",
   ].filter(l => l !== undefined).join("\n");
 
   return `mailto:${rfq.contact_email}?subject=${encodeURIComponent(`Offert från Maskinval — ref ${rfq.id.slice(0, 8).toUpperCase()}`)}&body=${encodeURIComponent(body)}`;

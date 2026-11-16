@@ -24,8 +24,8 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? "";
 const RESEND_API = "https://api.resend.com/emails";
 const RESEND_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const FROM = "Maskinval <noreply@maskinval.se>";
-const ADMIN_EMAIL = Deno.env.get("ADMIN_NOTIFY_EMAIL") ?? "info@maskinval.se";
+const FROM = "Maskinval <alexandro@maskinval.se>";
+const ADMIN_EMAIL = Deno.env.get("ADMIN_NOTIFY_EMAIL") ?? "alexandro@maskinval.se";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",

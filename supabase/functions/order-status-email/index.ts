@@ -30,7 +30,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const RESEND_API = "https://api.resend.com/emails";
 const RESEND_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const FROM        = "Maskinval <noreply@maskinval.se>";
+const FROM        = "Maskinval <alexandro@maskinval.se>";
 const SITE        = "https://maskinval.se";
 
 const cors = {
@@ -38,7 +38,7 @@ const cors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const ADMIN_EMAIL = "info@maskinval.se";
+const ADMIN_EMAIL = "alexandro@maskinval.se";
 const LOCALES = ["sv", "en", "de", "es"];
 const RFQ_STATUSES = new Set(["quoted", "accepted", "rejected"]);
 const ORDER_STATUSES = new Set(["confirmed", "picking", "shipped", "delivered", "invoiced", "paid", "cancelled"]);
@@ -273,7 +273,7 @@ function buildEmail(p: Payload): { subject: string; html: string } {
 
     <p style="font-size:13px;color:#64748b;margin:20px 0 0;">
       Frågor? Svara på detta mejl eller kontakta
-      <a href="mailto:info@maskinval.se" style="color:#3b82f6;">info@maskinval.se</a>
+      <a href="mailto:alexandro@maskinval.se" style="color:#3b82f6;">alexandro@maskinval.se</a>
     </p>
   `);
 
