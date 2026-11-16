@@ -2704,10 +2704,14 @@ function BomSystemView({ bom, connections, selected, locale }: {
           Systemöversikt — {bom.length} komponenter
         </div>
         <div className="flex gap-1 bg-surface-alt rounded-md p-0.5">
-          {(["diagram", "3d", "cards"] as const).map(v => (
+          {/* "3D Maskin" är dold sedan 2026-11-16: scenen var en fast mall
+              (luftberedning, ventil, en cylinder på en platta) och visade fel
+              maskin -- en palleteringscell blev en liggande cylinder. Den tas
+              tillbaka när scenen byggs ur stycklistans axlar och griporgan. */}
+          {(["diagram", "cards"] as const).map(v => (
             <button key={v} onClick={() => setView(v)}
               className={`text-xs px-3 py-1 rounded transition ${view === v ? "bg-card shadow-sm font-medium text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-              {v === "diagram" ? "⎔ Systemschema" : v === "3d" ? "◉ 3D Maskin" : "⊞ Komponentkort"}
+              {v === "diagram" ? "⎔ Systemschema" : "⊞ Komponentkort"}
             </button>
           ))}
         </div>
