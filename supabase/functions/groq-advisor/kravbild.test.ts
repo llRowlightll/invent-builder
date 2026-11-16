@@ -360,3 +360,13 @@ Deno.test("borrning/slag utan Ø läses intill ett cylinderord, men inte datum, 
   assertEquals(slag("låda 250x200 mm, cylinder skjuter"), []);
   assertEquals(slag("transportband 400x600"), []);
 });
+
+Deno.test("ett komma efter slagtalet är ett skiljetecken, inte en decimal (driftprovet 2026-11-16)", () => {
+  const slag = (t: string) => langderITexten(t).filter((l) => l.typ === "slag").map((l) => l.mm);
+  assertEquals(slag("Cylinder ISO 15552 Ø50 slag 200, 6 bar"), [200]);
+  assertEquals(slag("behöver Ø50×200, 6 bar"), [200]);
+  assertEquals(slag("cylinder 50/200, rostfri"), [200]);
+  assertEquals(slag("slag 200."), [200]);
+  assertEquals(slag("slag 12,5 mm"), [12.5]);
+  assertEquals(slag("Ø32×12,5"), [12.5]);
+});

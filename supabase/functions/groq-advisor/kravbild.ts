@@ -300,15 +300,18 @@ const LANGD_RE = /(\d+(?:[.,]\d+)?)\s*(mm|cm|meter|metre|meters|m)\b(?!\s*(?:\/|
 const FYLL = String.raw`(?:\s*(?:är|blir|på|om|av|med|of|is|by|ca\.?|cirka|ungefär|about|approx\.?|max\.?|minst|högst|upp till|up to|=|:))*\s*\W*$`;
 const SLAG_FORE = new RegExp(String.raw`(?:slaglängd\w*|\bslag(?:et)?|\bstroke|\bhub|lyfthöjd\w*|lyftslag\w*|\blift height|\btravel|vandring\w*|rörelselängd\w*|\brörelse(?:n|ns)?|\bsträcka\w*)${FYLL}`, "i");
 const SLAG_EFTER = /^\s*(?:slag\w*|stroke)/i;
+// Ett komma eller en punkt efter talet är skiljetecken, inte decimaler:
+// "slag 200, 6 bar" lästes inte (driftprovet 2026-11-16) och gav Ø50×100
+// som "Bästa valet". Bara [.,] följt av en siffra är en decimal.
 // Naket slagtal: "slag 200", "slaglängd: 150", "stroke 80" -- men inte "slag
 // 200 mm" (läses ovan), "slag 30/min" (en takt) eller "slag 2 bar".
-const SLAG_NAKET_RE = /(?:slaglängd\w*|\bslag(?:et)?|\bstroke|\bhub)\s*(?:är|på|of|is|=|:)?\s*(?:ca\.?\s*|cirka\s*|ungefär\s*)?(\d+(?:[.,]\d+)?)(?![\d.,]|\s*(?:mm|cm|m\b|meter|metre|bar|kg|g\b|n\b|nm|%|°|st\b|x|×|\*|\/|per\b|i\s+minut|slag|cykl))/gi;
+const SLAG_NAKET_RE = /(?:slaglängd\w*|\bslag(?:et)?|\bstroke|\bhub)\s*(?:är|på|of|is|=|:)?\s*(?:ca\.?\s*|cirka\s*|ungefär\s*)?(\d+(?:[.,]\d+)?)(?!\d|[.,]\d|\s*(?:mm|cm|m\b|meter|metre|bar|kg|g\b|n\b|nm|%|°|st\b|x|×|\*|\/|per\b|i\s+minut|slag|cykl))/gi;
 // "Ø50×200", "ø32x100 mm", "Ø40/150": borrning × slag.
-const BORR_GANGER_SLAG_RE = /[Øø]\s*(\d{1,3})\s*[×xX*\/]\s*(\d{1,4})(?!\s*[×xX*]\s*\d)(?![\d.,])/g;
+const BORR_GANGER_SLAG_RE = /[Øø]\s*(\d{1,3})\s*[×xX*\/]\s*(\d{1,4}(?:[.,]\d+)?)(?!\s*[×xX*]\s*\d)(?!\d|[.,]\d)/g;
 // "50/200 cylinder", "cylinder 32x100": samma skrivsätt utan Ø. Bara intill
 // ett cylinderord och när första talet är en standardborrning -- "13/11" och
 // "3x400 V" är inga cylindrar.
-const BORR_SLAG_UTAN_O_RE = /(?<![\d.,\/Øø]|[Øø]\s)(\d{1,3})\s*[×xX\/]\s*(\d{2,4})(?![\d.,]|\s*(?:mm\s*)?[×xX*]\s*\d|\s*(?:V|bar|kg|st|min|mm²)\b)/g;
+const BORR_SLAG_UTAN_O_RE = /(?<!\d|\d[.,]|[\/Øø]|[Øø]\s)(\d{1,3})\s*[×xX\/]\s*(\d{2,4})(?!\d|[.,]\d|\s*(?:mm\s*)?[×xX*]\s*\d|\s*(?:V|bar|kg|st|min|mm²)\b)/g;
 const CYLINDERORD = /cylind|zylind|cilind|ISO\s?(?:15552|6432|21287|6431)|\bDSBC|\bDNC|\bADN|\bCP96|\bP1D|\bPRA\b|\bVDMA/i;
 const STANDARDBORR = new Set([8, 10, 12, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 320]);
 // En borrning är cylinderns mått, varken produktens eller ett slag.
