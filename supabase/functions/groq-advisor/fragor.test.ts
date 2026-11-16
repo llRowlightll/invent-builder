@@ -446,3 +446,10 @@ Deno.test("angiven lyfthöjd frågas inte igen, men sidled frågas", () => {
   assert(ids.includes("slag_x_sidled_mm"), JSON.stringify(ids));
   assert(!ids.includes("slag_z_hojd_mm"), JSON.stringify(ids));
 });
+
+Deno.test("lyftslag är höjdledet: frågan om höjden ställs inte igen (driftprovet 2026-11-16)", () => {
+  const text = "Palleteringscell som lyfter kartonger 12 kg med sugkoppar: lyftslag 600 mm, sidled 1200 mm, 8 cykler per minut, 6 bar";
+  const fragor = slutligaFragor([], text, "sv");
+  assert(!fragor.some((f) => /höjdled|slag_z/i.test(`${f.id} ${f.label}`)), fragor.map((f) => f.label).join(" | "));
+  assert(!fragor.some((f) => /sidled|slag_x/i.test(`${f.id} ${f.label}`)), fragor.map((f) => f.label).join(" | "));
+});
