@@ -442,6 +442,10 @@
     "askAi": "Unsicher? KI-Ingenieur fragen",
     "contactForDelivery": "Lieferzeit auf Anfrage",
     "leadEstConfirm": "ca. {d} Tage, Bestätigung im Angebot",
+    "freightRow": "Fracht",
+    "freightValue": "Wird im Angebot angegeben",
+    "paymentRow": "Zahlung",
+    "paymentValue": "Vorkasse bei der ersten Bestellung, danach Rechnung mit 30 Tagen Ziel",
     "orderAvailable": "Bestellen",
     "hittaLiknande": "Alle {vad} aller Hersteller"
   },

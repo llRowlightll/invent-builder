@@ -166,7 +166,7 @@ function customerHtml(p: Payload): string {
         <li>Vi verifierar lagerstatus och bekräftar leveranstid</li>
         <li>Du får en orderbekräftelse med exakt pris och leveransdatum</li>
         <li>Leverans sker med DHL eller PostNord — spårningsnummer skickas</li>
-        <li>Faktura skickas via mejl med 30 dagars betalningsvillkor</li>` : `
+        <li>Ny kund betalar första ordern i förskott; därefter faktura via mejl med 30 dagars betalningsvillkor</li>` : `
         <li>Vi tar fram pris och leveranstid på det du frågat om</li>
         <li>Du får offerten via mejl, med giltighetstid</li>
         <li>Vill du beställa svarar du på offerten — då, och först då, läggs ordern</li>`}

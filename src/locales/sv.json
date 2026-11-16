@@ -442,6 +442,10 @@
     "askAi": "Osäker? Fråga AI-ingenjören",
     "contactForDelivery": "Kontakta oss för leveranstid",
     "leadEstConfirm": "ca {d} dgr, bekräftas i offerten",
+    "freightRow": "Frakt",
+    "freightValue": "Anges i offerten",
+    "paymentRow": "Betalning",
+    "paymentValue": "Förskott på första ordern, sedan faktura 30 dagar",
     "orderAvailable": "Beställ",
     "hittaLiknande": "Alla {vad} i alla fabrikat"
   },

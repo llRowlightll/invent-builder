@@ -12,6 +12,7 @@ import { arValuta, lasPaslag, omraknat, STANDARD_PASLAG, valutanot } from "@/lib
 import { hamtaValutakurs } from "@/lib/valuta.functions";
 import { useAdminGuard } from "@/lib/auth-context";
 import { fetchCompanySettings, type CompanySettings } from "@/lib/company-settings";
+import { AVSLUTADE_ORDERSTATUS, BETALVILLKOR_KAND, BETALVILLKOR_NY } from "@/lib/villkor";
 
 export const Route = createFileRoute("/$locale/admin/offert/$rfqId")({
   component: AdminOffertPage,
@@ -90,7 +91,7 @@ export default function AdminOffertPage() {
   // Document-level editable fields
   const [validDays, setValidDays] = useState("30");
   const [deliveryWeeks, setDeliveryWeeks] = useState("4–6 veckor");
-  const [paymentTerms, setPaymentTerms] = useState("30 dagar netto");
+  const [paymentTerms, setPaymentTerms] = useState(BETALVILLKOR_NY);
   const [footerNote, setFooterNote] = useState("");
   const [currency, setCurrency] = useState("SEK");
   // Offert i kundens valuta (ägaren 2026-11-13): Riksbankens kurs + påslag.
@@ -141,6 +142,14 @@ export default function AdminOffertPage() {
           .eq("contact_email", email)
           .neq("id", rfqId);
         setFirstTimer((count ?? 0) === 0);
+        // Villkoren avsnitt 6: förskott för en ny kund, 30 dagar för den som
+        // redan har en avslutad order hos oss. Fältet går att ändra.
+        const { count: avslutade } = await supabase
+          .from("orders")
+          .select("id", { count: "exact", head: true })
+          .eq("customer_email", email)
+          .in("status", AVSLUTADE_ORDERSTATUS);
+        setPaymentTerms((avslutade ?? 0) > 0 ? BETALVILLKOR_KAND : BETALVILLKOR_NY);
       }
     }
     const mapped: RfqItem[] = (itemData ?? []).map((d: Record<string, unknown>) => ({
@@ -269,11 +278,12 @@ export default function AdminOffertPage() {
     setQuoteReadMsg(null);
     try {
       const extracted = await analyzeDocument(file, "quote") as QuoteExtraction;
-      const { items: extractedItems, currency: extractedCurrency, delivery_weeks, payment_terms: pt } = extracted;
+      const { items: extractedItems, currency: extractedCurrency, delivery_weeks } = extracted;
 
       if (extractedCurrency) setCurrency(extractedCurrency);
       if (delivery_weeks) setDeliveryWeeks(delivery_weeks);
-      if (pt) setPaymentTerms(pt);
+      // Leverantörens betalningsvillkor gäller mellan leverantören och oss --
+      // kundens villkor är våra (avsnitt 6) och skrivs inte över här.
 
       // Map extracted items onto existing line edits by position
       if (extractedItems?.length) {

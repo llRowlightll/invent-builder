@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminGuard } from "@/lib/auth-context";
 import { fetchCompanySettings, visningsnamn, type CompanySettings } from "@/lib/company-settings";
-import { VILLKOR_VERSION } from "@/lib/villkor";
+import { AVSLUTADE_ORDERSTATUS, BETALVILLKOR_KAND, BETALVILLKOR_NY, VILLKOR_VERSION } from "@/lib/villkor";
 
 export const Route = createFileRoute("/$locale/admin/orderbekraftelse/$orderId")({
   component: AdminOCPage,
@@ -68,7 +68,7 @@ export default function AdminOCPage() {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const [paymentTerms, setPaymentTerms] = useState("30 dagar netto");
+  const [paymentTerms, setPaymentTerms] = useState(BETALVILLKOR_NY);
   const [deliveryText, setDeliveryText] = useState("");
   const [frakt, setFrakt] = useState(0);
   const [footerNote, setFooterNote] = useState("");
@@ -96,6 +96,17 @@ export default function AdminOCPage() {
       setOrder(o);
       setDeliveryText(o.estimated_delivery ?? "");
       setFrakt(Number(o.freight_ex_vat ?? 0));
+      // Villkoren avsnitt 6: förskott för en ny kund, 30 dagar för den som
+      // redan har en avslutad order hos oss. Fältet går att ändra.
+      if (o.customer_email) {
+        const { count } = await supabase
+          .from("orders")
+          .select("id", { count: "exact", head: true })
+          .eq("customer_email", o.customer_email)
+          .neq("id", orderId)
+          .in("status", AVSLUTADE_ORDERSTATUS);
+        setPaymentTerms((count ?? 0) > 0 ? BETALVILLKOR_KAND : BETALVILLKOR_NY);
+      }
       // Seed line edits
       const seed: Record<number, { qty: number; price: number; note: string }> = {};
       const items: OrderItem[] = Array.isArray(o.items) ? (o.items as OrderItem[]) : [];

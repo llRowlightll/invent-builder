@@ -375,6 +375,9 @@ function ProductDetail() {
             ? t("productPage.leadEstConfirm").replace("{d}", String(product.lead_time_days))
             : t("productPage.contactForDelivery")}
         />
+        {/* Frakt och betalning (ägaren 2026-11-16): samma som villkoren avsnitt 4 och 6. */}
+        <Row k={t("productPage.freightRow")} v={t("productPage.freightValue")} />
+        <Row k={t("productPage.paymentRow")} v={t("productPage.paymentValue")} />
       </section>
 
       {Object.keys(product.specs).length > 0 && (

@@ -22,6 +22,9 @@ import { OFFERT_GILTIG_DAGAR, VILLKOR_DATUM, VILLKOR_VERSION } from "@/lib/villk
  * och valuta (momsregeln och offert i euro); direktleverans och
  * delleveranser; returprocess i steg; transportskada noteras vid mottagandet.
  * Avsnittsnumren efter 4 har flyttats ett steg. Läses av jurist före lansering.
+ *
+ * Version 1.5 (2026-11-16), ägarens beslut: ny kund betalar första ordern i
+ * förskott, därefter 30 dagar netto (avsnitt 6).
  */
 export const Route = createFileRoute("/$locale/terms")({
   head: ({ params }) => {
@@ -87,7 +90,8 @@ function avsnitt(sv: boolean, leverantor: string): Avsnitt[] {
       "Kunder utanför Sverige kan få offerten i euro. Priserna räknas då om från kronor med Riksbankens dagskurs och ett valutapåslag; kursen och påslaget anges i offerten, och priset i den accepterade offerten gäller.",
     ] },
     { titel: "6. Betalningsvillkor", lista: [
-      "Standardbetalningsvillkor: 30 dagar netto från fakturadatum",
+      "Ny kund betalar första ordern i förskott: Maskinval skickar en förskottsfaktura och beställer hos leverantören när betalningen har kommit in",
+      "Därefter gäller 30 dagar netto från fakturadatum, om inget annat anges i offerten eller orderbekräftelsen",
       "Vid försenad betalning debiteras dröjsmålsränta enligt räntelagen (referensräntan + 8 procentenheter)",
       "Äganderättsförbehåll gäller tills full betalning erlagts",
       "Kreditbedömning kan ske för nya kunder",
@@ -153,7 +157,8 @@ function avsnitt(sv: boolean, leverantor: string): Avsnitt[] {
       "Customers outside Sweden may receive the quote in euro. Prices are then converted from Swedish kronor at the Riksbank daily rate plus a currency surcharge; the rate and surcharge are stated in the quote, and the price in the accepted quote applies.",
     ] },
     { titel: "6. Payment terms", lista: [
-      "Standard payment terms: 30 days net from the invoice date",
+      "A new customer pays the first order in advance: Maskinval sends a prepayment invoice and places the order with the supplier once payment has been received",
+      "After that, payment terms are 30 days net from the invoice date, unless otherwise stated in the quote or order confirmation",
       "Late payment incurs interest under the Swedish Interest Act (the reference rate + 8 percentage points)",
       "Title to the goods is retained until full payment has been made",
       "A credit assessment may be made for new customers",

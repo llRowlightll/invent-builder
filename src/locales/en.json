@@ -442,6 +442,10 @@
     "askAi": "Unsure? Ask the AI engineer",
     "contactForDelivery": "Contact us for lead time",
     "leadEstConfirm": "approx. {d} d, confirmed in the quote",
+    "freightRow": "Freight",
+    "freightValue": "Stated in the quote",
+    "paymentRow": "Payment",
+    "paymentValue": "Prepayment on the first order, then invoice at 30 days",
     "orderAvailable": "Order",
     "hittaLiknande": "All {vad} across brands"
   },
