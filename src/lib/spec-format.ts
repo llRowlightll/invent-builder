@@ -267,7 +267,13 @@ export type { Sprak };
  * originaltext fanns sparas den i description_en (2026-10-06) och visas på
  * de andra språken.
  */
-export function beskrivning(p: { description: string | null; description_en?: string | null }, locale: string): string | null {
+export function beskrivning(
+  p: { description: string | null; description_en?: string | null; description_de?: string | null; description_es?: string | null },
+  locale: string,
+): string | null {
+  // Tyska och spanska sedan 2026-11-17; saknas de visas engelskan som förut.
+  if (locale === "de" && p.description_de) return p.description_de;
+  if (locale === "es" && p.description_es) return p.description_es;
   return locale !== "sv" && p.description_en ? p.description_en : p.description;
 }
 

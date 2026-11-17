@@ -10,6 +10,9 @@ export interface ProductRow {
   description: string | null;
   /** Engelska originaltexten när description är översatt till svenska. */
   description_en?: string | null;
+  /** Tysk och spansk beskrivning (2026-11-17); null = engelskan visas. */
+  description_de?: string | null;
+  description_es?: string | null;
   family: string | null;
   brand: { slug: string; name: string };
   category: { slug: string; name: string };
