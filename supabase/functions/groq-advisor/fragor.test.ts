@@ -5,10 +5,10 @@
 // provkörningen mot drift 2026-10-08 (se fragor.ts).
 import { assert, assertEquals } from "jsr:@std/assert@^1";
 import {
-  amne, arSakerhetskrav, forfragningstyp, kandaVarden, rensaFragor, reservfragor, slutligaFragor, teknikval, type Fraga,
+  alternativkategorier, amne, arSakerhetskrav, forfragningstyp, kandaVarden, rensaFragor, reservfragor, slutligaFragor, teknikval, type Fraga,
 } from "./fragor.ts";
 import {
-  extractPrecisionMm, needsDirtyEnv, needsEndPositionDetection, needsHighCycle, needsOutdoor,
+  detectCategories, extractPrecisionMm, needsDirtyEnv, needsEndPositionDetection, needsHighCycle, needsOutdoor,
   needsRodLock, needsVerticalLoad, needsWashdown, sagerHorisontell,
 } from "./signals.ts";
 
@@ -452,4 +452,18 @@ Deno.test("lyftslag är höjdledet: frågan om höjden ställs inte igen (driftp
   const fragor = slutligaFragor([], text, "sv");
   assert(!fragor.some((f) => /höjdled|slag_z/i.test(`${f.id} ${f.label}`)), fragor.map((f) => f.label).join(" | "));
   assert(!fragor.some((f) => /sidled|slag_x/i.test(`${f.id} ${f.label}`)), fragor.map((f) => f.label).join(" | "));
+});
+
+// Provkörning mot drift 2026-11-17: en ventilö gav cylinderalternativ.
+Deno.test("alternativen: en ventilfråga ger ventiler, en rörelse ger aktuatorer", () => {
+  const ventilo = "ventilö för 8 dubbelverkande cylindrar med Profinet, 24 V DC";
+  assertEquals(forfragningstyp(ventilo), "ventil");
+  assertEquals(alternativkategorier("ventil", detectCategories(ventilo), null), ["valve-terminal"]);
+  assertEquals(alternativkategorier("ventil", ["valve", "cylinder"], null), ["valve"]);
+  // En rörelse som nämner ventilen får fortfarande aktuatorer.
+  assertEquals(alternativkategorier("rorelse", ["cylinder", "valve"], null), ["cylinder"]);
+  // Lyft med griporgan utan rörelsekategori: cylindrar, som förut.
+  assertEquals(alternativkategorier("rorelse", ["gripper"], "gripdon"), ["cylinder"]);
+  // Ingen rörelsekategori och ingen ventil: det som hittades.
+  assertEquals(alternativkategorier("givare", ["sensor"], null), ["sensor"]);
 });
