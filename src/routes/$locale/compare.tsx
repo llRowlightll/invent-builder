@@ -21,6 +21,10 @@ export const Route = createFileRoute("/$locale/compare")({
         { name: "description", content: "Jämför pneumatiska cylindrar och aktuatorer sida vid sida. Se skillnader i specs, IP-klass, slag och kraft mellan Festo, SMC, Parker, Bosch Rexroth och fler." },
         { property: "og:title", content: `${t("nav.compare")} — ${t("common.appName")}` },
         { property: "og:url", content: `${SITE}/${locale}/compare` },
+        // Varje kombination av artiklar blir en egen adress (?skus=...), och
+        // Google lade 2 000+ sådana i "genomsökt, inte indexerad" (2026-11-17).
+        // Länkarna följs, sidorna indexeras inte.
+        { name: "robots", content: "noindex, follow" },
       ],
       links: [
         { rel: "canonical", href: `${SITE}/${locale}/compare` },

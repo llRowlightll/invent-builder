@@ -84,6 +84,17 @@ function kanoniskOmdirigering(request: Request): Response | null {
   const tls = (request as Request & { cf?: { tlsVersion?: string } }).cf?.tlsVersion;
   if (url.protocol === "http:" && tls !== undefined && tls === "") { url.protocol = "https:"; andrad = true; }
   if (url.pathname === "/") { url.pathname = "/sv"; andrad = true; }
+  // Artikelnummer med snedstreck (43 st, t.ex. RA/8032/M/100) gav 404 när de
+  // länkades okodade: /sv/product/MC-FRL-1/4 i stället för MC-FRL-1%2F4.
+  const okodad = url.pathname.match(/^\/(sv|en|de|es)\/(product|motsvarighet)\/(.+\/.+)$/);
+  if (okodad) {
+    try {
+      url.pathname = `/${okodad[1]}/${okodad[2]}/${encodeURIComponent(decodeURIComponent(okodad[3]))}`;
+      andrad = true;
+    } catch {
+      // Trasig %-kodning: låt sidan svara som vanligt (404).
+    }
+  }
   if (!andrad) return null;
   if (request.method !== "GET" && request.method !== "HEAD") return null;
   return new Response(null, { status: 301, headers: { Location: url.toString(), "Cache-Control": "public, max-age=3600" } });
