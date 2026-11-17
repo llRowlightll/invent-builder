@@ -1,6 +1,6 @@
 /// <reference lib="deno.ns" />
 import { assert, assertEquals } from "jsr:@std/assert@^1";
-import { provaGripkraft, provaSpanning, provaTryck, tolkaSpanningar, tolkaTryckBar } from "./kontroller.ts";
+import { provaGripkraft, provaSpanning, provaTemperatur, provaTryck, tolkaSpanningar, tolkaTryckBar } from "./kontroller.ts";
 
 Deno.test("tryck i katalogens format läses som bar", () => {
   assertEquals(tolkaTryckBar("10"), { min: null, max: 10 });
@@ -86,4 +86,12 @@ Deno.test("kapslingsklass: IP69K kräver 69K, IPxx jämförs siffra för siffra 
   assertEquals(provaIp("IP65", { ip_rating: "IP67" }, true).utfall, "uppfyllt");
   assertEquals(provaIp("IP67", { ip_rating: "IP65" }, true).utfall, "ej_uppfyllt");
   assertEquals(provaIp("IP69K", {}, true).utfall, "underlag_saknas");
+});
+
+Deno.test("temperatur: okänd gräns sägs, känd prövas", () => {
+  const okand = provaTemperatur(180, {}, true);
+  assertEquals(okand.utfall, "underlag_saknas");
+  assert(/80 °C/.test(okand.text));
+  assertEquals(provaTemperatur(180, { temp_range: "-20 to 80 °C" }, true).utfall, "ej_uppfyllt");
+  assertEquals(provaTemperatur(120, { temperature_range: "-10…150 °C" }, false).utfall, "uppfyllt");
 });

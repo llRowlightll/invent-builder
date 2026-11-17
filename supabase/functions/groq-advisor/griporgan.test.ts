@@ -133,3 +133,29 @@ Deno.test("fleraxligt med Z-axel: alternativen säger inte att lyftet saknas", (
   const r = byggGripdonsalternativ([MELLAN], { text, hazards, loadKg: 5, locale: "sv", tryckKrav: 0 });
   assert(!/Lyftet ingår inte/.test(r.summary), r.summary);
 });
+
+// Provkörning mot drift 2026-11-17: flaskor i en livsmedelslinje med daglig
+// tvätt fick standardgripdon med bara en gripkraftsrad.
+Deno.test("livsmedel/tvätt prövas per gripdon: okänt sägs, tvättåligt godkänns", () => {
+  const ROSTFRI = gripdon("P-INOX", { clamping_force: "120 N", gripper_type: "Parallel 2-jaw", ip_rating: "IP67" });
+  const r = forslag("gripper for picking 0.5 kg bottles on a food packaging line with daily washdown", [SVAGT, ROSTFRI], 0, "en");
+  const vanlig = r.options.find((x) => x.sku === "P-170")!;
+  const tvattbar = r.options.find((x) => x.sku === "P-INOX")!;
+  assert(status(vanlig).some((k) => k.krav === "food/washdown" && k.utfall === "kan_inte_bedomas"), JSON.stringify(status(vanlig)));
+  assert(status(tvattbar).some((k) => k.krav === "food/washdown" && k.utfall === "uppfyllt"));
+  // Utan livsmedel eller tvätt ingen sådan rad.
+  const torr = forslag("Gripa detaljer 1 kg med gripdon", [SVAGT]);
+  assert(!torr.options.some((o) => status(o).some((k) => k.krav === "livsmedel/tvätt")));
+});
+
+Deno.test("temperatur prövas per gripdon och per sugkopp", () => {
+  const VARM = gripdon("P-HT", { clamping_force: "200 N", gripper_type: "Parallel 2-jaw", temp_range: "-10 to 150 °C" });
+  const r = forslag("Gripa detaljer 2 kg med gripdon i en ugn, 180 °C", [SVAGT, VARM]);
+  const okand = r.options.find((x) => x.sku === "P-170")!;
+  const for150 = r.options.find((x) => x.sku === "P-HT")!;
+  assert(status(okand).some((k) => k.krav === "temperatur 180 °C" && k.utfall === "kan_inte_bedomas"));
+  assert(status(for150).some((k) => k.krav === "temperatur 180 °C" && k.utfall === "ej_uppfyllt"));
+  const text = "lyfta glasplåtar 3 kg med vakuum vid 180 °C";
+  const v = byggVakuumalternativ([kopp("C40", 40)], { text, hazards: detectHazards(text, {}, "sv"), loadKg: 3, locale: "sv", tryckKrav: 0 });
+  assert(v.options.some((o) => status(o).some((k) => k.krav === "temperatur 180 °C")), JSON.stringify(v.options.map(status)));
+});
