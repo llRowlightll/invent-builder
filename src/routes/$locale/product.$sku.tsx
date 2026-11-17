@@ -49,7 +49,9 @@ export const Route = createFileRoute("/$locale/product/$sku")({
       ogTitle = `${displayName} | Maskinval`;
       // Artikelns egen beskrivning först (det som skiljer sidan från de andra
       // 799), sedan erbjudandet. Kortas vid ett ord, inte mitt i.
-      const egen = (beskrivning(product, locale) ?? "").replace(/\s+/g, " ").trim();
+      // Bara på svenska och engelska: tyska och spanska har ännu ingen egen
+      // text, och engelsk text i en tysk beskrivning blandar språken.
+      const egen = locale === "sv" || locale === "en" ? (beskrivning(product, locale) ?? "").replace(/\s+/g, " ").trim() : "";
       const kort = egen.length > 110 ? `${egen.slice(0, 110).replace(/\s+\S*$/, "")}…` : egen;
       desc = `${displayName} (${sku}) — ${categoryName(product.category.slug, locale, product.category.name)}.${kort ? ` ${kort}` : ""} ${ord.erbjudande}`;
     } else {
