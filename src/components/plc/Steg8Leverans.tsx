@@ -143,7 +143,7 @@ table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #b
               "Export the documentation and send it with a request. Nothing is sent automatically.",
             )}
           </p>
-          <Link to="/$locale/advisor" params={{ locale: locale as never }} search={{ q: tx(`Hjälp med programmeringsunderlaget för ${projektnamn} (rev ${revision}).`, `Help with the programming documentation for ${projektnamn} (rev ${revision}).`) } as never}
+          <Link to="/$locale/talk" params={{ locale: locale as never }} search={{ till: "manniska", q: tx(`Hjälp med programmeringsunderlaget för ${projektnamn} (rev ${revision}).`, `Help with the programming documentation for ${projektnamn} (rev ${revision}).`) } as never}
             className="inline-block text-info hover:underline">
             {tx("Till kontaktsidan", "To the contact page")} →
           </Link>
