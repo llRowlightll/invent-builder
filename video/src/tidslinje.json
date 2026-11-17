@@ -1,0 +1,13 @@
+{
+  "fps": 30,
+  "langd": 45,
+  "bpm": 120,
+  "fall": [4, 8, 12, 16, 20, 24],
+  "fokus": 27.0,
+  "stopp": 28.5,
+  "lagTon": 31.5,
+  "atergang": 33.0,
+  "bredd": 34.0,
+  "avslut": 39.0,
+  "pulsSlut": 43.0
+}
