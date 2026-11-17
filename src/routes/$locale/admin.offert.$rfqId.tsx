@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { analyzeDocument, type QuoteExtraction } from "@/lib/document-ai";
 import { supabase } from "@/integrations/supabase/client";
 import { lasMomsbesked, momsnot, momsrad, SVENSK_MOMS, type Momsbesked } from "@/lib/moms";
-import { arValuta, lasPaslag, omraknat, STANDARD_PASLAG, valutanot } from "@/lib/valuta";
+import { arValuta, inkopIOffertvaluta, lasPaslag, omraknat, STANDARD_PASLAG, tillKronor, valutakod, valutanot } from "@/lib/valuta";
 import { hamtaValutakurs } from "@/lib/valuta.functions";
 import { useAdminGuard } from "@/lib/auth-context";
 import { fetchCompanySettings, type CompanySettings } from "@/lib/company-settings";
@@ -69,7 +69,26 @@ function docRef(rfqId: string) {
  * marginal. Bara i sidans minne: rfq_items går att läsa för kunden, så
  * inköpspriset sparas aldrig där.
  */
-type Inkopsrad = { pris: number; marginal: number; kalla: "artikel" | "standard" };
+type Inkopsrad = {
+  /** Inköpet i offertens valuta. */
+  pris: number;
+  marginal: number;
+  kalla: "artikel" | "standard";
+  /** Leverantörens eget pris när det räknades om från en annan valuta. */
+  ursprung?: { pris: number; valuta: string };
+};
+
+/** Kronor per enhet från Riksbanken, eller ett fel att visa. Gissar aldrig. */
+async function hamtaKurs(valuta: string): Promise<{ kurs: number; datum: string } | { fel: string }> {
+  if (!arValuta(valuta)) return { fel: `${valuta} går inte att räkna om (bara SEK, EUR, USD och GBP)` };
+  try {
+    return await hamtaValutakurs({ data: { valuta } });
+  } catch {
+    return { fel: "Kunde inte nå Riksbanken" };
+  }
+}
+
+const kursText = (kurs: number) => kurs.toLocaleString("sv-SE", { maximumFractionDigits: 4 });
 
 /**
  * products.margin per artikel-id. Kolumnen är låst för direkt läsning
@@ -101,9 +120,11 @@ function Inkopsinfo({ rad, pris, currency, omraknad }: { rad: Inkopsrad; pris: n
   return (
     <div
       className={`print:hidden mt-1 text-[11px] ${farg}`}
-      title={`Säljpris = inköp ÷ ${procent(1 - rad.marginal / 100)}${omraknad ? ". Inköpet är omräknat med samma kurs och påslag som priset." : ""}`}
+      title={`Säljpris = inköp ÷ ${procent(1 - rad.marginal / 100)}${omraknad ? ". Inköpet är omräknat med samma kurs och påslag som priset." : ""}${rad.ursprung ? `. Leverantören offererade ${fmtExakt(rad.ursprung.pris, rad.ursprung.valuta)}, omräknat med Riksbankens kurs.` : ""}`}
     >
-      Inköp {fmtExakt(rad.pris, currency)} · marginal {fm == null ? "—" : `${procent(fm)} %`}{" "}
+      Inköp {fmtExakt(rad.pris, currency)}
+      {rad.ursprung && <> (lev. {fmtExakt(rad.ursprung.pris, rad.ursprung.valuta)})</>}
+      {" "}· marginal {fm == null ? "—" : `${procent(fm)} %`}{" "}
       ({avviker ? `${kalla} ${rad.marginal} %` : kalla})
     </div>
   );
@@ -259,7 +280,7 @@ export default function AdminOffertPage() {
     if (!arValuta(valuta) || currency !== "SEK") return;
     setValutaArbetar(true);
     setValutaFel(null);
-    const svar = await hamtaValutakurs({ data: { valuta } });
+    const svar = await hamtaKurs(valuta);
     setValutaArbetar(false);
     if ("fel" in svar) { setValutaFel(svar.fel); return; }
     setLineEdits((prev) => Object.fromEntries(Object.entries(prev).map(([id, e]) => [id, { ...e, price: omraknat(e.price, svar.kurs, paslag) }])));
@@ -271,10 +292,27 @@ export default function AdminOffertPage() {
     setSaved(false);
   }
 
-  /** Tillbaka till kronor med samma kurs och påslag som omräkningen. */
-  function tillbakaTillKronor() {
-    if (!kursInfo) { setCurrency("SEK"); return; }
-    const k = (x: number) => Math.round((x / (1 + kursInfo.paslag / 100)) * kursInfo.kurs * 100) / 100;
+  /**
+   * Tillbaka till kronor med samma kurs och påslag som omräkningen. Saknas
+   * den (offerten sparades i euro utan kurs) räknas priserna om med dagens
+   * kurs, utan påslag att dra av -- valutan byts aldrig på samma siffror.
+   */
+  async function tillbakaTillKronor() {
+    if (currency === "SEK") return;
+    setValutaFel(null);
+    let kurs = kursInfo?.kurs ?? 0;
+    let avPaslag = kursInfo?.paslag ?? 0;
+    if (!kursInfo) {
+      setValutaArbetar(true);
+      const svar = await hamtaKurs(currency);
+      setValutaArbetar(false);
+      if ("fel" in svar) { setValutaFel(`${svar.fel}. Offerten ligger kvar i ${currency}.`); return; }
+      kurs = svar.kurs;
+      avPaslag = 0;
+    }
+    if (!(kurs > 0)) { setValutaFel(`Ingen kurs för ${currency}. Offerten ligger kvar i ${currency}.`); return; }
+    // Kursen är prövad ovan; tillKronor ger null bara för ett ogiltigt belopp.
+    const k = (x: number) => tillKronor(x, kurs, avPaslag) ?? 0;
     setLineEdits((prev) => Object.fromEntries(Object.entries(prev).map(([id, e]) => [id, { ...e, price: k(e.price) }])));
     setInkop((prev) => Object.fromEntries(Object.entries(prev).map(([id, r]) => [id, { ...r, pris: k(r.pris) }])));
     setFrakt((f) => k(f));
@@ -336,13 +374,47 @@ export default function AdminOffertPage() {
       const extracted = await analyzeDocument(file, "quote") as QuoteExtraction;
       const { items: extractedItems, currency: extractedCurrency, delivery_weeks } = extracted;
 
-      if (extractedCurrency) setCurrency(extractedCurrency);
-      if (delivery_weeks) setDeliveryWeeks(delivery_weeks);
+      // Offertens valuta följer kunden (kronor, euro för den utanför Sverige
+      // via raknaOm), aldrig leverantören: en tysk distributör som offererar i
+      // euro gör inte en svensk kunds offert till en europeisk. Leverantörens
+      // priser räknas i stället om till offertens valuta.
       // Leverantörens betalningsvillkor gäller mellan leverantören och oss --
       // kundens villkor är våra (avsnitt 6) och skrivs inte över här.
 
       // Map extracted items onto existing line edits by position
       if (extractedItems?.length) {
+        const angiven = valutakod(extractedCurrency);
+        const fran = angiven ?? currency;
+        let franKurs: number | null = null;
+        let tillKurs: number | null = null;
+        let tillPaslag = paslag;
+        const kurstext: string[] = [];
+        if (fran !== currency) {
+          const nej = (fel: string) =>
+            setQuoteReadMsg(`Leverantören offererade i ${fran}, offerten är i ${currency}: ${fel}. Inga priser fördes in.`);
+          if (fran !== "SEK") {
+            const r = await hamtaKurs(fran);
+            if ("fel" in r) { nej(r.fel); return; }
+            franKurs = r.kurs;
+            kurstext.push(`Riksbankens kurs ${kursText(r.kurs)} kr/${fran} (${r.datum})`);
+          }
+          if (currency !== "SEK") {
+            // Offerten räknad om från kronor: samma kurs och påslag som dess
+            // egna priser, så att valutanoten på offerten stämmer för raden.
+            if (kursInfo) {
+              tillKurs = kursInfo.kurs;
+              tillPaslag = kursInfo.paslag;
+              kurstext.push(`offertens kurs ${kursText(kursInfo.kurs)} kr/${currency} och ${kursInfo.paslag} % påslag`);
+            } else {
+              const r = await hamtaKurs(currency);
+              if ("fel" in r) { nej(r.fel); return; }
+              tillKurs = r.kurs;
+              kurstext.push(`Riksbankens kurs ${kursText(r.kurs)} kr/${currency} (${r.datum}) och ${paslag} % påslag`);
+            }
+          }
+        }
+        if (delivery_weeks) setDeliveryWeeks(delivery_weeks);
+
         // Leverantörens pris är vårt inköpspris. Kundens pris = inköp ÷
         // (1 − marginal/100), med artikelns marginal när raden har en artikel
         // och standarden 20 % annars. Förut blev inköpspriset kundens pris.
@@ -352,13 +424,16 @@ export default function AdminOffertPage() {
         items.forEach((it, idx) => {
           const sup = extractedItems[idx];
           if (sup?.unit_price_ex_vat == null) return;
+          const pris = inkopIOffertvaluta(sup.unit_price_ex_vat, fran, currency, { franKurs, tillKurs, paslag: tillPaslag });
+          if (pris == null) return; // kurserna är hämtade ovan; hit kommer bara ett ogiltigt pris
           const egen = it.product_id ? marginaler?.get(it.product_id) : undefined;
           const marginal = giltigMarginal(egen);
           nya[it.id] = {
-            pris: sup.unit_price_ex_vat,
+            pris,
             marginal,
             kalla: egen != null && egen === marginal ? "artikel" : "standard",
-            saljpris: Math.round(saljpris(sup.unit_price_ex_vat, marginal) * 100) / 100,
+            ursprung: fran !== currency ? { pris: sup.unit_price_ex_vat, valuta: fran } : undefined,
+            saljpris: Math.round(saljpris(pris, marginal) * 100) / 100,
             note: sup.note,
           };
         });
@@ -377,27 +452,31 @@ export default function AdminOffertPage() {
         });
         setInkop((prev) => {
           const updated = { ...prev };
-          for (const [id, { pris, marginal, kalla }] of Object.entries(nya)) updated[id] = { pris, marginal, kalla };
+          for (const [id, { pris, marginal, kalla, ursprung }] of Object.entries(nya)) updated[id] = { pris, marginal, kalla, ursprung };
           return updated;
         });
         const rader = Object.values(nya);
         const satser = [...new Set(rader.map((r) => r.marginal))];
         const marginaltext = satser.length === 1 ? `${satser[0]} % marginal` : "artiklarnas marginal";
+        const valutadel = fran !== currency ? ` (${fran} omräknat till ${currency} med ${kurstext.join(", sedan ")})` : "";
         setQuoteReadMsg(
           rader.length === 0
             ? "Inga radpriser hittades i dokumentet."
-            : `✓ ${rader.length} av ${items.length} rader prissatta: leverantörens pris som inköp, ${marginaltext} pålagd.` +
-                (marginaler ? "" : ` Artiklarnas marginal gick inte att läsa – ${STANDARD_MARGINAL} % användes.`),
+            : `${angiven ? "✓" : "⚠"} ${rader.length} av ${items.length} rader prissatta: leverantörens pris som inköp${valutadel}, ${marginaltext} pålagd.` +
+                (marginaler ? "" : ` Artiklarnas marginal gick inte att läsa – ${STANDARD_MARGINAL} % användes.`) +
+                (angiven ? "" : ` Dokumentet angav ingen valuta – priserna lästes som ${currency}. Kontrollera mot offerten.`),
         );
       } else {
+        if (delivery_weeks) setDeliveryWeeks(delivery_weeks);
         setQuoteReadMsg("Inga radpriser hittades i dokumentet.");
       }
       setSaved(false);
     } catch (err) {
       setQuoteReadMsg("Kunde inte läsa dokumentet. Försök med en tydligare bild.");
       console.error(err);
+    } finally {
+      setQuoteReading(false);
     }
-    setQuoteReading(false);
   }
 
   if (loading) return (
@@ -471,7 +550,7 @@ ${co.name}`;
             onChange={(e) => { const f = e.target.files?.[0]; if (f) readSupplierQuote(f); e.target.value = ""; }} />
           <button
             onClick={() => quoteFileRef.current?.click()}
-            disabled={quoteReading}
+            disabled={quoteReading || valutaArbetar}
             title="Ladda upp leverantörsoffert — AI extraherar priser per rad"
             className="px-3 py-1.5 text-xs rounded-md border border-dashed border-border text-muted-foreground hover:border-info hover:text-info transition disabled:opacity-50 flex items-center gap-1"
           >
@@ -480,7 +559,7 @@ ${co.name}`;
               : <>📎 Läs in leverantörsoffert</>}
           </button>
           {quoteReadMsg && (
-            <span className={`text-xs ${quoteReadMsg.startsWith("✓") ? "text-success-deep" : "text-destructive"}`}>
+            <span className={`text-xs ${quoteReadMsg.startsWith("✓") ? "text-success-deep" : quoteReadMsg.startsWith("⚠") ? "text-amber-700" : "text-destructive"}`}>
               {quoteReadMsg}
             </span>
           )}
@@ -628,8 +707,10 @@ ${co.name}`;
               <span className="text-muted-foreground uppercase tracking-wide">Valuta</span>
               {/* Valutan byts aldrig utan att priserna räknas om: ett pris i
                   kronor märkt "EUR" vore elva gånger för högt. */}
-              <select value={currency} disabled={valutaArbetar}
-                onChange={e => { const v = e.target.value; if (v === "SEK") tillbakaTillKronor(); else if (currency === "SEK") void raknaOm(v); }}
+              {/* Låst medan en leverantörsoffert läses: dess priser räknas om
+                  till valutan som gällde när inläsningen började. */}
+              <select value={currency} disabled={valutaArbetar || quoteReading}
+                onChange={e => { const v = e.target.value; if (v === "SEK") void tillbakaTillKronor(); else if (currency === "SEK") void raknaOm(v); }}
                 className="mt-1 w-full border border-border rounded px-2 py-1">
                 <option>SEK</option><option>EUR</option><option>USD</option><option>GBP</option>
               </select>
@@ -638,7 +719,7 @@ ${co.name}`;
               {kursInfo && currency !== "SEK" && (
                 <span className="mt-1 block text-[11px] text-muted-foreground">{valutanot({ valuta: currency, kurs: kursInfo.kurs, datum: kursInfo.datum, paslag: kursInfo.paslag }, "sv")}</span>
               )}
-              {currency === "SEK" && utlandsk && !valutaArbetar && (
+              {currency === "SEK" && utlandsk && !valutaArbetar && !quoteReading && (
                 <button type="button" onClick={() => void raknaOm("EUR")}
                   className="mt-1 block text-[11px] text-info underline">
                   Kunden är utanför Sverige – räkna om offerten till EUR ({paslag} % valutapåslag)
