@@ -918,8 +918,19 @@ export function extractExplicitBoreMm(text: string, answers: Record<string, stri
       if (m) { const n = Number(m[1]); if (n >= 8 && n <= 320) return n; }
     }
   }
-  const m = text.match(/(?:Ø|⌀)\s*(\d{2,3})|(?:diameter|borrning|bore)[^\d]{0,12}(\d{2,3})/i);
-  if (m) { const n = Number(m[1] ?? m[2]); if (n >= 8 && n <= 320) return n; }
+  // Ø63 / ⌀63 först.
+  const ring = text.match(/(?:Ø|⌀)\s*(\d{2,3})/i);
+  if (ring) { const n = Number(ring[1]); if (n >= 8 && n <= 320) return n; }
+  // Talet FÖRE ordet: "cylinder 63 mm borrning, 500 mm slag" gav Ø25–Ø50
+  // (provkörning mot drift 2026-11-17). Bara cylinderord här -- "lådor med
+  // 300 mm diameter" är föremålets mått, inte en borrning.
+  const fore = text.match(/(\d{2,3})\s*mm\s*(?:borrning|bore\b|kolvdiameter|cylinderdiameter)/i);
+  if (fore) { const n = Number(fore[1]); if (n >= 8 && n <= 320) return n; }
+  // Talet EFTER ordet, med bara kolon, likhetstecken eller ett litet ord
+  // emellan. Förut fick 12 godtyckliga tecken stå där, så "80 mm kolvdiameter
+  // och 100 mm slag" lästes som borrning 100.
+  const efter = text.match(/(?:diameter|borrning|bore)\s*(?:size|storlek|[:=]|på|of|von|de|ca\.?)?\s*(?:Ø|⌀)?\s*(\d{2,3})/i);
+  if (efter) { const n = Number(efter[1]); if (n >= 8 && n <= 320) return n; }
   return 0;
 }
 
