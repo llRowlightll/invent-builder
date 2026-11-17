@@ -31,7 +31,7 @@ import {
 } from "./scoring.ts";
 import { LANGRE_SLAG_PRO, rensaSerieslag, rensaPositionsPros, rensaMotsagelser, produktdataText } from "./prosavakt.ts";
 import { delaSvar, tolkaKravbild, type Kravbild, type Tolkningsbeslut } from "./kravbild.ts";
-import { provaTryck, tolkaKravSpanning } from "./kontroller.ts";
+import { provaTemperatur, provaTryck, tolkaKravSpanning } from "./kontroller.ts";
 import { byggResultat, utanSakerhetspastaenden } from "./resultat.ts";
 import { byggGripdonsalternativ, byggVakuumalternativ } from "./griporgan.ts";
 import {
@@ -1593,7 +1593,7 @@ async function handleOptions(
   const optSystem = `You are a senior automation engineer. Write product descriptions for 3 pre-selected products. All text in ${lang}.${sprakregler(locale)}
 
 MANDATORY RULES:
-1. Use EXACTLY these SKUs: ${topProducts.map(p => p.sku).join(", ")} — do NOT change them
+1. Use EXACTLY these SKUs: ${topProducts.map(p => p.sku).join(", ")} — do NOT change them. Call each product the actuator type its name and category say: a pneumatic cylinder is never "hydraulic" (a pallet stop summary called three pneumatic ISO cylinders hydraulic, 2026-11-17)
 2. "why" = engineering justification grounded ONLY in the specs actually given for that product below (its specs:{...} JSON — bore, stroke, force, pressure, temperature, etc). Cite real numbers from there. Do NOT invent material, weight, coatings, heat treatment, integrated safety features (e.g. "built-in pressure relief"), or certifications that aren't listed — if a product's data doesn't cover something, leave it out rather than guessing. A short, fully-grounded "why" is correct; a longer one padded with invented details is not.
 3. pros/cons: same rule — only claims backed by the listed specs. 2-3 pros, 1-2 cons.
 4. NEVER recalculate force, pressure or load. force_n_at_6bar is ALREADY the force at 6 bar — do not scale it by any pressure ratio. Use "Erforderlig kraft" from Requirements verbatim as the requirement; do not derive your own from the mass. Quote both numbers exactly as given, or omit them. An invented calculation is the worst possible error here: an engineer who checks it stops trusting everything else on the page.${atexWarning}${codeNote ? "\n\n" + codeNote : ""}
@@ -1795,6 +1795,17 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
       });
       opt.cons = [...((opt.cons as string[]) ?? []), warn];
     }
+    // ATEX-förbehållet skrivs av servern. Regeln i prompten räckte inte: för
+    // en serie i ATEX zon 1 sade motiveringen bara borrning, slag och kraft
+    // (provkörning mot drift 2026-11-17).
+    if ((isAtex || isAtexDust) && !isAtexCapableProduct(cat)) {
+      opt.why = `${opt.why ?? ""} ` + pick(locale, {
+        sv: "⚠️ Standardutförande, inte ATEX-certifierat i vår katalog. Ett ATEX-godkänt utförande för zonen måste väljas och verifieras före köp – kontakta oss.",
+        en: "⚠️ Standard version, not ATEX-certified in our catalogue. An ATEX-approved version for the zone must be chosen and verified before purchase – contact us.",
+        de: "⚠️ Standardausführung, in unserem Katalog nicht ATEX-zertifiziert. Eine ATEX-zugelassene Ausführung für die Zone muss vor dem Kauf gewählt und geprüft werden – kontaktieren Sie uns.",
+        es: "⚠️ Versión estándar, sin certificación ATEX en nuestro catálogo. Antes de comprar debe elegirse y verificarse una versión con aprobación ATEX para la zona; contáctenos.",
+      });
+    }
     if (requiredTemp > 0) {
       const tMax = parseProductTempMax(cat.key_specs ?? {});
       if (tMax > 0 && tMax < requiredTemp) {
@@ -1843,6 +1854,10 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     }
     if (tryckKrav > 0 && !isElectricActuator(cat)) {
       const t = provaTryck(tryckKrav, cat.key_specs, sv);
+      status.push({ krav: t.krav, utfall: t.utfall === "underlag_saknas" ? "kan_inte_bedomas" : t.utfall, text: t.text });
+    }
+    if (requiredTemp > 0) {
+      const t = provaTemperatur(requiredTemp, cat.key_specs, sv);
       status.push({ krav: t.krav, utfall: t.utfall === "underlag_saknas" ? "kan_inte_bedomas" : t.utfall, text: t.text });
     }
     if (!aktuatorHastighet && kravbild.tillampning === "sortering_utskjutning") {

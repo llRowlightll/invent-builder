@@ -13,7 +13,7 @@
  * egen kolumn (RPC:n lägger ihop dem: "0.1–0.7 MPa"); voltage "24 V DC",
  * "24 VDC / 100 VAC", "24 VDC ±10 %", "200 VAC".
  */
-import type { Griporganskrav } from "./signals.ts";
+import { parseProductTempMax, type Griporganskrav } from "./signals.ts";
 
 export interface Tryckspann {
   min: number | null;
@@ -182,3 +182,24 @@ export function provaIp(krav: string, specar: Record<string, unknown> | undefine
     : { krav: kravText, utfall: "ej_uppfyllt", text: sv ? `artikeln anges bara ${anges}` : `the item is only rated ${anges}` };
 }
 
+/**
+ * Temperaturkravet mot artikelns övre gräns. En okänd gräns ska SÄGAS: filtret
+ * i index.ts släpper igenom artiklar utan temperaturuppgift (det blockerar inte
+ * okänt), och en ugnslucka på 180 °C fick standardcylindrar utan en enda
+ * reservation (provkörning mot drift 2026-11-17).
+ */
+export function provaTemperatur(kravC: number, specar: Record<string, unknown> | undefined, sv: boolean): Kontroll {
+  const krav = sv ? `temperatur ${kravC} °C` : `temperature ${kravC} °C`;
+  const tMax = parseProductTempMax(specar ?? {});
+  if (!(tMax > 0)) {
+    return {
+      krav, utfall: "underlag_saknas",
+      text: sv
+        ? "katalogen anger ingen högsta temperatur för artikeln; standardtätningar är gjorda för ca 80 °C, så verifiera högtemperaturutförande"
+        : "the catalogue gives no maximum temperature for the item; standard seals are made for about 80 °C, so verify a high-temperature version",
+    };
+  }
+  return tMax >= kravC
+    ? { krav, utfall: "uppfyllt", text: sv ? `artikeln anges för högst ${tMax} °C` : `the item is rated up to ${tMax} °C` }
+    : { krav, utfall: "ej_uppfyllt", text: sv ? `artikeln anges bara för högst ${tMax} °C` : `the item is only rated up to ${tMax} °C` };
+}

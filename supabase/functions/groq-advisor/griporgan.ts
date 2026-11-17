@@ -13,7 +13,7 @@
  * alternativ och dess rad i stycklistan aldrig säger emot varandra.
  */
 import { buildCustomSolutionOption, firstNumAbs, gripperForceMaxN, gripperForceN, gripperTypeOf, isGripperFamily } from "./bom-builder.ts";
-import { provaGripkraft, provaTryck, type Kontroll } from "./kontroller.ts";
+import { provaGripkraft, provaTemperatur, provaTryck, type Kontroll } from "./kontroller.ts";
 import { type CatalogProduct, isAtexCapableProduct } from "./scoring.ts";
 import { griporgansKrav, onskadGripdonstyp, pick, type HazardFlags } from "./signals.ts";
 
@@ -54,6 +54,37 @@ function atexStatus(p: CatalogProduct, h: HazardFlags, sv: boolean): Kravstatus 
   return isAtexCapableProduct(p)
     ? { krav: "ATEX", utfall: "uppfyllt", text: sv ? "ATEX-märkt enligt katalogen" : "ATEX-marked according to the catalogue" }
     : { krav: "ATEX", utfall: "ej_uppfyllt", text: sv ? "ingen ATEX-märkning i katalogen; får inte användas i zonen utan intyg" : "no ATEX marking in the catalogue; must not be used in the zone without a certificate" };
+}
+
+/**
+ * Livsmedel eller daglig tvätt prövas per artikel, som ATEX. Förut fick ett
+ * gripdon för flaskor i en livsmedelslinje med daglig tvätt bara en gripkrafts-
+ * rad, och kunden som svarat "direkt kontakt" och "IP67" såg standardgripdon
+ * utan förbehåll (provkörning mot drift 2026-11-17).
+ */
+function hygienStatus(p: CatalogProduct, h: HazardFlags, sv: boolean): Kravstatus | null {
+  if (!(h.isFoodGrade || h.isWashdown)) return null;
+  const krav = sv ? "livsmedel/tvätt" : "food/washdown";
+  return tvattaligt(p)
+    ? { krav, utfall: "uppfyllt", text: sv ? "tvättåligt utförande enligt katalogen; livsmedelsgodkännandet bekräftas i offerten" : "washdown-rated according to the catalogue; food approval is confirmed in the quote" }
+    : { krav, utfall: "kan_inte_bedomas", text: sv ? "katalogen anger varken kapslingsklass, rostfritt utförande eller livsmedelsgodkännande för artikeln; verifiera före köp" : "the catalogue states no IP rating, stainless version or food approval for the item; verify before purchase" };
+}
+
+/**
+ * Tvättåligt enligt katalogen: IP67/IP69(K) eller rostfritt utförande. Egen
+ * prövning och inte scoring.ts isWashdownProduct, som släpper igenom varje
+ * gripdon och sugkopp som "tillbehör" (för cylinderfiltrets skull).
+ */
+function tvattaligt(p: CatalogProduct): boolean {
+  const ks = p.key_specs ?? {};
+  const ip = String(ks.ip_rating ?? ks.protection_class ?? "").toLowerCase();
+  const text = `${p.name} ${ks.material ?? ""} ${ks.body_material ?? ""}`.toLowerCase();
+  return /ip\s*6[79]/.test(ip) || /stainless|rostfri|inox|aisi\s*3[01]\d/.test(text);
+}
+
+/** Temperaturkravet, som i alternativen för cylindrar (kontroller.ts). */
+function temperaturStatus(p: CatalogProduct, h: HazardFlags, sv: boolean): Kravstatus | null {
+  return h.requiredMaxTempC > 0 ? somKravstatus(provaTemperatur(h.requiredMaxTempC, p.key_specs, sv)) : null;
 }
 
 // No end-effector product in the catalog has any ESD/antistatic/conductive
@@ -176,6 +207,10 @@ export function byggVakuumalternativ(prods: CatalogProduct[], u: Griporgansunder
     const kravstatus: Kravstatus[] = [status];
     const atex = atexStatus(p, hazards, sv);
     if (atex) kravstatus.push(atex);
+    const hygien = hygienStatus(p, hazards, sv);
+    if (hygien) kravstatus.push(hygien);
+    const temp = temperaturStatus(p, hazards, sv);
+    if (temp) kravstatus.push(temp);
     return {
       sku: p.sku, name: p.name, kravstatus,
       badge: pick(locale, {
@@ -284,6 +319,10 @@ export function byggGripdonsalternativ(prods: CatalogProduct[], u: Griporgansund
     if (tryckKrav > 0) kravstatus.push(somKravstatus(provaTryck(tryckKrav, p.key_specs, sv)));
     const atex = atexStatus(p, hazards, sv);
     if (atex) kravstatus.push(atex);
+    const hygien = hygienStatus(p, hazards, sv);
+    if (hygien) kravstatus.push(hygien);
+    const temp = temperaturStatus(p, hazards, sv);
+    if (temp) kravstatus.push(temp);
     const kraftRacker = reqN > 0 && fN >= reqN;
     return { p, fN, serie, kravstatus, kraftRacker, helt: kraftRacker && !kravstatus.some(x => x.utfall === "ej_uppfyllt") };
   };
