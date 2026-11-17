@@ -12,7 +12,7 @@ const STATIC_PATHS = [
   "/products",
   "/chat",
   "/advisor",
-  "/compare",
+  // /compare är noindex (jämförelser är oändliga kombinationer, 2026-11-17).
   "/machine-builder",
   "/configure",
   "/guider",
