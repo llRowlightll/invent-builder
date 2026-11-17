@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import Papa from "papaparse";
+import { giltigMarginal, misstankMarginal, saljpris } from "@/lib/marginal";
 
 export const Route = createFileRoute("/$locale/admin/pricing")({
   component: AdminPricingPage,
@@ -39,22 +40,13 @@ type ProposalRow = Proposal & {
 const EDGE = "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/extract-prices";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-/**
- * Marginalen är bruttomarginal i PROCENT (20260603000300). Kolumnens
- * standardvärde var kvar på bråktalet 0.35 fram till 20261112140000, så
- * artiklar inlagda efter juni fick 0,35 % -- säljpriset blev i praktiken
- * inköpspriset. Under 1 % räknas som ett misstag och visas aldrig publikt.
- */
-function misstankMarginal(margin: string | null | number): boolean {
-  const mg = typeof margin === "string" ? Number(margin) : margin;
-  return mg != null && !isNaN(mg) && mg > 0 && mg < 1;
-}
-
+// Marginalen är bruttomarginal i PROCENT; formeln och gränserna ligger i
+// src/lib/marginal.ts, samma som offertverktygets leverantörsinläsning.
 function sellPrice(pp: number | null, margin: string | null | number): string {
   const mg = typeof margin === "string" ? Number(margin) : margin;
   if (misstankMarginal(margin)) return "marginal < 1 %?";
   if (pp == null || mg == null || isNaN(pp) || isNaN(mg) || mg >= 100) return "—";
-  return (pp / (1 - mg / 100)).toLocaleString("sv-SE", {
+  return saljpris(pp, mg).toLocaleString("sv-SE", {
     minimumFractionDigits: 0, maximumFractionDigits: 0,
   }) + " kr";
 }
@@ -186,10 +178,8 @@ export default function AdminPricingPage() {
   /** Artikelns egen marginal när den är ett rimligt procenttal, annars 20
    *  (ägarens standard sedan 2026-11-12: inköp 100 kr → säljpris 125 kr).
    *  Förut fick varje inläst rad 30 %, oavsett artikelns egen marginal. */
-  const standardMarginal = (sku: string): string => {
-    const m = rows.find((r) => r.sku === sku)?.margin;
-    return m != null && m >= 1 && m <= 95 ? String(m) : "20";
-  };
+  const standardMarginal = (sku: string): string =>
+    String(giltigMarginal(rows.find((r) => r.sku === sku)?.margin));
 
   const misstankta = rows.filter((r) => misstankMarginal(r.margin)).length;
   const [rattar, setRattar] = useState(false);
