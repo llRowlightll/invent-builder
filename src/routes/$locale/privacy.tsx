@@ -72,7 +72,7 @@ const TEXT = {
       ["Bilder och dokument för tolkning", "Sparas inte hos oss."],
       ["Frågor till AI-ingenjören", "Sparas inte hos oss (se anonym statistik)."],
       ["Anonym användningsstatistik", "13 månader."],
-      ["E-post till alexandro@maskinval.se", "Så länge ärendet kräver, högst 24 månader efter avslut."],
+      ["E-post till info@maskinval.se", "Så länge ärendet kräver, högst 24 månader efter avslut."],
     ] as Rad[],
     mottagareTitel: "5. Mottagare och överföring utanför EU",
     mottagareIngress: "Vi delar bara de uppgifter som behövs för varje uppgift. Leverantörer i USA behandlar uppgifterna med stöd av personuppgiftsbiträdesavtal och EU-kommissionens standardavtalsklausuler (art. 46.2 c).",
@@ -81,7 +81,7 @@ const TEXT = {
       ["Supabase Inc.", "Databas och inloggning", "USA-bolag", "Standardavtalsklausuler"],
       ["Cloudflare Inc.", "Drift av webbplatsen", "USA-bolag", "Standardavtalsklausuler"],
       ["Resend Inc.", "Utskick av e-post (bekräftelser, leveransbesked)", "USA", "Standardavtalsklausuler"],
-      ["Zoho", "E-postlådan alexandro@maskinval.se", "EU", "Inom EU"],
+      ["Zoho", "E-postlådan info@maskinval.se", "EU", "Inom EU"],
       ["Groq Inc.", "AI-bearbetning av text i AI-ingenjören, maskinbyggaren och sökningen", "USA", "Standardavtalsklausuler"],
       ["Anthropic PBC", "AI-tolkning av bilder och dokument", "USA", "Standardavtalsklausuler"],
       ["HubSpot Inc.", "Kundregister (CRM) för offertförfrågningar", "USA/EU", "Standardavtalsklausuler"],
@@ -156,7 +156,7 @@ const TEXT = {
       ["Images and documents for interpretation", "Not stored by us."],
       ["Questions to the AI engineer", "Not stored by us (see anonymous statistics)."],
       ["Anonymous usage statistics", "13 months."],
-      ["Email to alexandro@maskinval.se", "As long as the matter requires, at most 24 months after it is closed."],
+      ["Email to info@maskinval.se", "As long as the matter requires, at most 24 months after it is closed."],
     ] as Rad[],
     mottagareTitel: "5. Recipients and transfers outside the EU",
     mottagareIngress: "We only share the data each task needs. Providers in the USA process the data under data processing agreements and the European Commission's standard contractual clauses (Art. 46(2)(c)).",
@@ -165,7 +165,7 @@ const TEXT = {
       ["Supabase Inc.", "Database and sign-in", "US company", "Standard contractual clauses"],
       ["Cloudflare Inc.", "Website hosting", "US company", "Standard contractual clauses"],
       ["Resend Inc.", "Sending email (confirmations, delivery notices)", "USA", "Standard contractual clauses"],
-      ["Zoho", "The alexandro@maskinval.se mailbox", "EU", "Within the EU"],
+      ["Zoho", "The info@maskinval.se mailbox", "EU", "Within the EU"],
       ["Groq Inc.", "AI processing of text in the AI engineer, machine builder and search", "USA", "Standard contractual clauses"],
       ["Anthropic PBC", "AI interpretation of images and documents", "USA", "Standard contractual clauses"],
       ["HubSpot Inc.", "Customer register (CRM) for quote requests", "USA/EU", "Standard contractual clauses"],
@@ -213,7 +213,7 @@ function PrivacyPage() {
   // Den personuppgiftsansvarige med organisationsnummer när det är ifyllt.
   const ansvarig = bolag?.org?.trim() ? `${visningsnamn(bolag)} (org.nr ${bolag.org})` : "Maskinval";
   const adress = [bolag?.address, bolag?.postal].filter(Boolean).join(", ");
-  const epost = bolag?.email || "alexandro@maskinval.se";
+  const epost = bolag?.email || "info@maskinval.se";
 
   return (
     <div className="container-page py-12 max-w-3xl">

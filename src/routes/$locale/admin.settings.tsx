@@ -29,7 +29,7 @@ const FIELDS: Field[] = [
   { key: "vat",       label: "Momsregistreringsnr",   placeholder: "SE556000000001" },
   { key: "address",   label: "Gatuadress",            placeholder: "Industrivägen 1" },
   { key: "postal",    label: "Postnr och stad",        placeholder: "123 45 Stockholm" },
-  { key: "email",     label: "E-post",                placeholder: "alexandro@maskinval.se" },
+  { key: "email",     label: "E-post",                placeholder: "info@maskinval.se" },
   { key: "phone",     label: "Telefon",               placeholder: "+46 8 000 00 00" },
   { key: "web",       label: "Webbadress",            placeholder: "maskinval.se" },
   { key: "bankgiro",  label: "Bankgiro",              placeholder: "123-4567" },

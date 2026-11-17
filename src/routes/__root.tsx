@@ -154,7 +154,7 @@ const ORG_SCHEMA = {
   url: SITE,
   logo: `${SITE}/favicon.svg`,
   description: "Industriell automation och pneumatik — AI-driven komponentväljare för maskinbyggare.",
-  email: "alexandro@maskinval.se",
+  email: "info@maskinval.se",
   sameAs: [],
 };
 

@@ -135,7 +135,7 @@ export default function OrderResa() {
     return (
       <div className="container-page max-w-2xl py-16">
         <p className="text-sm text-muted-foreground">{t.saknas}</p>
-        <p className="mt-3 text-sm"><a className="text-info underline" href="mailto:alexandro@maskinval.se">alexandro@maskinval.se</a></p>
+        <p className="mt-3 text-sm"><a className="text-info underline" href="mailto:info@maskinval.se">info@maskinval.se</a></p>
       </div>
     );
   }
@@ -253,7 +253,7 @@ export default function OrderResa() {
         <span className="text-xs text-muted-foreground">{t.uppdateras}</span>
       </div>
       <p className="text-xs text-muted-foreground">
-        {t.fragor} <a className="underline" href="mailto:alexandro@maskinval.se">alexandro@maskinval.se</a>.
+        {t.fragor} <a className="underline" href="mailto:info@maskinval.se">info@maskinval.se</a>.
       </p>
     </div>
   );

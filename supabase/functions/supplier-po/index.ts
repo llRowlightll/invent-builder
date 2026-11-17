@@ -24,7 +24,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API = "https://api.resend.com/emails";
 const RESEND_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const FROM = Deno.env.get("SUPPLIER_PO_FROM") ?? "Maskinval <alexandro@maskinval.se>";
+const FROM = Deno.env.get("SUPPLIER_PO_FROM") ?? "Maskinval <info@maskinval.se>";
 const SITE = "https://maskinval.se";
 
 /** 24 slumpbyte som base64url (32 tecken). Bara hashen sparas i databasen. */
@@ -50,7 +50,7 @@ const cors = {
 
 const FORETAG_FALLBACK: PoForetag = {
   name: "Maskinval AB", org: "", address: "", postal: "",
-  email: "alexandro@maskinval.se", phone: "", web: "maskinval.se", vat: "",
+  email: "info@maskinval.se", phone: "", web: "maskinval.se", vat: "",
 };
 
 function json(body: unknown, status = 200) {

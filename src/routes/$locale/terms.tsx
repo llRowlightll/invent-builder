@@ -240,7 +240,7 @@ function TermsPage() {
 
         <div className="pt-4 border-t border-border text-xs text-muted-foreground">
           {sv ? "Frågor? Kontakta oss på" : "Questions? Contact us at"}{" "}
-          <a href="mailto:alexandro@maskinval.se" className="text-info hover:underline">alexandro@maskinval.se</a>
+          <a href="mailto:info@maskinval.se" className="text-info hover:underline">info@maskinval.se</a>
           {" "}·{" "}
           <Link to="/$locale/privacy" params={{ locale }} className="text-info hover:underline">
             {sv ? "Integritetspolicy" : "Privacy policy"}

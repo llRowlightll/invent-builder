@@ -53,13 +53,14 @@ export interface UtskickSvar {
   fel?: string;
 }
 
-const FRAN_STANDARD = "Maskinval <alexandro@maskinval.se>";
+const FRAN_STANDARD = "Maskinval <info@maskinval.se>";
 /**
- * Dit ett svar går när inget annat anges. Ägaren 2026-11-16: den enda riktiga
- * lådan är alexandro@maskinval.se (Zoho) -- info@ och noreply@ fanns inte.
- * Avsändare, svarsadress och interna notiser går dit.
+ * Dit ett svar går när inget annat anges. Lådan är alexandro@maskinval.se
+ * (Zoho); info@maskinval.se är ett alias på den sedan 2026-11-17, och det är
+ * adressen kunder och leverantörer ser (ägaren: "mer professionellt").
+ * Interna notiser går till alexandro@.
  */
-const SVARSADRESS = "Maskinval <alexandro@maskinval.se>";
+const SVARSADRESS = "Maskinval <info@maskinval.se>";
 
 /** Liten REST-hjälp: funktionerna har olika Supabase-klienter, den här är fristående. */
 async function rest(

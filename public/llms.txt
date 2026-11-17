@@ -21,7 +21,7 @@ An equivalent must be the same kind of component (for example a round ISO 6432 c
 
 ## Contact
 
-- Email: alexandro@maskinval.se
+- Email: info@maskinval.se
 - [About](https://maskinval.se/en/om-oss)
 - [Privacy policy](https://maskinval.se/en/privacy)
 - [Terms](https://maskinval.se/en/terms)

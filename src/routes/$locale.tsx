@@ -544,7 +544,7 @@ function LocaleLayout() {
             >
               {t("cookies.manage")}
             </button>
-            <a href="mailto:alexandro@maskinval.se" className="hover:text-info transition">{t("footer.contact")}</a>
+            <a href="mailto:info@maskinval.se" className="hover:text-info transition">{t("footer.contact")}</a>
           </div>
         </div>
       </footer>
