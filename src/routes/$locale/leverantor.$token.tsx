@@ -209,7 +209,7 @@ export default function LeverantorSida() {
       <div className="container-page max-w-2xl py-16">
         <h1 className="text-xl font-semibold">{t.rubrik}</h1>
         <p className="mt-3 text-sm text-muted-foreground">{t.ogiltig}</p>
-        <p className="mt-3 text-sm"><a className="text-info underline" href="mailto:alexandro@maskinval.se">alexandro@maskinval.se</a></p>
+        <p className="mt-3 text-sm"><a className="text-info underline" href="mailto:info@maskinval.se">info@maskinval.se</a></p>
       </div>
     );
   }
@@ -368,7 +368,7 @@ export default function LeverantorSida() {
       </section>
 
       <p className="text-xs text-muted-foreground">
-        {t.fragor}: <a className="underline" href={`mailto:${po.kopare?.email || "alexandro@maskinval.se"}`}>{po.kopare?.email || "alexandro@maskinval.se"}</a>
+        {t.fragor}: <a className="underline" href={`mailto:${po.kopare?.email || "info@maskinval.se"}`}>{po.kopare?.email || "info@maskinval.se"}</a>
         {po.kopare?.phone ? ` · ${po.kopare.phone}` : ""}
       </p>
     </div>

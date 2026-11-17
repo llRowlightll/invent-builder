@@ -21,7 +21,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API = "https://api.resend.com/emails";
 const RESEND_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const FROM        = "Maskinval <alexandro@maskinval.se>";
+const FROM        = "Maskinval <info@maskinval.se>";
 // Company notification inbox — configurable so the upcoming firmwide address can
 // be set without a code change (Supabase → Edge Functions → Secrets).
 const ADMIN_EMAIL = Deno.env.get("ADMIN_NOTIFY_EMAIL") ?? "alexandro@maskinval.se";
@@ -176,7 +176,7 @@ function customerHtml(p: Payload): string {
     <!-- Contact -->
     <p style="font-size:13px;color:#64748b;margin:0;">
       Frågor? Svara på detta mejl eller kontakta oss på
-      <a href="mailto:alexandro@maskinval.se" style="color:#3b82f6;">alexandro@maskinval.se</a>
+      <a href="mailto:info@maskinval.se" style="color:#3b82f6;">info@maskinval.se</a>
     </p>
   `);
 }

@@ -262,8 +262,8 @@ function AdvisorPage() {
           laddning). Telefon och adress kommer från Inställningar (ägaren
           2026-11-13: samma nummer överallt tills ett annat ersätter det). */}
       <div className="kort p-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-        <a href={`mailto:${co?.email || "alexandro@maskinval.se"}`} className="inline-flex items-center gap-1.5 text-info font-medium hover:underline">
-          <Mail className="size-4" aria-hidden />{co?.email || "alexandro@maskinval.se"}
+        <a href={`mailto:${co?.email || "info@maskinval.se"}`} className="inline-flex items-center gap-1.5 text-info font-medium hover:underline">
+          <Mail className="size-4" aria-hidden />{co?.email || "info@maskinval.se"}
         </a>
         {co?.phone && (
           <a href={`tel:${co.phone.replace(/[^+\d]/g, "")}`} className="font-medium hover:underline">{co.phone}</a>

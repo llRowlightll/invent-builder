@@ -404,10 +404,10 @@ function SignupPage() {
                     Du kan skapa ett konto och börja använda Maskinval direkt. För att handla som företag
                     och få fakturering — mejla oss på{" "}
                     <a
-                      href="mailto:alexandro@maskinval.se?subject=Företagsregistrering&body=Hej,%0A%0AJag%20vill%20registrera%20mitt%20företag%20på%20Maskinval.%0A%0AFöretagsnamn:%20%0ALand:%20%0AReg.nr:%20%0AKontaktperson:%20%0ATelefon:%20"
+                      href="mailto:info@maskinval.se?subject=Företagsregistrering&body=Hej,%0A%0AJag%20vill%20registrera%20mitt%20företag%20på%20Maskinval.%0A%0AFöretagsnamn:%20%0ALand:%20%0AReg.nr:%20%0AKontaktperson:%20%0ATelefon:%20"
                       className="font-medium text-info underline underline-offset-2 hover:text-info/80"
                     >
-                      alexandro@maskinval.se
+                      info@maskinval.se
                     </a>{" "}
                     så sköter vi registreringen åt dig.
                   </p>

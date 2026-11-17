@@ -118,7 +118,7 @@ function OmOss() {
         {bolag?.phone && (
           <div><a href={`tel:${bolag.phone.replace(/[^\d+]/g, "")}`} className="text-info hover:underline">{bolag.phone}</a></div>
         )}
-        <div><a href={`mailto:${bolag?.email || "alexandro@maskinval.se"}`} className="text-info hover:underline">{bolag?.email || "alexandro@maskinval.se"}</a></div>
+        <div><a href={`mailto:${bolag?.email || "info@maskinval.se"}`} className="text-info hover:underline">{bolag?.email || "info@maskinval.se"}</a></div>
       </div>
       <Link to="/$locale/advisor" params={{ locale }} search={{ q: undefined } as never}
         className="mt-4 inline-block rounded-md bg-info px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">
