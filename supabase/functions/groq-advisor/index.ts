@@ -79,6 +79,7 @@ import {
   deriveSubsystems,
   firstNumAbs,
 } from "./bom-builder.ts";
+import { dokumentInomBudget, forStorBegaran, lasTpmTak, STANDARD_TPM_TAK, UTDRAGSSKILJE } from "./tokenbudget.ts";
 
 // v51 — Engineering-correctness pass (reported via boss-tests): (1) multi-axis precision
 //        hole — applyPrecisionFilter no longer disables on multi-axis non-vertical, so a
@@ -162,6 +163,13 @@ const LLM_MODEL = "openai/gpt-oss-120b";
 // (same family as the primary, so behavior is well understood).
 const LLM_MODEL_FAST = "openai/gpt-oss-20b";
 const LLM_URL = "https://api.groq.com/openai/v1/chat/completions";
+// Minutstaket per modell (tokenbudget.ts). Höjs med hemligheten GROQ_TPM_TAK
+// när kontot får en högre nivå.
+const GROQ_TPM_TAK_RAW = Deno.env.get("GROQ_TPM_TAK");
+const TPM_TAK = lasTpmTak(GROQ_TPM_TAK_RAW) ?? STANDARD_TPM_TAK;
+if (lasTpmTak(GROQ_TPM_TAK_RAW) === null) {
+  console.error(`GROQ_TPM_TAK="${GROQ_TPM_TAK_RAW}" gick inte att läsa; ${STANDARD_TPM_TAK} gäller`);
+}
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -196,13 +204,51 @@ function logAdvisorEvent(
   }).catch(() => {/* telemetry must never affect main flow */});
 }
 
-// callGroq: tries primary model first, falls back to fast model on 429
+/** Groq sade att begäran är större än minutstaket (tokenbudget.ts). */
+class ForStorBegaran extends Error {}
+
+// callGroq: tries primary model first, falls back to fast model on 429.
+//
+// En begäran som Groq säger är större än minutstaket skickas aldrig igen
+// oförändrad: reservmodellen har samma tak, och samma begäran avvisas igen.
+// Har anroparen skickat med `mindre` (samma begäran utan dokumentutdrag)
+// görs ett försök med den; annars, eller om även den är för stor, null.
 async function callGroq(
   messages: Array<{ role: string; content: string }>,
   maxTokens = 2000,
   jsonMode = true,
   temperature = 0.2,
-  model = LLM_MODEL
+  model = LLM_MODEL,
+  mindre?: Array<{ role: string; content: string }>,
+): Promise<string | null> {
+  try {
+    return await callGroqEnGang(messages, maxTokens, jsonMode, temperature, model);
+  } catch (e) {
+    if (!(e instanceof ForStorBegaran)) throw e;
+    if (!mindre) {
+      console.error("LLM: begäran större än minutstaket, inget omförsök –", e.message.slice(0, 120));
+      return null;
+    }
+    console.warn("LLM: begäran större än minutstaket, försöker utan dokumentutdrag", model);
+    try {
+      // Utan ny väntan på minutstak: den totala väntan ska hållas under
+      // MAX_VANTAN_S, och användaren har redan väntat på första varvet.
+      return await callGroqEnGang(mindre, maxTokens, jsonMode, temperature, model, false);
+    } catch (e2) {
+      if (!(e2 instanceof ForStorBegaran)) throw e2;
+      console.error("LLM: begäran större än minutstaket även utan dokumentutdrag –", e2.message.slice(0, 120));
+      return null;
+    }
+  }
+}
+
+async function callGroqEnGang(
+  messages: Array<{ role: string; content: string }>,
+  maxTokens: number,
+  jsonMode: boolean,
+  temperature: number,
+  model: string,
+  vantaVidKvottak = true,
 ): Promise<string | null> {
   const tryModel = async (
     m: string,
@@ -221,7 +267,9 @@ async function callGroq(
       // mellan "vänta lite" och "ge upp nu".
       const raw = res.headers.get("retry-after");
       const sek = raw === null ? null : Number.isFinite(Number(raw)) ? Number(raw) : null;
-      console.error("LLM error:", res.status, m, `retry-after=${raw ?? "-"}`, text.slice(0, 200));
+      // 400 tecken: "Requested N" står efter de första 200.
+      console.error("LLM error:", res.status, m, `retry-after=${raw ?? "-"}`, text.slice(0, 400));
+      if (forStorBegaran(res.status)) throw new ForStorBegaran(`${m}: ${text.slice(0, 400)}`);
       return { ok: false, text, rateLimited: res.status === 429, retryAfter: sek };
     }
     return { ok: true, text, rateLimited: false, retryAfter: null };
@@ -230,7 +278,7 @@ async function callGroq(
   // Hur länge vi som mest står och väntar på ett kvottak. Edge-funktionen har
   // en tidsbudget och användaren sitter och tittar -- ett minutstak släpper
   // inom några sekunder, och släpper det inte då är det inte ett minutstak.
-  const MAX_VANTAN_S = 5;
+  const MAX_VANTAN_S = vantaVidKvottak ? 5 : 0;
   const sov = (s: number) => new Promise((r) => setTimeout(r, s * 1000));
 
   const contentOf = (text: string): string | null =>
@@ -312,9 +360,14 @@ async function searchKnowledge(query: string, limit = 6): Promise<string> {
     if (!Array.isArray(chunks) || !chunks.length) return "";
     return chunks.map((c: { content: string; source_file?: string; brand?: string }) =>
       `[${c.brand ?? "doc"} — ${c.source_file ?? ""}]\n${c.content}`
-    ).join("\n\n---\n\n");
+    ).join(UTDRAGSSKILJE);
   } catch { return ""; }
 }
+
+// Svarsbudgetarna står på ett ställe: tokenbudgeten och anropet måste ha samma
+// värde, annars räknar budgeten fel och begäran går över minutstaket.
+const OPT_MAX_TOKENS = 2200;
+const CHAT_MAX_TOKENS = 4000;
 
 /**
  * Familjerna med sina borrningslistor -- underlaget för att LÄSA en orderkod.
@@ -1548,7 +1601,14 @@ Do NOT output a badge field — badges are assigned server-side and must not be 
 
 JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "EXACT_SKU", "why": "...", "pros": [...], "cons": [...] } ] }`;
 
-  const optUser = `Application: ${description}\nRequirements: ${reqSummary || "standard"}\n${Object.entries(answers).map(([k,v])=>`${k}: ${v}`).join(", ")}\n\nPre-selected products (write descriptions for these ONLY):\n${preselectedStr}${pdfCtx ? `\n\nDocs:\n${pdfCtx}` : ""}`;
+  const optUserUtanDok = `Application: ${description}\nRequirements: ${reqSummary || "standard"}\n${Object.entries(answers).map(([k,v])=>`${k}: ${v}`).join(", ")}\n\nPre-selected products (write descriptions for these ONLY):\n${preselectedStr}`;
+  // Hela begäran måste rymmas under minutstaket; dokumenten kortas, aldrig
+  // kravet, produkterna eller säkerhetsreglerna (tokenbudget.ts).
+  const optDok = dokumentInomBudget(pdfCtx, optSystem + optUserUtanDok, OPT_MAX_TOKENS, TPM_TAK);
+  const optUser = `${optUserUtanDok}${optDok ? `\n\nDocs:\n${optDok}` : ""}`;
+  const optUtanDok = optDok
+    ? [{ role: "system", content: optSystem }, { role: "user", content: optUserUtanDok }]
+    : undefined;
 
   let rawOptions: string | null = null;
   let optRateLimited = false;
@@ -1557,7 +1617,7 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
   // it was intermittently closing the JSON options array early (confirmed live
   // 2026-08-17: 2 of 3 real products came back with blank why/pros in the same
   // response). 2200 gives headroom for reasoning + all 3 full entries.
-  try { rawOptions = await callGroq([{ role: "system", content: optSystem }, { role: "user", content: optUser }], 2200, true, 0.3); }
+  try { rawOptions = await callGroq([{ role: "system", content: optSystem }, { role: "user", content: optUser }], OPT_MAX_TOKENS, true, 0.3, LLM_MODEL, optUtanDok); }
   catch (e) {
     if ((e as Error).message === "RATE_LIMITED") optRateLimited = true;
     else console.error("options: callGroq threw, falling back to grounded server defaults:", e);
@@ -2219,7 +2279,12 @@ async function handleChat(
     chatReading, "sv",
     await fetchFamilyFacts(chatReading.resolved.map((r) => r.familySlug)),
   );
-  const system = `Du är Maskinvals AI-assistent, expert på industriell automation. Hjälper ingenjörer välja komponenter och lösa tekniska problem. Svar på svenska.${codeNote ? `\n\n${codeNote}` : ""}${pdfCtx ? `\n\nReferensdokumentation:\n${pdfCtx}` : ""}`;
+  const systemUtanDok = `Du är Maskinvals AI-assistent, expert på industriell automation. Hjälper ingenjörer välja komponenter och lösa tekniska problem. Svar på svenska.${codeNote ? `\n\n${codeNote}` : ""}`;
+  // Samtalet och svarsbudgeten först; referensdokumenten får det som ryms
+  // under minutstaket (tokenbudget.ts).
+  const samtalstext = messages.map((m) => typeof m.content === "string" ? m.content : JSON.stringify(m.content)).join("\n");
+  const chatDok = dokumentInomBudget(pdfCtx, systemUtanDok + samtalstext, CHAT_MAX_TOKENS, TPM_TAK);
+  const system = `${systemUtanDok}${chatDok ? `\n\nReferensdokumentation:\n${chatDok}` : ""}`;
   // Uppslaget följer med i svaret som DATA, skilt från prosan. Vilka koder vi
   // kände igen och vilka vi inte gjorde det avgörs av readOrderCodes, inte av
   // hur modellen råkar formulera sig -- och under kvottak svarar den lilla
@@ -2236,7 +2301,10 @@ async function handleChat(
   // alltså ett kraschat gränssnitt i stället för ett begripligt besked. Alla
   // andra steg degraderar redan; chatten gjorde det inte.
   try {
-    const raw = await callGroq([{ role: "system", content: system }, ...messages], 4000, false);
+    const raw = await callGroq(
+      [{ role: "system", content: system }, ...messages], CHAT_MAX_TOKENS, false, 0.2, LLM_MODEL,
+      chatDok ? [{ role: "system", content: systemUtanDok }, ...messages] : undefined,
+    );
     // Tom generering tre gånger, eller reservmodellen som föll på annat än
     // kvot: också ett degraderat svar, och märks som ett. Omärkt såg det ut
     // som ett riktigt svar som bara råkade sakna innehåll -- ett test som
