@@ -38,6 +38,20 @@ Deno.test("spänningen prövas mot artikeln", () => {
   assertEquals(provaSpanning(dc24, {}, true).utfall, "underlag_saknas");
 });
 
+Deno.test("spolspänningen räknas som artikelns spänning (ventiler och ventilterminaler)", () => {
+  // 41 ventiler och ventilterminaler har spänningen under solenoid_voltage
+  // och fick "katalogen anger ingen spänning" (2026-11-17).
+  const dc24 = { volt: 24, typ: "DC" as const };
+  assertEquals(provaSpanning(dc24, { solenoid_voltage: "24 VDC" }, true).utfall, "uppfyllt");
+  assertEquals(provaSpanning(dc24, { solenoid_voltage: "24 VAC 50/60 Hz" }, true).utfall, "ej_uppfyllt");
+  assertEquals(provaSpanning(dc24, { nominal_voltage: "24 V DC" }, true).utfall, "uppfyllt");
+  // voltage går före, och ett tomt fält hoppas över.
+  assertEquals(provaSpanning(dc24, { voltage: "", solenoid_voltage: "24 VDC" }, true).utfall, "uppfyllt");
+  assertEquals(provaSpanning(dc24, { voltage: "200 VAC", solenoid_voltage: "24 VDC" }, true).utfall, "ej_uppfyllt");
+  // En spole som beställs separat är inte artikelns egen spänning.
+  assertEquals(provaSpanning(dc24, { coil_voltage_ordered_separately: "24 VDC" }, true).utfall, "underlag_saknas");
+});
+
 Deno.test("gripkraften prövas mot kravet; utan uppgift saknas underlag", () => {
   const tumregel = { n: 5000, angiven: false, tumregelN: 5000, angivetN: 0 };
   const angiven = { n: 100, angiven: true, tumregelN: 0, angivetN: 100 };
