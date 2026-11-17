@@ -187,11 +187,12 @@ function SignupPage() {
     // If session exists (email confirmation disabled) save profile immediately
     const userId = data.user?.id;
     if (userId && data.session) {
-      await (supabase as any).from("company_profiles").upsert({
+      const { error: profilFel } = await (supabase as any).from("company_profiles").upsert({
         id: userId,
         ...pendingProfile,
       });
-      localStorage.removeItem("mv_pending_profile");
+      // Misslyckas sparningen ligger utkastet kvar och profilsidan försöker igen.
+      if (!profilFel) localStorage.removeItem("mv_pending_profile");
     }
 
     // Send welcome email (fire-and-forget — don't block signup flow)

@@ -281,12 +281,14 @@ function MachineBuilderPage() {
     void (async () => {
       const bomId = await saveBomNormalized(user.id, bom, description, connections);
       if (projektId) {
-        await supabase.from("projects").update({
+        const { error } = await supabase.from("projects").update({
           description: description.trim() || null,
           answers,
           bom_lines: bomSnapshot,
           bom_id: bomId,
         }).eq("id", projektId);
+        // Nekad: nästa ändring försöker igen, och inget "Sparat" visas.
+        if (error) { sparatInnehall.current = ""; console.warn("[autospar]", error.message); return; }
       } else {
         const name = bomTitle || `Maskinbyggare — ${new Date().toLocaleDateString("sv-SE")}`;
         const { data } = await supabase.from("projects").insert({
@@ -298,7 +300,8 @@ function MachineBuilderPage() {
           bom_lines: bomSnapshot,
           bom_id: bomId,
         }).select("id").single();
-        if (data) setProjektId(data.id);
+        if (!data) { sparatInnehall.current = ""; console.warn("[autospar] projektet skapades inte"); return; }
+        setProjektId(data.id);
       }
       setAutoSaved(true);
     })();
@@ -1845,6 +1848,8 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
   const [projectDesc, setProjectDesc] = useState("");
   const [projectSaving, setProjectSaving] = useState(false);
   const [projectSaved, setProjectSaved] = useState(false);
+  // Fel från databasen när projektet sparas; rutan stängs inte då.
+  const [projectSaveError, setProjectSaveError] = useState<string | null>(null);
   const [configFamilies, setConfigFamilies] = useState<Set<string>>(new Set());
   useEffect(() => {
     supabase.from("configurator_families").select("slug")
@@ -1875,11 +1880,13 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
   async function saveProject() {
     if (!user || !projectName.trim()) return;
     setProjectSaving(true);
+    setProjectSaveError(null);
     if (projektId) {
       // "Byt namn" på det autosparade projektet byter namn på det -- förut
       // skapades en kopia med det nya namnet, och anteckningen ersatte
       // maskinens beskrivning i kopian.
-      await supabase.from("projects").update({ name: projectName.trim() }).eq("id", projektId);
+      const { error } = await supabase.from("projects").update({ name: projectName.trim() }).eq("id", projektId);
+      if (error) { setProjectSaving(false); setProjectSaveError(error.message); return; }
     } else {
       const bomSnapshot = activeBom.map(l => ({
         sku: l.sku, role: l.role, qty: l.quantity,
@@ -1898,7 +1905,8 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
         bom_lines: bomSnapshot,
         bom_id: bomId,
       }).select("id").single();
-      if (data) onProjektSparat(data.id);
+      if (!data) { setProjectSaving(false); setProjectSaveError("inget svar"); return; }
+      onProjektSparat(data.id);
     }
     setProjectSaving(false);
     setProjectSaved(true);
@@ -2505,6 +2513,9 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
                 />
               </div>}
             </div>
+            {projectSaveError && (
+              <p role="alert" className="mt-4 text-sm text-destructive">{t("projects.saveFailed")} ({projectSaveError})</p>
+            )}
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setShowSaveModal(false)}
                 className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted transition">

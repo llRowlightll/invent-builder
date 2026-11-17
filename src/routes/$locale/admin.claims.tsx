@@ -56,10 +56,12 @@ function ClaimEditModal({ claim, onClose, onSaved }: { claim: ClaimRow; onClose:
   const [resolutionNote, setResolutionNote] = useState(claim.resolution_note ?? "");
   const [adminNote, setAdminNote] = useState(claim.admin_note ?? "");
   const [saving, setSaving] = useState(false);
+  const [fel, setFel] = useState<string | null>(null);
 
   async function save() {
     setSaving(true);
-    const { data } = await supabase
+    setFel(null);
+    const { data, error } = await supabase
       .from("claims")
       .update({
         status,
@@ -71,6 +73,8 @@ function ClaimEditModal({ claim, onClose, onSaved }: { claim: ClaimRow; onClose:
       .select()
       .single();
     setSaving(false);
+    // Rutan stängs inte när databasen nekade -- det adminen skrivit ligger kvar.
+    if (error || !data) { setFel(`Kunde inte spara: ${error?.message ?? "inget svar"}`); return; }
     if (data) {
       // Statusen är redan sparad, så order-status-email läser om ärendet ur
       // raden. resolution_note följer med som svarstext till kunden;
@@ -132,6 +136,8 @@ function ClaimEditModal({ claim, onClose, onSaved }: { claim: ClaimRow; onClose:
               className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none" />
           </div>
         </div>
+
+        {fel && <p role="alert" className="mt-4 text-sm text-destructive">{fel}</p>}
 
         <div className="flex justify-end gap-2 mt-6">
           <button onClick={onClose} className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted transition">Avbryt</button>

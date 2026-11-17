@@ -80,16 +80,17 @@ function ProfilePage() {
               merged.profile_complete = true;
             }
             // Persist merged data back to DB and clear localStorage
-            await (supabase as any).from("company_profiles").upsert({ id: user.id, ...merged });
-            localStorage.removeItem("mv_pending_profile");
+            const { error: sparFel } = await (supabase as any).from("company_profiles").upsert({ id: user.id, ...merged });
+            // Utkastet från registreringen tas bort först när profilen är sparad.
+            if (!sparFel) localStorage.removeItem("mv_pending_profile");
           }
           setProfile(merged as Profile);
           setEdit(merged as Profile);
         } else if (pending) {
           // No profile in DB yet — create it from pending signup data
           const newProfile = { id: user.id, email: user.email, ...pending };
-          await (supabase as any).from("company_profiles").upsert(newProfile);
-          localStorage.removeItem("mv_pending_profile");
+          const { error: sparFel } = await (supabase as any).from("company_profiles").upsert(newProfile);
+          if (!sparFel) localStorage.removeItem("mv_pending_profile");
           const { data: created } = await (supabase as any)
             .from("company_profiles").select("*").eq("id", user.id).maybeSingle();
           if (created) { setProfile(created as Profile); setEdit(created as Profile); }

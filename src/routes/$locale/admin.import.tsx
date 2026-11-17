@@ -202,12 +202,14 @@ function ImportPage() {
     setLog(l => [...l, { type: "ok", msg: `${valid.length} produkter importerade/uppdaterade.` }]);
 
     if (version.trim()) {
-      await supabase.from("dataset_versions").insert({
+      const { error: versionFel } = await supabase.from("dataset_versions").insert({
         version: version.trim(),
         notes: `CSV-import av ${valid.length} produkter`,
         created_by: user!.id,
       });
-      setLog(l => [...l, { type: "info", msg: `Version loggad: ${version}` }]);
+      setLog(l => [...l, versionFel
+        ? { type: "err", msg: `Produkterna är importerade, men versionen loggades inte: ${versionFel.message}` }
+        : { type: "info", msg: `Version loggad: ${version}` }]);
     }
 
     clearCatalogCache();

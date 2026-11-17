@@ -861,6 +861,8 @@
     "loadProject": "Abrir en constructor de máquinas",
     "deleteProject": "Eliminar",
     "confirmDelete": "¿Seguro? El proyecto se eliminará permanentemente.",
+    "deleteFailed": "No se pudo eliminar el proyecto. Inténtelo de nuevo.",
+    "saveFailed": "No se pudo guardar el proyecto. Lo que escribió sigue aquí; inténtelo de nuevo.",
     "createdAt": "Guardado",
     "bomLines": "artículos en BOM",
     "notLoggedIn": "Inicie sesión para guardar proyectos",

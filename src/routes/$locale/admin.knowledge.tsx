@@ -92,7 +92,8 @@ export default function AdminKnowledgePage() {
 
   async function deleteChunk(id: string) {
     if (!confirm("Ta bort denna chunk?")) return;
-    await supabase.from("knowledge_chunks").delete().eq("id", id);
+    const { error } = await supabase.from("knowledge_chunks").delete().eq("id", id);
+    if (error) { window.alert(`Kunde inte ta bort: ${error.message}`); return; }
     setChunks((prev) => prev.filter((c) => c.id !== id));
     setTotal((t) => t - 1);
   }
