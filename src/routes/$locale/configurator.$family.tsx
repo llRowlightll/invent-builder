@@ -147,6 +147,8 @@ function configuratorIntro(fam: FamSeo | null, locale: string): string {
     : `Configure your ${fam.name} — ${noun}${std}${stroke}. Choose dimensions and options and get a part number and quote instantly, without waiting for a salesperson.`;
 }
 
+const KONFIGURERA: Record<string, string> = { sv: "Konfigurera", en: "Configure", de: "Konfigurieren", es: "Configurar" };
+
 export const Route = createFileRoute("/$locale/configurator/$family")({
   loader: async ({ params }) => {
     const { data } = await supabase
@@ -167,7 +169,11 @@ export const Route = createFileRoute("/$locale/configurator/$family")({
         {
           title: sv
             ? `Konfigurera ${name} – ${kundanpassad} ${noun} | Maskinval`
-            : `Configure ${name} – custom ${noun} | Maskinval`,
+            : params.locale === "en"
+              ? `Configure ${name} – custom ${noun} | Maskinval`
+              // Substantiven finns bara på svenska och engelska; tyska och
+              // spanska får verbet och seriens namn i stället för en blandning.
+              : `${KONFIGURERA[params.locale] ?? KONFIGURERA.en} ${name} | Maskinval`,
         },
         { name: "description", content: configuratorIntro(fam, params.locale) },
       ],
@@ -431,7 +437,9 @@ function ConfiguratorPage() {
 
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground">{family.name}</h1>
+        {/* Rubriken säger vad sidan gör, inte bara seriens kod (SEO-granskningen
+            2026-11-17: rubriken var "ADN"). */}
+        <h1 className="text-3xl font-bold text-foreground">{KONFIGURERA[locale] ?? KONFIGURERA.en} {family.name}{(locale === "sv" || locale === "en") && <span className="font-normal text-muted-foreground"> – {catNoun(family.category_slug, locale)}</span>}</h1>
         <p className="text-muted-foreground mt-1 text-lg">{family.title}</p>
         <p className="text-sm text-muted-foreground mt-3 leading-relaxed max-w-2xl">
           {configuratorIntro(

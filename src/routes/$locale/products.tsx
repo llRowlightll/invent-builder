@@ -518,7 +518,9 @@ function ProductsPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-primary">{t("nav.products")}</h1>
+          {/* Kategorins namn som rubrik när en kategori är vald (SEO-granskningen
+              2026-11-17: ventilsidan hade rubriken "Produkter"). */}
+          <h1 className="text-2xl font-semibold tracking-tight text-primary">{activeCatSlug ? categoryName(activeCatSlug, locale) : t("nav.products")}</h1>
           <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
             {filtered.length} {t("products.of")} {totalt} {t("products.count")}
             {familjefall && (

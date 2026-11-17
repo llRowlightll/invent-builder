@@ -18,6 +18,9 @@ export function logga(typ: Handelse, data: Record<string, string | number | bool
     if (/^(localhost|127\.0\.0\.1|\[::1\])$|\.localhost$|\.test$/.test(window.location.hostname)) return;
     // Ägarens egna enheter räknas inte (se markeraIntern).
     if (arIntern()) return;
+    // Robotar och automatiserade webbläsare räknas inte (2026-11-17: en
+    // nattlig genomsökning av 1 500 sidor stod för det mesta av "besöken").
+    if (arRobot()) return;
     // Leverantörslänkens token är hemlig och sparas inte i mätningen.
     const sida = window.location.pathname.replace(/\/leverantor\/[^/]+/, "/leverantor/[token]");
     const sprak = sida.split("/")[1] || null;
@@ -76,4 +79,15 @@ export function lasInternFranAdressen(): void {
     if (v === "1") markeraIntern(true);
     if (v === "0") markeraIntern(false);
   } catch { /* ingen adress */ }
+}
+
+/** Sökmotorer, granskningsverktyg och styrda webbläsare (webdriver). */
+export function arRobot(): boolean {
+  try {
+    if ((navigator as Navigator & { webdriver?: boolean }).webdriver) return true;
+    return /bot|crawl|spider|slurp|headless|lighthouse|pagespeed|preview|facebookexternalhit|embedly|quora link|whatsapp|python-requests|curl|wget/i
+      .test(navigator.userAgent);
+  } catch {
+    return false;
+  }
 }
