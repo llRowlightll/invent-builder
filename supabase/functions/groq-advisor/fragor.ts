@@ -110,6 +110,29 @@ export function forfragningstyp(text: string): Forfragan {
   return "rorelse";
 }
 
+/**
+ * Kategorierna alternativen hämtas ur. Normalt rörelsens aktuatorer --
+ * ventiler, luftberedning och givare kommer som rader i stycklistan. Men när
+ * förfrågan GÄLLER ventilen ("ventilö för 8 dubbelverkande cylindrar med
+ * Profinet") ska alternativen vara ventiler: förut blev de cylindrar, eftersom
+ * texten nämner cylindrarna ventilen ska styra (provkörning mot drift
+ * 2026-11-17). Frågesteget visste redan att det var en ventilfråga.
+ *
+ * Bara ventiler än så länge: givare, slang och luftberedning saknar egna
+ * kategorier i detectCategories, och deras väg genom alternativen är oprövad.
+ */
+export function alternativkategorier(typ: Forfragan, categories: string[], griporganTillagg: string | null): string[] {
+  if (typ === "ventil") {
+    if (categories.includes("valve-terminal")) return ["valve-terminal"];
+    if (categories.includes("valve")) return ["valve"];
+  }
+  const rorelse = categories.filter((c) => ["cylinder", "electric-actuator", "linear-module", "rotary-actuator"].includes(c));
+  // Lyft med griporgan: alternativen är lyftets aktuatorer, aldrig griporgan
+  // (de kommer som egen rad i stycklistan). Utan rörelsekategori: cylindrar.
+  const motion = griporganTillagg && rorelse.length === 0 ? ["cylinder"] : rorelse;
+  return motion.length > 0 ? motion : categories;
+}
+
 /** Ett utbyte av en identifierad artikel: storleken står redan i koden. */
 export function arUtbyte(text: string, kod?: Kodvarden): boolean {
   return !!(kod?.slagMm || kod?.borrningMm) &&

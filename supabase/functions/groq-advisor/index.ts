@@ -66,7 +66,7 @@ import {
 } from "./signals.ts";
 import {
   arElaxel, arElektronikhantering, arKorrosiv, arSakerhetskrav, arSpolmiljo, arUtbyte,
-  forfragningstyp, kandaVarden, reservsammanfattning, slutligaFragor, teknikval, type Fraga, type Kodvarden,
+  alternativkategorier, forfragningstyp, kandaVarden, reservsammanfattning, slutligaFragor, teknikval, type Fraga, type Kodvarden,
 } from "./fragor.ts";
 import {
   buildCustomSolutionOption,
@@ -1287,11 +1287,8 @@ async function handleOptions(
   // pool entirely, which is the more fundamental fix: a motor was never a
   // valid standalone answer to "recommend an actuator" regardless of
   // whether it happens to also dodge two unrelated filters.
-  const rorelseKat = categories.filter(c => ["cylinder","electric-actuator","linear-module","rotary-actuator"].includes(c));
-  // Lyft med griporgan: alternativen är lyftets aktuatorer, aldrig griporgan
-  // (de kommer som egen rad i stycklistan). Utan rörelsekategori: cylindrar.
-  const motionCats = griporganTillagg && rorelseKat.length === 0 ? ["cylinder"] : rorelseKat;
-  const systemMotionCats = motionCats.length > 0 ? motionCats : categories;
+  // Rörelsens aktuatorer, utom när förfrågan gäller ventilen själv (fragor.ts).
+  const systemMotionCats = alternativkategorier(forfragningstyp(description), categories, griporganTillagg);
 
   const [allProducts, pdfCtx] = await Promise.all([
     // High limit so the WHOLE category is considered: the fetch RPC orders by

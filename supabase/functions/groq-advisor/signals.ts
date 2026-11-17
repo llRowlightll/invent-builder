@@ -126,7 +126,9 @@ export function detectCategories(text: string): string[] {
     slugs.add("vacuum");
   if (/gripper|klämma|jaw|parallel.grip/i.test(t)) slugs.add("gripper");
   if (/ventil(?!terminal)|valve(?!.terminal)|solenoid/i.test(t)) slugs.add("valve");
-  if (/ventilterminal|valve.terminal|vtug|vtsa|mpa\b|cpv\b|ventilblock|manifold|fördelare|ventilramp/i.test(t))
+  // "ventilö" är det svenska ordet för en ventilterminal; det saknades, så
+  // "ventilö för 8 cylindrar" blev bara "valve" (2026-11-17).
+  if (/ventilterminal|ventilö|valve.terminal|valve.island|ventilinsel|isla de v[aá]lvulas|vtug|vtsa|mpa\b|cpv\b|ventilblock|manifold|fördelare|ventilramp/i.test(t))
     slugs.add("valve-terminal");
   if (/sensor|detek|proximity|reed/i.test(t)) slugs.add("sensor");
   // Cleanroom (actual ISO-class rooms): switch to electric-only
