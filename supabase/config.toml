@@ -8,3 +8,8 @@ verify_jwt = false
 # bara det som faktiskt hänt, en gång per händelse.
 [functions.orderhandelse]
 verify_jwt = false
+
+# Anropas av databasen (pg_net) när någon skriver på kontaktsidan; läser om
+# meddelandet och mejlar ägaren en gång per meddelande.
+[functions.kontakt-notis]
+verify_jwt = false

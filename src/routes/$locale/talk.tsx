@@ -15,6 +15,12 @@ export const Route = createFileRoute("/$locale/talk")({
       ],
     };
   },
+  // ?till=manniska öppnar fliken för ett meddelande till en människa, och q
+  // fyller i meddelandet (PLC-modulens "Hjälp av automationsingenjör").
+  validateSearch: (s: Record<string, unknown>): { till?: "manniska"; q?: string } => ({
+    till: s.till === "manniska" ? "manniska" : undefined,
+    q: typeof s.q === "string" ? s.q.slice(0, 2000) : undefined,
+  }),
   component: TalkPage,
 });
 
@@ -27,8 +33,9 @@ const schema = z.object({
 function TalkPage() {
   const { locale } = Route.useParams();
   const t = makeT(locale as Locale);
-  const [tab, setTab] = useState<"ai" | "human">("ai");
-  const [form, setForm] = useState({ name: "", email: "", message: "" });
+  const sok = Route.useSearch();
+  const [tab, setTab] = useState<"ai" | "human">(sok.till === "manniska" ? "human" : "ai");
+  const [form, setForm] = useState({ name: "", email: "", message: sok.q ?? "" });
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [err, setErr] = useState<string | null>(null);
   // Telefonnumret står i bolagsinställningarna (admin), inte i koden.

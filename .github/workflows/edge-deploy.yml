@@ -96,6 +96,7 @@ jobs:
             fortnox-order
             fortnox-anslut
             orderhandelse
+            kontakt-notis
             book-shipment
             document-ai
             extract-prices
