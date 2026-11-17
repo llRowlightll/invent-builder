@@ -22,6 +22,10 @@ import { escapeHtml } from "../_shared/html.ts";
  * to any address — phishing-as-a-service riding this domain's sender
  * reputation. Fixed by always HTML-escaping name.
  *
+ * Texten 2026-11-17: länkarna gick till workers.dev-adressen, "tusentals
+ * produkter" (katalogen har ≈ 800), "ett team av ingenjörer" (en människa
+ * och AI, som Om oss säger) och "kontot är aktiverat" innan bekräftelsen.
+ *
  * Residual, NOT fixed here: any caller can still trigger the canned template
  * for an arbitrary recipient (spam/reputation risk, no longer an injection
  * risk). Closing that needs either verifying the confirmation-email setting
@@ -37,7 +41,7 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 // (rfq-notify/order-status-email already send from it successfully), so
 // matching that fixes delivery, not just the injection issue below.
 const FROM = "Maskinval <info@maskinval.se>";
-const BASE_URL = "https://tanstack-start-app.alexandropeer.workers.dev";
+const BASE_URL = "https://maskinval.se";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -51,14 +55,14 @@ function buildHtml(name: string, locale: string = "sv"): string {
   const lang = ["sv", "en", "de", "es"].includes(locale) ? locale : "sv";
   const startUrl = `${BASE_URL}/${lang}/products`;
   const chatUrl  = `${BASE_URL}/${lang}/chat`;
-  const advisorUrl = `${BASE_URL}/${lang}/advisor`;
+  const talkUrl = `${BASE_URL}/${lang}/talk`;
   const firstName = name?.split(" ")[0] || "där";
 
   return `<!DOCTYPE html>
 <html lang="sv">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Välkommen till Maskinval</title></head>
 <body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,Helvetica,sans-serif;">
-<div style="display:none;max-height:0;overflow:hidden;">Din AI-drivna komponentkatalog — med riktiga ingenjörer bakom.</div>
+<div style="display:none;max-height:0;overflow:hidden;">Din AI-drivna komponentkatalog — med en människa bakom.</div>
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f6f9;">
 <tr><td align="center" style="padding:32px 16px;">
 <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
@@ -70,13 +74,14 @@ function buildHtml(name: string, locale: string = "sv"): string {
     <td style="padding-left:12px;vertical-align:middle;"><span style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-.5px;">Maskinval</span></td>
   </tr></table>
   <h1 style="margin:0;font-size:26px;font-weight:700;color:#fff;line-height:1.3;">Välkommen, ${firstName}! 👋</h1>
-  <p style="margin:10px 0 0;font-size:15px;color:rgba(255,255,255,.75);line-height:1.5;">Ditt konto är aktiverat — här är allt du behöver veta.</p>
+  <p style="margin:10px 0 0;font-size:15px;color:rgba(255,255,255,.75);line-height:1.5;">Tack för att du registrerade dig — här är allt du behöver veta.</p>
+  <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,.6);line-height:1.5;">Har du inte bekräftat din e-postadress än? Klicka först på länken i bekräftelsemejlet.</p>
 </td></tr>
 
 <!-- Intro -->
 <tr><td style="padding:36px 40px 24px;">
-  <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.7;">Maskinval är din smarta katalog för industriell automation — byggd för maskinkonstruktörer, inköpare och tekniker som arbetar med Festo, SMC, Parker, Bosch Rexroth, Norgren och Metal Work.</p>
-  <p style="margin:0;font-size:15px;color:#374151;line-height:1.7;">Vi kombinerar ett komplett produktregister med AI-teknik så att du hittar rätt komponent, beräknar rätt cylinderdimension och bygger kompletta stycklister — på sekunder, inte timmar.</p>
+  <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.7;">Maskinval är din smarta katalog för industriell automation — byggd för maskinkonstruktörer, inköpare och tekniker som arbetar med Festo, SMC, AVENTICS, Parker, Camozzi, Metal Work, Norgren och Bosch Rexroth.</p>
+  <p style="margin:0;font-size:15px;color:#374151;line-height:1.7;">Vi kombinerar en katalog med drygt 800 artiklar i åtta fabrikat med AI, så att du hittar rätt komponent, räknar fram rätt cylinderstorlek och bygger en stycklista på minuter i stället för timmar.</p>
 </td></tr>
 
 <tr><td style="padding:0 40px;"><div style="height:1px;background:#e5e7eb;"></div></td></tr>
@@ -87,15 +92,15 @@ function buildHtml(name: string, locale: string = "sv"): string {
   <table cellpadding="0" cellspacing="0" border="0" width="100%">
     <tr><td style="padding-bottom:16px;vertical-align:top;"><table cellpadding="0" cellspacing="0" border="0"><tr>
       <td style="padding-right:14px;vertical-align:top;"><div style="width:40px;height:40px;background:#EFF6FF;border-radius:10px;text-align:center;line-height:40px;font-size:18px;">🔍</div></td>
-      <td style="vertical-align:top;"><p style="margin:0 0 3px;font-size:14px;font-weight:700;color:#111827;">AI-sökning</p><p style="margin:0;font-size:13px;color:#6b7280;line-height:1.5;">Beskriv vad du behöver på vanlig svenska — AI:n hittar rätt komponent bland tusentals produkter.</p></td>
+      <td style="vertical-align:top;"><p style="margin:0 0 3px;font-size:14px;font-weight:700;color:#111827;">AI-sökning</p><p style="margin:0;font-size:13px;color:#6b7280;line-height:1.5;">Beskriv vad du behöver på vanlig svenska — AI:n letar bland drygt 800 artiklar och förklarar varför.</p></td>
     </tr></table></td></tr>
     <tr><td style="padding-bottom:16px;vertical-align:top;"><table cellpadding="0" cellspacing="0" border="0"><tr>
       <td style="padding-right:14px;vertical-align:top;"><div style="width:40px;height:40px;background:#F0FDF4;border-radius:10px;text-align:center;line-height:40px;font-size:18px;">⚙️</div></td>
-      <td style="vertical-align:top;"><p style="margin:0 0 3px;font-size:14px;font-weight:700;color:#111827;">Dimensionering &amp; fysikberäkning</p><p style="margin:0;font-size:13px;color:#6b7280;line-height:1.5;">Ange last och tryck — AI-ingenjören beräknar korrekt borrstorlek och rekommenderar rätt cylinder.</p></td>
+      <td style="vertical-align:top;"><p style="margin:0 0 3px;font-size:14px;font-weight:700;color:#111827;">Dimensionering &amp; fysikberäkning</p><p style="margin:0;font-size:13px;color:#6b7280;line-height:1.5;">Ange last och tryck — cylinderräknaren visar minsta borrning och vilka cylindrar som räcker.</p></td>
     </tr></table></td></tr>
     <tr><td style="padding-bottom:16px;vertical-align:top;"><table cellpadding="0" cellspacing="0" border="0"><tr>
       <td style="padding-right:14px;vertical-align:top;"><div style="width:40px;height:40px;background:#FFF7ED;border-radius:10px;text-align:center;line-height:40px;font-size:18px;">📊</div></td>
-      <td style="vertical-align:top;"><p style="margin:0 0 3px;font-size:14px;font-weight:700;color:#111827;">Jämför produkter</p><p style="margin:0;font-size:13px;color:#6b7280;line-height:1.5;">Ställ upp till 4 komponenter mot varandra — perfekt när du väljer mellan varumärken.</p></td>
+      <td style="vertical-align:top;"><p style="margin:0 0 3px;font-size:14px;font-weight:700;color:#111827;">Jämför produkter</p><p style="margin:0;font-size:13px;color:#6b7280;line-height:1.5;">Ställ komponenter mot varandra — bra när du väljer mellan fabrikat.</p></td>
     </tr></table></td></tr>
     <tr><td style="padding-bottom:8px;vertical-align:top;"><table cellpadding="0" cellspacing="0" border="0"><tr>
       <td style="padding-right:14px;vertical-align:top;"><div style="width:40px;height:40px;background:#FFF1F2;border-radius:10px;text-align:center;line-height:40px;font-size:18px;">📋</div></td>
@@ -121,8 +126,8 @@ function buildHtml(name: string, locale: string = "sv"): string {
       </td>
       <td style="vertical-align:top;">
         <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#065F46;">Vi finns här — på riktigt</p>
-        <p style="margin:0 0 10px;font-size:13px;color:#374151;line-height:1.6;">Bakom AI-verktyget finns ett team av riktiga ingenjörer och tekniska säljare. Frågor om produktval, dimensionering eller priser? Vi svarar personligen inom 1–2 arbetsdagar.</p>
-        <a href="${advisorUrl}" style="display:inline-block;background:#065F46;color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:8px 18px;border-radius:6px;">👷 Prata med en ingenjör</a>
+        <p style="margin:0 0 10px;font-size:13px;color:#374151;line-height:1.6;">Bakom AI:n finns en människa som läser varje fråga. Undrar du något om produktval, dimensionering eller priser? Du får ett personligt svar inom 1–2 arbetsdagar.</p>
+        <a href="${talkUrl}" style="display:inline-block;background:#065F46;color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:8px 18px;border-radius:6px;">👷 Skicka en fråga till oss</a>
         <span style="display:inline-block;margin-left:12px;font-size:12px;color:#6b7280;">eller <a href="mailto:info@maskinval.se" style="color:#065F46;text-decoration:none;font-weight:600;">info@maskinval.se</a></span>
       </td>
     </tr></table>
@@ -139,14 +144,14 @@ function buildHtml(name: string, locale: string = "sv"): string {
     </td>
     <td style="vertical-align:top;">
       <p style="margin:0 0 10px;font-size:14px;color:#374151;line-height:1.7;font-style:italic;">&ldquo;Vi byggde Maskinval för att göra det enklare för ingenjörer att hitta rätt komponent — men vi vet att teknik aldrig ersätter en bra mänsklig dialog. Tveka inte att höra av dig, vi svarar alltid personligen.&rdquo;</p>
-      <p style="margin:0;font-size:13px;color:#6b7280;"><strong style="color:#111827;">Alexandro</strong> — Grundare &amp; VD, Maskinval AB</p>
+      <p style="margin:0;font-size:13px;color:#6b7280;"><strong style="color:#111827;">Alexandro</strong> — grundare, Maskinval</p>
     </td>
   </tr></table>
 </td></tr>
 
 <!-- Footer -->
 <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:20px 40px;text-align:center;border-radius:0 0 12px 12px;">
-  <p style="margin:0 0 6px;font-size:12px;color:#9ca3af;">Maskinval AB • Industriell automationskatalog</p>
+  <p style="margin:0 0 6px;font-size:12px;color:#9ca3af;">Maskinval • Industriell automationskatalog</p>
   <p style="margin:0;font-size:12px;color:#9ca3af;">Du får detta mejl för att du registrerade ett konto på Maskinval.</p>
 </td></tr>
 
