@@ -51,7 +51,8 @@ export const Route = createFileRoute("/$locale/product/$sku")({
       // 799), sedan erbjudandet. Kortas vid ett ord, inte mitt i.
       // Bara på svenska och engelska: tyska och spanska har ännu ingen egen
       // text, och engelsk text i en tysk beskrivning blandar språken.
-      const egen = locale === "sv" || locale === "en" ? (beskrivning(product, locale) ?? "").replace(/\s+/g, " ").trim() : "";
+      const harEgen = locale === "sv" || locale === "en" || (locale === "de" && product.description_de) || (locale === "es" && product.description_es);
+      const egen = harEgen ? (beskrivning(product, locale) ?? "").replace(/\s+/g, " ").trim() : "";
       const kort = egen.length > 110 ? `${egen.slice(0, 110).replace(/\s+\S*$/, "")}…` : egen;
       desc = `${displayName} (${sku}) — ${categoryName(product.category.slug, locale, product.category.name)}.${kort ? ` ${kort}` : ""} ${ord.erbjudande}`;
     } else {
@@ -86,14 +87,14 @@ export const Route = createFileRoute("/$locale/product/$sku")({
     const { data, error } = await supabase
       .from("products")
       .select(
-        "id,sku,name,name_en,description,description_en,family,lead_time_days,availability,ip_rating,fieldbus,voltage,image_url,weight_kg,length_mm,width_mm,height_mm,brand:brands(slug,name),category:categories(slug,name),product_specs(key,value,unit)",
+        "id,sku,name,name_en,description,description_en,description_de,description_es,family,lead_time_days,availability,ip_rating,fieldbus,voltage,image_url,weight_kg,length_mm,width_mm,height_mm,brand:brands(slug,name),category:categories(slug,name),product_specs(key,value,unit)",
       )
       .eq("sku", params.sku)
       .eq("status", "active")
       .maybeSingle();
     if (error || !data) return { product: null, pris: null };
     const d = data as unknown as {
-      id: string; sku: string; name: string; name_en: string | null; description: string | null; description_en: string | null; family: string | null;
+      id: string; sku: string; name: string; name_en: string | null; description: string | null; description_en: string | null; description_de: string | null; description_es: string | null; family: string | null;
       lead_time_days: number | null; availability: string | null; ip_rating: string | null;
       fieldbus: string | null; voltage: string | null; image_url: string | null;
       weight_kg: number | null; length_mm: number | null; width_mm: number | null; height_mm: number | null;
@@ -104,7 +105,7 @@ export const Route = createFileRoute("/$locale/product/$sku")({
     const specs: ProductRow["specs"] = {};
     for (const s of d.product_specs ?? []) specs[s.key] = { value: s.value, unit: s.unit };
     const product: ProductRow = {
-      id: d.id, sku: d.sku, name: d.name, name_en: d.name_en, description: d.description, description_en: d.description_en, family: d.family,
+      id: d.id, sku: d.sku, name: d.name, name_en: d.name_en, description: d.description, description_en: d.description_en, description_de: d.description_de ?? null, description_es: d.description_es ?? null, family: d.family,
       brand: d.brand ?? { slug: "", name: "" },
       category: d.category ?? { slug: "", name: "" },
       lead_time_days: d.lead_time_days, availability: d.availability,
