@@ -96,6 +96,19 @@ export async function fetchCompanySettings(): Promise<CompanySettings> {
   return result;
 }
 
+/**
+ * Sparar alla fält och kastar det första felet. Förut lästes svaret aldrig:
+ * databasen nekade varje rad (fel adminkontroll i RLS, rättad 2026-11-17) och
+ * sidan visade "Sparat" ändå -- det man skrivit försvann vid nästa besök.
+ */
+export async function saveCompanySettings(form: CompanySettings): Promise<void> {
+  const svar = await Promise.all(
+    (Object.keys(KEY_MAP) as (keyof CompanySettings)[]).map((k) => saveCompanySetting(k, form[k] ?? "")),
+  );
+  const fel = svar.find((r) => r.error)?.error;
+  if (fel) throw new Error(fel.message);
+}
+
 /** Upsert a single company setting. */
 export async function saveCompanySetting(field: keyof CompanySettings, value: string) {
   const key = KEY_MAP[field];

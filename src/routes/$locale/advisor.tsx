@@ -204,25 +204,47 @@ function AdvisorPage() {
         message.trim(),
       ].filter(Boolean).join("\n\n");
 
-      // Insert as RFQ so it appears in the admin workflow
-      const { data: rfqRow } = await supabase
-        .from("rfqs")
-        .insert({
-          user_id: user?.id ?? null,
-          title: useCaseName ? `Rådgivare: ${useCaseName}` : "Rådgivare — förfrågan",
-          contact_name: name.trim(),
-          contact_email: email.trim(),
-          contact_phone: phone.trim() || null,
-          company: company.trim() || null,
-          org_number: orgNumber.trim() || null,
-          message: fullMessage,
-          status: "new",
-        })
-        .select("id")
-        .single();
+      // Inloggad: som offertförfrågan i adminflödet. Utan konto nekar
+      // databasen den raden (rfqs kräver user_id = den inloggade) och sidan
+      // visade ändå "Skickat" -- då går förfrågan i stället som ett meddelande
+      // via kontaktsidans väg, som mejlar ägaren (trigger inquiry_notis).
+      let skickad = false;
+      if (user?.id) {
+        const { data: rfqRow, error: rfqFel } = await supabase
+          .from("rfqs")
+          .insert({
+            user_id: user.id,
+            title: useCaseName ? `Rådgivare: ${useCaseName}` : "Rådgivare — förfrågan",
+            contact_name: name.trim(),
+            contact_email: email.trim(),
+            contact_phone: phone.trim() || null,
+            company: company.trim() || null,
+            org_number: orgNumber.trim() || null,
+            message: fullMessage,
+            status: "new",
+          })
+          .select("id")
+          .single();
 
-      if (rfqRow?.id) {
-        setSentRfqRef(rfqRow.id.slice(0, 8).toUpperCase());
+        if (!rfqFel && rfqRow?.id) {
+          setSentRfqRef(rfqRow.id.slice(0, 8).toUpperCase());
+          skickad = true;
+        }
+      }
+      if (!skickad) {
+        const kontakt = [
+          company.trim() ? `Företag: ${company.trim()}` : null,
+          orgNumber.trim() ? `Org.nr: ${orgNumber.trim()}` : null,
+          phone.trim() ? `Telefon: ${phone.trim()}` : null,
+        ].filter(Boolean).join("\n");
+        const { error: inqFel } = await supabase.from("inquiries").insert({
+          name: name.trim(),
+          email: email.trim(),
+          message: [useCaseName ? `Rådgivaren: ${useCaseName}` : "Rådgivaren", kontakt, fullMessage]
+            .filter(Boolean).join("\n\n"),
+          locale,
+        });
+        if (inqFel) throw inqFel;
       }
 
       // Also keep advisor_contacts for backwards compat

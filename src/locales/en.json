@@ -861,6 +861,8 @@
     "loadProject": "Open in machine builder",
     "deleteProject": "Delete",
     "confirmDelete": "Are you sure? The project will be permanently deleted.",
+    "deleteFailed": "The project could not be deleted. Please try again.",
+    "saveFailed": "The project could not be saved. Your input is still here – please try again.",
     "createdAt": "Saved",
     "bomLines": "BOM items",
     "notLoggedIn": "Log in to save projects",

@@ -84,7 +84,8 @@ function EkonomiPage() {
     }
   }
   async function deleteExpense(id: string) {
-    await supabase.from("expenses").delete().eq("id", id);
+    const { error } = await supabase.from("expenses").delete().eq("id", id);
+    if (error) { window.alert(`Kunde inte ta bort: ${error.message}`); return; }
     setExpenses((p) => p.filter((x) => x.id !== id));
   }
 

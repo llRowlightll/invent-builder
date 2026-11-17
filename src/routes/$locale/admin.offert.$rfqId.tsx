@@ -177,6 +177,8 @@ export default function AdminOffertPage() {
   const [lineEdits, setLineEdits] = useState<
     Record<string, { qty: number; price: number; note: string }>
   >({});
+  // Fel från databasen när offerten sparas eller skickas.
+  const [sparFel, setSparFel] = useState<string | null>(null);
   // Inköpspris och marginal per rad, från en inläst leverantörsoffert.
   const [inkop, setInkop] = useState<Record<string, Inkopsrad>>({});
 
@@ -326,27 +328,36 @@ export default function AdminOffertPage() {
    * (migrationen 20261113070000 inte körd) sparas offerten ändå, utan dem --
    * en offert får aldrig stoppas av spårningsuppgifterna.
    */
-  async function uppdateraOffert(falt: Record<string, unknown>) {
+  async function uppdateraOffert(falt: Record<string, unknown>): Promise<{ message: string } | null> {
     const medKurs = { ...falt, valutakurs: kursInfo?.kurs ?? null, valutakurs_datum: kursInfo?.datum || null, valutapaslag: kursInfo ? kursInfo.paslag : null };
     const { error } = await supabase.from("rfqs").update(medKurs as never).eq("id", rfqId);
     if (error && /valuta/i.test(error.message)) {
-      await supabase.from("rfqs").update(falt as never).eq("id", rfqId);
+      const { error: utanKurs } = await supabase.from("rfqs").update(falt as never).eq("id", rfqId);
+      return utanKurs;
     }
+    return error;
   }
 
-  async function save() {
+  async function save(): Promise<boolean> {
     setSaving(true);
+    setSparFel(null);
+    const fel: string[] = [];
     // Save each line's unit_price, qty, note back to rfq_items
     for (const it of lineItems) {
-      await supabase
+      const { error } = await supabase
         .from("rfq_items")
         .update({ unit_price: it.editPrice, qty: it.editQty, note: it.editNote || null })
         .eq("id", it.id);
+      if (error) fel.push(error.message);
     }
     // Also update quote_amount on the RFQ
-    await uppdateraOffert({ quote_amount: totalInc, quote_currency: currency, discount_pct: discountPct, freight_ex_vat: frakt > 0 ? frakt : null });
+    const offertFel = await uppdateraOffert({ quote_amount: totalInc, quote_currency: currency, discount_pct: discountPct, freight_ex_vat: frakt > 0 ? frakt : null });
+    if (offertFel) fel.push(offertFel.message);
     setSaving(false);
+    // Aldrig "Sparat" när databasen nekade: priserna ligger kvar på sidan.
+    if (fel.length) { setSparFel(`Kunde inte spara: ${fel[0]}`); return false; }
     setSaved(true);
+    return true;
   }
 
   async function sendToCustomer() {
@@ -357,7 +368,13 @@ export default function AdminOffertPage() {
     setSending(true);
     // Write the quote first — order-status-email re-reads status/amount straight
     // from this row by id, so it must already reflect what we're about to send.
-    await uppdateraOffert({ status: "quoted", quote_amount: totalInc, quote_currency: currency, freight_ex_vat: frakt > 0 ? frakt : null });
+    const offertFel = await uppdateraOffert({ status: "quoted", quote_amount: totalInc, quote_currency: currency, freight_ex_vat: frakt > 0 ? frakt : null });
+    if (offertFel) {
+      // Mejlet läser offerten ur databasen; utan sparad offert skickas inget.
+      setSparFel(`Offerten skickades inte: ${offertFel.message}`);
+      setSending(false);
+      return;
+    }
     await fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -570,6 +587,7 @@ ${co.name}`;
           >
             {saving ? "Sparar…" : saved ? "✓ Sparat" : "Spara priser"}
           </button>
+          {sparFel && <span role="alert" className="text-xs text-destructive">{sparFel}</span>}
           <button
             onClick={() => window.print()}
             className="px-4 py-1.5 text-sm rounded-md bg-info text-primary-foreground hover:opacity-90 transition"

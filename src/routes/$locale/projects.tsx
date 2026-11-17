@@ -64,7 +64,12 @@ function ProjectsPage() {
   async function deleteProject(id: string) {
     if (!window.confirm(t("projects.confirmDelete"))) return;
     setDeleting(id);
-    await supabase.from("projects").delete().eq("id", id);
+    const { error } = await supabase.from("projects").delete().eq("id", id);
+    if (error) {
+      setDeleting(null);
+      window.alert(`${t("projects.deleteFailed")} (${error.message})`);
+      return;
+    }
     setProjects((prev) => prev.filter((p) => p.id !== id));
     setDeleting(null);
   }

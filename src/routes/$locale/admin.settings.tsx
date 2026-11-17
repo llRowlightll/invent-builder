@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import {
   fetchCompanySettings,
   saknadeBolagsuppgifter,
-  saveCompanySetting,
+  saveCompanySettings,
   type CompanySettings,
 } from "@/lib/company-settings";
 import { useAdminGuard } from "@/lib/auth-context";
@@ -61,14 +61,13 @@ export default function AdminSettingsPage() {
     setError(null);
     setSaved(false);
     try {
-      await Promise.all(
-        (Object.keys(form) as (keyof CompanySettings)[]).map((k) =>
-          saveCompanySetting(k, form[k])
-        )
-      );
+      await saveCompanySettings(form);
+      // Visa det databasen faktiskt har, inte det som skickades.
+      setForm(await fetchCompanySettings());
       setSaved(true);
     } catch (err) {
-      setError("Kunde inte spara. Försök igen.");
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Kunde inte spara (${msg}). Det du skrivit ligger kvar – försök igen.`);
       console.error(err);
     }
     setSaving(false);

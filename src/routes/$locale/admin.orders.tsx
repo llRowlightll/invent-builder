@@ -161,6 +161,7 @@ function OrderEditModal({ order, onClose, onSaved }: { order: OrderRow; onClose:
     internal_notes: order.internal_notes ?? "",
   });
   const [saving, setSaving] = useState(false);
+  const [fel, setFel] = useState<string | null>(null);
 
   async function save() {
     setSaving(true);
@@ -181,8 +182,15 @@ function OrderEditModal({ order, onClose, onSaved }: { order: OrderRow; onClose:
       shipped_at: form.status === "shipped" && !order.shipped_at ? new Date().toISOString() : order.shipped_at,
       delivered_at: form.status === "delivered" && !order.delivered_at ? new Date().toISOString() : order.delivered_at,
     };
-    const { data } = await supabase.from("orders").update(patch).eq("id", order.id).select().single();
-    if (data) onSaved(data as OrderRow);
+    setFel(null);
+    const { data, error } = await supabase.from("orders").update(patch).eq("id", order.id).select().single();
+    if (error || !data) {
+      // Mejlet läser ordern ur databasen; utan sparad ändring skickas inget.
+      setFel(`Kunde inte spara: ${error?.message ?? "inget svar"}`);
+      setSaving(false);
+      return;
+    }
+    onSaved(data as OrderRow);
 
     // Skicka statusmejl till kunden om status ändrats. The order row above is
     // already saved, so order-status-email re-reads the current status/amounts/
@@ -284,6 +292,8 @@ function OrderEditModal({ order, onClose, onSaved }: { order: OrderRow; onClose:
               rows={3} className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none" />
           </div>
         </div>
+
+        {fel && <p role="alert" className="mt-4 text-sm text-destructive">{fel}</p>}
 
         <div className="flex justify-end gap-2 mt-6">
           <button onClick={onClose} className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted transition">Avbryt</button>

@@ -861,6 +861,8 @@
     "loadProject": "Im Maschinen-Assistenten öffnen",
     "deleteProject": "Löschen",
     "confirmDelete": "Sind Sie sicher? Das Projekt wird dauerhaft gelöscht.",
+    "deleteFailed": "Das Projekt konnte nicht gelöscht werden. Bitte versuchen Sie es erneut.",
+    "saveFailed": "Das Projekt konnte nicht gespeichert werden. Ihre Eingaben bleiben erhalten – bitte versuchen Sie es erneut.",
     "createdAt": "Gespeichert",
     "bomLines": "Stücklistenpositionen",
     "notLoggedIn": "Anmelden, um Projekte zu speichern",

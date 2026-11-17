@@ -861,6 +861,8 @@
     "loadProject": "Öppna i maskinbyggaren",
     "deleteProject": "Ta bort",
     "confirmDelete": "Är du säker? Projektet tas bort permanent.",
+    "deleteFailed": "Projektet kunde inte tas bort. Försök igen.",
+    "saveFailed": "Projektet kunde inte sparas. Det du skrivit ligger kvar – försök igen.",
     "createdAt": "Sparat",
     "bomLines": "artiklar i stycklista",
     "notLoggedIn": "Logga in för att spara projekt",

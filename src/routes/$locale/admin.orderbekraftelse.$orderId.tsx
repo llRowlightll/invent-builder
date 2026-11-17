@@ -65,6 +65,8 @@ export default function AdminOCPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  // Fel från databasen när bekräftelsen sparas eller skickas.
+  const [sparFel, setSparFel] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
@@ -149,7 +151,8 @@ export default function AdminOCPage() {
       brand: l.brand ?? "",
       note: l.editNote || undefined,
     }));
-    await supabase.from("orders").update({
+    setSparFel(null);
+    const { error } = await supabase.from("orders").update({
       items: updatedItems,
       total_ex_vat: totalEx || null,
       total_inc_vat: totalInc || null,
@@ -158,6 +161,7 @@ export default function AdminOCPage() {
       internal_notes: footerNote || order.internal_notes,
     }).eq("id", orderId);
     setSaving(false);
+    if (error) { setSparFel(`Kunde inte spara: ${error.message}`); return; }
     setSaved(true);
   }
 
@@ -167,7 +171,12 @@ export default function AdminOCPage() {
     // order-status-email re-reads total/delivery/status straight from the orders
     // row by id — status must be written first, and note this only reflects
     // totals/delivery already saved via "Spara" above, not unsaved edits here.
-    await supabase.from("orders").update({ status: "confirmed" }).eq("id", orderId);
+    const { error: statusFel } = await supabase.from("orders").update({ status: "confirmed" }).eq("id", orderId);
+    if (statusFel) {
+      setSparFel(`Bekräftelsen skickades inte: ${statusFel.message}`);
+      setSending(false);
+      return;
+    }
     await fetch("https://buqfbcztspswezwyafxo.supabase.co/functions/v1/order-status-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -208,6 +217,7 @@ export default function AdminOCPage() {
           >
             {saving ? "Sparar…" : saved ? "✓ Sparat" : "Spara"}
           </button>
+          {sparFel && <span role="alert" className="text-xs text-destructive">{sparFel}</span>}
           <button
             onClick={() => window.print()}
             className="px-4 py-1.5 text-sm rounded-md bg-info text-primary-foreground hover:opacity-90 transition"
