@@ -1035,3 +1035,14 @@ Deno.test("lyft och sidled i samma beskrivning är fleraxligt, med båda slagen 
   assertEquals(h.perAxisStrokes.find((a) => a.axis === "X")?.stroke, 1200);
   assertEquals(needsMultiAxis("Cylinder Ø50 slag 200 för en lucka"), false);
 });
+
+// Provkörning mot drift 2026-11-17: talet före ordet missades.
+Deno.test("uttrycklig borrning: talet före ordet läses, föremålets diameter gör det inte", () => {
+  assertEquals(extractExplicitBoreMm("cylinder 63 mm borrning, 500 mm slag, magnetkolv", {}), 63);
+  assertEquals(extractExplicitBoreMm("we need a 50 mm bore cylinder with 200 mm stroke", {}), 50);
+  assertEquals(extractExplicitBoreMm("80 mm kolvdiameter och 100 mm slag", {}), 80);
+  assertEquals(extractExplicitBoreMm("skjuta lådor med 300 mm diameter, slag 200 mm", {}), 0);
+  assertEquals(extractExplicitBoreMm("borrning 40, slag 100", {}), 40);
+  assertEquals(extractExplicitBoreMm("bore size 50, stroke 200", {}), 50);
+  assertEquals(extractExplicitBoreMm("borrning: Ø 32", {}), 32);
+});
