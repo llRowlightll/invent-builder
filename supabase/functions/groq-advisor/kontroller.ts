@@ -129,9 +129,25 @@ export function provaGripkraft(k: Griporganskrav, artikelN: number, sv: boolean,
   return { krav, utfall: n >= k.n ? "uppfyllt" : "ej_uppfyllt", text: text + formgrepp };
 }
 
+/**
+ * Nycklarna som anger artikelns egen spänning, i turordning. Ventiler och
+ * ventilterminaler har den som solenoid_voltage, elcylindrar som
+ * nominal_voltage (2026-11-17: 41 ventiler fick annars "underlag saknas").
+ * coil_voltage_ordered_separately räknas inte: spolen är en egen artikel.
+ */
+export const SPANNINGSNYCKLAR = ["voltage", "solenoid_voltage", "nominal_voltage"] as const;
+
+function artikelnsSpanning(specar: Record<string, unknown> | undefined): unknown {
+  for (const k of SPANNINGSNYCKLAR) {
+    const v = specar?.[k];
+    if (v != null && String(v).trim() !== "") return v;
+  }
+  return undefined;
+}
+
 export function provaSpanning(krav: Spanning, specar: Record<string, unknown> | undefined, sv: boolean): Kontroll {
   const kravText = `${String(krav.volt).replace(".", sv ? "," : ".")} V${krav.typ ? " " + krav.typ : ""}`;
-  const anges = tolkaSpanningar(specar?.voltage);
+  const anges = tolkaSpanningar(artikelnsSpanning(specar));
   if (anges.length === 0) {
     return { krav: kravText, utfall: "underlag_saknas", text: sv ? "katalogen anger ingen spänning för artikeln" : "the catalogue gives no voltage for the item" };
   }
