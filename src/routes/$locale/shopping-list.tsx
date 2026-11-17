@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { loadCatalog } from "@/lib/catalog";
 import { produktnamn } from "@/lib/spec-format";
 import { supabase } from "@/integrations/supabase/client";
+import { rensaUtkast, useUtkast } from "@/lib/utkast";
 import { logga } from "@/lib/matning";
 import type { ProductRow } from "@/lib/types";
 import { CheckSquare, Paperclip, Search, ShoppingCart } from "lucide-react";
@@ -42,13 +43,13 @@ function ShoppingListPage() {
   // RFQ flow
   const [rfqStep, setRfqStep] = useState<null | "compare" | "form">(null);
   const [compareSelected, setCompareSelected] = useState<Set<string>>(new Set());
-  const [rfqName, setRfqName] = useState("");
-  const [rfqEmail, setRfqEmail] = useState("");
-  const [rfqPhone, setRfqPhone] = useState("");
-  const [rfqCompany, setRfqCompany] = useState("");
-  const [rfqOrgNumber, setRfqOrgNumber] = useState("");
-  const [rfqPoNumber, setRfqPoNumber] = useState("");
-  const [rfqMessage, setRfqMessage] = useState("");
+  const [rfqName, setRfqName] = useUtkast("korg.namn", "");
+  const [rfqEmail, setRfqEmail] = useUtkast("korg.epost", "");
+  const [rfqPhone, setRfqPhone] = useUtkast("korg.telefon", "");
+  const [rfqCompany, setRfqCompany] = useUtkast("korg.foretag", "");
+  const [rfqOrgNumber, setRfqOrgNumber] = useUtkast("korg.orgnr", "");
+  const [rfqPoNumber, setRfqPoNumber] = useUtkast("korg.po", "");
+  const [rfqMessage, setRfqMessage] = useUtkast("korg.meddelande", "");
   const [rfqHp, setRfqHp] = useState(""); // honeypot — real users never see or fill this
   const [rfqSending, setRfqSending] = useState(false);
   const [rfqSent, setRfqSent] = useState(false);
@@ -71,19 +72,19 @@ function ShoppingListPage() {
    * Checkoutens fält (§2). Visas bara när kunden valt BESTÄLL -- en
    * offertförfrågan ska inte kräva leveransadress för att få ett pris.
    */
-  const [levNamn, setLevNamn] = useState("");
-  const [levGata, setLevGata] = useState("");
-  const [levPost, setLevPost] = useState("");
-  const [levOrt, setLevOrt] = useState("");
+  const [levNamn, setLevNamn] = useUtkast("korg.levnamn", "");
+  const [levGata, setLevGata] = useUtkast("korg.levgata", "");
+  const [levPost, setLevPost] = useUtkast("korg.levpost", "");
+  const [levOrt, setLevOrt] = useUtkast("korg.levort", "");
   const [fakturaSamma, setFakturaSamma] = useState(true);
-  const [fakGata, setFakGata] = useState("");
-  const [fakPost, setFakPost] = useState("");
-  const [fakOrt, setFakOrt] = useState("");
-  const [fakEpost, setFakEpost] = useState("");
-  const [onskatDatum, setOnskatDatum] = useState("");
-  const [levInstruktion, setLevInstruktion] = useState("");
+  const [fakGata, setFakGata] = useUtkast("korg.fakgata", "");
+  const [fakPost, setFakPost] = useUtkast("korg.fakpost", "");
+  const [fakOrt, setFakOrt] = useUtkast("korg.fakort", "");
+  const [fakEpost, setFakEpost] = useUtkast("korg.fakepost", "");
+  const [onskatDatum, setOnskatDatum] = useUtkast("korg.datum", "");
+  const [levInstruktion, setLevInstruktion] = useUtkast("korg.instruktion", "");
   const [levSatt, setLevSatt] = useState<"partial" | "consolidated">("partial");
-  const [kundRef, setKundRef] = useState("");
+  const [kundRef, setKundRef] = useUtkast("korg.kundref", "");
 
   useEffect(() => {
     loadCatalog().then(setCatalog);
@@ -264,6 +265,9 @@ function ShoppingListPage() {
       setRfqId(newRfqId);
       setRfqSentAnon(!user);
       setRfqSent(true);
+      // Kontakt och adresser står kvar till nästa förfrågan; det som gällde
+      // just den här ordern töms.
+      rensaUtkast("korg.po", "korg.meddelande", "korg.datum", "korg.instruktion", "korg.kundref");
       setItems([]);
     } catch (err) {
       console.error(err);
@@ -670,14 +674,14 @@ function ShoppingListPage() {
                     <input
                       className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30"
                       placeholder={t("shoppingList.namePlaceholder")}
-                      value={rfqName}
+                      autoComplete="name" value={rfqName}
                       onChange={(e) => setRfqName(e.target.value)}
                     />
                     <input
                       type="email"
                       className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30"
                       placeholder={t("shoppingList.emailPlaceholder")}
-                      value={rfqEmail}
+                      autoComplete="email" value={rfqEmail}
                       onChange={(e) => setRfqEmail(e.target.value)}
                     />
                   </div>
@@ -685,13 +689,13 @@ function ShoppingListPage() {
                     <input
                       className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30"
                       placeholder={t("shoppingList.companyPlaceholder")}
-                      value={rfqCompany}
+                      autoComplete="organization" value={rfqCompany}
                       onChange={(e) => setRfqCompany(e.target.value)}
                     />
                     <input
                       className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30"
                       placeholder={t("shoppingList.phonePlaceholder")}
-                      value={rfqPhone}
+                      autoComplete="tel" value={rfqPhone}
                       onChange={(e) => setRfqPhone(e.target.value)}
                     />
                   </div>
@@ -731,10 +735,10 @@ function ShoppingListPage() {
                     <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Godsmottagare / c/o (valfritt)"
                       value={levNamn} onChange={(e) => setLevNamn(e.target.value)} />
                     <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Gatuadress *" required
-                      value={levGata} onChange={(e) => setLevGata(e.target.value)} />
+                      autoComplete="shipping street-address" value={levGata} onChange={(e) => setLevGata(e.target.value)} />
                     <div className="grid sm:grid-cols-2 gap-2.5">
-                      <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Postnummer" value={levPost} onChange={(e) => setLevPost(e.target.value)} />
-                      <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Ort" value={levOrt} onChange={(e) => setLevOrt(e.target.value)} />
+                      <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Postnummer" autoComplete="shipping postal-code" value={levPost} onChange={(e) => setLevPost(e.target.value)} />
+                      <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Ort" autoComplete="shipping address-level2" value={levOrt} onChange={(e) => setLevOrt(e.target.value)} />
                     </div>
 
                     <label className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -744,15 +748,15 @@ function ShoppingListPage() {
                     </label>
                     {!fakturaSamma && (
                       <div className="space-y-2.5">
-                        <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Fakturaadress" value={fakGata} onChange={(e) => setFakGata(e.target.value)} />
+                        <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Fakturaadress" autoComplete="billing street-address" value={fakGata} onChange={(e) => setFakGata(e.target.value)} />
                         <div className="grid sm:grid-cols-2 gap-2.5">
-                          <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Postnummer" value={fakPost} onChange={(e) => setFakPost(e.target.value)} />
-                          <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Ort" value={fakOrt} onChange={(e) => setFakOrt(e.target.value)} />
+                          <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Postnummer" autoComplete="billing postal-code" value={fakPost} onChange={(e) => setFakPost(e.target.value)} />
+                          <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" placeholder="Ort" autoComplete="billing address-level2" value={fakOrt} onChange={(e) => setFakOrt(e.target.value)} />
                         </div>
                       </div>
                     )}
                     <input className="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-info/30" type="email" placeholder="E-post för faktura (valfritt)"
-                      value={fakEpost} onChange={(e) => setFakEpost(e.target.value)} />
+                      autoComplete="email" value={fakEpost} onChange={(e) => setFakEpost(e.target.value)} />
 
                     <div className="grid sm:grid-cols-2 gap-2.5">
                       <label className="text-xs text-muted-foreground">

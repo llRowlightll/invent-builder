@@ -9,6 +9,7 @@ import { makeT, type Locale } from "@/lib/i18n";
 import { loadCatalog } from "@/lib/catalog";
 import { produktnamn } from "@/lib/spec-format";
 import { supabase } from "@/integrations/supabase/client";
+import { rensaUtkast, useUtkast } from "@/lib/utkast";
 import { useAuth } from "@/lib/auth-context";
 import type { ProductRow } from "@/lib/types";
 import { callAdvisor } from "@/lib/advisor-client";
@@ -207,7 +208,7 @@ function MachineBuilderPage() {
   const { user } = useAuth();
 
   const [step, setStep] = useState<Step>("describe");
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useUtkast("maskinbyggare.beskrivning", "");
   const [qSummary, setQSummary] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -227,12 +228,12 @@ function MachineBuilderPage() {
   const [error, setError] = useState("");
   const [rfqSent, setRfqSent] = useState(false);
   const [rfqId, setRfqId] = useState("");
-  const [rfqName, setRfqName] = useState("");
-  const [rfqEmail, setRfqEmail] = useState("");
-  const [rfqCompany, setRfqCompany] = useState("");
-  const [rfqPhone, setRfqPhone] = useState("");
-  const [rfqPoNumber, setRfqPoNumber] = useState("");
-  const [rfqOrgNumber, setRfqOrgNumber] = useState("");
+  const [rfqName, setRfqName] = useUtkast("maskinbyggare.namn", "");
+  const [rfqEmail, setRfqEmail] = useUtkast("maskinbyggare.epost", "");
+  const [rfqCompany, setRfqCompany] = useUtkast("maskinbyggare.foretag", "");
+  const [rfqPhone, setRfqPhone] = useUtkast("maskinbyggare.telefon", "");
+  const [rfqPoNumber, setRfqPoNumber] = useUtkast("maskinbyggare.po", "");
+  const [rfqOrgNumber, setRfqOrgNumber] = useUtkast("maskinbyggare.orgnr", "");
   const [autoSaved, setAutoSaved] = useState(false);
   // Projektet som resultatet sparats i. PLC-modulen (ingång A) öppnas på det.
   const [projektId, setProjektId] = useState<string | null>(null);
@@ -1965,6 +1966,7 @@ function ResultStep({ t, locale, title, explanation, resultat, selected, require
       const orderRef = newRfqId.slice(0, 8).toUpperCase();
       setRfqId(orderRef);
       setRfqSent(true);
+      rensaUtkast("maskinbyggare.po");
 
       // No order is created here — an order only exists once a real quote is
       // accepted (respond_to_quote(), triggered from the customer's offert

@@ -4,6 +4,7 @@ import { fetchCompanySettings } from "@/lib/company-settings";
 import { z } from "zod";
 import { makeT, type Locale } from "@/lib/i18n";
 import { supabase } from "@/integrations/supabase/client";
+import { rensaUtkast, useUtkast } from "@/lib/utkast";
 
 export const Route = createFileRoute("/$locale/talk")({
   head: ({ params }) => {
@@ -35,7 +36,8 @@ function TalkPage() {
   const t = makeT(locale as Locale);
   const sok = Route.useSearch();
   const [tab, setTab] = useState<"ai" | "human">(sok.till === "manniska" ? "human" : "ai");
-  const [form, setForm] = useState({ name: "", email: "", message: sok.q ?? "" });
+  // Utkastet överlever en omladdning; en fråga i adressen (?q=) får ett eget.
+  const [form, setForm] = useUtkast(sok.q ? "kontakt.fraga" : "kontakt", { name: "", email: "", message: sok.q ?? "" });
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [err, setErr] = useState<string | null>(null);
   // Telefonnumret står i bolagsinställningarna (admin), inte i koden.
@@ -56,7 +58,8 @@ function TalkPage() {
       setStatus("error");
     } else {
       setStatus("sent");
-      setForm({ name: "", email: "", message: "" });
+      // Namn och e-post står kvar till nästa meddelande; texten töms.
+      setForm({ name: form.name, email: form.email, message: "" });
     }
   }
 
@@ -108,7 +111,7 @@ function TalkPage() {
               <label className="block text-sm">
                 <span className="text-muted-foreground">{t("talk.name")}</span>
                 <input
-                  value={form.name}
+                  autoComplete="name" value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   maxLength={100}
                   className="mt-1 w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
@@ -118,7 +121,7 @@ function TalkPage() {
                 <span className="text-muted-foreground">{t("talk.email")}</span>
                 <input
                   type="email"
-                  value={form.email}
+                  autoComplete="email" value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   maxLength={255}
                   className="mt-1 w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
