@@ -373,7 +373,7 @@ function ConfiguratorPage() {
       <div className="max-w-5xl mx-auto px-4 py-8">
         {seo && (
           <header className="mb-8">
-            <h1 className="text-3xl font-bold text-foreground">{seo.name}</h1>
+            <h1 className="text-3xl font-bold text-foreground">{KONFIGURERA[locale] ?? KONFIGURERA.en} {seo.name}{(locale === "sv" || locale === "en") && <span className="font-normal text-muted-foreground"> – {catNoun(seo.category_slug, locale)}</span>}</h1>
             <p className="text-sm text-muted-foreground mt-3 leading-relaxed max-w-2xl">{configuratorIntro(seo, locale)}</p>
             <div className="flex items-center gap-3 mt-3">
               {seo.standard && (
