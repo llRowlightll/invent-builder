@@ -19,13 +19,22 @@ import { formatBelopp, prisErbjudande, type PubliktPris } from "@/lib/priser";
 import { hamtaPublikaPriser } from "@/lib/priser-hamta";
 
 
+const META_ORD: Record<string, { suffix: string; erbjudande: string; komponent: string }> = {
+  sv: { suffix: "köp & spec", erbjudande: "Jämför specifikationer och begär offert via Maskinval.", komponent: "industriell automationskomponent" },
+  en: { suffix: "specs & order", erbjudande: "Compare specs and request a quote via Maskinval.", komponent: "industrial automation component" },
+  de: { suffix: "Daten & Bestellung", erbjudande: "Technische Daten vergleichen und Angebot über Maskinval anfordern.", komponent: "Komponente für die Industrieautomation" },
+  es: { suffix: "datos y pedido", erbjudande: "Compare especificaciones y solicite una oferta a través de Maskinval.", komponent: "componente de automatización industrial" },
+};
+
 export const Route = createFileRoute("/$locale/product/$sku")({
   head: ({ params, loaderData }) => {
     const t = makeT(params.locale as Locale);
     const { locale, sku } = params;
     const canonical = `${SITE}/${locale}/product/${encodeURIComponent(sku)}`;
-    const isSv = locale === "sv";
-    const titleSuffix = isSv ? "köp & spec | Maskinval" : "specs & order | Maskinval";
+    // Titel och beskrivning på sidans eget språk (SEO-granskningen 2026-11-17:
+    // de/es hade engelska bitar på alla 800 produktsidor).
+    const ord = META_ORD[locale] ?? META_ORD.en;
+    const titleSuffix = `${ord.suffix} | Maskinval`;
     const product = (loaderData as { product: ProductRow | null } | undefined)?.product ?? null;
 
     let title: string, ogTitle: string, desc: string;
@@ -38,15 +47,15 @@ export const Route = createFileRoute("/$locale/product/$sku")({
         : `${product.brand.name} ${namn}`;
       title = `${displayName} (${sku}) — ${titleSuffix}`;
       ogTitle = `${displayName} | Maskinval`;
-      desc = isSv
-        ? `${displayName} (${sku}) — ${categoryName(product.category.slug, locale, product.category.name)}. Jämför specifikationer och begär offert via Maskinval.`
-        : `${displayName} (${sku}) — ${categoryName(product.category.slug, locale, product.category.name)}. Compare specs and request a quote via Maskinval.`;
+      // Artikelns egen beskrivning först (det som skiljer sidan från de andra
+      // 799), sedan erbjudandet. Kortas vid ett ord, inte mitt i.
+      const egen = (beskrivning(product, locale) ?? "").replace(/\s+/g, " ").trim();
+      const kort = egen.length > 110 ? `${egen.slice(0, 110).replace(/\s+\S*$/, "")}…` : egen;
+      desc = `${displayName} (${sku}) — ${categoryName(product.category.slug, locale, product.category.name)}.${kort ? ` ${kort}` : ""} ${ord.erbjudande}`;
     } else {
       title = `${sku} — ${titleSuffix}`;
       ogTitle = `${sku} | Maskinval`;
-      desc = isSv
-        ? `${sku} — industriell automationskomponent. Jämför specifikationer och begär offert via Maskinval.`
-        : `${sku} — Industrial automation component. Compare specs and request a quote via Maskinval.`;
+      desc = `${sku} — ${ord.komponent}. ${ord.erbjudande}`;
     }
     return {
       meta: [

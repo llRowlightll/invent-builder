@@ -70,38 +70,38 @@ export const Route = createFileRoute("/sitemap.xml")({
           motsvarigheter = [];
         }
 
-        const today = new Date().toISOString().split("T")[0];
+        // lastmod bara där vi vet när innehållet ändrades (artikelns
+        // updated_at). Dagens datum på alla sidor gjorde datumet värdelöst som
+        // signal (SEO-granskningen 2026-11-17). "/" är en omdirigering och hör
+        // inte hemma i kartan.
+        const andrad = new Map(products.map((p) => [p.sku, p.updated_at ? p.updated_at.slice(0, 10) : null]));
 
         const urls: string[] = [];
-
-        // Root redirect
-        urls.push(url("/", today, "weekly", "1.0"));
 
         // Static pages per locale
         for (const locale of LOCALES) {
           for (const path of STATIC_PATHS) {
-            urls.push(url(`/${locale}${path}`, today, "weekly", path === "" ? "1.0" : "0.8"));
+            urls.push(url(`/${locale}${path}`, null, "weekly", path === "" ? "1.0" : "0.8"));
           }
           // Category filter pages
           for (const cat of cats) {
-            urls.push(url(`/${locale}/products?category=${cat}`, today, "weekly", "0.7"));
+            urls.push(url(`/${locale}/products?category=${cat}`, null, "weekly", "0.7"));
           }
           // Product detail pages
           for (const p of products) {
-            const lm = p.updated_at ? p.updated_at.slice(0, 10) : today;
-            urls.push(url(`/${locale}/product/${encodeURIComponent(p.sku)}`, lm, "monthly", "0.9"));
+            urls.push(url(`/${locale}/product/${encodeURIComponent(p.sku)}`, andrad.get(p.sku) ?? null, "monthly", "0.9"));
           }
           // Motsvarigheter: "motsvarighet till <artikel>" i andra fabrikat
           for (const sku of motsvarigheter) {
-            urls.push(url(`/${locale}/motsvarighet/${encodeURIComponent(sku)}`, today, "monthly", "0.7"));
+            urls.push(url(`/${locale}/motsvarighet/${encodeURIComponent(sku)}`, andrad.get(sku) ?? null, "monthly", "0.7"));
           }
           // Configurator pages — custom-build landing pages, strong long-tail SEO
           for (const fam of families) {
-            urls.push(url(`/${locale}/configurator/${encodeURIComponent(fam)}`, today, "monthly", "0.7"));
+            urls.push(url(`/${locale}/configurator/${encodeURIComponent(fam)}`, null, "monthly", "0.7"));
           }
           // Buying guides — long-tail SEO content
           for (const g of GUIDES) {
-            urls.push(url(`/${locale}/guider/${g.slug}`, today, "monthly", "0.6"));
+            urls.push(url(`/${locale}/guider/${g.slug}`, null, "monthly", "0.6"));
           }
         }
 
@@ -120,7 +120,7 @@ ${urls.join("\n")}
   },
 });
 
-function url(path: string, lastmod: string, changefreq: string, priority: string) {
+function url(path: string, lastmod: string | null, changefreq: string, priority: string) {
   const loc = `${BASE}${path}`;
   // Add hreflang alternates for locale paths
   const match = path.match(/^\/(sv|en|de|es)(\/.*)?$/);
@@ -133,8 +133,8 @@ function url(path: string, lastmod: string, changefreq: string, priority: string
     : "";
 
   return `<url>
-  <loc>${loc}</loc>
-  <lastmod>${lastmod}</lastmod>
+  <loc>${loc}</loc>${lastmod ? `
+  <lastmod>${lastmod}</lastmod>` : ""}
   <changefreq>${changefreq}</changefreq>
   <priority>${priority}</priority>
 ${hreflang}
