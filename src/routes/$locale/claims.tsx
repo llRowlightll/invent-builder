@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { makeT, type Locale } from "@/lib/i18n";
 import { supabase } from "@/integrations/supabase/client";
+import { rensaUtkast, useUtkast } from "@/lib/utkast";
 import { useAuth } from "@/lib/auth-context";
 import { Lock } from "lucide-react";
 import { textParam } from "@/lib/sokparam";
@@ -107,13 +108,13 @@ function ClaimsPage() {
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
 
   // Form state
-  const [fTitle, setFTitle] = useState("");
-  const [fType, setFType] = useState("");
-  const [fOrderId, setFOrderId] = useState("");
-  const [fSku, setFSku] = useState("");
-  const [fDescription, setFDescription] = useState("");
+  const [fTitle, setFTitle] = useUtkast("reklamation.rubrik", "");
+  const [fType, setFType] = useUtkast("reklamation.typ", "");
+  const [fOrderId, setFOrderId] = useUtkast("reklamation.order", "");
+  const [fSku, setFSku] = useUtkast("reklamation.artikel", "");
+  const [fDescription, setFDescription] = useUtkast("reklamation.beskrivning", "");
   const [fUrgency, setFUrgency] = useState("normal");
-  const [fContact, setFContact] = useState("");
+  const [fContact, setFContact] = useUtkast("reklamation.kontakt", "");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
@@ -197,6 +198,7 @@ function ClaimsPage() {
     // reset
     setFTitle(""); setFType(""); setFOrderId(""); setFSku("");
     setFDescription(""); setFUrgency("normal");
+    rensaUtkast("reklamation.");
   }
 
   if (authLoading) {

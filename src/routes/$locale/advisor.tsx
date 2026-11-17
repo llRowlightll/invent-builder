@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { makeT, type Locale } from "@/lib/i18n";
 import { supabase } from "@/integrations/supabase/client";
+import { rensaUtkast, useUtkast } from "@/lib/utkast";
 import { useAuth } from "@/lib/auth-context";
 import { loadCatalog } from "@/lib/catalog";
 import type { ProductRow } from "@/lib/types";
@@ -83,12 +84,12 @@ function AdvisorPage() {
   const [showProducts, setShowProducts] = useState(false);
 
   // Contact form state
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [company, setCompany] = useState("");
-  const [orgNumber, setOrgNumber] = useState("");
-  const [phone, setPhone] = useState("");
-  const [message, setMessage] = useState("");
+  const [name, setName] = useUtkast("radgivare.namn", "");
+  const [email, setEmail] = useUtkast("radgivare.epost", "");
+  const [company, setCompany] = useUtkast("radgivare.foretag", "");
+  const [orgNumber, setOrgNumber] = useUtkast("radgivare.orgnr", "");
+  const [phone, setPhone] = useUtkast("radgivare.telefon", "");
+  const [message, setMessage] = useUtkast("radgivare.meddelande", "");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [sentRfqRef, setSentRfqRef] = useState<string | null>(null);
@@ -266,6 +267,8 @@ function AdvisorPage() {
     }
     setSending(false);
     setSent(true);
+    // Kontaktuppgifterna står kvar till nästa förfrågan; meddelandet är skickat.
+    rensaUtkast("radgivare.meddelande");
   }
 
   return (
@@ -437,17 +440,17 @@ function AdvisorPage() {
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <Field label={`${t("advisorPage2.fieldName")} *`}>
-                  <input required value={name} onChange={(e) => setName(e.target.value)}
+                  <input required autoComplete="name" value={name} onChange={(e) => setName(e.target.value)}
                     placeholder="Anna Lindgren"
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
                 </Field>
                 <Field label={`${t("advisorPage2.fieldEmail")} *`}>
-                  <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                  <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)}
                     placeholder="anna@foretag.se"
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
                 </Field>
                 <Field label={t("advisorPage2.fieldCompany")}>
-                  <input value={company} onChange={(e) => setCompany(e.target.value)}
+                  <input autoComplete="organization" value={company} onChange={(e) => setCompany(e.target.value)}
                     placeholder="Acme AB"
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
                 </Field>
@@ -457,7 +460,7 @@ function AdvisorPage() {
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono" />
                 </Field>
                 <Field label={isSv ? "Telefon" : "Phone"}>
-                  <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+                  <input type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
                     placeholder="+46 70 000 00 00"
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
                 </Field>

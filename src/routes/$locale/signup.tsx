@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { rensaUtkast, useUtkast } from "@/lib/utkast";
 import { makeT, type Locale } from "@/lib/i18n";
 import { Globe, MailCheck } from "lucide-react";
 
@@ -92,19 +93,19 @@ function SignupPage() {
 
   const [step, setStep] = useState<1 | 2>(1);
   // Step 1
-  const [displayName, setDisplayName] = useState("");
-  const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useUtkast("registrering.namn", "");
+  const [email, setEmail] = useUtkast("registrering.epost", "");
   const [password, setPassword] = useState("");
   // Step 2
-  const [companyName, setCompanyName] = useState("");
-  const [orgNumber, setOrgNumber] = useState("");
-  const [industry, setIndustry] = useState("");
-  const [role, setRole] = useState("");
-  const [employees, setEmployees] = useState("");
-  const [phone, setPhone] = useState("");
-  const [addressStreet, setAddressStreet] = useState("");
-  const [addressPostal, setAddressPostal] = useState("");
-  const [addressCity, setAddressCity] = useState("");
+  const [companyName, setCompanyName] = useUtkast("registrering.foretag", "");
+  const [orgNumber, setOrgNumber] = useUtkast("registrering.orgnr", "");
+  const [industry, setIndustry] = useUtkast("registrering.bransch", "");
+  const [role, setRole] = useUtkast("registrering.roll", "");
+  const [employees, setEmployees] = useUtkast("registrering.anstallda", "");
+  const [phone, setPhone] = useUtkast("registrering.telefon", "");
+  const [addressStreet, setAddressStreet] = useUtkast("registrering.gata", "");
+  const [addressPostal, setAddressPostal] = useUtkast("registrering.postnr", "");
+  const [addressCity, setAddressCity] = useUtkast("registrering.ort", "");
   const [country, setCountry] = useState("SE");
 
   const [orgStatus, setOrgStatus] = useState<OrgStatus>("idle");
@@ -206,6 +207,8 @@ function SignupPage() {
     }
 
     setLoading(false);
+    // Kontot finns; utkastet behövs inte längre (profilen tar över).
+    rensaUtkast("registrering.");
     if (data.session) {
       window.location.href = `/${locale}/profile`;
     } else {
@@ -299,17 +302,17 @@ function SignupPage() {
           <p className="text-sm text-muted-foreground mt-1">{t("auth.signupSubtitle")}</p>
           <form onSubmit={onStep1} className="mt-8 space-y-4">
             <Field label={t("signupPage.yourName")}>
-              <input required value={displayName} onChange={(e) => setDisplayName(e.target.value)}
+              <input required autoComplete="name" value={displayName} onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Anna Lindgren"
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
             </Field>
             <Field label={t("auth.email")}>
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+              <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)}
                 placeholder="anna@foretag.se"
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
             </Field>
             <Field label={t("auth.password")}>
-              <input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)}
+              <input type="password" autoComplete="new-password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)}
                 placeholder={t("signupPage.passwordPlaceholder")}
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
             </Field>
@@ -346,7 +349,7 @@ function SignupPage() {
 
             <div className="grid sm:grid-cols-2 gap-4">
               <Field label={t("signupPage.companyName")}>
-                <input required value={companyName} onChange={(e) => setCompanyName(e.target.value)}
+                <input required autoComplete="organization" value={companyName} onChange={(e) => setCompanyName(e.target.value)}
                   placeholder="Acme AB"
                   className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
               </Field>
@@ -445,7 +448,7 @@ function SignupPage() {
                 <input
                   required
                   type="tel"
-                  value={phone}
+                  autoComplete="tel" value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="+46 70 123 45 67"
                   className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
@@ -457,18 +460,18 @@ function SignupPage() {
               <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">{t("signupPage.billingAddress")}</p>
               <div className="space-y-3">
                 <Field label={t("signupPage.streetAddress")}>
-                  <input value={addressStreet} onChange={(e) => setAddressStreet(e.target.value)}
+                  <input autoComplete="street-address" value={addressStreet} onChange={(e) => setAddressStreet(e.target.value)}
                     placeholder="Industrivägen 12"
                     className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
                 </Field>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label={t("signupPage.postalCode")}>
-                    <input value={addressPostal} onChange={(e) => setAddressPostal(e.target.value)}
+                    <input autoComplete="postal-code" value={addressPostal} onChange={(e) => setAddressPostal(e.target.value)}
                       placeholder="12345"
                       className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
                   </Field>
                   <Field label={t("signupPage.city")}>
-                    <input value={addressCity} onChange={(e) => setAddressCity(e.target.value)}
+                    <input autoComplete="address-level2" value={addressCity} onChange={(e) => setAddressCity(e.target.value)}
                       placeholder="Stockholm"
                       className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm" />
                   </Field>

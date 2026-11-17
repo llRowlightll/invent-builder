@@ -12,6 +12,7 @@ import {
 } from "@/lib/company-settings";
 import { useAdminGuard } from "@/lib/auth-context";
 import { supabase } from "@/integrations/supabase/client";
+import { lasUtkast, rensaUtkast, sparaUtkast } from "@/lib/utkast";
 
 export const Route = createFileRoute("/$locale/admin/settings")({
   component: AdminSettingsPage,
@@ -44,15 +45,29 @@ export default function AdminSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Osparade ändringar ligger som utkast i fliken tills de sparats.
+  const [andrad, setAndrad] = useState(false);
+  const [aterstallt, setAterstallt] = useState(false);
 
   useEffect(() => {
     if (!authLoading && isAdmin) {
       fetchCompanySettings().then((s) => {
-        setForm(s);
+        const utkast = lasUtkast<Partial<CompanySettings>>("bolag");
+        if (utkast) {
+          setForm({ ...s, ...utkast });
+          setAndrad(true);
+          setAterstallt(true);
+        } else {
+          setForm(s);
+        }
         setLoading(false);
       });
     }
   }, [isAdmin, authLoading]);
+
+  useEffect(() => {
+    if (form && andrad) sparaUtkast("bolag", form);
+  }, [form, andrad]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -64,6 +79,9 @@ export default function AdminSettingsPage() {
       await saveCompanySettings(form);
       // Visa det databasen faktiskt har, inte det som skickades.
       setForm(await fetchCompanySettings());
+      rensaUtkast("bolag");
+      setAndrad(false);
+      setAterstallt(false);
       setSaved(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -106,6 +124,12 @@ export default function AdminSettingsPage() {
         )}
       </div>
 
+      {aterstallt && (
+        <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Det du skrev förra gången är återställt men inte sparat än. Klicka på Spara inställningar för att behålla det.
+        </div>
+      )}
+
       <form onSubmit={handleSave} className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {FIELDS.map(({ key, label, placeholder }) => (
@@ -119,6 +143,7 @@ export default function AdminSettingsPage() {
                 placeholder={placeholder}
                 onChange={(e) => {
                   setForm((prev) => prev ? { ...prev, [key]: e.target.value } : prev);
+                  setAndrad(true);
                   setSaved(false);
                 }}
                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-info/40"
