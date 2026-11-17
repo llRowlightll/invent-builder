@@ -74,8 +74,8 @@ function buildHtml(name: string, locale: string = "sv"): string {
     <td style="padding-left:12px;vertical-align:middle;"><span style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-.5px;">Maskinval</span></td>
   </tr></table>
   <h1 style="margin:0;font-size:26px;font-weight:700;color:#fff;line-height:1.3;">Välkommen, ${firstName}! 👋</h1>
-  <p style="margin:10px 0 0;font-size:15px;color:rgba(255,255,255,.75);line-height:1.5;">Tack för att du registrerade dig — här är allt du behöver veta.</p>
-  <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,.6);line-height:1.5;">Har du inte bekräftat din e-postadress än? Klicka först på länken i bekräftelsemejlet.</p>
+  <p style="margin:10px 0 0;font-size:15px;color:#ffffff;line-height:1.5;">Tack för att du registrerade dig — här är allt du behöver veta.</p>
+  <p style="margin:6px 0 0;font-size:13px;color:#ffffff;line-height:1.5;">Har du inte bekräftat din e-postadress än? Klicka först på länken i bekräftelsemejlet.</p>
 </td></tr>
 
 <!-- Intro -->
