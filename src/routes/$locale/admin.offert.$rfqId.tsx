@@ -13,6 +13,7 @@ import { hamtaValutakurs } from "@/lib/valuta.functions";
 import { useAdminGuard } from "@/lib/auth-context";
 import { fetchCompanySettings, type CompanySettings } from "@/lib/company-settings";
 import { AVSLUTADE_ORDERSTATUS, BETALVILLKOR_KAND, BETALVILLKOR_NY } from "@/lib/villkor";
+import { faktiskMarginal, giltigMarginal, saljpris, STANDARD_MARGINAL } from "@/lib/marginal";
 
 export const Route = createFileRoute("/$locale/admin/offert/$rfqId")({
   component: AdminOffertPage,
@@ -54,8 +55,58 @@ function fmt(n: number, currency = "SEK") {
   return n.toLocaleString("sv-SE", { style: "currency", currency, maximumFractionDigits: 0 });
 }
 
+/** Som fmt, men med ören: ett inköpspris på 37,50 kr ska inte visas som 38 kr. */
+function fmtExakt(n: number, currency = "SEK") {
+  return n.toLocaleString("sv-SE", { style: "currency", currency, maximumFractionDigits: 2 });
+}
+
 function docRef(rfqId: string) {
   return `OE-${rfqId.slice(0, 8).toUpperCase()}`;
+}
+
+/**
+ * Leverantörens pris på en rad är vårt inköpspris; kundens pris är inköp plus
+ * marginal. Bara i sidans minne: rfq_items går att läsa för kunden, så
+ * inköpspriset sparas aldrig där.
+ */
+type Inkopsrad = { pris: number; marginal: number; kalla: "artikel" | "standard" };
+
+/**
+ * products.margin per artikel-id. Kolumnen är låst för direkt läsning
+ * (20260602050000) och nås bara genom den admin-spärrade RPC:n; null när den
+ * inte gick att läsa.
+ */
+async function hamtaMarginaler(): Promise<Map<string, number | null> | null> {
+  const { data, error } = await (supabase as unknown as {
+    rpc: (fn: string) => Promise<{ data: unknown; error: unknown }>;
+  }).rpc("admin_list_product_pricing");
+  if (error || !Array.isArray(data)) return null;
+  return new Map(
+    (data as { id: string; margin: number | string | null }[]).map((r) => [r.id, r.margin == null ? null : Number(r.margin)]),
+  );
+}
+
+/**
+ * Adminens rad under benämningen: inköpet och den marginal priset faktiskt
+ * ger. Ändras priset för hand följer marginalen med. Syns aldrig på utskriften.
+ */
+function Inkopsinfo({ rad, pris, currency, omraknad }: { rad: Inkopsrad; pris: number; currency: string; omraknad: boolean }) {
+  const procent = (x: number) => x.toLocaleString("sv-SE", { maximumFractionDigits: 1 });
+  const fm = faktiskMarginal(rad.pris, pris);
+  const kalla = rad.kalla === "artikel" ? "artikelns" : "standard";
+  const avviker = fm == null || Math.abs(fm - rad.marginal) >= 0.05;
+  const farg = fm == null || fm <= 0
+    ? "text-destructive"
+    : fm < rad.marginal - 0.05 ? "text-amber-700" : "text-muted-foreground";
+  return (
+    <div
+      className={`print:hidden mt-1 text-[11px] ${farg}`}
+      title={`Säljpris = inköp ÷ ${procent(1 - rad.marginal / 100)}${omraknad ? ". Inköpet är omräknat med samma kurs och påslag som priset." : ""}`}
+    >
+      Inköp {fmtExakt(rad.pris, currency)} · marginal {fm == null ? "—" : `${procent(fm)} %`}{" "}
+      ({avviker ? `${kalla} ${rad.marginal} %` : kalla})
+    </div>
+  );
 }
 
 export default function AdminOffertPage() {
@@ -105,6 +156,8 @@ export default function AdminOffertPage() {
   const [lineEdits, setLineEdits] = useState<
     Record<string, { qty: number; price: number; note: string }>
   >({});
+  // Inköpspris och marginal per rad, från en inläst leverantörsoffert.
+  const [inkop, setInkop] = useState<Record<string, Inkopsrad>>({});
 
   useEffect(() => {
     if (authLoading) return;
@@ -210,6 +263,8 @@ export default function AdminOffertPage() {
     setValutaArbetar(false);
     if ("fel" in svar) { setValutaFel(svar.fel); return; }
     setLineEdits((prev) => Object.fromEntries(Object.entries(prev).map(([id, e]) => [id, { ...e, price: omraknat(e.price, svar.kurs, paslag) }])));
+    // Inköpet räknas om på samma sätt, så att marginalen som visas är den som lades på.
+    setInkop((prev) => Object.fromEntries(Object.entries(prev).map(([id, r]) => [id, { ...r, pris: omraknat(r.pris, svar.kurs, paslag) }])));
     setFrakt((f) => omraknat(f, svar.kurs, paslag));
     setCurrency(valuta);
     setKursInfo({ kurs: svar.kurs, datum: svar.datum, paslag });
@@ -221,6 +276,7 @@ export default function AdminOffertPage() {
     if (!kursInfo) { setCurrency("SEK"); return; }
     const k = (x: number) => Math.round((x / (1 + kursInfo.paslag / 100)) * kursInfo.kurs * 100) / 100;
     setLineEdits((prev) => Object.fromEntries(Object.entries(prev).map(([id, e]) => [id, { ...e, price: k(e.price) }])));
+    setInkop((prev) => Object.fromEntries(Object.entries(prev).map(([id, r]) => [id, { ...r, pris: k(r.pris) }])));
     setFrakt((f) => k(f));
     setCurrency("SEK");
     setKursInfo(null);
@@ -287,23 +343,52 @@ export default function AdminOffertPage() {
 
       // Map extracted items onto existing line edits by position
       if (extractedItems?.length) {
+        // Leverantörens pris är vårt inköpspris. Kundens pris = inköp ÷
+        // (1 − marginal/100), med artikelns marginal när raden har en artikel
+        // och standarden 20 % annars. Förut blev inköpspriset kundens pris.
+        const marginaler = await hamtaMarginaler();
+        const nya: Record<string, Inkopsrad & { saljpris: number; note: string | null }> = {};
+        // Match by index — supplier quote rows align with RFQ items positionally
+        items.forEach((it, idx) => {
+          const sup = extractedItems[idx];
+          if (sup?.unit_price_ex_vat == null) return;
+          const egen = it.product_id ? marginaler?.get(it.product_id) : undefined;
+          const marginal = giltigMarginal(egen);
+          nya[it.id] = {
+            pris: sup.unit_price_ex_vat,
+            marginal,
+            kalla: egen != null && egen === marginal ? "artikel" : "standard",
+            saljpris: Math.round(saljpris(sup.unit_price_ex_vat, marginal) * 100) / 100,
+            note: sup.note,
+          };
+        });
         setLineEdits((prev) => {
           const updated = { ...prev };
-          // Match by index — supplier quote rows align with RFQ items positionally
-          items.forEach((it, idx) => {
-            const sup = extractedItems[idx];
-            if (sup?.unit_price_ex_vat != null) {
-              updated[it.id] = {
-                qty: prev[it.id]?.qty ?? it.qty ?? 1,
-                price: sup.unit_price_ex_vat,
-                note: sup.note ?? prev[it.id]?.note ?? "",
-              };
-            }
-          });
+          for (const it of items) {
+            const n = nya[it.id];
+            if (!n) continue;
+            updated[it.id] = {
+              qty: prev[it.id]?.qty ?? it.qty ?? 1,
+              price: n.saljpris,
+              note: n.note ?? prev[it.id]?.note ?? "",
+            };
+          }
           return updated;
         });
-        const matched = extractedItems.filter((_, i) => i < items.length && extractedItems[i].unit_price_ex_vat != null).length;
-        setQuoteReadMsg(`✓ ${matched} av ${items.length} rader fick pris från leverantörsofferten.`);
+        setInkop((prev) => {
+          const updated = { ...prev };
+          for (const [id, { pris, marginal, kalla }] of Object.entries(nya)) updated[id] = { pris, marginal, kalla };
+          return updated;
+        });
+        const rader = Object.values(nya);
+        const satser = [...new Set(rader.map((r) => r.marginal))];
+        const marginaltext = satser.length === 1 ? `${satser[0]} % marginal` : "artiklarnas marginal";
+        setQuoteReadMsg(
+          rader.length === 0
+            ? "Inga radpriser hittades i dokumentet."
+            : `✓ ${rader.length} av ${items.length} rader prissatta: leverantörens pris som inköp, ${marginaltext} pålagd.` +
+                (marginaler ? "" : ` Artiklarnas marginal gick inte att läsa – ${STANDARD_MARGINAL} % användes.`),
+        );
       } else {
         setQuoteReadMsg("Inga radpriser hittades i dokumentet.");
       }
@@ -610,6 +695,9 @@ ${co.name}`;
                         className="text-xs w-full border-b border-dashed border-border focus:outline-none focus:border-info bg-transparent text-muted-foreground"
                       />
                     </div>
+                    {inkop[it.id] && (
+                      <Inkopsinfo rad={inkop[it.id]} pris={it.editPrice} currency={currency} omraknad={!!kursInfo && currency !== "SEK"} />
+                    )}
                     {it.editNote && (
                       <div className="hidden print:block text-xs text-muted-foreground mt-0.5">{it.editNote}</div>
                     )}
