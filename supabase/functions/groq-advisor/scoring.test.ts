@@ -377,3 +377,11 @@ Deno.test("fabrikatsnamn skrivs som i tabellen brands", () => {
   assertEquals(fabrikatsnamn("festo"), "Festo");
   assertEquals(fabrikatsnamn(""), "");
 });
+
+// index.ts läser kundens standard ur orderkodens familj (kodStandard): så
+// här heter familjernas katalograder.
+Deno.test("standarden läses ur familjens katalognamn", () => {
+  assertEquals(begardStandard("DSBC – ISO 15552 Standard Cylinder "), "ISO 15552");
+  assertEquals(begardStandard("DSNU – ISO 6432 Round Cylinder "), "ISO 6432");
+  assertEquals(begardStandard("DFM – Guided Actuator "), null);
+});
