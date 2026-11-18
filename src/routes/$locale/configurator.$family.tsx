@@ -98,24 +98,25 @@ type FamSeo = {
 };
 
 // "ett" för neutrum (gripdon, vriddon), annars "en".
-const CAT_NOUN: Record<string, { sv: string; en: string; ett?: boolean }> = {
-  cylinder: { sv: "pneumatikcylinder", en: "pneumatic cylinder" },
-  "electric-actuator": { sv: "elektrisk aktuator", en: "electric actuator" },
-  "linear-module": { sv: "linjärmodul", en: "linear module" },
-  gripper: { sv: "gripdon", en: "gripper", ett: true },
-  valve: { sv: "ventil", en: "valve" },
-  "rotary-actuator": { sv: "vriddon", en: "rotary actuator", ett: true },
-  "valve-terminal": { sv: "ventilterminal", en: "valve terminal" },
-  vacuum: { sv: "vakuumkomponent", en: "vacuum component" },
-  "shock-absorber": { sv: "stötdämpare", en: "shock absorber" },
-  fitting: { sv: "snabbkoppling", en: "push-in fitting" },
+// Tyska och spanska sedan kritikerrundan 2026-11-18 (de fick förut engelska).
+const CAT_NOUN: Record<string, { sv: string; en: string; de: string; es: string; ett?: boolean }> = {
+  cylinder: { sv: "pneumatikcylinder", en: "pneumatic cylinder", de: "Pneumatikzylinder", es: "cilindro neumático" },
+  "electric-actuator": { sv: "elektrisk aktuator", en: "electric actuator", de: "elektrischer Antrieb", es: "actuador eléctrico" },
+  "linear-module": { sv: "linjärmodul", en: "linear module", de: "Linearmodul", es: "módulo lineal" },
+  gripper: { sv: "gripdon", en: "gripper", de: "Greifer", es: "pinza", ett: true },
+  valve: { sv: "ventil", en: "valve", de: "Ventil", es: "válvula" },
+  "rotary-actuator": { sv: "vriddon", en: "rotary actuator", de: "Schwenkantrieb", es: "actuador giratorio", ett: true },
+  "valve-terminal": { sv: "ventilterminal", en: "valve terminal", de: "Ventilinsel", es: "terminal de válvulas" },
+  vacuum: { sv: "vakuumkomponent", en: "vacuum component", de: "Vakuumkomponente", es: "componente de vacío" },
+  "shock-absorber": { sv: "stötdämpare", en: "shock absorber", de: "Stoßdämpfer", es: "amortiguador" },
+  fitting: { sv: "snabbkoppling", en: "push-in fitting", de: "Steckverbindung", es: "racor instantáneo" },
 };
+const KOMPONENT: Record<string, string> = { sv: "komponent", en: "component", de: "Komponente", es: "componente" };
 
 function catNoun(slug: string | null | undefined, locale: string): string {
-  const sv = locale === "sv";
   const n = slug ? CAT_NOUN[slug] : undefined;
-  if (!n) return sv ? "komponent" : "component";
-  return sv ? n.sv : n.en;
+  const l = (["sv", "en", "de", "es"].includes(locale) ? locale : "en") as "sv" | "en" | "de" | "es";
+  return n ? n[l] : KOMPONENT[l];
 }
 
 /** Substantivet med obestämd artikel: "en pneumatikcylinder", "ett gripdon", "a gripper". */
@@ -127,12 +128,36 @@ function catNounWithArticle(slug: string | null | undefined, locale: string): st
 
 // Unique, data-driven intro per configurator family — used for the SSR meta
 // description (head) and the visible on-page text. Long-tail SEO across 159 pages.
+//
+// Löftet: artikelnumret direkt, pris och leveranstid i offerten inom 1–2
+// arbetsdagar. Texten lovade förut "en offert direkt", vilket resten av
+// sajten inte säger (kritikerrundan 2026-11-18).
+const OFFERT: Record<string, string> = {
+  sv: "Välj mått och tillval och få artikelnumret direkt. Pris och leveranstid får du i offerten inom 1–2 arbetsdagar.",
+  en: "Choose dimensions and options and get the part number instantly. Price and lead time come in the quote within 1–2 business days.",
+  de: "Abmessungen und Optionen wählen und sofort die Bestellnummer erhalten. Preis und Lieferzeit erhalten Sie im Angebot innerhalb von 1–2 Werktagen.",
+  es: "Elija dimensiones y opciones y obtenga la referencia al instante. El precio y el plazo de entrega llegan en la oferta en 1–2 días hábiles.",
+};
+
 function configuratorIntro(fam: FamSeo | null, locale: string): string {
   const sv = locale === "sv";
+  const offert = OFFERT[locale] ?? OFFERT.en;
   if (!fam) {
-    return sv
-      ? "Konfigurera din komponent efter dina mått och få artikelnummer och offert direkt."
-      : "Configure your component to your dimensions and get a part number and quote instantly.";
+    const inled: Record<string, string> = {
+      sv: "Konfigurera din komponent efter dina mått.", en: "Configure your component to your dimensions.",
+      de: "Konfigurieren Sie Ihre Komponente nach Ihren Maßen.", es: "Configure su componente según sus dimensiones.",
+    };
+    return `${inled[locale] ?? inled.en} ${offert}`;
+  }
+  if (locale === "de" || locale === "es") {
+    const noun = catNoun(fam.category_slug, locale);
+    const de = locale === "de";
+    const std = fam.standard ? (de ? ` nach ${fam.standard}` : ` según ${fam.standard}`) : "";
+    const harSlag = (fam.stroke_max_mm ?? 0) > (fam.stroke_min_mm ?? 0);
+    const slag = harSlag ? (de ? ` mit Hub ${fam.stroke_min_mm}–${fam.stroke_max_mm} mm` : ` con carrera de ${fam.stroke_min_mm}–${fam.stroke_max_mm} mm`) : "";
+    return de
+      ? `${fam.name} konfigurieren — ${noun}${std}${slag}. ${offert}`
+      : `Configure ${fam.name} — ${noun}${std}${slag}. ${offert}`;
   }
   const noun = catNounWithArticle(fam.category_slug, locale);
   const std = fam.standard ? (sv ? ` enligt ${fam.standard}` : ` to ${fam.standard}`) : "";
@@ -143,11 +168,30 @@ function configuratorIntro(fam: FamSeo | null, locale: string): string {
       : ` with stroke ${fam.stroke_min_mm}–${fam.stroke_max_mm} mm`
     : "";
   return sv
-    ? `Konfigurera din ${fam.name} — ${noun}${std}${stroke}. Välj mått och tillval och få ett artikelnummer och en offert direkt, utan att vänta på en säljare.`
-    : `Configure your ${fam.name} — ${noun}${std}${stroke}. Choose dimensions and options and get a part number and quote instantly, without waiting for a salesperson.`;
+    ? `Konfigurera din ${fam.name} — ${noun}${std}${stroke}. ${offert}`
+    : `Configure your ${fam.name} — ${noun}${std}${stroke}. ${offert}`;
 }
 
 const KONFIGURERA: Record<string, string> = { sv: "Konfigurera", en: "Configure", de: "Konfigurieren", es: "Configurar" };
+
+/** Sidans fasta texter på fyra språk. */
+const UI: Record<string, Record<"sv" | "en" | "de" | "es", string>> = {
+  slag: { sv: "Slag", en: "Stroke", de: "Hub", es: "Carrera" },
+  konfigurator: { sv: "Konfigurator", en: "Configurator", de: "Konfigurator", es: "Configurador" },
+  ejHittad: { sv: "Produktfamilj ej hittad", en: "Product family not found", de: "Produktfamilie nicht gefunden", es: "Familia de productos no encontrada" },
+  tillbaka: { sv: "Tillbaka till alla produkter", en: "Back to all products", de: "Zurück zu allen Produkten", es: "Volver a todos los productos" },
+  taBort: { sv: " — klicka igen för att ta bort valet", en: " — click again to remove", de: " — erneut klicken zum Entfernen", es: " — haga clic de nuevo para quitar" },
+  blockerad: { sv: "Kombinationen går inte att beställa", en: "This combination cannot be ordered", de: "Diese Kombination ist nicht bestellbar", es: "Esta combinación no se puede pedir" },
+  klar: { sv: "Klar att beställa", en: "Ready to order", de: "Bestellbereit", es: "Lista para pedir" },
+  fyllI: { sv: "Fyll i alla obligatoriska val", en: "Complete all required options", de: "Alle Pflichtoptionen ausfüllen", es: "Complete todas las opciones obligatorias" },
+  antal: { sv: "Antal", en: "Quantity", de: "Menge", es: "Cantidad" },
+  tillagd: { sv: "✓ Tillagd i listan", en: "✓ Added to the cart", de: "✓ In den Warenkorb gelegt", es: "✓ Añadido al carrito" },
+  laggTill: { sv: "Lägg till i inköpslistan", en: "Add to cart", de: "In den Warenkorb", es: "Añadir al carrito" },
+  tillListan: { sv: "Gå till inköpslistan — begär offert eller beställ →", en: "Go to the cart — request a quote or order →", de: "Zum Warenkorb — Angebot anfordern oder bestellen →", es: "Ir al carrito — solicitar oferta o pedir →" },
+  underlag: { sv: "Underlag", en: "Source documents", de: "Unterlagen", es: "Documentación" },
+  kalla: { sv: "Beställnyckel och villkor är hämtade ur tillverkarens katalog.", en: "Ordering key and conditions are taken from the manufacturer's catalogue.", de: "Bestellschlüssel und Bedingungen stammen aus dem Katalog des Herstellers.", es: "La clave de pedido y las condiciones proceden del catálogo del fabricante." },
+};
+const ui = (key: keyof typeof UI, locale: string) => UI[key][(["sv", "en", "de", "es"].includes(locale) ? locale : "en") as "sv" | "en" | "de" | "es"];
 
 export const Route = createFileRoute("/$locale/configurator/$family")({
   loader: async ({ params }) => {
@@ -169,11 +213,11 @@ export const Route = createFileRoute("/$locale/configurator/$family")({
         {
           title: sv
             ? `Konfigurera ${name} – ${kundanpassad} ${noun} | Maskinval`
-            : params.locale === "en"
-              ? `Configure ${name} – custom ${noun} | Maskinval`
-              // Substantiven finns bara på svenska och engelska; tyska och
-              // spanska får verbet och seriens namn i stället för en blandning.
-              : `${KONFIGURERA[params.locale] ?? KONFIGURERA.en} ${name} | Maskinval`,
+            : params.locale === "de"
+              ? `${name} konfigurieren – ${noun} | Maskinval`
+              : params.locale === "es"
+                ? `Configurar ${name} – ${noun} | Maskinval`
+                : `Configure ${name} – custom ${noun} | Maskinval`,
         },
         { name: "description", content: configuratorIntro(fam, params.locale) },
       ],
@@ -373,7 +417,7 @@ function ConfiguratorPage() {
       <div className="max-w-5xl mx-auto px-4 py-8">
         {seo && (
           <header className="mb-8">
-            <h1 className="text-3xl font-bold text-foreground">{KONFIGURERA[locale] ?? KONFIGURERA.en} {seo.name}{(locale === "sv" || locale === "en") && <span className="font-normal text-muted-foreground"> – {catNoun(seo.category_slug, locale)}</span>}</h1>
+            <h1 className="text-3xl font-bold text-foreground">{locale === "de" ? `${seo.name} konfigurieren` : `${KONFIGURERA[locale] ?? KONFIGURERA.en} ${seo.name}`}<span className="font-normal text-muted-foreground"> – {catNoun(seo.category_slug, locale)}</span></h1>
             <p className="text-sm text-muted-foreground mt-3 leading-relaxed max-w-2xl">{configuratorIntro(seo, locale)}</p>
             <div className="flex items-center gap-3 mt-3">
               {seo.standard && (
@@ -381,7 +425,7 @@ function ConfiguratorPage() {
               )}
               {seo.stroke_min_mm != null && seo.stroke_max_mm != null && seo.stroke_max_mm > 0 && (
                 <span className="inline-block px-2 py-1 text-xs bg-muted text-muted-foreground rounded">
-                  Slag: {seo.stroke_min_mm}–{seo.stroke_max_mm} mm
+                  {ui("slag", locale)}: {seo.stroke_min_mm}–{seo.stroke_max_mm} mm
                 </span>
               )}
             </div>
@@ -396,36 +440,41 @@ function ConfiguratorPage() {
   if (!family)
     return (
       <div className="p-8 text-center text-muted-foreground">
-        <p className="text-lg font-medium mb-2">Produktfamilj ej hittad</p>
+        <p className="text-lg font-medium mb-2">{ui("ejHittad", locale)}</p>
         <Link
           to={"/$locale/configure" as never}
           params={{ locale } as never}
           className="text-blue-600 hover:underline text-sm"
         >
-          Tillbaka till alla produkter
+          {ui("tillbaka", locale)}
         </Link>
       </div>
     );
 
-  const categoryLabels: Record<string, string> = {
-    cylinder: "Cylindrar",
-    "electric-actuator": "Elektriska ställdon",
-    "linear-module": "Linjärmoduler",
-    gripper: "Gripdon",
-    "rotary-actuator": "Vridenheter",
-    valve: "Ventiler",
-    "valve-terminal": "Ventilterminaler",
-    vacuum: "Vakuum",
-    "shock-absorber": "Stötdämpare",
-    fitting: "Kopplingar",
+  const etiketter: Record<string, [string, string, string, string]> = {
+    cylinder: ["Cylindrar", "Cylinders", "Zylinder", "Cilindros"],
+    "electric-actuator": ["Elektriska ställdon", "Electric actuators", "Elektrische Antriebe", "Actuadores eléctricos"],
+    "linear-module": ["Linjärmoduler", "Linear modules", "Linearmodule", "Módulos lineales"],
+    gripper: ["Gripdon", "Grippers", "Greifer", "Pinzas"],
+    "rotary-actuator": ["Vridenheter", "Rotary actuators", "Schwenkantriebe", "Actuadores giratorios"],
+    valve: ["Ventiler", "Valves", "Ventile", "Válvulas"],
+    "valve-terminal": ["Ventilterminaler", "Valve terminals", "Ventilinseln", "Terminales de válvulas"],
+    vacuum: ["Vakuum", "Vacuum", "Vakuum", "Vacío"],
+    "shock-absorber": ["Stötdämpare", "Shock absorbers", "Stoßdämpfer", "Amortiguadores"],
+    fitting: ["Kopplingar", "Fittings", "Steckverbindungen", "Racores"],
   };
+  const lIndex = ["sv", "en", "de", "es"].indexOf(locale);
+  const sprakIndex = lIndex === -1 ? 1 : lIndex;
+  const categoryLabels: Record<string, string> = Object.fromEntries(
+    Object.entries(etiketter).map(([k, v]) => [k, v[sprakIndex]]),
+  );
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
         <Link to={"/$locale/configure" as never} params={{ locale } as never} className="hover:text-blue-600">
-          Konfigurator
+          {ui("konfigurator", locale)}
         </Link>
         <span>›</span>
         <span className="text-muted-foreground">
@@ -439,7 +488,7 @@ function ConfiguratorPage() {
       <div className="mb-8">
         {/* Rubriken säger vad sidan gör, inte bara seriens kod (SEO-granskningen
             2026-11-17: rubriken var "ADN"). */}
-        <h1 className="text-3xl font-bold text-foreground">{KONFIGURERA[locale] ?? KONFIGURERA.en} {family.name}{(locale === "sv" || locale === "en") && <span className="font-normal text-muted-foreground"> – {catNoun(family.category_slug, locale)}</span>}</h1>
+        <h1 className="text-3xl font-bold text-foreground">{locale === "de" ? `${family.name} konfigurieren` : `${KONFIGURERA[locale] ?? KONFIGURERA.en} ${family.name}`}<span className="font-normal text-muted-foreground"> – {catNoun(family.category_slug, locale)}</span></h1>
         <p className="text-muted-foreground mt-1 text-lg">{family.title}</p>
         <p className="text-sm text-muted-foreground mt-3 leading-relaxed max-w-2xl">
           {configuratorIntro(
@@ -461,7 +510,7 @@ function ConfiguratorPage() {
           )}
           {family.stroke_min_mm != null && family.stroke_max_mm != null && (
             <span className="inline-block px-2 py-1 text-xs bg-muted text-muted-foreground rounded">
-              Slag: {family.stroke_min_mm}–{family.stroke_max_mm} mm
+              {ui("slag", locale)}: {family.stroke_min_mm}–{family.stroke_max_mm} mm
             </span>
           )}
         </div>
@@ -551,7 +600,7 @@ function ConfiguratorPage() {
                         aria-pressed={selected}
                         title={
                           (val.description || valueLabel(val.label, locale)) +
-                          (selected ? " — klicka igen för att ta bort valet" : "")
+                          (selected ? ui("taBort", locale) : "")
                         }
                         className={`px-3 py-2 rounded-lg border text-sm font-medium transition-all text-left ${
                           selected
@@ -621,14 +670,14 @@ function ConfiguratorPage() {
                 />
                 <span className="text-xs text-muted-foreground">
                   {blocking.length > 0
-                    ? "Kombinationen går inte att beställa"
+                    ? ui("blockerad", locale)
                     : isComplete
-                      ? "Klar att beställa"
-                      : "Fyll i alla obligatoriska val"}
+                      ? ui("klar", locale)
+                      : ui("fyllI", locale)}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <label className="sr-only" htmlFor="konf-antal">Antal</label>
+                <label className="sr-only" htmlFor="konf-antal">{ui("antal", locale)}</label>
                 <input
                   id="konf-antal"
                   type="number"
@@ -667,7 +716,7 @@ function ConfiguratorPage() {
                       : "bg-foreground/85 text-muted-foreground cursor-not-allowed"
                   }`}
                 >
-                  {tillagdILista ? "✓ Tillagd i listan" : "Lägg till i inköpslistan"}
+                  {tillagdILista ? ui("tillagd", locale) : ui("laggTill", locale)}
                 </button>
               </div>
               {tillagdILista && (
@@ -676,7 +725,7 @@ function ConfiguratorPage() {
                   params={{ locale }}
                   className="block text-center text-xs text-blue-300 hover:text-blue-200 underline"
                 >
-                  Gå till inköpslistan — begär offert eller beställ →
+                  {ui("tillListan", locale)}
                 </Link>
               )}
             </div>
@@ -723,7 +772,7 @@ function ConfiguratorPage() {
           {docs.length > 0 && (
             <div className="bg-white border border-border rounded-xl p-4">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                {locale === "sv" ? "Underlag" : "Source documents"}
+                {ui("underlag", locale)}
               </p>
               <ul className="space-y-1.5">
                 {docs.map((d) => (
@@ -734,9 +783,7 @@ function ConfiguratorPage() {
                 ))}
               </ul>
               <p className="mt-3 text-[11px] text-muted-foreground leading-snug">
-                {locale === "sv"
-                  ? "Beställnyckel och villkor är hämtade ur tillverkarens katalog."
-                  : "Ordering key and conditions are taken from the manufacturer's catalogue."}
+                {ui("kalla", locale)}
               </p>
             </div>
           )}
