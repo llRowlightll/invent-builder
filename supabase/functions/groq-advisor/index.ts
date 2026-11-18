@@ -1673,7 +1673,10 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     // Family / configurable product: never present it as a silent exact match.
     // Tiering already keeps it below concrete matches; here we label it clearly so
     // the user knows the exact stroke is chosen at order (not a fixed stock SKU).
-    const isConfigurable = isFamilyProduct(cat) || actualMax === 0;
+    // Bara det som har ett slag: en ventilö utan slag fick "Konfigurera slag
+    // vid order" och en not om slaglängd (provkörning mot drift 2026-11-18).
+    const harSlag = ["cylinder", "electric-actuator", "linear-module"].includes(String(cat.category));
+    const isConfigurable = harSlag && (isFamilyProduct(cat) || actualMax === 0);
     const tooShort = maxRequiredStroke > 0 && actualMax > 0 && actualMax < maxRequiredStroke;
     const closestCatalogBadge = pick(locale, { sv: "Närmaste katalogalternativ", en: "Closest catalog option", de: "Nächstgelegene Katalogoption", es: "Opción de catálogo más cercana" });
     if (isConfigurable && !tooShort) {
