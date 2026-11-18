@@ -2126,7 +2126,9 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     });
     return Response.json({
       summary: `${degradedNote}\n\n${finalSummary}`,
-      options: finalOptions,
+      // Också här: utan modellen är kravstatusen det kunden har att gå på
+      // (den tyska kontrollkörningen efter #451 fick den på engelska).
+      options: kravstatusPaSprak(finalOptions, locale),
       requirements,
       degraded: "llm_unavailable",
     }, { headers: CORS });
