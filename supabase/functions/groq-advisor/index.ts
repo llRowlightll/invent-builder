@@ -1672,11 +1672,11 @@ async function handleOptions(
 MANDATORY RULES:
 1. Use EXACTLY these SKUs: ${topProducts.map(p => p.sku).join(", ")} — do NOT change them. Call each product the actuator type its name and category say: a pneumatic cylinder is never "hydraulic" (a pallet stop summary called three pneumatic ISO cylinders hydraulic, 2026-11-17)
 2. "why" = engineering justification grounded ONLY in the specs actually given for that product below (its specs:{...} JSON — bore, stroke, force, pressure, temperature, etc). Cite real numbers from there. Do NOT invent material, weight, coatings, heat treatment, integrated safety features (e.g. "built-in pressure relief"), or certifications that aren't listed — if a product's data doesn't cover something, leave it out rather than guessing. A short, fully-grounded "why" is correct; a longer one padded with invented details is not.
-3. pros/cons: same rule — only claims backed by the listed specs. 2-3 pros, 1-2 cons.
+3. pros/cons: same rule — only claims backed by the listed specs. 2-3 pros, 0-2 cons. A con must be a real drawback for THIS application: a stroke longer than required, a force margin below 1.2×, or a requirement the data does not cover. Never list a value that meets the requirement as a con ("only max 10 bar" when 6 bar is used, "only 300 mm stroke" when 300 mm is required). With no real drawback, return "cons": [].
 4. NEVER recalculate force, pressure or load. force_n_at_6bar is ALREADY the force at 6 bar — do not scale it by any pressure ratio. Use "Erforderlig kraft" from Requirements verbatim as the requirement; do not derive your own from the mass. Quote both numbers exactly as given, or omit them. An invented calculation is the worst possible error here: an engineer who checks it stops trusting everything else on the page.${atexWarning}${codeNote ? "\n\n" + codeNote : ""}
 Do NOT output a badge field — badges are assigned server-side and must not be set by you.
 
-JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "EXACT_SKU", "why": "...", "pros": [...], "cons": [...] } ] }`;
+JSON: { "summary": "1-2 sentences: the mechanism and how it meets the requirements. No safety claims: safety requirements are shown to the customer separately.", "options": [ { "sku": "EXACT_SKU", "why": "...", "pros": [...], "cons": [...] } ] }`;
 
   const optUserUtanDok = `Application: ${description}\nRequirements: ${reqSummary || "standard"}\n${Object.entries(answers).map(([k,v])=>`${k}: ${v}`).join(", ")}\n\nPre-selected products (write descriptions for these ONLY):\n${preselectedStr}`;
   // Hela begäran måste rymmas under minutstaket; dokumenten kortas, aldrig

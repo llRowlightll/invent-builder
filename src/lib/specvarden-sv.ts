@@ -76,6 +76,10 @@ const LEXIKON: Record<string, string> = {
   "integrated incremental encoder": "inbyggd inkrementell pulsgivare",
   "reed": "reed",
   "optional reed sensor": "reedgivare som tillval",
+  // Kritikerrundan 2026-11-18: 37 artiklar visade "Optional reed/PNP sensor".
+  "optional reed/pnp sensor": "reed- eller PNP-givare som tillval",
+  "t-slot sensor": "T-spårsgivare",
+  "inductive proximity": "induktiv närhetsgivare",
   // Material
   "aluminium": "aluminium",
   "aluminum": "aluminium",

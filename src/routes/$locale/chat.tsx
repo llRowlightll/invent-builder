@@ -234,14 +234,14 @@ function ChatPage() {
       const dims = await extractDims({ data: { text: q, locale, history } });
 
       // ── 3. Physics computation (deterministic TypeScript) ───────────────
-      const physics = computePhysics(dims);
+      const physics = computePhysics(dims, locale);
 
       // ── 4. Show physics reasoning to user ───────────────────────────────
       if (physics.reasoning.length > 0) {
         const reasoningText = [
-          isSv ? "**Teknisk analys:**" : "**Engineering analysis:**",
+          ({ sv: "**Teknisk analys:**", de: "**Technische Analyse:**", es: "**Análisis técnico:**" } as Record<string, string>)[locale] ?? "**Engineering analysis:**",
           ...physics.reasoning.map((r) => `• ${r}`),
-          ...(physics.warnings.map((w) => `${isSv ? "Obs" : "Note"}: ${w}`)),
+          ...(physics.warnings.map((w) => `${({ sv: "Obs", de: "Hinweis", es: "Nota" } as Record<string, string>)[locale] ?? "Note"}: ${w}`)),
         ].join("\n");
         setMsgs((m) => [...m, { role: "assistant", text: reasoningText }]);
       }
@@ -666,11 +666,6 @@ function ChatPage() {
                       />
                     ))}
                   </div>
-                  {m.products.length > 1 && (
-                    <div className="mt-2 flex justify-end">
-                      <AddAllButton products={m.products} locale={locale} />
-                    </div>
-                  )}
                 </div>
               );
             }
@@ -860,30 +855,6 @@ function AdvisorDimBar({ label, required, available, unit, requiredLabel, availa
         <span>{availableLabel} {available.toLocaleString()} {unit}</span>
       </div>
     </div>
-  );
-}
-
-function AddAllButton({ products, locale }: { products: ProductRow[]; locale: string }) {
-  const [added, setAdded] = useState(false);
-  const isSv = locale === "sv";
-  function handleAddAll() {
-    products.forEach((p) => addToShoppingList({ id: p.id, sku: p.sku, name: produktnamn(p, locale) }));
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2000);
-  }
-  return (
-    <button
-      onClick={handleAddAll}
-      className={`text-xs px-3 py-1.5 rounded-md border transition ${
-        added
-          ? "border-success text-success-deep bg-success-surface"
-          : "border-border text-muted-foreground hover:border-info hover:text-info"
-      }`}
-    >
-      {added
-        ? `✓ ${isSv ? "Lade till alla" : "Added all"}`
-        : `+ ${isSv ? `Lägg till alla ${products.length} i varukorgen` : `Add all ${products.length} to cart`}`}
-    </button>
   );
 }
 

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { makeT, type Locale } from "@/lib/i18n";
@@ -195,11 +195,13 @@ const ui = (key: keyof typeof UI, locale: string) => UI[key][(["sv", "en", "de",
 
 export const Route = createFileRoute("/$locale/configurator/$family")({
   loader: async ({ params }) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("configurator_families")
       .select("name, category_slug, standard, stroke_min_mm, stroke_max_mm")
       .eq("slug", params.family)
       .maybeSingle();
+    // En familj som inte finns svarar 404 (se product.$sku.tsx).
+    if (!error && !data) throw notFound();
     return { fam: (data as FamSeo | null) ?? null };
   },
   head: ({ params, loaderData }) => {
