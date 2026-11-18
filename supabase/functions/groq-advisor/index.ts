@@ -1680,7 +1680,11 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     const tooShort = maxRequiredStroke > 0 && actualMax > 0 && actualMax < maxRequiredStroke;
     const closestCatalogBadge = pick(locale, { sv: "Närmaste katalogalternativ", en: "Closest catalog option", de: "Nächstgelegene Katalogoption", es: "Opción de catálogo más cercana" });
     if (isConfigurable && !tooShort) {
-      opt.badge = pick(locale, { sv: "Konfigurera slag vid order", en: "Configure stroke at order", de: "Hub bei Bestellung konfigurieren", es: "Configurar carrera al pedido" });
+      // Fabrikatet kunden nämnde behåller sitt märke; noten nedan säger ändå
+      // att slaget väljs vid order (kontrollkörningen efter #444).
+      if (sku !== fabrikatsInsatt) {
+        opt.badge = pick(locale, { sv: "Konfigurera slag vid order", en: "Configure stroke at order", de: "Hub bei Bestellung konfigurieren", es: "Configurar carrera al pedido" });
+      }
       const famB = familjeStorlek.get(sku) ?? 0;
       const storlek = famB > 0 ? pick(locale, {
         sv: ` Beställs i Ø${famB} — minsta storlek i serien som ger den kraft som krävs.`,
