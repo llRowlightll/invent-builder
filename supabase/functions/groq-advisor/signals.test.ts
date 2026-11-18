@@ -1054,3 +1054,14 @@ Deno.test("angiven kraft: inom samma mening läses den, en vikt emellan gör den
   assertEquals(extractStatedForceN("pressa upp en last på 500 N", {}), 0);
   assertEquals(extractStatedForceN("klämma fast detaljen. Sedan lyfts 300 N", {}), 0, "ny mening");
 });
+
+// Provkörning mot drift 2026-11-17: "stopp för pallar" gick till cylindrar.
+Deno.test("stopp som substantiv ger stötdämpare; stopp-positioner och nödstopp gör det inte", () => {
+  const pall = detectCategories("stopp för pallar på en rullbana, pallen väger 800 kg och kommer i 0,3 m/s");
+  assert(pall.includes("shock-absorber"), JSON.stringify(pall));
+  assert(!pall.includes("cylinder"));
+  assert(detectCategories("pallstopp, 500 kg i 0,2 m/s").includes("shock-absorber"));
+  assert(!detectCategories("elaxel med tre stopp-positioner, 0,5 m/s, 10 kg").includes("shock-absorber"));
+  assert(!detectCategories("cylinder med nödstopp, 0,5 m/s, 10 kg").includes("shock-absorber"));
+  assert(!detectCategories("elaxel med fem stopplägen, 1 m/s").includes("shock-absorber"));
+});
