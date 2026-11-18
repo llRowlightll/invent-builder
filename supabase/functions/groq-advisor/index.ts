@@ -30,6 +30,7 @@ import {
   kraftVid6Bar,
   medOnskatFabrikat,
   fabrikatsnamn,
+  repeterbarhetMm,
 } from "./scoring.ts";
 import { LANGRE_SLAG_PRO, rensaSerieslag, rensaPositionsPros, rensaMotsagelser, produktdataText } from "./prosavakt.ts";
 import { delaSvar, tolkaKravbild, type Kravbild, type Tolkningsbeslut } from "./kravbild.ts";
@@ -1899,6 +1900,18 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     if (tryckKrav > 0 && !isElectricActuator(cat)) {
       const t = provaTryck(tryckKrav, cat.key_specs, sv);
       status.push({ krav: t.krav, utfall: t.utfall === "underlag_saknas" ? "kan_inte_bedomas" : t.utfall, text: t.text });
+    }
+    // Precisionskravet per alternativ (provkörning mot drift 2026-11-17:
+    // ±0,1 mm syntes i frågorna men prövades aldrig mot alternativen).
+    if (precisionMm > 0) {
+      const rep = repeterbarhetMm(cat);
+      const fmt = (n: number) => sv ? String(n).replace(".", ",") : String(n);
+      const kravText = sv ? `precision ±${fmt(precisionMm)} mm` : `precision ±${fmt(precisionMm)} mm`;
+      status.push(rep > 0
+        ? { krav: kravText, utfall: rep <= precisionMm ? "uppfyllt" : "ej_uppfyllt", text: sv ? `repeterbarhet ±${fmt(rep)} mm enligt katalogen` : `repeatability ±${fmt(rep)} mm according to the catalogue` }
+        : isPneumaticActuatorProduct(cat)
+        ? { krav: kravText, utfall: "kan_inte_bedomas", text: sv ? "en pneumatisk cylinder stannar exakt bara i sina ändlägen" : "a pneumatic cylinder only stops precisely at its end positions" }
+        : { krav: kravText, utfall: "kan_inte_bedomas", text: sv ? "katalogen anger ingen repeterbarhet för alternativet" : "the catalogue gives no repeatability for the option" });
     }
     if (requiredTemp > 0) {
       const t = provaTemperatur(requiredTemp, cat.key_specs, sv);
