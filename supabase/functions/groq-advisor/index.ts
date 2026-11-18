@@ -83,6 +83,8 @@ import {
   firstNumAbs,
 } from "./bom-builder.ts";
 import { dokumentInomBudget, forStorBegaran, lasTpmTak, STANDARD_TPM_TAK, UTDRAGSSKILJE } from "./tokenbudget.ts";
+import { begardaVentilplatser, begardFaltbuss, dampenergiJ, provaDampenergi, provaFaltbuss, provaVentilplatser, valjDampare, ventilpoang } from "./komponentkrav.ts";
+import { kravstatusPaSprak } from "./kravstatus-sprak.ts";
 
 // v51 — Engineering-correctness pass (reported via boss-tests): (1) multi-axis precision
 //        hole — applyPrecisionFilter no longer disables on multi-axis non-vertical, so a
@@ -909,7 +911,7 @@ async function handleEndEffectorOptions(
     ? byggVakuumalternativ(await fetchEndEffectorProducts("vacuum", 1000), underlag)
     : byggGripdonsalternativ(await fetchEndEffectorProducts("gripper", 1000), underlag);
   logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: options[0]?.sku ?? null, option_count: options.length }, true);
-  return Response.json({ summary, options }, { headers: CORS });
+  return Response.json({ summary, options: kravstatusPaSprak(options, locale) }, { headers: CORS });
 }
 
 // ── ACTION: options (v40) ─────────────────────────────────────────────────────
@@ -1000,11 +1002,11 @@ async function handleOptions(
       return m ? Number(m[1]) : 99;
     };
     const seen = new Set<number>();
-    const picks: CatalogProduct[] = [];
+    const storleksspridning: CatalogProduct[] = [];
     for (const p of shocks.slice().sort((a, b) => thread(a) - thread(b))) {
       const th = thread(p);
-      if (!seen.has(th)) { seen.add(th); picks.push(p); }
-      if (picks.length >= 4) break;
+      if (!seen.has(th)) { seen.add(th); storleksspridning.push(p); }
+      if (storleksspridning.length >= 4) break;
     }
     // Anslagshastigheten är lastens fart, också när den står vid bandet:
     // extractSpeedMs hoppar avsiktligt över bandets hastighet (den är inte en
@@ -1020,11 +1022,23 @@ async function handleOptions(
     const energyJ = loadKg > 0 && anslagsfart > 0 ? 0.5 * loadKg * anslagsfart * anslagsfart : 0;
     // Decimalkomma på svenska, tyska och spanska ("36,0 J", inte "36.0 J").
     const komma = (n: number | string) => String(n).replace(".", ",");
+    // Med känd energi väljs dämparna efter energikapaciteten (komponentkrav.ts):
+    // pallstoppet på ≈ 36 J fick förut en M8 på 2,94 J som "Minsta".
+    const dampval = energyJ > 0 ? valjDampare(shocks, energyJ) : null;
+    const picks = dampval?.val.length ? dampval.val : storleksspridning;
+    const svStatus = locale === "sv";
     const options = picks.map((p, i) => ({
       sku: p.sku,
       name: p.name,
-      badge: i === 0 ? pick(locale, { sv: "Minsta", en: "Smallest", de: "Kleinste", es: "Más pequeño" })
+      badge: dampval
+        ? (i === 0 && dampval.nagonRacker && dampenergiJ(p) >= energyJ
+          ? pick(locale, { sv: "Minsta som räcker", en: "Smallest that suffices", de: "Kleinster, der reicht", es: "El más pequeño que basta" })
+          : dampenergiJ(p) > 0 && dampenergiJ(p) < energyJ
+          ? pick(locale, { sv: "Räcker inte", en: "Not enough", de: "Reicht nicht", es: "No basta" })
+          : "")
+        : i === 0 ? pick(locale, { sv: "Minsta", en: "Smallest", de: "Kleinste", es: "Más pequeño" })
         : i === picks.length - 1 ? pick(locale, { sv: "Störst kapacitet", en: "Highest capacity", de: "Höchste Kapazität", es: "Mayor capacidad" }) : "",
+      kravstatus: energyJ > 0 ? [provaDampenergi(energyJ, p, svStatus)] : [],
       bore_mm: null,
       stroke_mm: Number(String(p.key_specs?.stroke_mm ?? "").replace(/[^\d.]/g, "")) || null,
       force_n: null,
@@ -1064,6 +1078,12 @@ async function handleOptions(
     // Ett stopp som ska släppa förbi lasten behöver också något som fäller ned
     // det; katalogen har ingen färdig stoppenhet (kontrollerat 2026-11-18).
     const arStopp = /\bstopp(?:et|en|er|ar)?\b(?!\s*-\s*(?:position|läge|punkt))|\bstopper\b|pallstopp/i.test(description);
+    const ingenRacker = dampval && !dampval.nagonRacker ? pick(locale, {
+      sv: ` Ingen dämpare i katalogen med känd kapacitet tar upp ≈ ${komma(energyJ.toFixed(1))} J – det kräver en större industridämpare, som ingår i kundlösningen.`,
+      en: ` No absorber in the catalogue with a known capacity takes ≈ ${energyJ.toFixed(1)} J – that needs a larger industrial absorber, which is part of the custom solution.`,
+      de: ` Kein Dämpfer im Katalog mit bekannter Kapazität nimmt ≈ ${komma(energyJ.toFixed(1))} J auf – dafür ist ein größerer Industriedämpfer nötig, der zur Kundenlösung gehört.`,
+      es: ` Ningún amortiguador del catálogo con capacidad conocida absorbe ≈ ${komma(energyJ.toFixed(1))} J: hace falta un amortiguador industrial mayor, que forma parte de la solución a medida.`,
+    }) : "";
     const stoppNot = arStopp ? pick(locale, {
       sv: " Ett stopp som ska släppa förbi lasten behöver också en cylinder som fäller ned stoppet, med dämparen monterad framför. Vi har ingen färdig stoppenhet i katalogen, så den ingår i kundlösningen. Driver banan lasten vidare under inbromsningen tillkommer drivkraften × dämparens slag i energin.",
       en: " A stop that must let the load pass also needs a cylinder that lowers the stop, with the absorber mounted in front. We have no ready-made stopper unit in the catalogue, so it is part of the custom solution. If the conveyor keeps driving the load during braking, add the drive force × the absorber stroke to the energy.",
@@ -1071,13 +1091,13 @@ async function handleOptions(
       es: " Un tope que debe dejar pasar la carga también necesita un cilindro que baje el tope, con el amortiguador montado delante. No tenemos una unidad de tope lista en el catálogo, así que forma parte de la solución a medida. Si el transportador sigue empujando la carga durante el frenado, sume la fuerza de arrastre × la carrera del amortiguador a la energía.",
     }) : "";
     const summary = pick(locale, {
-      sv: `Det här är en stötdämpar-applikation — en cylinder bromsar inte en rullande massa, det gör en stötdämpare.${eNote} Välj storlek (M8–M20) efter dämparens energikapacitet per slag (se datablad).${stoppNot}${conflictNote}`,
-      en: `This is a shock-absorber application — a cylinder won't stop a rolling mass, a shock absorber does.${eNote} Pick a size (M8–M20) by the absorber's energy capacity per cycle (see datasheet).${stoppNot}${conflictNote}`,
-      de: `Dies ist eine Stoßdämpfer-Anwendung — ein Zylinder bremst keine rollende Masse ab, das übernimmt ein Stoßdämpfer.${eNote} Größe (M8–M20) nach der Energiekapazität des Dämpfers pro Hub wählen (siehe Datenblatt).${stoppNot}${conflictNote}`,
-      es: `Esta es una aplicación de amortiguador — un cilindro no detiene una masa rodante, un amortiguador sí.${eNote} Elija el tamaño (M8-M20) según la capacidad energética del amortiguador por ciclo (véase la hoja de datos).${stoppNot}${conflictNote}`,
+      sv: `Det här är en stötdämpar-applikation — en cylinder bromsar inte en rullande massa, det gör en stötdämpare.${eNote} Välj storlek (M8–M20) efter dämparens energikapacitet per slag (se datablad).${ingenRacker}${stoppNot}${conflictNote}`,
+      en: `This is a shock-absorber application — a cylinder won't stop a rolling mass, a shock absorber does.${eNote} Pick a size (M8–M20) by the absorber's energy capacity per cycle (see datasheet).${ingenRacker}${stoppNot}${conflictNote}`,
+      de: `Dies ist eine Stoßdämpfer-Anwendung — ein Zylinder bremst keine rollende Masse ab, das übernimmt ein Stoßdämpfer.${eNote} Größe (M8–M20) nach der Energiekapazität des Dämpfers pro Hub wählen (siehe Datenblatt).${ingenRacker}${stoppNot}${conflictNote}`,
+      es: `Esta es una aplicación de amortiguador — un cilindro no detiene una masa rodante, un amortiguador sí.${eNote} Elija el tamaño (M8-M20) según la capacidad energética del amortiguador por ciclo (véase la hoja de datos).${ingenRacker}${stoppNot}${conflictNote}`,
     });
     logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: options[0]?.sku ?? null, option_count: options.length }, true);
-    return Response.json({ summary, options }, { headers: CORS });
+    return Response.json({ summary, options: kravstatusPaSprak(options, locale) }, { headers: CORS });
   }
   // ── Hydraulic application — outside the pneumatic/electric catalog entirely ──
   // isHydraulicApplication() used to be computed but never actually FILTERED the
@@ -1461,8 +1481,18 @@ async function handleOptions(
   const kravStandard = begardStandard(combinedText) ?? kodStandard;
   const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, requiredForceN, isHighPrecision, isHighSpeed, precisionMm, speedMs, isVertical: isVerticalLoad, isWashdown: needsCorrosionResistant, isAtex, preferredBrands: detectRequestedBrands(combinedText), explicitBoreMm, isFood: hazards.isFoodGrade, begardStandard: kravStandard, enhetBegard: enhetBegard(combinedText) };
   // Önskat fabrikat får en plats om det finns i underlaget (scoring.ts).
+  // Ventilöar rangordnas också efter fältbussen och antalet platser kunden
+  // angett (komponentkrav.ts). "ventilö för 8 cylindrar med PROFINET" fick
+  // förut en IO-Link-ö utan förbehåll. Hela underlaget prövas, inte bara de
+  // 25 som sorterats efter slag (ventilöar har inget slag).
+  const arVentilo = systemMotionCats.includes("valve-terminal");
+  const ventilBuss = arVentilo ? begardFaltbuss(combinedText) : null;
+  const ventilBehov = arVentilo ? begardaVentilplatser(combinedText, answers) : 0;
+  const rankade = arVentilo && (ventilBuss || ventilBehov > 0)
+    ? rankActuators(sortedProducts, scoringCtx).sort((a, b) => ventilpoang(b, ventilBuss, ventilBehov) - ventilpoang(a, ventilBuss, ventilBehov))
+    : rankActuators(catalogProducts, scoringCtx);
   const { produkter: topProducts, insatt: fabrikatsInsatt } =
-    medOnskatFabrikat(rankActuators(catalogProducts, scoringCtx), sortedProducts, scoringCtx);
+    medOnskatFabrikat(rankade, sortedProducts, scoringCtx);
 
   // Build server-side option objects (correct data, LLM fills in text)
   const lang = langName(locale);
@@ -1910,6 +1940,11 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
       const t = provaTryck(tryckKrav, cat.key_specs, sv);
       status.push({ krav: t.krav, utfall: t.utfall === "underlag_saknas" ? "kan_inte_bedomas" : t.utfall, text: t.text });
     }
+    // Ventilöns fältbuss och platser (komponentkrav.ts).
+    if (cat.category === "valve-terminal") {
+      if (ventilBuss) status.push(provaFaltbuss(ventilBuss, cat, sv));
+      if (ventilBehov > 0) status.push(provaVentilplatser(ventilBehov, cat, sv));
+    }
     // Precisionskravet per alternativ (provkörning mot drift 2026-11-17:
     // ±0,1 mm syntes i frågorna men prövades aldrig mot alternativen).
     if (precisionMm > 0) {
@@ -2098,7 +2133,8 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
   }
 
   logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: finalOptions[0]?.sku ?? null, option_count: finalOptions.length }, true);
-  return Response.json({ summary: finalSummary, options: finalOptions, requirements }, { headers: CORS });
+  // Kravstatusen på tyska och spanska (kravstatus-sprak.ts).
+  return Response.json({ summary: finalSummary, options: kravstatusPaSprak(finalOptions, locale), requirements }, { headers: CORS });
 }
 
 /**
