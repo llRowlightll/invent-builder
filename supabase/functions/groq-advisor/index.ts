@@ -29,6 +29,7 @@ import {
   familjeborrning,
   kraftVid6Bar,
   medOnskatFabrikat,
+  fabrikatsnamn,
 } from "./scoring.ts";
 import { LANGRE_SLAG_PRO, rensaSerieslag, rensaPositionsPros, rensaMotsagelser, produktdataText } from "./prosavakt.ts";
 import { delaSvar, tolkaKravbild, type Kravbild, type Tolkningsbeslut } from "./kravbild.ts";
@@ -1478,7 +1479,7 @@ async function handleOptions(
         ? pick(locale, { sv: "Närmaste — överdimensionerad", en: "Closest — oversized", de: "Nächstgelegen — überdimensioniert", es: "Más cercano — sobredimensionado" })
         : p.sku === fabrikatsInsatt
         // "Nämnde", inte "önskat": "byta bort vår Festo" nämner också ett fabrikat.
-        ? pick(locale, { sv: `Fabrikatet du nämnde (${p.brand})`, en: `The brand you mentioned (${p.brand})`, de: `Von Ihnen genannter Hersteller (${p.brand})`, es: `La marca que mencionó (${p.brand})` })
+        ? pick(locale, { sv: `Fabrikatet du nämnde (${fabrikatsnamn(p.brand)})`, en: `The brand you mentioned (${fabrikatsnamn(p.brand)})`, de: `Von Ihnen genannter Hersteller (${fabrikatsnamn(p.brand)})`, es: `La marca que mencionó (${fabrikatsnamn(p.brand)})` })
         : platsmarke(i, locale),
       bore_mm: bore,
       stroke_mm: ms > 0 ? ms : null,

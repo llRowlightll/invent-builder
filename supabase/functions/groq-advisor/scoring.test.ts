@@ -23,6 +23,7 @@ import {
   enhetBegard,
   foljerStandard,
   medOnskatFabrikat,
+  fabrikatsnamn,
 } from "./scoring.ts";
 
 function prod(
@@ -366,4 +367,13 @@ Deno.test("önskat fabrikat: får sista platsen om det finns, annars orört", ()
   // Fabrikatet finns inte i underlaget, eller inget fabrikat är önskat: orört.
   assertEquals(medOnskatFabrikat([av1, av2, av3], [av1, av2, av3], c).insatt, null);
   assertEquals(medOnskatFabrikat([av1, av2, av3], [av1, av2, av3, smc], ctx({ requiredStroke: 100 })).insatt, null);
+});
+
+Deno.test("fabrikatsnamn skrivs som i tabellen brands", () => {
+  assertEquals(fabrikatsnamn("smc"), "SMC");
+  assertEquals(fabrikatsnamn("aventics"), "AVENTICS");
+  assertEquals(fabrikatsnamn("bosch-rexroth"), "Bosch Rexroth");
+  assertEquals(fabrikatsnamn("metal work"), "Metal Work");
+  assertEquals(fabrikatsnamn("festo"), "Festo");
+  assertEquals(fabrikatsnamn(""), "");
 });
