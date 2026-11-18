@@ -589,6 +589,19 @@ export function rankActuators(candidates: CatalogProduct[], ctx: ScoringCtx): Ca
 }
 
 /**
+ * Fabrikatet som namn, inte som kod: katalogen bär "smc", "bosch-rexroth".
+ * Märket på den nämnda fabrikatsraden visade "(smc)" (kontrollkörningen efter
+ * #445). Samma skrivning som tabellen brands.
+ */
+const VERSALFABRIKAT = new Set(["smc", "aventics"]);
+export function fabrikatsnamn(brand: string | null | undefined): string {
+  const b = String(brand ?? "").trim().toLowerCase();
+  if (!b) return "";
+  if (VERSALFABRIKAT.has(b)) return b.toUpperCase();
+  return b.split(/[-\s]+/).map((d) => d.charAt(0).toUpperCase() + d.slice(1)).join(" ");
+}
+
+/**
  * Önskat fabrikat: finns det i underlaget ska ett av de tre alternativen vara
  * det. Rankningen väger fabrikatet bara som +18 poäng, och nivån (fast slag
  * före serie) går före poängen -- "motsvarighet till DSBC-50-100-PPSA-N3 från

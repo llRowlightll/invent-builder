@@ -163,7 +163,10 @@ export function detectCategories(text: string): string[] {
   // shock absorber (the carton sort-line bug). handleOptions owns system scope.
   if (!isMultiFunctionSystem(t) &&
       (/stötdämp|shock.?absorb/i.test(t) ||
-      (/\bstoppa\b|bromsa|deceler|fånga upp|kollision|anslag|krock/i.test(t)
+      // Också substantivet: "stopp för pallar ... 0,3 m/s" gick till cylindrar
+      // (provkörning mot drift 2026-11-17). Inte "stopp-positioner" i en elaxel;
+      // "nödstopp" och "stopplägen" faller redan på ordgränsen.
+      (/\bstoppa\b|\bstopp(?:et|en|er|ar)?\b(?!\s*-\s*(?:position|läge|punkt))|\bstopper\b|pallstopp|ändstopp|bromsa|deceler|fånga upp|kollision|anslag|krock/i.test(t)
        && /m\/s|km\/h|rörelseenergi|kinetisk|rörlig massa|\bvagn\b|tung massa/i.test(t)))) {
     slugs.delete("cylinder"); slugs.delete("electric-actuator");
     slugs.delete("linear-module"); slugs.delete("rotary-actuator");

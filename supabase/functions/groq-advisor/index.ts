@@ -29,6 +29,7 @@ import {
   familjeborrning,
   kraftVid6Bar,
   medOnskatFabrikat,
+  fabrikatsnamn,
 } from "./scoring.ts";
 import { LANGRE_SLAG_PRO, rensaSerieslag, rensaPositionsPros, rensaMotsagelser, produktdataText } from "./prosavakt.ts";
 import { delaSvar, tolkaKravbild, type Kravbild, type Tolkningsbeslut } from "./kravbild.ts";
@@ -1046,11 +1047,20 @@ async function handleOptions(
     const conflictNote = hazards.conflicts.length
       ? " " + hazards.conflicts.map(c => "⚠️ " + c).join(" ")
       : "";
+    // Ett stopp som ska släppa förbi lasten behöver också något som fäller ned
+    // det; katalogen har ingen färdig stoppenhet (kontrollerat 2026-11-18).
+    const arStopp = /\bstopp(?:et|en|er|ar)?\b(?!\s*-\s*(?:position|läge|punkt))|\bstopper\b|pallstopp/i.test(description);
+    const stoppNot = arStopp ? pick(locale, {
+      sv: " Ett stopp som ska släppa förbi lasten behöver också en cylinder som fäller ned stoppet, med dämparen monterad framför. Vi har ingen färdig stoppenhet i katalogen, så den ingår i kundlösningen. Driver banan lasten vidare under inbromsningen tillkommer drivkraften × dämparens slag i energin.",
+      en: " A stop that must let the load pass also needs a cylinder that lowers the stop, with the absorber mounted in front. We have no ready-made stopper unit in the catalogue, so it is part of the custom solution. If the conveyor keeps driving the load during braking, add the drive force × the absorber stroke to the energy.",
+      de: " Ein Stopper, der die Last durchlassen soll, braucht zusätzlich einen Zylinder, der den Anschlag absenkt, mit dem Dämpfer davor. Wir haben keine fertige Stoppereinheit im Katalog; sie gehört zur Kundenlösung. Treibt das Band die Last beim Abbremsen weiter, kommt Antriebskraft × Dämpferhub zur Energie hinzu.",
+      es: " Un tope que debe dejar pasar la carga también necesita un cilindro que baje el tope, con el amortiguador montado delante. No tenemos una unidad de tope lista en el catálogo, así que forma parte de la solución a medida. Si el transportador sigue empujando la carga durante el frenado, sume la fuerza de arrastre × la carrera del amortiguador a la energía.",
+    }) : "";
     const summary = pick(locale, {
-      sv: `Det här är en stötdämpar-applikation — en cylinder bromsar inte en rullande massa, det gör en stötdämpare.${eNote} Välj storlek (M8–M20) efter dämparens energikapacitet per slag (se datablad).${conflictNote}`,
-      en: `This is a shock-absorber application — a cylinder won't stop a rolling mass, a shock absorber does.${eNote} Pick a size (M8–M20) by the absorber's energy capacity per cycle (see datasheet).${conflictNote}`,
-      de: `Dies ist eine Stoßdämpfer-Anwendung — ein Zylinder bremst keine rollende Masse ab, das übernimmt ein Stoßdämpfer.${eNote} Größe (M8–M20) nach der Energiekapazität des Dämpfers pro Hub wählen (siehe Datenblatt).${conflictNote}`,
-      es: `Esta es una aplicación de amortiguador — un cilindro no detiene una masa rodante, un amortiguador sí.${eNote} Elija el tamaño (M8-M20) según la capacidad energética del amortiguador por ciclo (véase la hoja de datos).${conflictNote}`,
+      sv: `Det här är en stötdämpar-applikation — en cylinder bromsar inte en rullande massa, det gör en stötdämpare.${eNote} Välj storlek (M8–M20) efter dämparens energikapacitet per slag (se datablad).${stoppNot}${conflictNote}`,
+      en: `This is a shock-absorber application — a cylinder won't stop a rolling mass, a shock absorber does.${eNote} Pick a size (M8–M20) by the absorber's energy capacity per cycle (see datasheet).${stoppNot}${conflictNote}`,
+      de: `Dies ist eine Stoßdämpfer-Anwendung — ein Zylinder bremst keine rollende Masse ab, das übernimmt ein Stoßdämpfer.${eNote} Größe (M8–M20) nach der Energiekapazität des Dämpfers pro Hub wählen (siehe Datenblatt).${stoppNot}${conflictNote}`,
+      es: `Esta es una aplicación de amortiguador — un cilindro no detiene una masa rodante, un amortiguador sí.${eNote} Elija el tamaño (M8-M20) según la capacidad energética del amortiguador por ciclo (véase la hoja de datos).${stoppNot}${conflictNote}`,
     });
     logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: options[0]?.sku ?? null, option_count: options.length }, true);
     return Response.json({ summary, options }, { headers: CORS });
@@ -1469,7 +1479,7 @@ async function handleOptions(
         ? pick(locale, { sv: "Närmaste — överdimensionerad", en: "Closest — oversized", de: "Nächstgelegen — überdimensioniert", es: "Más cercano — sobredimensionado" })
         : p.sku === fabrikatsInsatt
         // "Nämnde", inte "önskat": "byta bort vår Festo" nämner också ett fabrikat.
-        ? pick(locale, { sv: `Fabrikatet du nämnde (${p.brand})`, en: `The brand you mentioned (${p.brand})`, de: `Von Ihnen genannter Hersteller (${p.brand})`, es: `La marca que mencionó (${p.brand})` })
+        ? pick(locale, { sv: `Fabrikatet du nämnde (${fabrikatsnamn(p.brand)})`, en: `The brand you mentioned (${fabrikatsnamn(p.brand)})`, de: `Von Ihnen genannter Hersteller (${fabrikatsnamn(p.brand)})`, es: `La marca que mencionó (${fabrikatsnamn(p.brand)})` })
         : platsmarke(i, locale),
       bore_mm: bore,
       stroke_mm: ms > 0 ? ms : null,
