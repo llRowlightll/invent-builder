@@ -1005,7 +1005,18 @@ async function handleOptions(
       if (!seen.has(th)) { seen.add(th); picks.push(p); }
       if (picks.length >= 4) break;
     }
-    const energyJ = loadKg > 0 && speedMs > 0 ? 0.5 * loadKg * speedMs * speedMs : 0;
+    // Anslagshastigheten är lastens fart, också när den står vid bandet:
+    // extractSpeedMs hoppar avsiktligt över bandets hastighet (den är inte en
+    // utskjutares), men för ett stopp är det just den som bromsas. "pallen ...
+    // kommer i 0,3 m/s" på en rullbana gav ingen energi alls (2026-11-18).
+    const bandfart = (() => {
+      const m = combinedText.match(/(\d+(?:[.,]\d+)?)\s*(mm\/s|m\/s)/i);
+      if (!m) return 0;
+      const v = parseFloat(m[1].replace(",", "."));
+      return m[2].toLowerCase() === "mm/s" ? v / 1000 : v;
+    })();
+    const anslagsfart = speedMs > 0 ? speedMs : bandfart;
+    const energyJ = loadKg > 0 && anslagsfart > 0 ? 0.5 * loadKg * anslagsfart * anslagsfart : 0;
     const options = picks.map((p, i) => ({
       sku: p.sku,
       name: p.name,
@@ -1035,10 +1046,10 @@ async function handleOptions(
     }));
     const eNote = energyJ > 0
       ? pick(locale, {
-          sv: ` Beräknad rörelseenergi ≈ ${energyJ.toFixed(1)} J/slag (½·${loadKg} kg·(${speedMs} m/s)²).`,
-          en: ` Estimated kinetic energy ≈ ${energyJ.toFixed(1)} J/cycle (½·${loadKg} kg·(${speedMs} m/s)²).`,
-          de: ` Berechnete Bewegungsenergie ≈ ${energyJ.toFixed(1)} J/Hub (½·${loadKg} kg·(${speedMs} m/s)²).`,
-          es: ` Energía cinética estimada ≈ ${energyJ.toFixed(1)} J/ciclo (½·${loadKg} kg·(${speedMs} m/s)²).`,
+          sv: ` Beräknad rörelseenergi ≈ ${energyJ.toFixed(1)} J/slag (½·${loadKg} kg·(${anslagsfart} m/s)²).`,
+          en: ` Estimated kinetic energy ≈ ${energyJ.toFixed(1)} J/cycle (½·${loadKg} kg·(${anslagsfart} m/s)²).`,
+          de: ` Berechnete Bewegungsenergie ≈ ${energyJ.toFixed(1)} J/Hub (½·${loadKg} kg·(${anslagsfart} m/s)²).`,
+          es: ` Energía cinética estimada ≈ ${energyJ.toFixed(1)} J/ciclo (½·${loadKg} kg·(${anslagsfart} m/s)²).`,
         })
       : "";
     // hazards.conflicts messages are already fully localized (built via
