@@ -22,6 +22,17 @@ type FilterKey = "brands" | "cats" | "grades";
 
 /** Artiklar som server-renderas när inget filter är valt. */
 const KATALOG_SSR = 48;
+/** Artiklar som server-renderas i en kategori eller ett fabrikat. */
+const KATALOG_SSR_FILTER = 60;
+
+/**
+ * En rad som den server-renderade sidan behöver: beskrivningen bara på sidans
+ * språk (i `description`, där beskrivning() hittar den). Alla fyra språken
+ * följde med varje artikel, så cylindersidan blev 1,6 MB (2026-11-18).
+ */
+function sidrad(p: ProductRow, locale: string): ProductRow {
+  return { ...p, description: beskrivning(p, locale), description_en: null, description_de: null, description_es: null };
+}
 
 type KatalogData = {
   items: ProductRow[] | null;
@@ -29,6 +40,8 @@ type KatalogData = {
   totalt: number;
   /** Sant när items är hela katalogen; annars hämtar webbläsaren resten. */
   komplett: boolean;
+  /** Antal artiklar i kategorin/fabrikatet, även de som inte skickades med. */
+  traffar: number;
   category: string | null;
   brand: string | null;
 };
@@ -56,22 +69,31 @@ export const Route = createFileRoute("/$locale/products")({
   // Servern skickar nu bara kategorins/fabrikatets artiklar, eller de första
   // KATALOG_SSR utan filter; webbläsaren hämtar resten direkt från databasen
   // efter laddningen (loadCatalog körs med anon-nyckeln, se catalog.ts).
-  loader: async ({ deps }): Promise<KatalogData> => {
+  //
+  // 2026-11-18: cylinderkategorin (422 artiklar) gav ändå 1,6 MB HTML, med
+  // alla fyra språkens beskrivningar för varje artikel. Servern skickar nu
+  // högst KATALOG_SSR_FILTER artiklar även med filter, med beskrivningen bara
+  // på sidans språk. Webbläsaren hämtar alltid hela katalogen efteråt.
+  loader: async ({ deps, params }): Promise<KatalogData> => {
     try {
       const alla = await loadCatalog();
-      let items = alla;
-      if (deps.category) items = items.filter((p) => p.category.slug === deps.category);
-      if (deps.brand) items = items.filter((p) => p.brand.slug === deps.brand);
-      if (!deps.category && !deps.brand) items = items.slice(0, KATALOG_SSR);
-      return { items, totalt: alla.length, komplett: items.length === alla.length, category: deps.category, brand: deps.brand };
+      let traff = alla;
+      if (deps.category) traff = traff.filter((p) => p.category.slug === deps.category);
+      if (deps.brand) traff = traff.filter((p) => p.brand.slug === deps.brand);
+      const tak = deps.category || deps.brand ? KATALOG_SSR_FILTER : KATALOG_SSR;
+      const items = traff.slice(0, tak).map((p) => sidrad(p, params.locale));
+      return { items, totalt: alla.length, komplett: false, traffar: traff.length, category: deps.category, brand: deps.brand };
     } catch {
-      return { items: null, totalt: 0, komplett: false, category: deps.category, brand: deps.brand };
+      return { items: null, totalt: 0, komplett: false, traffar: 0, category: deps.category, brand: deps.brand };
     }
   },
   head: ({ params, loaderData }) => {
     const t = makeT(params.locale as Locale);
     const locale = params.locale;
     const sv = locale === "sv";
+    // Titlar och beskrivningar på alla fyra språk; tyska och spanska fick
+    // förut den engelska texten ("Zylinder — buy, compare & order").
+    const L = (o: { sv: string; en: string; de: string; es: string }) => o[locale as "sv" | "en" | "de" | "es"] ?? o.en;
     const ld = loaderData as KatalogData | undefined;
     const cat = ld?.category ?? null;
     const brandSlug = ld?.brand ?? null;
@@ -83,12 +105,18 @@ export const Route = createFileRoute("/$locale/products")({
 
     if (catName && brandName) {
       const canonical = `${SITE}/${locale}/products?category=${cat}&brand=${brandSlug}`;
-      const title = sv
-        ? `${brandName} ${catName} — köp, jämför & beställ | ${t("common.appName")}`
-        : `${brandName} ${catName} — buy, compare & order | ${t("common.appName")}`;
-      const desc = sv
-        ? `${brandName} ${catName.toLowerCase()} hos Maskinval — jämför specifikationer, kontrollera leveranstid och beställ direkt online.`
-        : `${brandName} ${catName.toLowerCase()} at Maskinval — compare specifications, check lead time and order directly online.`;
+      const title = L({
+        sv: `${brandName} ${catName} — köp, jämför & beställ`,
+        en: `${brandName} ${catName} — buy, compare & order`,
+        de: `${brandName} ${catName} — kaufen, vergleichen & bestellen`,
+        es: `${brandName} ${catName} — comprar, comparar y pedir`,
+      }) + ` | ${t("common.appName")}`;
+      const desc = L({
+        sv: `${brandName} ${catName.toLowerCase()} hos Maskinval — jämför specifikationer, kontrollera leveranstid och beställ direkt online.`,
+        en: `${brandName} ${catName.toLowerCase()} at Maskinval — compare specifications, check lead time and order directly online.`,
+        de: `${brandName} ${catName} bei Maskinval — Spezifikationen vergleichen, Lieferzeit prüfen und direkt online bestellen.`,
+        es: `${brandName} ${catName.toLowerCase()} en Maskinval — compare especificaciones, consulte el plazo de entrega y haga su pedido en línea.`,
+      });
       return {
         meta: [
           { title },
@@ -103,12 +131,18 @@ export const Route = createFileRoute("/$locale/products")({
 
     if (brandName) {
       const canonical = `${SITE}/${locale}/products?brand=${brandSlug}`;
-      const title = sv
-        ? `${brandName} — komponenter för industriell automation | ${t("common.appName")}`
-        : `${brandName} — industrial automation components | ${t("common.appName")}`;
-      const desc = sv
-        ? `Bläddra i Maskinvals sortiment av ${brandName}-komponenter för industriell automation och pneumatik. Jämför specifikationer, leveranstid och beställ direkt.`
-        : `Browse Maskinval's range of ${brandName} components for industrial automation and pneumatics. Compare specs, lead time and order directly.`;
+      const title = L({
+        sv: `${brandName} — komponenter för industriell automation`,
+        en: `${brandName} — industrial automation components`,
+        de: `${brandName} — Komponenten für die industrielle Automation`,
+        es: `${brandName} — componentes para automatización industrial`,
+      }) + ` | ${t("common.appName")}`;
+      const desc = L({
+        sv: `Bläddra i Maskinvals sortiment av ${brandName}-komponenter för industriell automation och pneumatik. Jämför specifikationer, leveranstid och beställ direkt.`,
+        en: `Browse Maskinval's range of ${brandName} components for industrial automation and pneumatics. Compare specs, lead time and order directly.`,
+        de: `${brandName}-Komponenten für industrielle Automation und Pneumatik bei Maskinval. Spezifikationen und Lieferzeit vergleichen und direkt bestellen.`,
+        es: `Componentes ${brandName} para automatización industrial y neumática en Maskinval. Compare especificaciones y plazo de entrega y haga su pedido directamente.`,
+      });
       return {
         meta: [
           { title },
@@ -127,9 +161,12 @@ export const Route = createFileRoute("/$locale/products")({
       return {
         meta: [
           {
-            title: sv
-              ? `${catName} — köp, jämför & beställ | ${t("common.appName")}`
-              : `${catName} — buy, compare & order | ${t("common.appName")}`,
+            title: L({
+              sv: `${catName} — köp, jämför & beställ`,
+              en: `${catName} — buy, compare & order`,
+              de: `${catName} — kaufen, vergleichen & bestellen`,
+              es: `${catName} — comprar, comparar y pedir`,
+            }) + ` | ${t("common.appName")}`,
           },
           { name: "description", content: desc },
           { property: "og:title", content: `${catName} | ${t("common.appName")}` },
@@ -143,11 +180,14 @@ export const Route = createFileRoute("/$locale/products")({
     const canonical = `${SITE}/${locale}/products`;
     return {
       meta: [
-        { title: sv ? `Produktkatalog — Pneumatik & automation | ${t("common.appName")}` : `Product catalogue — Pneumatics & automation | ${t("common.appName")}` },
-        { name: "description", content: sv
-          ? "Komplett katalog: pneumatiska cylindrar, elektriska aktuatorer, ventiler, gripdon, vakuum och mer från Festo, SMC, Parker, AVENTICS, Bosch Rexroth, Norgren, Metal Work och Camozzi. Filtrera, jämför och beställ."
-          : "Complete catalogue: pneumatic cylinders, electric actuators, valves, grippers, vacuum and more from Festo, SMC, Parker, AVENTICS, Bosch Rexroth, Norgren, Metal Work and Camozzi. Filter, compare and order." },
-        { property: "og:title", content: sv ? `Produktkatalog — ${t("common.appName")}` : `Product catalogue — ${t("common.appName")}` },
+        { title: L({ sv: "Produktkatalog — Pneumatik & automation", en: "Product catalogue — Pneumatics & automation", de: "Produktkatalog — Pneumatik & Automation", es: "Catálogo de productos — Neumática y automatización" }) + ` | ${t("common.appName")}` },
+        { name: "description", content: L({
+          sv: "Komplett katalog: pneumatiska cylindrar, elektriska aktuatorer, ventiler, gripdon, vakuum och mer från Festo, SMC, Parker, AVENTICS, Bosch Rexroth, Norgren, Metal Work och Camozzi. Filtrera, jämför och beställ.",
+          en: "Complete catalogue: pneumatic cylinders, electric actuators, valves, grippers, vacuum and more from Festo, SMC, Parker, AVENTICS, Bosch Rexroth, Norgren, Metal Work and Camozzi. Filter, compare and order.",
+          de: "Kompletter Katalog: Pneumatikzylinder, elektrische Antriebe, Ventile, Greifer, Vakuumtechnik und mehr von Festo, SMC, Parker, AVENTICS, Bosch Rexroth, Norgren, Metal Work und Camozzi. Filtern, vergleichen und bestellen.",
+          es: "Catálogo completo: cilindros neumáticos, actuadores eléctricos, válvulas, pinzas, vacío y más de Festo, SMC, Parker, AVENTICS, Bosch Rexroth, Norgren, Metal Work y Camozzi. Filtre, compare y haga su pedido.",
+        }) },
+        { property: "og:title", content: L({ sv: "Produktkatalog", en: "Product catalogue", de: "Produktkatalog", es: "Catálogo de productos" }) + ` — ${t("common.appName")}` },
         { property: "og:url", content: canonical },
       ],
       links: [
@@ -507,6 +547,9 @@ function ProductsPage() {
   );
 
   const activeFilterCount = brands.size + cats.size + grades.size + borr.size + stds.size;
+  // Tills webbläsaren har hämtat hela katalogen finns bara serverns första
+  // artiklar; antalet gäller ändå hela kategorin eller fabrikatet.
+  const antalTraffar = items.length >= totalt ? filtered.length : Math.max(filtered.length, ld.traffar ?? 0);
 
   return (
     <div className="container-page py-6 md:py-8">
@@ -522,7 +565,7 @@ function ProductsPage() {
               2026-11-17: ventilsidan hade rubriken "Produkter"). */}
           <h1 className="text-2xl font-semibold tracking-tight text-primary">{activeCatSlug ? categoryName(activeCatSlug, locale) : t("nav.products")}</h1>
           <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
-            {filtered.length} {t("products.of")} {totalt} {t("products.count")}
+            {antalTraffar} {t("products.of")} {totalt} {t("products.count")}
             {familjefall && (
               <span className="ml-2 text-warning-deep">
                 Inga träffar på hela koden; visar familjen <strong>{familjefall.toUpperCase()}</strong>
