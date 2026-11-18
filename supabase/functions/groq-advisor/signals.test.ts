@@ -1079,3 +1079,14 @@ Deno.test("axlar som bokstav och längd: x 300 mm, y 150 mm; inte mått eller mu
   assert(!needsMultiAxis("lådor 300 x 200 x 150 mm, slag 200 mm"));
   assert(needsMultiAxis("plock & placering av lock"));
 });
+
+// Kontrollkörningen efter #449: Y föll bort när svaren redan gav X och Z, och
+// "200 g" lästes inte som massa.
+Deno.test("bokstavsaxlar läggs till även när svaren gav två axlar; gram är massa", () => {
+  const pp = "plock och placera av kretskort 200 g, rörelse x 300 mm, y 150 mm och z 50 mm";
+  const axlar = extractPerAxisStrokes({ slag_x_sidled_mm: "300", slag_z_hojd_mm: "50" }, pp);
+  assertEquals(axlar.map((a) => a.axis).sort(), ["X", "Y", "Z"]);
+  assertEquals(extractLoadKg(pp, {}), 0.2);
+  assertEquals(extractLoadKg("en sensor som väger 50 gram", {}), 0.05);
+  assertEquals(extractLoadKg("slang 6 g/m", {}), 0);
+});

@@ -1290,6 +1290,9 @@ async function handleOptions(
   // greppet blir en rad i stycklistan. Förut gav plock och placera med tre
   // angivna axlar bara tre sugkoppar (provkörning mot drift 2026-11-17).
   const axlarAngivna = isMultiAxis && perAxisStrokes.length >= 2;
+  // ...och det uttalade greppet följer med som rad i stycklistan (handleBom gör
+  // samma val). Kontrollkörningen efter #449 visade axlar utan sugkopp.
+  const griporganForAxlar = axlarAngivna && endEffector && endEffectorExplicitlyAsked(combinedText) ? endEffector : null;
   if (endEffector && !griporganTillagg && !axlarAngivna && (endEffectorExplicitlyAsked(combinedText) || (!isMultiAxis && !isSystemScope))) {
     return await handleEndEffectorOptions(endEffector, combinedText, hazards, loadKg, locale, t0, kravbild);
   }
@@ -1318,7 +1321,13 @@ async function handleOptions(
   // valid standalone answer to "recommend an actuator" regardless of
   // whether it happens to also dodge two unrelated filters.
   // Rörelsens aktuatorer, utom när förfrågan gäller ventilen själv (fragor.ts).
-  const systemMotionCats = alternativkategorier(forfragningstyp(description), categories, griporganTillagg);
+  // Angivna axlar utan nämnd aktuatortyp ("plock och placera ... x 300 mm, y
+  // 150 mm") gav ingen rörelsekategori, och X-axeln blev en kundlösning
+  // (kontrollkörningen efter #449). Då hämtas cylindrar som för en rörelse.
+  const rorelsekategorier = ["cylinder", "electric-actuator", "linear-module", "rotary-actuator"];
+  const kategorierForAlternativ = axlarAngivna && !categories.some((c) => rorelsekategorier.includes(c))
+    ? [...categories, "cylinder"] : categories;
+  const systemMotionCats = alternativkategorier(forfragningstyp(description), kategorierForAlternativ, griporganTillagg);
 
   const [allProducts, pdfCtx] = await Promise.all([
     // High limit so the WHOLE category is considered: the fetch RPC orders by
@@ -2002,7 +2011,21 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
         es: `${topProducts.length} opciones seleccionadas para ${maxRequiredStroke > 0 ? `${maxRequiredStroke} mm de carrera` : "esta aplicación"}.`,
       }));
 
-  const griporganNot = griporganTillagg ? " " + (griporganTillagg === "vacuum"
+  const griporganTyp = griporganTillagg ?? griporganForAxlar;
+  const griporganNot = griporganTyp && !griporganTillagg ? " " + (griporganTyp === "vacuum"
+    ? pick(locale, {
+        sv: "Axlarna är huvudkomponenterna. Vakuumgreppet läggs som egen rad i stycklistan och ingår i offerten.",
+        en: "The axes are the main components. The vacuum grip is added as its own row in the bill of materials and is part of the quote.",
+        de: "Die Achsen sind die Hauptkomponenten. Der Vakuumgreifer wird als eigene Zeile in die Stückliste aufgenommen und ist Teil des Angebots.",
+        es: "Los ejes son los componentes principales. El agarre por vacío se añade como fila propia en la lista de materiales y forma parte de la oferta.",
+      })
+    : pick(locale, {
+        sv: "Axlarna är huvudkomponenterna. Gripdonet läggs som egen rad i stycklistan och ingår i offerten.",
+        en: "The axes are the main components. The gripper is added as its own row in the bill of materials and is part of the quote.",
+        de: "Die Achsen sind die Hauptkomponenten. Der Greifer wird als eigene Zeile in die Stückliste aufgenommen und ist Teil des Angebots.",
+        es: "Los ejes son los componentes principales. La pinza se añade como fila propia en la lista de materiales y forma parte de la oferta.",
+      }))
+    : griporganTillagg ? " " + (griporganTillagg === "vacuum"
     ? pick(locale, {
         sv: "Lyftet är huvudkomponenten. Vakuumgreppet läggs som egen rad i stycklistan och ingår i offerten.",
         en: "The lift is the main component. The vacuum grip is added as its own row in the bill of materials and is part of the quote.",
@@ -2163,8 +2186,14 @@ async function handleBom(
 
   const isPneumaticBom = !isElectric && !hazards.isAtex && !hazards.isAtexDust;
   // Lyft med griporgan och en lyftande primär: griporganet blir en egen rad.
-  const griporganTillagg = primaryCategory !== "gripper" && primaryCategory !== "vacuum" && !hazards.isMultiAxis && !hazards.isSystemScope
-    ? lyftMedGriporgan(description ?? "", combinedText) : null;
+  // Med flera angivna axlar och ett uttalat grepp blir greppet en rad i
+  // stycklistan (som i handleOptions, griporganForAxlar).
+  const bomAxlarAngivna = hazards.isMultiAxis && hazards.perAxisStrokes.length >= 2;
+  const griporganTillagg = primaryCategory !== "gripper" && primaryCategory !== "vacuum" && !hazards.isSystemScope
+    ? (!hazards.isMultiAxis
+      ? lyftMedGriporgan(description ?? "", combinedText)
+      : bomAxlarAngivna && endEffectorExplicitlyAsked(combinedText) ? detectEndEffectorIntent(combinedText) : null)
+    : null;
   const bomCategories = [
     ...categories,
     griporganTillagg                          ? griporganTillagg  : null,

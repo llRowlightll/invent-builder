@@ -242,7 +242,9 @@ export function hastighetsKravId(varde: number): string {
 // ── Massa ───────────────────────────────────────────────────────────────────
 /** Enheterna en massa skrivs med. Inte "kgf" (en kraft) och inte "g" ensamt
  *  ("G1/4" är en gänga, "5 g" kan vara en acceleration). */
-export const MASSENHET = String.raw`(?:kg(?!f)|kilo(?:gram)?s?|ton(?:nes?)?|gram)`;
+// "g" efter ett tal är gram ("kretskort 200 g" gav frågan om vikt igen,
+// 2026-11-18); inte "g/m".
+export const MASSENHET = String.raw`(?:kg(?!f)|kilo(?:gram)?s?|ton(?:nes?)?|gram|g(?![\wåäö/]))`;
 
 /** Det som står efter "kg/" när det är en massa per styck. */
 const PER_STYCK = String.raw`(?:st\b|styck\w*|flask\w*|låd\w*|detalj\w*|produkt\w*|paket\w*|kartong\w*|pc\b|pcs\b|piece\w*|each\b|bottle\w*|box\w*|part\b)`;
@@ -271,7 +273,7 @@ export function normalMassa(s: string): string {
 /** Faktor till kg för en massenhet. */
 export function massfaktor(enhet: string): number {
   const e = enhet.toLowerCase();
-  return e.startsWith("ton") ? 1000 : e === "gram" ? 0.001 : 1;
+  return e.startsWith("ton") ? 1000 : e === "gram" || e === "g" ? 0.001 : 1;
 }
 
 /**

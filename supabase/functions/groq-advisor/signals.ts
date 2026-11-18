@@ -483,16 +483,15 @@ export function extractPerAxisStrokes(answers: Record<string, string>, descripti
     const n = Number(m[2].replace(",", ".")) * (m[3].toLowerCase() === "cm" ? 10 : m[3].toLowerCase() === "m" ? 1000 : 1);
     if (!har.has(axel) && n >= 5 && n <= 15000) { result.push({ axis: axel, stroke: Math.round(n) }); har.add(axel); }
   }
-  if (result.length >= 2) return result;
   // Bara bokstaven: "rörelse x 300 mm, y 150 mm och z 50 mm" (provkörning mot
   // drift 2026-11-17 gav inga axlar och bara sugkoppar). Inte ett mått eller en
   // multiplikation ("300 x 200 x 150 mm", "3 x 300 mm"): ingen siffra före
-  // bokstaven. Godtas bara när minst två olika axlar står så.
-  const bokstavsaxlar = bokstavsaxlarITexten(description).filter((a) => !har.has(a.axis));
-  if (new Set([...har, ...bokstavsaxlar.map((a) => a.axis)]).size >= 2) {
-    for (const a of bokstavsaxlar) { result.push(a); har.add(a.axis); }
-    if (result.length >= 2) return result;
+  // bokstaven. Godtas bara när minst två olika axlar står så. Läggs till även
+  // när svaren redan gav två axlar: kontrollkörningen efter #449 tappade Y.
+  for (const a of bokstavsaxlarITexten(description)) {
+    if (!har.has(a.axis)) { result.push(a); har.add(a.axis); }
   }
+  if (result.length >= 2) return result;
   for (const l of langderITexten(description)) {
     // "lyftslag 600 mm" läses som ett slag; ordet före avgör att det är lyftet.
     const fore = description.slice(Math.max(0, l.index - 16), l.index).toLowerCase();

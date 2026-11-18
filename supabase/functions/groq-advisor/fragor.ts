@@ -45,7 +45,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
-  arHorisontellRorelse, extractExplicitBoreMm, extractMinStroke, extractMoveTimeS, extractPrecisionMm, extractRotationDeg, extractSpeedMs,
+  arHorisontellRorelse, bokstavsaxlarITexten, extractExplicitBoreMm, extractMinStroke, extractMoveTimeS, extractPrecisionMm, extractRotationDeg, extractSpeedMs,
   needsElectricAxis, needsEndPositionDetection, needsFoodGrade, needsMultiAxis, needsPharmaGmp,
   needsRodLock, needsSilSafety, needsSpolmiljo, needsValveTerminal, needsVerticalLoad, slagIMeterMm,
 } from "./signals.ts";
@@ -153,13 +153,13 @@ export function kandaVarden(text: string, kod?: Kodvarden): Kanda {
   return {
     // Samma läsning av längder som motorn och tolkningspanelen (kravbild.ts):
     // "lådor 400 mm långa" och "avstånd 150 mm" är inga slag, så frågan ställs.
-    slag: !!kod?.slagMm || slagIMeterMm(text) > 0 || langderITexten(text).some((l) => l.typ === "slag" || l.typ === "lyft" || l.typ === "sidled"),
-    slagX: langderITexten(text).some((l) => l.typ === "sidled"),
+    slag: !!kod?.slagMm || slagIMeterMm(text) > 0 || bokstavsaxlarITexten(text).length >= 2 || langderITexten(text).some((l) => l.typ === "slag" || l.typ === "lyft" || l.typ === "sidled"),
+    slagX: langderITexten(text).some((l) => l.typ === "sidled") || bokstavsaxlarITexten(text).some((a) => a.axis !== "Z"),
     // "lyftslag 600 mm" läses som ett slag (SLAG_FORE), men är höjdledet:
     // driftprovet 2026-11-16 frågade "Hur lång är rörelsen i höjdled?" efter
     // just den uppgiften.
     slagZ: langderITexten(text).some((l) => l.typ === "lyft" ||
-      (l.typ === "slag" && /(?:lyft|höjd|vertikal|z-?ax)\w*\W*(?:slag\w*)?\W*$/i.test(text.slice(Math.max(0, l.index - 20), l.index)))),
+      (l.typ === "slag" && /(?:lyft|höjd|vertikal|z-?ax)\w*\W*(?:slag\w*)?\W*$/i.test(text.slice(Math.max(0, l.index - 20), l.index)))) || bokstavsaxlarITexten(text).some((a) => a.axis === "Z"),
     last: new RegExp(String.raw`\d+(?:[.,]\d+)?\s*${MASSENHET}(?![\wåäö])`, "i").test(text),
     // "2 ton kraft" är också en angiven kraft (kravbild.ts kraftIMassaN).
     kraft: /\d+(?:[.,]\d+)?\s*k?N\b/.test(text) || kraftIMassaN(text) > 0,

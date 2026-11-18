@@ -499,3 +499,9 @@ Deno.test("reservfrågorna på tyska och spanska innehåller ingen engelska ur b
     }
   }
 });
+
+Deno.test("angivna bokstavsaxlar och gram räknas som kända: frågorna ställs inte igen", () => {
+  const k = kandaVarden("plock och placera av kretskort 200 g, rörelse x 300 mm, y 150 mm och z 50 mm");
+  assert(k.slag && k.slagX && k.slagZ, JSON.stringify(k));
+  assert(k.last, "200 g är en angiven vikt");
+});
