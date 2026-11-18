@@ -22,6 +22,7 @@ import {
   begardStandard,
   enhetBegard,
   foljerStandard,
+  medOnskatFabrikat,
 } from "./scoring.ts";
 
 function prod(
@@ -345,4 +346,24 @@ Deno.test("enhetBegard känner igen en uttryckligen styrd eller kolvstångslös 
   assertEquals(enhetBegard("styrd cylinder ISO 15552 Ø32"), true);
   assertEquals(enhetBegard("kolvstångslös cylinder 1200 mm"), true);
   assertEquals(enhetBegard("Cylinder ISO 15552 Ø50 slag 200"), false);
+});
+
+// Provkörning mot drift 2026-11-17: "motsvarighet till DSBC-50-100-PPSA-N3
+// från SMC" gav tre AVENTICS. Önskat fabrikat ska få en plats om det finns.
+Deno.test("önskat fabrikat: får sista platsen om det finns, annars orört", () => {
+  const av1 = prod("AV-50-100", "cylinder", "AVENTICS", { bore_mm: 50, stroke_mm: 100 });
+  const av2 = prod("AV-50-200", "cylinder", "AVENTICS", { bore_mm: 50, stroke_mm: 200 });
+  const av3 = prod("AV-63-100", "cylinder", "AVENTICS", { bore_mm: 63, stroke_mm: 100 });
+  const smc = prod("SMC-CP96-50", "cylinder", "SMC", { bore_range: "32–100 mm", stroke_mm: "1–2700 mm" });
+  const c = ctx({ requiredStroke: 100, minBoreMm: 50, preferredBrands: ["smc"] });
+  const r = medOnskatFabrikat([av1, av2, av3], [av1, av2, av3, smc], c);
+  assertEquals(r.produkter.map((p) => p.sku), ["AV-50-100", "AV-50-200", "SMC-CP96-50"]);
+  assertEquals(r.insatt, "SMC-CP96-50");
+  // Redan med bland de tre: ingenting byts.
+  const redan = medOnskatFabrikat([av1, smc, av2], [av1, av2, av3, smc], c);
+  assertEquals(redan.insatt, null);
+  assertEquals(redan.produkter.map((p) => p.sku), ["AV-50-100", "SMC-CP96-50", "AV-50-200"]);
+  // Fabrikatet finns inte i underlaget, eller inget fabrikat är önskat: orört.
+  assertEquals(medOnskatFabrikat([av1, av2, av3], [av1, av2, av3], c).insatt, null);
+  assertEquals(medOnskatFabrikat([av1, av2, av3], [av1, av2, av3, smc], ctx({ requiredStroke: 100 })).insatt, null);
 });

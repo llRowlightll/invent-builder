@@ -370,3 +370,29 @@ Deno.test("ett komma efter slagtalet är ett skiljetecken, inte en decimal (drif
   assertEquals(slag("slag 12,5 mm"), [12.5]);
   assertEquals(slag("Ø32×12,5"), [12.5]);
 });
+
+// Provkörning mot drift 2026-11-17: "pres med 2 ton kraft" fick frågan om
+// kraft igen och en Ø40. En massa intill ett kraftord är en kraft (massa × g).
+import { kraftIMassaN } from "./kravbild.ts";
+import { extractStatedForceN } from "./signals.ts";
+import { kandaVarden } from "./fragor.ts";
+
+Deno.test("kraft angiven som massa: läses som massa × g, och bara intill ett kraftord", () => {
+  const press = "pres med 2 ton kraft för att pressa in kullager, slaglängd 50mm";
+  assertEquals(kraftIMassaN(press), 19620);
+  assertEquals(extractStatedForceN(press, {}), 19620);
+  assertEquals(extractLoadKg(press, {}), 0, "2 ton kraft är ingen last");
+  assert(kandaVarden(press).kraft, "frågan om kraft ska inte ställas igen");
+  assertEquals(extractStatedForceN("pressa in bussningar med 500 kg presskraft", {}), 4905);
+  assertEquals(extractStatedForceN("pressa med 2 ton, slag 30 mm", {}), 19620);
+  assertEquals(extractStatedForceN("presskraft 3 ton", {}), 29430);
+  assertEquals(extractLoadKg("pressa med 2 ton, slag 30 mm", {}), 0);
+  // Inte en kraft: en last, och ett griporgans kraft.
+  assertEquals(kraftIMassaN("lyfta 2 ton vertikalt 300 mm"), 0);
+  assertEquals(extractLoadKg("lyfta 2 ton vertikalt 300 mm", {}), 2000);
+  assertEquals(kraftIMassaN("gripdon med 2 kg gripkraft"), 0);
+  // Panelen visar kraften, inte en massa.
+  const kb = tolkaKravbild(press);
+  assert(kb.krav.some((k) => k.egenskap === "kraft" && k.varde === 19620), JSON.stringify(kb.krav.map((k) => [k.egenskap, k.varde])));
+  assert(!kb.krav.some((k) => k.egenskap === "massa"), "ingen massa ur \"2 ton kraft\"");
+});

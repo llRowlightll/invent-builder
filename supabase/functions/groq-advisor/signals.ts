@@ -9,7 +9,7 @@
 // bom-builder.ts or index.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { hastighetensObjekt, hastighetsKravId, langderITexten, MASSENHET, massfaktor, personalUnderLasten, slagAvvisat, type Tolkningsbeslut } from "./kravbild.ts";
+import { hastighetensObjekt, hastighetsKravId, kraftIMassaN, massanArEnKraft, langderITexten, MASSENHET, massfaktor, personalUnderLasten, slagAvvisat, type Tolkningsbeslut } from "./kravbild.ts";
 import { type CatalogProduct, parseStrokeFromSpecs } from "./scoring.ts";
 
 // Found 2026-08-19: every LLM-facing "write your answer in ${lang}" instruction
@@ -1056,7 +1056,9 @@ export function extractLoadKg(text: string, answers: Record<string, string>): nu
   // 2026-10-14).
   // "25 kilos lådor" och "1,5 ton" är också vikter (granskningen 2026-11-11:
   // de gav last 0 och därmed ingen borrning).
-  const kgMatch = allText.match(new RegExp(String.raw`(\d+(?:[.,]\d+)?)\s*(${MASSENHET})(?![\wåäö])`, "i"));
+  // Första massan som inte är en kraft ("2 ton kraft", se kraftIMassaN).
+  const kgMatch = [...allText.matchAll(new RegExp(String.raw`(\d+(?:[.,]\d+)?)\s*(${MASSENHET})(?![\wåäö])`, "gi"))]
+    .find((m) => !massanArEnKraft(allText, m.index ?? 0, (m.index ?? 0) + m[0].length));
   if (kgMatch) return Math.round(parseFloat(kgMatch[1].replace(",", ".")) * massfaktor(kgMatch[2]) * 1000) / 1000;
   // Maskinbyggarens sifferfält skickar talet utan enhet: {last_kg: "12"}.
   // Hittat 2026-10-11: vikten kunden svarat lästes aldrig, eftersom "last_kg 12"
@@ -1100,6 +1102,9 @@ export function extractStatedForceN(text: string, answers: Record<string, string
   }
   const kn = text.match(/(\d+(?:[.,]\d+)?)\s*kN\b/i);
   if (kn) return parseFloat(kn[1].replace(",", ".")) * 1000;
+  // "2 ton kraft", "pressa med 500 kg": massan × g (kravbild.ts kraftIMassaN).
+  const somMassa = kraftIMassaN(text);
+  if (somMassa > 0) return somMassa;
   // Inte "trycker upp en last på 500 N": där är newton en vikt, och
   // säkerhetsfaktorn hör hemma (se requiredForceN).
   // Inte "gripkraft 500 N": det är griporganets krav, och med lyftet som
