@@ -2,7 +2,7 @@
 import { assert, assertEquals } from "jsr:@std/assert@^1";
 import { bedomLosning, type BomRow } from "./bom-builder.ts";
 import { tolkaKravbild } from "./kravbild.ts";
-import { byggResultat, SAKERHETSTEXT, utanSakerhetspastaenden } from "./resultat.ts";
+import { byggResultat, fallsakerhetstext, SAKERHETSTEXT, utanSakerhetspastaenden } from "./resultat.ts";
 import { detectHazards } from "./signals.ts";
 import { SORTERING } from "./fixtur-sortering.ts";
 
@@ -127,4 +127,30 @@ Deno.test("påståenden om säkerhetslämplighet tas bort, tekniska fakta står 
   // Att nämna ett krav är inget påstående om att det uppfylls.
   assertEquals(utanSakerhetspastaenden("Kräver PL d enligt er riskbedömning. Ø50."), "Kräver PL d enligt er riskbedömning. Ø50.");
   assertEquals(utanSakerhetspastaenden("Stångbromsen håller lasten vid tryckfall."), "Stångbromsen håller lasten vid tryckfall.");
+});
+
+Deno.test("skydd mot fall tillskrivs bara en broms (kritikerrundan 2026-11-18)", () => {
+  const bort: string[] = [
+    "Pneumatiska dubbelverkande cylinder enligt ISO 15552 med pålitlig tätning för kontrollerad vertikal lyftning och skydd vid tryckförlust.",
+    "Backventilen förhindrar att lasten faller vid tryckfall.",
+    "Robust cylinder that protects against pressure loss.",
+    "The valve prevents the load from falling.",
+    "Zylinder mit Schutz bei Druckverlust.",
+    "Cilindro con protección ante pérdida de presión.",
+  ];
+  for (const m of bort) assertEquals(utanSakerhetspastaenden(`${m} Ø50.`), "Ø50.", m);
+  for (const m of [
+    "Stångbromsen håller lasten vid tryckfall.",
+    "Stångbromsen ger skydd vid tryckförlust.",
+    "The rod lock prevents the load from falling.",
+    "Kraften vid 6 bar är 1178 N.",
+  ]) assertEquals(utanSakerhetspastaenden(m), m, m);
+});
+
+Deno.test("säkerhetsrutan vid vertikal last", () => {
+  assert(/Personal under lasten.*mekanisk broms.*backventil räcker inte.*riskbedömning/s.test(fallsakerhetstext("sv", true)));
+  assert(/Vertikal last.*backventil.*stångbroms/s.test(fallsakerhetstext("sv", false)));
+  assert(/Personen unter der Last/.test(fallsakerhetstext("de", true)));
+  assert(/Personas bajo la carga/.test(fallsakerhetstext("es", true)));
+  assert(/People under the load/.test(fallsakerhetstext("fr", true)), "okänt språk ger engelska");
 });

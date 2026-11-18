@@ -92,6 +92,15 @@ export function buildCustomSolutionOption(
       de: `⚠️ Vertikale Last + Sicherheitsfunktion: mechanische Kolbenstangenbremse oder integrierte Motorbremse ZWINGEND ERFORDERLICH. Das Sicherheitsniveau (PL/SIL) und damit das Ventil ergibt sich aus der Risikobeurteilung der Maschine${ctx.sakerhetsniva ? ` — angegebene Anforderung: ${ctx.sakerhetsniva}` : ""}.`,
       es: `⚠️ Carga vertical + función de seguridad: bloqueo de vástago mecánico o freno de motor integrado OBLIGATORIO. El nivel de seguridad (PL/SIL), y con él la válvula, lo determina la evaluación de riesgos de la máquina${ctx.sakerhetsniva ? ` — requisito indicado: ${ctx.sakerhetsniva}` : ""}.`,
     }));
+  } else if (isVerticalLoad && ctx.isRodLock) {
+    // Lasten får inte falla (t.ex. personal under lasten): "backventil eller
+    // stångbroms" lät som att backventilen räckte (kritikerrundan 2026-11-18).
+    whyLines.push(pick(locale, {
+      sv: `⚠️ Vertikal last som inte får falla: mekanisk stångbroms (eller hållbroms på en elektrisk axel) OBLIGATORISK. En backventil håller trycket men inte lasten vid slangbrott eller nödstopp.`,
+      en: `⚠️ Vertical load that must not fall: mechanical rod lock (or holding brake on an electric axis) MANDATORY. A check valve holds pressure but not the load through a hose rupture or emergency stop.`,
+      de: `⚠️ Vertikale Last, die nicht fallen darf: mechanische Kolbenstangenbremse (oder Haltebremse an einer elektrischen Achse) ZWINGEND ERFORDERLICH. Ein Rückschlagventil hält den Druck, aber nicht die Last bei Schlauchbruch oder Not-Halt.`,
+      es: `⚠️ Carga vertical que no debe caer: bloqueo de vástago mecánico (o freno de mantenimiento en un eje eléctrico) OBLIGATORIO. Una válvula antirretorno mantiene la presión, pero no la carga ante rotura de manguera o parada de emergencia.`,
+    }));
   } else if (isVerticalLoad) {
     whyLines.push(pick(locale, {
       sv: `⚠️ Vertikal rörelse: Pilotmanövrerad backslagsventil eller stångbroms OBLIGATORISK för att förhindra fall vid lufttrycksfall.`,

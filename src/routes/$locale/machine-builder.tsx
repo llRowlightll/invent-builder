@@ -213,6 +213,7 @@ function MachineBuilderPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [optionsSummary, setOptionsSummary] = useState("");
+  const [optionsSakerhet, setOptionsSakerhet] = useState("");
   const [options, setOptions] = useState<ActuatorOption[]>([]);
   const [requirements, setRequirements] = useState<Requirements | null>(null);
   const [selected, setSelected] = useState<ActuatorOption | null>(null);
@@ -426,6 +427,7 @@ function MachineBuilderPage() {
       const enriched = enrichWithCatalog<ActuatorOption>(data.options ?? []);
       setOptions(enriched);
       setOptionsSummary(data.summary ?? "");
+      setOptionsSakerhet(typeof data.sakerhet === "string" ? data.sakerhet : "");
       setRequirements(data.requirements ?? null);
       setStep("options");
     } catch (e) {
@@ -615,6 +617,7 @@ function MachineBuilderPage() {
           t={t}
           locale={locale}
           summary={optionsSummary}
+          sakerhet={optionsSakerhet}
           options={options}
           requirements={requirements}
           onSelect={handleSelect}
@@ -1094,8 +1097,8 @@ const KUNDLOSNING_ORSAK: Record<string, [string, string]> = {
   alternativ: ["Ett alternativ om inget av förslagen passar.", "An alternative if none of the proposals fits."],
 };
 
-function OptionsStep({ t, locale, summary, options, requirements, onSelect, onBack }: {
-  t: (key: import("@/lib/i18n").TKey) => string; locale: string; summary: string; options: ActuatorOption[];
+function OptionsStep({ t, locale, summary, sakerhet, options, requirements, onSelect, onBack }: {
+  t: (key: import("@/lib/i18n").TKey) => string; locale: string; summary: string; sakerhet: string; options: ActuatorOption[];
   requirements: Requirements | null; onSelect: (o: ActuatorOption) => void; onBack: () => void;
 }) {
   const isSv = locale === "sv";
@@ -1125,6 +1128,12 @@ function OptionsStep({ t, locale, summary, options, requirements, onSelect, onBa
 
   return (
     <div className="space-y-5">
+      {/* Säkerheten först vid vertikal last (kritikerrundan 2026-11-18). */}
+      {sakerhet && (
+        <div role="note" className="rounded-lg bg-warning-surface border border-warning-deep px-4 py-3 text-sm font-medium text-warning-deep">
+          {sakerhet}
+        </div>
+      )}
       {summary && (
         <div className="flex gap-3 rounded-lg bg-surface-alt px-4 py-3 text-sm text-foreground">
           <span className="mt-0.5 shrink-0 text-info" aria-hidden>✦</span>

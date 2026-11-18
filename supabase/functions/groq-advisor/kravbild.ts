@@ -438,8 +438,12 @@ export function slagAvvisat(tolkning: Tolkningsbeslut, mm: number): boolean {
 /** Personal under lasten: den största risken i ett lyft. */
 const PERSONAL_UNDER = /(?<![\wåäö])(?:personal\w*|operatör\w*|människor|personer|folk|någon|arbetare|people|personnel|operators?|workers?|persons?|someone)(?![\wåäö])[^.;]{0,40}?(?<![\wåäö])(?:under|beneath|below|nedanför|underneath)\s+(?:den\s+)?(?:lasten|lyftet|lådan|lådorna|last\w*|the\s+load|the\s+lift|it)(?![\wåäö])|(?<![\wåäö])(?:under|beneath|below)\s+(?:lasten|the\s+load)(?![\wåäö])[^.;]{0,30}?(?:personal|people|personnel|operatör\w*|operators?)/i;
 
+// Tyska och spanska (kritikerrundan 2026-11-18): "Mitarbeiter stehen unter
+// der Last" och "hay operarios debajo de la carga" kändes inte igen.
+const PERSONAL_UNDER_DE_ES = /(?<![\p{L}])(?:personen|personal|mitarbeiter\p{L}*|bediener\p{L}*|menschen|jemand|arbeiter\p{L}*|personas|operarios?|trabajadores?|alguien|gente)(?![\p{L}])[^.;]{0,40}?(?<![\p{L}])(?:unter(?:halb)?\s+(?:der\s+last|dem\s+hub|der\s+hebevorrichtung)|(?:debajo\s+de|bajo)\s+(?:la\s+carga|la\s+elevación))(?![\p{L}])/iu;
+
 export function personalUnderLasten(text: string): boolean {
-  return PERSONAL_UNDER.test(text ?? "");
+  return PERSONAL_UNDER.test(text ?? "") || PERSONAL_UNDER_DE_ES.test(text ?? "");
 }
 
 // ── Tolkningen ──────────────────────────────────────────────────────────────
