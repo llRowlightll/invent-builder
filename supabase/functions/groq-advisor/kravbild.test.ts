@@ -396,3 +396,10 @@ Deno.test("kraft angiven som massa: läses som massa × g, och bara intill ett k
   assert(kb.krav.some((k) => k.egenskap === "kraft" && k.varde === 19620), JSON.stringify(kb.krav.map((k) => [k.egenskap, k.varde])));
   assert(!kb.krav.some((k) => k.egenskap === "massa"), "ingen massa ur \"2 ton kraft\"");
 });
+
+Deno.test("slaget på spanska: carrera och recorrido", () => {
+  const es = "Necesitamos un cilindro para empujar cajas de 5 kg fuera de una cinta, carrera 200 mm";
+  assert(langderITexten(es).some((l) => l.typ === "slag" && l.mm === 200), JSON.stringify(langderITexten(es)));
+  assert(kandaVarden(es).slag, "frågan om slaglängd ska inte ställas");
+  assert(langderITexten("recorrido de 150 mm").some((l) => l.typ === "slag" && l.mm === 150));
+});

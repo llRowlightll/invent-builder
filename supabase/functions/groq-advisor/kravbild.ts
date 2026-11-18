@@ -322,15 +322,18 @@ export interface Langd {
 
 const LANGD_RE = /(\d+(?:[.,]\d+)?)\s*(mm|cm|meter|metre|meters|m)\b(?!\s*(?:\/|per\b|²|³))/gi;
 // Småord mellan ordet och talet: "slaglängden är ca 200 mm", "stroke of 200 mm".
-const FYLL = String.raw`(?:\s*(?:är|blir|på|om|av|med|of|is|by|ca\.?|cirka|ungefär|about|approx\.?|max\.?|minst|högst|upp till|up to|=|:))*\s*\W*$`;
-const SLAG_FORE = new RegExp(String.raw`(?:slaglängd\w*|\bslag(?:et)?|\bstroke|\bhub|lyfthöjd\w*|lyftslag\w*|\blift height|\btravel|vandring\w*|rörelselängd\w*|\brörelse(?:n|ns)?|\bsträcka\w*)${FYLL}`, "i");
+// "de"/"von" för "recorrido de 150 mm" och "Hub von 150 mm".
+const FYLL = String.raw`(?:\s*(?:är|blir|på|om|av|med|of|is|by|de|von|ca\.?|cirka|ungefär|about|approx\.?|max\.?|minst|högst|upp till|up to|=|:))*\s*\W*$`;
+// "carrera"/"recorrido" (es): den spanska provkörningen 2026-11-18 fick frågan
+// om slaglängd trots "carrera 200 mm".
+const SLAG_FORE = new RegExp(String.raw`(?:slaglängd\w*|\bslag(?:et)?|\bstroke|\bhub|\bcarrera|\brecorrido|lyfthöjd\w*|lyftslag\w*|\blift height|\btravel|vandring\w*|rörelselängd\w*|\brörelse(?:n|ns)?|\bsträcka\w*)${FYLL}`, "i");
 const SLAG_EFTER = /^\s*(?:slag\w*|stroke)/i;
 // Ett komma eller en punkt efter talet är skiljetecken, inte decimaler:
 // "slag 200, 6 bar" lästes inte (driftprovet 2026-11-16) och gav Ø50×100
 // som "Bästa valet". Bara [.,] följt av en siffra är en decimal.
 // Naket slagtal: "slag 200", "slaglängd: 150", "stroke 80" -- men inte "slag
 // 200 mm" (läses ovan), "slag 30/min" (en takt) eller "slag 2 bar".
-const SLAG_NAKET_RE = /(?:slaglängd\w*|\bslag(?:et)?|\bstroke|\bhub)\s*(?:är|på|of|is|=|:)?\s*(?:ca\.?\s*|cirka\s*|ungefär\s*)?(\d+(?:[.,]\d+)?)(?!\d|[.,]\d|\s*(?:mm|cm|m\b|meter|metre|bar|kg|g\b|n\b|nm|%|°|st\b|x|×|\*|\/|per\b|i\s+minut|slag|cykl))/gi;
+const SLAG_NAKET_RE = /(?:slaglängd\w*|\bslag(?:et)?|\bstroke|\bhub|\bcarrera|\brecorrido)\s*(?:är|på|of|is|=|:)?\s*(?:ca\.?\s*|cirka\s*|ungefär\s*)?(\d+(?:[.,]\d+)?)(?!\d|[.,]\d|\s*(?:mm|cm|m\b|meter|metre|bar|kg|g\b|n\b|nm|%|°|st\b|x|×|\*|\/|per\b|i\s+minut|slag|cykl))/gi;
 // "Ø50×200", "ø32x100 mm", "Ø40/150": borrning × slag.
 const BORR_GANGER_SLAG_RE = /[Øø]\s*(\d{1,3})\s*[×xX*\/]\s*(\d{1,4}(?:[.,]\d+)?)(?!\s*[×xX*]\s*\d)(?!\d|[.,]\d)/g;
 // "50/200 cylinder", "cylinder 32x100": samma skrivsätt utan Ø. Bara intill
