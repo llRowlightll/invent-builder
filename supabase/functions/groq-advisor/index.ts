@@ -1421,7 +1421,16 @@ async function handleOptions(
   // ── v40/v51: Server-side product selection ───────────────────────
   // rankActuators() tiers candidates so a configurable family NEVER outranks a
   // concrete-stroke product that meets the requirement (regression-tested).
-  const kravStandard = begardStandard(combinedText);
+  // En orderkod säger vilken standard kunden har: "motsvarighet till
+  // DSBC-50-100-PPSA-N3 från SMC" gav en styrd GPC-BV som "Bästa valet"
+  // (provkörning mot drift 2026-11-18). Familjens katalograd heter "DSBC –
+  // ISO 15552 Standard Cylinder". Uppslaget görs en gång och används också av
+  // instruktionen till språkmodellen nedan.
+  const kodfakta = await fetchFamilyFacts(codeReading.resolved.map((r) => r.familySlug));
+  const kodStandard = [...kodfakta.values()]
+    .map((f) => begardStandard(`${f.name} ${f.specs?.standard ?? ""}`))
+    .find((s): s is string => !!s) ?? null;
+  const kravStandard = begardStandard(combinedText) ?? kodStandard;
   const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, requiredForceN, isHighPrecision, isHighSpeed, precisionMm, speedMs, isVertical: isVerticalLoad, isWashdown: needsCorrosionResistant, isAtex, preferredBrands: detectRequestedBrands(combinedText), explicitBoreMm, isFood: hazards.isFoodGrade, begardStandard: kravStandard, enhetBegard: enhetBegard(combinedText) };
   // Önskat fabrikat får en plats om det finns i underlaget (scoring.ts).
   const { produkter: topProducts, insatt: fabrikatsInsatt } =
@@ -1599,10 +1608,7 @@ async function handleOptions(
   // not mentioning them. Confirmed across 4 independent test calls (SIL,
   // oxygen-clean, pharma/GMP, and one plain query) before concluding this
   // was systemic rather than a one-off sampling fluke.
-  const codeNote = orderCodeInstruction(
-    codeReading, locale,
-    await fetchFamilyFacts(codeReading.resolved.map((r) => r.familySlug)),
-  );
+  const codeNote = orderCodeInstruction(codeReading, locale, kodfakta);
   const optSystem = `You are a senior automation engineer. Write product descriptions for 3 pre-selected products. All text in ${lang}.${sprakregler(locale)}
 
 MANDATORY RULES:
