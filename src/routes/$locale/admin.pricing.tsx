@@ -2,7 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import Papa from "papaparse";
+import { unzipSync } from "fflate";
 import { giltigMarginal, misstankMarginal, saljpris } from "@/lib/marginal";
+import {
+  avkodaText, byggIndex, gissaAvgransare, iKronor, lasPrislista, marginalUrRad, matcha, omatchadeCsv, sammanfatta,
+  type KatalogArtikel, type Prisrad, type Status,
+} from "@/lib/prisfil";
+import { lasXlsx } from "@/lib/xlsx-las";
+import { hamtaValutakurs } from "@/lib/valuta.functions";
 
 export const Route = createFileRoute("/$locale/admin/pricing")({
   component: AdminPricingPage,
@@ -35,6 +42,27 @@ type Proposal = {
 type ProposalRow = Proposal & {
   selected: boolean;
   margin: string;   // editable by admin
+  /** Artiklarna priset sparas på (fler än en när artikeln ligger dubbelt i katalogen). */
+  ids: string[];
+  status: Status;
+  via: string;
+  anm: string[];
+  /** Pris per styck i filens valuta; purchase_price är omräknat till kronor. */
+  prisOriginal: number;
+  valuta: string;
+  levKod: string | null;
+  forpackning: number;
+};
+type Leverantor = { id: string; name: string; slug: string; is_active: boolean | null };
+
+const STATUSTEXT: Record<Status, string> = {
+  match: "Matchad",
+  kontrollera: "Kontrollera",
+  flera: "Flera möjliga",
+  serie: "Serie",
+  saknas: "Finns inte i katalogen",
+  utan_pris: "Pris saknas",
+  dubblett: "Dubblett",
 };
 
 const EDGE = "https://buqfbcztspswezwyafxo.supabase.co/functions/v1/extract-prices";
@@ -117,20 +145,37 @@ export default function AdminPricingPage() {
   const [pdfLoading,  setPdfLoading]  = useState(false);
   const csvRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Prislistefil: leverantör, valutakurser och raderna som inte kan sparas.
+  const [extraNycklar, setExtraNycklar] = useState<Record<string, string[]>>({});
+  const [leverantorer, setLeverantorer] = useState<Leverantor[]>([]);
+  const [levId,       setLevId]       = useState("");
+  const [kurser,      setKurser]      = useState<Record<string, { kurs: string; datum?: string; fel?: string }>>({});
+  const [ejSparbara,  setEjSparbara]  = useState<Prisrad[]>([]);
+  const [filnamn,     setFilnamn]     = useState("");
 
   useEffect(() => { load(); }, []);
 
   // ── data loading ───────────────────────────────────────────────────────────
   async function load() {
     setLoading(true);
-    const [{ data: ps }, { data: bs }, { data: cs }] = await Promise.all([
+    const [{ data: ps }, { data: bs }, { data: cs }, { data: sup }, { data: ex }] = await Promise.all([
       // purchase_price/margin are admin-only cost data. The authenticated role no
       // longer has column SELECT on them, so they are read via a SECURITY DEFINER
       // RPC (admin-gated) rather than a direct table query.
       (supabase as any).rpc("admin_list_product_pricing"),
       supabase.from("brands").select("id,name").order("name"),
       supabase.from("categories").select("id,name").order("name"),
+      // Leverantörerna (admin) och de extra nummer prislistan kan matcha på.
+      (supabase as any).from("suppliers").select("id,name,slug,is_active").order("name"),
+      supabase.from("product_specs").select("product_id,value").in("key", ["type_code", "catalogue_part_no"]),
     ]);
+    setLeverantorer(((sup ?? []) as Leverantor[]).filter((l) => l.slug !== "provleverantor"));
+    const nycklar: Record<string, string[]> = {};
+    for (const r of (ex ?? []) as { product_id: string; value: unknown }[]) {
+      if (r.value == null) continue;
+      (nycklar[r.product_id] ??= []).push(String(r.value));
+    }
+    setExtraNycklar(nycklar);
     setRows(((ps ?? []) as PricingRpcRow[]).map((d) => ({
       id: d.id, sku: d.sku, name: d.name,
       purchase_price: d.purchase_price, margin: d.margin,
@@ -266,42 +311,98 @@ export default function AdminPricingPage() {
     }
   }
 
-  // ── Prisintag: CSV/Excel upload (SKU + inköpspris, valfritt marginal) ───────
+  // ── Prisintag: prislista som Excel eller CSV ───────────────────────────────
+  // Läsning och matchning i src/lib/prisfil.ts: vårt nummer, tillverkarens
+  // (även utan våra prefix och med Excels tappade nollor), leverantörens eget.
+  const katalog = useMemo<KatalogArtikel[]>(() => rows.map((r) => ({
+    id: r.id, sku: r.sku, name: r.name, brand: r.brand?.name ?? null, is_family: r.is_family,
+    purchase_price: r.purchase_price, extraNycklar: extraNycklar[r.id],
+  })), [rows, extraNycklar]);
+
+  /** Valutakursen (kronor per enhet) som används för en valuta, eller null. */
+  function kursFor(valuta: string): number | null {
+    if (valuta === "SEK") return 1;
+    const k = Number(String(kurser[valuta]?.kurs ?? "").replace(",", "."));
+    return k > 0 ? k : null;
+  }
+
+  async function hamtaKurs(valuta: string) {
+    if (valuta === "SEK" || kurser[valuta]?.kurs) return;
+    try {
+      const svar = await hamtaValutakurs({ data: { valuta } });
+      setKurser((k) => ({ ...k, [valuta]: "kurs" in svar
+        ? { kurs: String(svar.kurs), datum: svar.datum }
+        : { kurs: "", fel: `${svar.fel} -- skriv in kursen själv.` } }));
+    } catch {
+      setKurser((k) => ({ ...k, [valuta]: { kurs: "", fel: "Kunde inte hämta kursen -- skriv in den själv." } }));
+    }
+  }
+
   async function handleCsvUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setIntakeMsg(null);
-    const pick = (r: Record<string, string>, keys: string[]) => {
-      for (const k of Object.keys(r)) if (keys.includes(k.toLowerCase().trim())) return r[k];
-      return undefined;
-    };
-    const SKU = ["sku","artikelnummer","artikelnr","artnr","art.nr","artikel","article","article_number","part","part_number","partnumber","produkt"];
-    const PRICE = ["purchase_price","inköpspris","inkopspris","inköp","inkop","pris","price","cost","kostnad","nettopris","netto","unit_price"];
-    const MARGIN = ["margin","marginal","margin_pct","marginal_pct","pålägg"];
-    const NAME = ["name","namn","beskrivning","description","benämning"];
+    setEjSparbara([]);
+    setFilnamn(file.name);
     try {
-      const text = await file.text();
-      const res = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
-      const list: ProposalRow[] = [];
-      for (const r of res.data) {
-        const sku = String(pick(r, SKU) ?? "").trim();
-        const pp = parseFloat(String(pick(r, PRICE) ?? "").replace(/[^\d.,-]/g, "").replace(",", "."));
-        if (!sku || !isFinite(pp) || pp <= 0) continue;
-        const mg = String(pick(r, MARGIN) ?? "").replace(",", ".").replace(/[^\d.]/g, "");
-        list.push({ sku, name: String(pick(r, NAME) ?? "").trim(), brand: "", purchase_price: pp,
-          confidence: "high", evidence: "CSV-import", selected: true, margin: mg || standardMarginal(sku) });
-      }
-      if (csvRef.current) csvRef.current.value = "";
-      if (list.length === 0) {
-        setIntakeMsg({ text: "Inga giltiga rader. Filen behöver en kolumn för SKU/artikelnummer och en för inköpspris.", ok: false });
+      if (file.size > 20 * 1024 * 1024) throw new Error("Filen är större än 20 MB. Dela upp den eller spara bara prisbladet.");
+      const namn = file.name.toLowerCase();
+      if (namn.endsWith(".xls")) throw new Error("Det gamla Excel-formatet (.xls) läses inte. Öppna filen och spara den som .xlsx eller CSV.");
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let tabell: unknown[][];
+      if (namn.endsWith(".xlsx") || namn.endsWith(".xlsm") || (bytes[0] === 0x50 && bytes[1] === 0x4b)) {
+        tabell = lasXlsx(unzipSync(bytes));
       } else {
-        setProposals(list);
-        setIntakeMsg({ text: `${list.length} rader inlästa från fil — granska och bekräfta nedan.`, ok: true });
+        const text = avkodaText(bytes);
+        tabell = Papa.parse<string[]>(text, { header: false, skipEmptyLines: false, delimiter: gissaAvgransare(text) }).data;
+      }
+      const ut = lasPrislista(tabell, katalog);
+      if (ut.fel) throw new Error(ut.fel);
+      const kol = ut.kolumner!;
+      const data = tabell.slice(kol.rubrikrad + 1);
+      const sparbara = ut.rader.filter((r) => r.status === "match" || r.status === "kontrollera");
+      const list: ProposalRow[] = sparbara.map((r) => {
+        const fil = marginalUrRad(data[r.rad - kol.rubrikrad - 2] ?? [], kol);
+        return {
+          sku: r.artikel!.sku, name: r.artikel!.name, brand: r.artikel!.brand ?? "",
+          purchase_price: r.valuta === "SEK" ? r.pris! : 0,
+          confidence: r.status === "match" ? "high" : "medium",
+          evidence: `rad ${r.rad}: ${r.kod}${r.namn ? ` (${r.namn})` : ""}`,
+          selected: r.status === "match",
+          margin: fil != null ? String(fil) : standardMarginal(r.artikel!.sku),
+          ids: (r.alla ?? [r.artikel!]).map((a) => a.id),
+          status: r.status, via: r.via, anm: r.anm,
+          prisOriginal: r.pris!, valuta: r.valuta, levKod: r.levKod, forpackning: r.forpackning,
+        };
+      });
+      setProposals(list);
+      setEjSparbara(ut.rader.filter((r) => r.status !== "match" && r.status !== "kontrollera"));
+      for (const v of new Set(list.map((p) => p.valuta))) void hamtaKurs(v);
+      const sum = sammanfatta(ut.rader);
+      if (list.length === 0) {
+        setIntakeMsg({ text: `Ingen rad i filen matchade katalogen (${ut.rader.length} rader lästa). Listan nedan visar varför.`, ok: false });
+      } else {
+        setIntakeMsg({
+          text: `${ut.rader.length} rader lästa: ${sum.match} matchade, ${sum.kontrollera} att kontrollera, ` +
+            `${sum.saknas + sum.serie + sum.flera + sum.utan_pris + sum.dubblett} kan inte sparas. Granska och bekräfta nedan.`,
+          ok: true,
+        });
       }
     } catch (err: unknown) {
+      setProposals([]);
       setIntakeMsg({ text: (err as Error).message, ok: false });
+    } finally {
       if (csvRef.current) csvRef.current.value = "";
     }
+  }
+
+  function laddaNerEjSparbara() {
+    const url = URL.createObjectURL(new Blob([omatchadeCsv(ejSparbara)], { type: "text/csv;charset=utf-8;" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ej-inlasta-${(filnamn || "prislista").replace(/\.[^.]+$/, "")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // Export every active product as a CSV template — sku/name/brand pre-filled,
@@ -342,15 +443,28 @@ export default function AdminPricingPage() {
       });
       const data = await res.json() as { proposals?: Proposal[]; error?: string };
       if (data.error) throw new Error(data.error);
-      const list = (data.proposals ?? []).map((p) => ({
-        ...p,
-        selected: true,
-        margin:   standardMarginal(p.sku),  // artikelns egen marginal; admin kan ändra
-      }));
+      // AI:ns artikelnummer matchas som en prislisterad: en sku som inte finns
+      // i katalogen kan inte sparas (förut räknades den som "sparad").
+      const index = byggIndex(katalog);
+      const list: ProposalRow[] = [];
+      const utanArtikel: string[] = [];
+      for (const p of data.proposals ?? []) {
+        const t = matcha(p.sku, index);
+        if (!(t.status === "match" || t.status === "kontrollera") || !t.artikel) { utanArtikel.push(p.sku); continue; }
+        list.push({
+          ...p, sku: t.artikel.sku, name: t.artikel.name,
+          selected: t.status === "match" && p.confidence !== "low",
+          margin: standardMarginal(t.artikel.sku),  // artikelns egen marginal; admin kan ändra
+          ids: [t.artikel.id], status: t.status, via: t.via, anm: [],
+          prisOriginal: p.purchase_price, valuta: "SEK", levKod: null, forpackning: 1,
+        });
+      }
+      setEjSparbara([]);
+      const utan = utanArtikel.length ? ` ${utanArtikel.length} matchade ingen artikel i katalogen: ${utanArtikel.slice(0, 8).join(", ")}${utanArtikel.length > 8 ? " …" : ""}.` : "";
       if (list.length === 0) {
-        setIntakeMsg({ text: "Inga priser hittades. Kontrollera att texten innehåller priser och produktnamn/artikelnummer.", ok: false });
+        setIntakeMsg({ text: `Inga priser att spara.${utan || " Kontrollera att texten innehåller priser och artikelnummer."}`, ok: false });
       } else {
-        setIntakeMsg({ text: `${list.length} pris${list.length !== 1 ? "er" : ""} hittades — granska och bekräfta nedan.`, ok: true });
+        setIntakeMsg({ text: `${list.length} pris${list.length !== 1 ? "er" : ""} hittades — granska och bekräfta nedan.${utan}`, ok: true });
       }
       setProposals(list);
     } catch (err: unknown) {
@@ -361,30 +475,56 @@ export default function AdminPricingPage() {
   }
 
   // ── Prisintag: confirm selected ────────────────────────────────────────────
+  // Varje uppdatering läser tillbaka raden: en sku som inte finns ger 0 rader
+  // utan fel, och räknades förut som sparad.
   async function confirmSelected() {
     const toSave = proposals.filter((p) => p.selected);
     if (!toSave.length) return;
+    const utanKurs = [...new Set(toSave.filter((p) => kursFor(p.valuta) == null).map((p) => p.valuta))];
+    if (utanKurs.length) {
+      setIntakeMsg({ text: `Ange valutakursen för ${utanKurs.join(", ")} (kronor per enhet) innan priserna sparas.`, ok: false });
+      return;
+    }
     setSaving2(true);
     setIntakeMsg(null);
     let saved = 0;
-    let failed = 0;
+    const fel: string[] = [];
+    const idag = new Date().toISOString();
     for (const p of toSave) {
-      const mg = Number(p.margin);
-      const { error } = await supabase.from("products")
-        .update({ purchase_price: p.purchase_price, margin: isNaN(mg) ? null : mg, updated_at: new Date().toISOString() })
-        .eq("sku", p.sku);
-      if (error) { failed++; } else { saved++; }
+      const kr = iKronor(p.prisOriginal, p.valuta, kursFor(p.valuta));
+      const mg = Number(String(p.margin).replace(",", "."));
+      if (kr == null || !(kr > 0)) { fel.push(`${p.sku}: inget pris`); continue; }
+      let ok = true;
+      for (const id of p.ids) {
+        const { data, error } = await supabase.from("products")
+          .update({ purchase_price: kr, margin: isNaN(mg) ? null : mg, updated_at: idag })
+          .eq("id", id)
+          .select("id");
+        if (error || !data?.length) { ok = false; fel.push(`${p.sku}: ${error?.message ?? "artikeln uppdaterades inte"}`); }
+      }
+      if (ok && levId) {
+        const { error } = await (supabase as any).from("supplier_products").upsert({
+          supplier_id: levId, product_id: p.ids[0],
+          supplier_sku: p.levKod || p.evidence.replace(/^rad \d+: /, "").replace(/ \(.*$/, "") || p.sku,
+          supplier_name: p.name, purchase_price: p.prisOriginal, currency: p.valuta,
+          price_source: "price_list", price_valid_from: idag.slice(0, 10),
+          pack_size: p.forpackning > 1 ? p.forpackning : null, last_verified_at: idag,
+          notes: filnamn ? `Inläst ur ${filnamn}` : null,
+        }, { onConflict: "supplier_id,supplier_sku" });
+        if (error) { ok = false; fel.push(`${p.sku} (leverantörsraden): ${error.message}`); }
+      }
+      if (ok) saved++;
     }
     setSaving2(false);
-    if (failed === 0) {
-      setIntakeMsg({ text: `✓ ${saved} pris${saved !== 1 ? "er" : ""} sparade!`, ok: true });
+    if (fel.length === 0) {
+      setIntakeMsg({ text: `✓ ${saved} pris${saved !== 1 ? "er" : ""} sparade${levId ? " (även hos leverantören)" : ""}.`, ok: true });
       setProposals([]);
       setInputText("");
-      await load();
     } else {
-      setIntakeMsg({ text: `${saved} sparade, ${failed} misslyckades.`, ok: saved > 0 });
-      await load();
+      setIntakeMsg({ text: `${saved} sparade, ${fel.length} fel. Första: ${fel.slice(0, 3).join(" · ")}`, ok: false });
+      setProposals((prev) => prev.filter((p) => !p.selected || fel.some((f) => f.startsWith(p.sku))));
     }
+    await load();
   }
 
   const pricedCount = rows.filter((r) => r.purchase_price != null).length;
@@ -562,8 +702,8 @@ export default function AdminPricingPage() {
           <div className="rounded-xl border border-border bg-card p-5">
             <h2 className="text-sm font-semibold mb-1">Hur det fungerar</h2>
             <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-              <li>Klistra in en offert/prislista, ladda upp en PDF, eller ladda upp en <strong>CSV</strong> med kolumner för SKU + inköpspris (snabbast för hela sortimentet).</li>
-              <li>Klicka <strong className="text-foreground">Analysera</strong> — AI:n matchar priser mot produktkatalogen.</li>
+              <li>Ladda upp leverantörens <strong>prislista som Excel (.xlsx) eller CSV</strong> – snabbast för hela sortimentet. Raderna matchas på vårt artikelnummer, tillverkarens (t.ex. &quot;Mfr. Part No.&quot;) eller leverantörens eget. Klistra annars in en offert eller ladda upp en PDF och klicka <strong className="text-foreground">Analysera</strong>.</li>
+              <li>Välj leverantör om priserna ska sparas hos den också (styr vem inköpsordern går till). Priser i EUR, USD eller GBP räknas om med Riksbankens kurs.</li>
               <li>Granska resultaten, justera marginal per rad, avmarkera felaktiga matchningar.</li>
               <li>Klicka <strong className="text-foreground">Bekräfta valda</strong> för att spara priserna.</li>
             </ol>
@@ -597,7 +737,7 @@ export default function AdminPricingPage() {
                     </>
                   )}
                 </button>
-                <input ref={csvRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsvUpload} />
+                <input ref={csvRef} type="file" accept=".xlsx,.xlsm,.csv,.txt,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={handleCsvUpload} />
                 <button
                   onClick={() => csvRef.current?.click()}
                   className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:border-info hover:text-info transition"
@@ -605,7 +745,7 @@ export default function AdminPricingPage() {
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18M12 4v16" />
                   </svg>
-                  Ladda upp CSV
+                  Ladda upp prislista
                 </button>
                 <button
                   onClick={downloadTemplate}
@@ -626,6 +766,35 @@ export default function AdminPricingPage() {
                 </button>
               </div>
             </div>
+
+            <div className="flex flex-wrap items-end gap-4 text-xs">
+              <label className="flex flex-col gap-1">
+                <span className="text-muted-foreground">Leverantör (valfritt)</span>
+                <select
+                  value={levId}
+                  onChange={(e) => setLevId(e.target.value)}
+                  className="rounded-md border border-border bg-background px-2 py-1.5 min-w-[200px]"
+                >
+                  <option value="">Ingen – spara bara inköpspriset</option>
+                  {leverantorer.map((l) => <option key={l.id} value={l.id}>{l.name}{l.is_active ? "" : " (ej aktiv)"}</option>)}
+                </select>
+              </label>
+              {Object.entries(kurser).filter(([v]) => proposals.some((p) => p.valuta === v)).map(([v, k]) => (
+                <label key={v} className="flex flex-col gap-1">
+                  <span className="text-muted-foreground">Kurs {v} (kr per {v}){k.datum ? `, Riksbanken ${k.datum}` : ""}</span>
+                  <input
+                    value={k.kurs}
+                    onChange={(e) => setKurser((x) => ({ ...x, [v]: { ...x[v], kurs: e.target.value } }))}
+                    inputMode="decimal"
+                    className="w-28 rounded-md border border-border bg-background px-2 py-1.5 font-mono"
+                  />
+                  {k.fel && <span className="text-destructive">{k.fel}</span>}
+                </label>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground -mt-1">
+              Saknas leverantören? Lägg till den under <a href="leverantorer" className="underline">Leverantörer</a> först.
+            </p>
 
             <textarea
               value={inputText}
@@ -664,6 +833,40 @@ P1D-S080MS-0200    Ø80 200mm ISO 15552      3 120 kr
               : "bg-destructive/10 text-destructive"}`}>
               {intakeMsg.text}
             </div>
+          )}
+
+          {/* Rader som inte kan sparas */}
+          {ejSparbara.length > 0 && (
+            <details className="rounded-xl border border-border bg-card p-4 text-xs">
+              <summary className="cursor-pointer text-sm font-medium">
+                {ejSparbara.length} rader kan inte sparas
+                <span className="ml-2 font-normal text-muted-foreground">
+                  ({Object.entries(sammanfatta(ejSparbara)).filter(([, n]) => n > 0).map(([st, n]) => `${STATUSTEXT[st as Status].toLowerCase()} ${n}`).join(", ")})
+                </span>
+              </summary>
+              <div className="mt-3 flex justify-end">
+                <button onClick={laddaNerEjSparbara} className="px-3 py-1.5 rounded-md border border-border hover:border-info hover:text-info transition">
+                  Ladda ner som CSV
+                </button>
+              </div>
+              <div className="mt-2 max-h-72 overflow-auto">
+                <table className="w-full">
+                  <thead className="text-muted-foreground">
+                    <tr><th className="text-left py-1 pr-3">Rad</th><th className="text-left py-1 pr-3">Nummer</th><th className="text-left py-1 pr-3">Benämning</th><th className="text-left py-1 pr-3">Varför</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {ejSparbara.slice(0, 300).map((r) => (
+                      <tr key={r.rad}>
+                        <td className="py-1 pr-3 text-muted-foreground">{r.rad}</td>
+                        <td className="py-1 pr-3 font-mono">{r.kod}{r.levKod && r.levKod !== r.kod ? ` (${r.levKod})` : ""}</td>
+                        <td className="py-1 pr-3 max-w-[260px] truncate">{r.namn}</td>
+                        <td className="py-1 pr-3">{STATUSTEXT[r.status]}{r.anm.length ? ` – ${r.anm.join("; ")}` : ""}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
           )}
 
           {/* Proposals table */}
@@ -710,14 +913,14 @@ P1D-S080MS-0200    Ø80 200mm ISO 15552      3 120 kr
                       <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">SKU</th>
                       <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">Produkt</th>
                       <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">Varumärke</th>
-                      <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground">Extraherat pris</th>
-                      <th className="text-center px-3 py-2.5 text-xs font-medium text-muted-foreground">Konfidensindikator</th>
+                      <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground">Inköpspris</th>
+                      <th className="text-center px-3 py-2.5 text-xs font-medium text-muted-foreground">Matchning</th>
                       <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground">Marginal (%)</th>
                       <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground">Säljpris</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {proposals.map((p, i) => (
+                    {proposals.map((p, i) => { const kr = iKronor(p.prisOriginal, p.valuta, kursFor(p.valuta)); return (
                       <tr
                         key={`${p.sku}-${i}`}
                         className={`transition ${p.selected ? "bg-card" : "opacity-40 bg-muted/20"}`}
@@ -746,14 +949,24 @@ P1D-S080MS-0200    Ø80 200mm ISO 15552      3 120 kr
                         <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">{p.brand}</td>
                         <td className="px-3 py-2 text-right">
                           <span className="font-mono text-xs font-medium">
-                            {p.purchase_price.toLocaleString("sv-SE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kr
+                            {kr != null ? `${kr.toLocaleString("sv-SE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kr` : "ange kurs"}
                           </span>
+                          {p.valuta !== "SEK" && (
+                            <div className="text-[10px] text-muted-foreground/70">{p.prisOriginal.toLocaleString("sv-SE", { maximumFractionDigits: 4 })} {p.valuta}</div>
+                          )}
                           {p.currency_note && (
                             <div className="text-[10px] text-muted-foreground/60">{p.currency_note}</div>
                           )}
                         </td>
                         <td className="px-3 py-2 text-center">
-                          {confidenceBadge(p.confidence)}
+                          {p.status === "match" ? confidenceBadge(p.confidence) : (
+                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                              {STATUSTEXT[p.status]}
+                            </span>
+                          )}
+                          {(p.anm.length > 0 || p.via) && (
+                            <div className="text-[10px] text-muted-foreground/70 mt-0.5 max-w-[220px] mx-auto">{[...p.anm, p.via].filter(Boolean).join("; ")}</div>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-right">
                           <input
@@ -766,10 +979,10 @@ P1D-S080MS-0200    Ø80 200mm ISO 15552      3 120 kr
                           />
                         </td>
                         <td className="px-3 py-2 text-right font-mono text-xs font-medium">
-                          {sellPrice(p.purchase_price, p.margin)}
+                          {sellPrice(kr, p.margin)}
                         </td>
                       </tr>
-                    ))}
+                    ); })}
                   </tbody>
                 </table>
               </div>
