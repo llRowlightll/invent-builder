@@ -588,6 +588,26 @@ export function rankActuators(candidates: CatalogProduct[], ctx: ScoringCtx): Ca
     .map((x) => x.p);
 }
 
+/**
+ * Önskat fabrikat: finns det i underlaget ska ett av de tre alternativen vara
+ * det. Rankningen väger fabrikatet bara som +18 poäng, och nivån (fast slag
+ * före serie) går före poängen -- "motsvarighet till DSBC-50-100-PPSA-N3 från
+ * SMC" gav tre AVENTICS (provkörning mot drift 2026-11-17). Den bäst rankade
+ * artikeln av önskat fabrikat tar sista platsen; de övrigas ordning behålls.
+ * Uppfyller den inte kraven säger kravstatusen det.
+ */
+export function medOnskatFabrikat(
+  rankade: CatalogProduct[], kandidater: CatalogProduct[], ctx: ScoringCtx, antal = 3,
+): { produkter: CatalogProduct[]; insatt: string | null } {
+  const onskade = ctx.preferredBrands ?? [];
+  const topp = rankade.slice(0, antal);
+  const arOnskat = (p: CatalogProduct) => onskade.includes(String(p.brand ?? "").toLowerCase());
+  if (!onskade.length || topp.some(arOnskat)) return { produkter: topp, insatt: null };
+  const basta = rankActuators(kandidater.filter(arOnskat), ctx)[0];
+  if (!basta) return { produkter: topp, insatt: null };
+  return { produkter: [...topp.slice(0, Math.max(0, antal - 1)), basta], insatt: basta.sku };
+}
+
 /** Standardnumret i en specvärdestext: ISO 6431 och VDMA 24562 är föregångarna till ISO 15552. */
 export function cylinderstandard(v: unknown): string | null {
   const s = String(v ?? "");

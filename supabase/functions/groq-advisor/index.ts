@@ -28,6 +28,7 @@ import {
   arBorrningsspann,
   familjeborrning,
   kraftVid6Bar,
+  medOnskatFabrikat,
 } from "./scoring.ts";
 import { LANGRE_SLAG_PRO, rensaSerieslag, rensaPositionsPros, rensaMotsagelser, produktdataText } from "./prosavakt.ts";
 import { delaSvar, tolkaKravbild, type Kravbild, type Tolkningsbeslut } from "./kravbild.ts";
@@ -1412,7 +1413,9 @@ async function handleOptions(
   // concrete-stroke product that meets the requirement (regression-tested).
   const kravStandard = begardStandard(combinedText);
   const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, requiredForceN, isHighPrecision, isHighSpeed, precisionMm, speedMs, isVertical: isVerticalLoad, isWashdown: needsCorrosionResistant, isAtex, preferredBrands: detectRequestedBrands(combinedText), explicitBoreMm, isFood: hazards.isFoodGrade, begardStandard: kravStandard, enhetBegard: enhetBegard(combinedText) };
-  const topProducts = rankActuators(catalogProducts, scoringCtx).slice(0, 3);
+  // Önskat fabrikat får en plats om det finns i underlaget (scoring.ts).
+  const { produkter: topProducts, insatt: fabrikatsInsatt } =
+    medOnskatFabrikat(rankActuators(catalogProducts, scoringCtx), sortedProducts, scoringCtx);
 
   // Build server-side option objects (correct data, LLM fills in text)
   const lang = langName(locale);
@@ -1464,6 +1467,9 @@ async function handleOptions(
         ? pick(locale, { sv: "Byggblock – rörelsedel", en: "Building block – motion", de: "Baustein – Bewegungsteil", es: "Componente – parte de movimiento" })
         : i === 0 && boreInexact
         ? pick(locale, { sv: "Närmaste — överdimensionerad", en: "Closest — oversized", de: "Nächstgelegen — überdimensioniert", es: "Más cercano — sobredimensionado" })
+        : p.sku === fabrikatsInsatt
+        // "Nämnde", inte "önskat": "byta bort vår Festo" nämner också ett fabrikat.
+        ? pick(locale, { sv: `Fabrikatet du nämnde (${p.brand})`, en: `The brand you mentioned (${p.brand})`, de: `Von Ihnen genannter Hersteller (${p.brand})`, es: `La marca que mencionó (${p.brand})` })
         : platsmarke(i, locale),
       bore_mm: bore,
       stroke_mm: ms > 0 ? ms : null,
