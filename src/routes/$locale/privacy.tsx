@@ -4,8 +4,9 @@ import { makeT, type Locale } from "@/lib/i18n";
 import { fetchCompanySettings, visningsnamn, type CompanySettings } from "@/lib/company-settings";
 
 /**
- * Integritetspolicyn, på svenska och engelska (/en, /de och /es visar den
- * engelska). Omskriven 2026-11-13 efter kundgranskningen: /en, /de och /es
+ * Integritetspolicyn på svenska, engelska, tyska och spanska. Tyska och
+ * spanska kom 2026-11-18 (förut visade /de och /es den engelska); de är
+ * översättningar av den engelska och ska läsas av jurist som den svenska. Omskriven 2026-11-13 efter kundgranskningen: /en, /de och /es
  * visade den svenska texten, HubSpot och leverantörerna (direktleverans)
  * saknades bland mottagarna, flera amerikanska leverantörer saknade
  * överföringsgrund, lagringstiderna var vaga och kreditprövningen i villkoren
@@ -15,20 +16,26 @@ import { fetchCompanySettings, visningsnamn, type CompanySettings } from "@/lib/
  */
 export const Route = createFileRoute("/$locale/privacy")({
   head: ({ params }) => {
-    const sv = params.locale === "sv";
+    const m = HEAD[params.locale as keyof typeof HEAD] ?? HEAD.en;
     return {
       meta: [
-        { title: sv ? "Integritetspolicy — Maskinval" : "Privacy policy — Maskinval" },
-        { name: "description", content: sv
-          ? "Hur Maskinval behandlar personuppgifter enligt GDPR: vilka uppgifter, varför, hur länge och till vilka mottagare."
-          : "How Maskinval processes personal data under the GDPR: which data, why, for how long and which recipients." },
+        { title: m.titel },
+        { name: "description", content: m.beskrivning },
       ],
     };
   },
   component: PrivacyPage,
 });
 
-const UPPDATERAD = { sv: "13 november 2026", en: "13 November 2026" };
+const HEAD = {
+  sv: { titel: "Integritetspolicy — Maskinval", beskrivning: "Hur Maskinval behandlar personuppgifter enligt GDPR: vilka uppgifter, varför, hur länge och till vilka mottagare." },
+  en: { titel: "Privacy policy — Maskinval", beskrivning: "How Maskinval processes personal data under the GDPR: which data, why, for how long and which recipients." },
+  de: { titel: "Datenschutzerklärung — Maskinval", beskrivning: "Wie Maskinval personenbezogene Daten nach der DSGVO verarbeitet: welche Daten, warum, wie lange und an welche Empfänger." },
+  es: { titel: "Política de privacidad — Maskinval", beskrivning: "Cómo trata Maskinval los datos personales según el RGPD: qué datos, por qué, durante cuánto tiempo y a qué destinatarios." },
+};
+
+// Datum när texten senast ändrades i sak (de/es är översättningar av 13 november).
+const UPPDATERAD = { sv: "13 november 2026", en: "13 November 2026", de: "13. November 2026", es: "13 de noviembre de 2026" };
 
 type Rad = [string, string];
 type Mottagare = [namn: string, roll: string, land: string, grund: string];
@@ -202,12 +209,180 @@ const TEXT = {
     andringTitel: "9. Changes",
     andring: "We may update this policy. For material changes we will notify you by email or clearly on the website at least 30 days in advance.",
   },
+  de: {
+    titel: "Datenschutzerklärung",
+    uppdaterad: "Zuletzt aktualisiert",
+    ansvarigTitel: "1. Verantwortlicher",
+    ansvarig: (vem: string) => `${vem} („wir“, „uns“) ist Verantwortlicher für die Verarbeitung Ihrer personenbezogenen Daten. Wir verarbeiten personenbezogene Daten nach der Datenschutz-Grundverordnung der EU (DSGVO, 2016/679) und ergänzendem schwedischem Recht.`,
+    kontakt: "Kontakt",
+    vadTitel: "2. Welche Daten wir verarbeiten",
+    vad: [
+      ["Konto", "E-Mail-Adresse und Name, sofern Sie ihn angeben."],
+      ["Angebotsanfrage und Bestellung", "Unternehmen, Handelsregister- und USt-IdNr., Ansprechpartner, E-Mail, Telefon, Liefer- und Rechnungsadresse, Produkte und Ihre Bestellnummer."],
+      ["Bestellung, die Sie anhängen", "die Datei wird mit dem Auftrag gespeichert."],
+      ["Maschinen-Assistent", "was Sie schreiben, und Ihre Antworten. Wenn Sie angemeldet sind, werden Beschreibung, Antworten und Stückliste als Projekt in Ihrem Konto gespeichert."],
+      ["Bilder und Dokumente zur Auswertung", "werden zur Auswertung an den KI-Dienst gesendet und von uns nicht gespeichert."],
+      ["KI-Ingenieur", "Ihre Fragen werden zur Beantwortung an den KI-Dienst gesendet und von uns nicht gespeichert, außer in der anonymen Statistik unten."],
+      ["Technische Daten", "Anmeldeprotokolle, IP-Adresse und Browsertyp bei unseren Hosting-Anbietern."],
+    ] as Rad[],
+    varforTitel: "3. Zwecke und Rechtsgrundlagen",
+    varforHuvud: ["Zweck", "Rechtsgrundlage"],
+    varfor: [
+      ["Den Dienst bereitstellen und Konten verwalten", "Vertrag (Art. 6 Abs. 1 lit. b DSGVO)"],
+      ["Angebotsanfragen und Bestellungen bearbeiten", "Vertrag (Art. 6 Abs. 1 lit. b DSGVO)"],
+      ["Direktlieferung: dem Lieferanten Lieferadresse, Empfänger und Ansprechpartner mitteilen", "Vertrag (Art. 6 Abs. 1 lit. b DSGVO)"],
+      ["Bestätigungen und Versandmitteilungen senden", "Vertrag (Art. 6 Abs. 1 lit. b DSGVO)"],
+      ["Kundenregister für Angebote und Nachverfolgung (CRM)", "Berechtigtes Interesse (Art. 6 Abs. 1 lit. f DSGVO)"],
+      ["Bonitätsprüfung neuer Geschäftskunden", "Berechtigtes Interesse (Art. 6 Abs. 1 lit. f DSGVO)"],
+      ["Den Dienst mit anonymer Statistik verbessern", "Berechtigtes Interesse (Art. 6 Abs. 1 lit. f DSGVO)"],
+      ["Buchführung und Steuern", "Rechtliche Verpflichtung (Art. 6 Abs. 1 lit. c DSGVO)"],
+      ["Newsletter, sofern Sie ihn abonniert haben", "Einwilligung (Art. 6 Abs. 1 lit. a DSGVO)"],
+    ] as Rad[],
+    hurLangeTitel: "4. Wie lange wir die Daten speichern",
+    hurLangeHuvud: ["Daten", "Speicherdauer"],
+    hurLange: [
+      ["Konto und gespeicherte Projekte", "Bis Sie das Konto löschen; Löschung innerhalb von 30 Tagen nach einer Anfrage."],
+      ["Angebotsanfragen, aus denen keine Bestellung wurde", "Höchstens 24 Monate nach dem letzten Kontakt."],
+      ["Bestellungen, Auftragsbestätigungen, Rechnungen und angehängte Bestellungen", "7 Jahre nach dem schwedischen Buchführungsgesetz (Bokföringslagen 1999:1078)."],
+      ["Bilder und Dokumente zur Auswertung", "Werden von uns nicht gespeichert."],
+      ["Fragen an den KI-Ingenieur", "Werden von uns nicht gespeichert (siehe anonyme Statistik)."],
+      ["Anonyme Nutzungsstatistik", "13 Monate."],
+      ["E-Mails an info@maskinval.se", "So lange die Angelegenheit es erfordert, höchstens 24 Monate nach ihrem Abschluss."],
+    ] as Rad[],
+    mottagareTitel: "5. Empfänger und Übermittlungen außerhalb der EU",
+    mottagareIngress: "Wir geben nur die Daten weiter, die die jeweilige Aufgabe erfordert. Anbieter in den USA verarbeiten die Daten auf Grundlage von Auftragsverarbeitungsverträgen und der Standardvertragsklauseln der Europäischen Kommission (Art. 46 Abs. 2 lit. c DSGVO).",
+    mottagareHuvud: ["Empfänger", "Aufgabe", "Land", "Grundlage"],
+    mottagare: [
+      ["Supabase Inc.", "Datenbank und Anmeldung", "US-Unternehmen", "Standardvertragsklauseln"],
+      ["Cloudflare Inc.", "Hosting der Website", "US-Unternehmen", "Standardvertragsklauseln"],
+      ["Resend Inc.", "E-Mail-Versand (Bestätigungen, Versandmitteilungen)", "USA", "Standardvertragsklauseln"],
+      ["Zoho", "Das Postfach info@maskinval.se", "EU", "Innerhalb der EU"],
+      ["Groq Inc.", "KI-Verarbeitung von Text im KI-Ingenieur, im Maschinen-Assistenten und in der Suche", "USA", "Standardvertragsklauseln"],
+      ["Anthropic PBC", "KI-Auswertung von Bildern und Dokumenten", "USA", "Standardvertragsklauseln"],
+      ["HubSpot Inc.", "Kundenregister (CRM) für Angebotsanfragen", "USA/EU", "Standardvertragsklauseln"],
+      ["Fortnox AB", "Buchführung und Rechnungsstellung", "Schweden", "Innerhalb der EU"],
+      ["Lieferanten und Hersteller", "Direktlieferung: Lieferadresse, Empfänger und Ansprechpartner", "Überwiegend EU", "Vertrag mit Ihnen"],
+      ["Transportunternehmen (z. B. PostNord)", "Transport Ihrer Bestellung", "Überwiegend EU", "Vertrag mit Ihnen"],
+      ["Auskunfteien", "Bonitätsprüfung neuer Geschäftskunden", "Schweden", "Innerhalb der EU"],
+      ["Google Ireland Ltd", "Analyse, nur wenn Sie „Alle akzeptieren“ gewählt haben", "EU/USA", "Standardvertragsklauseln"],
+    ] as Mottagare[],
+    aiNot: "Die KI-Dienste erhalten nur, was Sie selbst schreiben oder hochladen. Geben Sie in Fragen oder Beschreibungen keine personenbezogenen Daten oder vertraulichen Informationen ein.",
+    saljer: "Wir verkaufen niemals personenbezogene Daten.",
+    rattTitel: "6. Ihre Rechte",
+    ratt: [
+      ["Auskunft", "eine Kopie Ihrer Daten erhalten"],
+      ["Berichtigung", "unrichtige Daten korrigieren lassen"],
+      ["Löschung", "Daten löschen lassen, wenn sie nicht mehr benötigt werden"],
+      ["Einschränkung", "die Verarbeitung einschränken lassen"],
+      ["Datenübertragbarkeit", "Ihre Daten in einem maschinenlesbaren Format erhalten"],
+      ["Widerspruch", "einer Verarbeitung auf Grundlage berechtigten Interesses widersprechen"],
+      ["Widerruf der Einwilligung", "jederzeit, ohne dass die frühere Verarbeitung berührt wird"],
+    ] as Rad[],
+    rattKontakt: "Kontaktieren Sie uns, um Ihre Rechte auszuüben. Sie können sich auch bei der schwedischen Datenschutzbehörde (Integritetsskyddsmyndigheten, IMY) oder bei der Aufsichtsbehörde des Landes beschweren, in dem Sie wohnen oder arbeiten (in Deutschland die Datenschutzaufsichtsbehörde Ihres Bundeslandes).",
+    kakTitel: "7. Cookies und Statistik",
+    kakHuvud: ["Cookie", "Art", "Zweck", "Laufzeit"],
+    kakor: [
+      ["sb-auth-token", "Notwendig", "Anmeldesitzung", "Sitzung"],
+      ["mv_cookie_consent", "Notwendig", "Speichert Ihre Cookie-Auswahl", "1 Jahr"],
+      ["_ga, _ga_*", "Analyse (Einwilligung erforderlich)", "Google Analytics, nur wenn wir es aktiviert haben und Sie „Alle akzeptieren“ gewählt haben", "2 Jahre"],
+    ] as [string, string, string, string][],
+    kakNot: "Analyse-Cookies werden nur geladen, wenn Sie „Alle akzeptieren“ wählen. Sie können Ihre Auswahl jederzeit unter „Cookie-Einstellungen“ in der Fußzeile ändern. Schriften und Skripte werden von unserem eigenen Server geladen.",
+    statistik: "Anonyme Statistik ohne Cookies: Wir erfassen, woher ein Besuch kam (zum Beispiel linkedin.com oder ein Kampagnenkennzeichen), Suchbegriffe, die ersten 120 Zeichen von Fragen an den KI-Ingenieur, Codes in der Ersatzsuche sowie dass eine Stückliste oder Angebotsanfrage gesendet wurde. Es werden keine IP-Adresse, keine Benutzerkennung und nichts gespeichert, was das Ereignis mit einer Person verknüpft. Rechtsgrundlage: berechtigtes Interesse (Art. 6 Abs. 1 lit. f DSGVO). Löschung nach 13 Monaten.",
+    sakerhetTitel: "8. Sicherheit",
+    sakerhet: "Daten werden verschlüsselt übertragen (TLS). Passwörter werden nie im Klartext gespeichert. Der Datenbankzugriff wird pro Zeile gesteuert (Row Level Security), und nur befugte Personen haben Zugriff auf Kundendaten.",
+    andringTitel: "9. Änderungen",
+    andring: "Wir können diese Erklärung aktualisieren. Bei wesentlichen Änderungen informieren wir Sie mindestens 30 Tage im Voraus per E-Mail oder deutlich sichtbar auf der Website.",
+  },
+  es: {
+    titel: "Política de privacidad",
+    uppdaterad: "Última actualización",
+    ansvarigTitel: "1. Responsable del tratamiento",
+    ansvarig: (vem: string) => `${vem} («nosotros») es el responsable del tratamiento de sus datos personales. Tratamos los datos personales conforme al Reglamento General de Protección de Datos de la UE (RGPD, 2016/679) y a la legislación sueca complementaria.`,
+    kontakt: "Contacto",
+    vadTitel: "2. Qué datos tratamos",
+    vad: [
+      ["Cuenta", "dirección de correo electrónico y nombre, si lo indica."],
+      ["Solicitud de presupuesto y pedido", "empresa, número de registro mercantil y NIF-IVA, persona de contacto, correo electrónico, teléfono, direcciones de entrega y de facturación, productos y su número de pedido."],
+      ["Orden de compra que adjunte", "el archivo se guarda con el pedido."],
+      ["Constructor de máquinas", "lo que escribe y sus respuestas. Si ha iniciado sesión, la descripción, las respuestas y la lista de materiales se guardan como proyecto en su cuenta."],
+      ["Imágenes y documentos para interpretar", "se envían al servicio de IA para su interpretación y no los guardamos."],
+      ["Ingeniero IA", "sus preguntas se envían al servicio de IA para obtener una respuesta y no las guardamos, salvo en la estadística anónima indicada más abajo."],
+      ["Datos técnicos", "registros de inicio de sesión, dirección IP y tipo de navegador en nuestros proveedores de alojamiento."],
+    ] as Rad[],
+    varforTitel: "3. Finalidades y base jurídica",
+    varforHuvud: ["Finalidad", "Base jurídica"],
+    varfor: [
+      ["Prestar el servicio y gestionar las cuentas", "Contrato (art. 6.1.b RGPD)"],
+      ["Gestionar solicitudes de presupuesto y pedidos", "Contrato (art. 6.1.b RGPD)"],
+      ["Envío directo: facilitar al proveedor la dirección de entrega, el destinatario y la persona de contacto", "Contrato (art. 6.1.b RGPD)"],
+      ["Enviar confirmaciones y avisos de envío", "Contrato (art. 6.1.b RGPD)"],
+      ["Registro de clientes para presupuestos y seguimiento (CRM)", "Interés legítimo (art. 6.1.f RGPD)"],
+      ["Comprobación de solvencia de nuevos clientes empresariales", "Interés legítimo (art. 6.1.f RGPD)"],
+      ["Mejorar el servicio con estadísticas anónimas", "Interés legítimo (art. 6.1.f RGPD)"],
+      ["Contabilidad e impuestos", "Obligación legal (art. 6.1.c RGPD)"],
+      ["Boletín, si se ha suscrito", "Consentimiento (art. 6.1.a RGPD)"],
+    ] as Rad[],
+    hurLangeTitel: "4. Cuánto tiempo conservamos los datos",
+    hurLangeHuvud: ["Datos", "Plazo de conservación"],
+    hurLange: [
+      ["Cuenta y proyectos guardados", "Hasta que elimine la cuenta; se eliminan en un plazo de 30 días desde la solicitud."],
+      ["Solicitudes de presupuesto que no se convirtieron en pedido", "Como máximo 24 meses desde el último contacto."],
+      ["Pedidos, confirmaciones de pedido, facturas y órdenes de compra adjuntas", "7 años según la Ley sueca de contabilidad (Bokföringslagen 1999:1078)."],
+      ["Imágenes y documentos para interpretar", "No los guardamos."],
+      ["Preguntas al ingeniero IA", "No las guardamos (véase la estadística anónima)."],
+      ["Estadística de uso anónima", "13 meses."],
+      ["Correos a info@maskinval.se", "El tiempo que requiera el asunto, como máximo 24 meses desde su cierre."],
+    ] as Rad[],
+    mottagareTitel: "5. Destinatarios y transferencias fuera de la UE",
+    mottagareIngress: "Solo compartimos los datos que requiere cada tarea. Los proveedores en EE. UU. tratan los datos en virtud de contratos de encargo del tratamiento y de las cláusulas contractuales tipo de la Comisión Europea (art. 46.2.c RGPD).",
+    mottagareHuvud: ["Destinatario", "Función", "País", "Base"],
+    mottagare: [
+      ["Supabase Inc.", "Base de datos e inicio de sesión", "Empresa estadounidense", "Cláusulas contractuales tipo"],
+      ["Cloudflare Inc.", "Alojamiento del sitio web", "Empresa estadounidense", "Cláusulas contractuales tipo"],
+      ["Resend Inc.", "Envío de correo electrónico (confirmaciones, avisos de envío)", "EE. UU.", "Cláusulas contractuales tipo"],
+      ["Zoho", "El buzón info@maskinval.se", "UE", "Dentro de la UE"],
+      ["Groq Inc.", "Procesamiento por IA del texto en el ingeniero IA, el constructor de máquinas y la búsqueda", "EE. UU.", "Cláusulas contractuales tipo"],
+      ["Anthropic PBC", "Interpretación por IA de imágenes y documentos", "EE. UU.", "Cláusulas contractuales tipo"],
+      ["HubSpot Inc.", "Registro de clientes (CRM) para solicitudes de presupuesto", "EE. UU./UE", "Cláusulas contractuales tipo"],
+      ["Fortnox AB", "Contabilidad y facturación", "Suecia", "Dentro de la UE"],
+      ["Proveedores y fabricantes", "Envío directo: dirección de entrega, destinatario y persona de contacto", "Principalmente UE", "Contrato con usted"],
+      ["Transportistas (p. ej., PostNord)", "Transporte de su pedido", "Principalmente UE", "Contrato con usted"],
+      ["Agencias de información crediticia", "Comprobación de solvencia de nuevos clientes empresariales", "Suecia", "Dentro de la UE"],
+      ["Google Ireland Ltd", "Analítica, solo si eligió «Aceptar todas»", "UE/EE. UU.", "Cláusulas contractuales tipo"],
+    ] as Mottagare[],
+    aiNot: "Los servicios de IA solo reciben lo que usted mismo escribe o sube. No introduzca datos personales ni información confidencial en preguntas o descripciones.",
+    saljer: "Nunca vendemos datos personales.",
+    rattTitel: "6. Sus derechos",
+    ratt: [
+      ["Acceso", "obtener una copia de sus datos"],
+      ["Rectificación", "corregir datos inexactos"],
+      ["Supresión", "que se eliminen los datos cuando ya no sean necesarios"],
+      ["Limitación", "limitar el tratamiento"],
+      ["Portabilidad", "recibir sus datos en un formato legible por máquina"],
+      ["Oposición", "oponerse al tratamiento basado en el interés legítimo"],
+      ["Retirada del consentimiento", "en cualquier momento, sin que ello afecte al tratamiento anterior"],
+    ] as Rad[],
+    rattKontakt: "Póngase en contacto con nosotros para ejercer sus derechos. También puede presentar una reclamación ante la autoridad sueca de protección de datos (Integritetsskyddsmyndigheten, IMY) o ante la autoridad de control del país donde vive o trabaja (en España, la Agencia Española de Protección de Datos, AEPD).",
+    kakTitel: "7. Cookies y estadística",
+    kakHuvud: ["Cookie", "Tipo", "Finalidad", "Duración"],
+    kakor: [
+      ["sb-auth-token", "Necesaria", "Sesión de inicio de sesión", "Sesión"],
+      ["mv_cookie_consent", "Necesaria", "Guarda su elección de cookies", "1 año"],
+      ["_ga, _ga_*", "Analítica (requiere consentimiento)", "Google Analytics, solo si lo hemos activado y usted eligió «Aceptar todas»", "2 años"],
+    ] as [string, string, string, string][],
+    kakNot: "Las cookies analíticas solo se cargan si elige «Aceptar todas». Puede cambiar su elección en cualquier momento en «Configuración de cookies», en el pie de página. Las fuentes y los scripts se sirven desde nuestro propio servidor.",
+    statistik: "Estadística anónima sin cookies: registramos de dónde procede una visita (por ejemplo, linkedin.com o una etiqueta de campaña), los términos de búsqueda, los primeros 120 caracteres de las preguntas al ingeniero IA, los códigos en la búsqueda de sustitutos y que se envió una lista de materiales o una solicitud de presupuesto. No se guarda ninguna dirección IP, ningún identificador de usuario ni nada que vincule el evento con una persona. Base jurídica: interés legítimo (art. 6.1.f RGPD). Se elimina a los 13 meses.",
+    sakerhetTitel: "8. Seguridad",
+    sakerhet: "Los datos se transmiten cifrados (TLS). Las contraseñas nunca se guardan en texto plano. El acceso a la base de datos se controla por fila (Row Level Security) y solo las personas autorizadas pueden acceder a los datos de los clientes.",
+    andringTitel: "9. Cambios",
+    andring: "Podemos actualizar esta política. En caso de cambios importantes, se lo comunicaremos por correo electrónico o de forma visible en el sitio web con al menos 30 días de antelación.",
+  },
 };
 
 function PrivacyPage() {
   const { locale } = Route.useParams();
   const t = makeT(locale as Locale);
-  const x = locale === "sv" ? TEXT.sv : TEXT.en;
+  const x = TEXT[locale as keyof typeof TEXT] ?? TEXT.en;
   const [bolag, setBolag] = useState<CompanySettings | null>(null);
   useEffect(() => { fetchCompanySettings().then(setBolag).catch(() => setBolag(null)); }, []);
   // Den personuppgiftsansvarige med organisationsnummer när det är ifyllt.
@@ -222,7 +397,7 @@ function PrivacyPage() {
       </Link>
 
       <h1 className="mt-6 text-3xl font-semibold tracking-tight text-foreground">{x.titel}</h1>
-      <p className="mt-2 text-sm text-muted-foreground">{x.uppdaterad}: {locale === "sv" ? UPPDATERAD.sv : UPPDATERAD.en}</p>
+      <p className="mt-2 text-sm text-muted-foreground">{x.uppdaterad}: {UPPDATERAD[locale as keyof typeof UPPDATERAD] ?? UPPDATERAD.en}</p>
 
       <div className="mt-8 max-w-none space-y-8 text-sm text-foreground/80 leading-relaxed">
         <Section title={x.ansvarigTitel}>
