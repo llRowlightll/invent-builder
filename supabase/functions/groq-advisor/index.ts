@@ -1017,6 +1017,8 @@ async function handleOptions(
     })();
     const anslagsfart = speedMs > 0 ? speedMs : bandfart;
     const energyJ = loadKg > 0 && anslagsfart > 0 ? 0.5 * loadKg * anslagsfart * anslagsfart : 0;
+    // Decimalkomma på svenska, tyska och spanska ("36,0 J", inte "36.0 J").
+    const komma = (n: number | string) => String(n).replace(".", ",");
     const options = picks.map((p, i) => ({
       sku: p.sku,
       name: p.name,
@@ -1046,10 +1048,10 @@ async function handleOptions(
     }));
     const eNote = energyJ > 0
       ? pick(locale, {
-          sv: ` Beräknad rörelseenergi ≈ ${energyJ.toFixed(1)} J/slag (½·${loadKg} kg·(${anslagsfart} m/s)²).`,
+          sv: ` Beräknad rörelseenergi ≈ ${komma(energyJ.toFixed(1))} J/slag (½·${komma(loadKg)} kg·(${komma(anslagsfart)} m/s)²).`,
           en: ` Estimated kinetic energy ≈ ${energyJ.toFixed(1)} J/cycle (½·${loadKg} kg·(${anslagsfart} m/s)²).`,
-          de: ` Berechnete Bewegungsenergie ≈ ${energyJ.toFixed(1)} J/Hub (½·${loadKg} kg·(${anslagsfart} m/s)²).`,
-          es: ` Energía cinética estimada ≈ ${energyJ.toFixed(1)} J/ciclo (½·${loadKg} kg·(${anslagsfart} m/s)²).`,
+          de: ` Berechnete Bewegungsenergie ≈ ${komma(energyJ.toFixed(1))} J/Hub (½·${komma(loadKg)} kg·(${komma(anslagsfart)} m/s)²).`,
+          es: ` Energía cinética estimada ≈ ${komma(energyJ.toFixed(1))} J/ciclo (½·${komma(loadKg)} kg·(${komma(anslagsfart)} m/s)²).`,
         })
       : "";
     // hazards.conflicts messages are already fully localized (built via

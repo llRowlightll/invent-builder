@@ -467,3 +467,35 @@ Deno.test("alternativen: en ventilfråga ger ventiler, en rörelse ger aktuatore
   // Ingen rörelsekategori och ingen ventil: det som hittades.
   assertEquals(alternativkategorier("givare", ["sensor"], null), ["sensor"]);
 });
+
+// 2026-11-18: de/es fick frågebankens engelska. Varje engelsk text som går
+// genom g() ska finnas i ordlistan, och reservfrågorna ska vara på tyska.
+import { FRAGOR_DE_ES } from "./fragor-sprak.ts";
+
+Deno.test("frågebanken: varje engelsk text har tyska och spanska", async () => {
+  const src = await Deno.readTextFile(new URL("./fragor.ts", import.meta.url));
+  const strang = String.raw`("(?:[^"\\]|\\.)*"|` + "`(?:[^`\\\\]|\\\\.)*`)";
+  const anrop = new RegExp(String.raw`\bg\(\s*locale\s*,\s*` + strang + String.raw`\s*,\s*` + strang + String.raw`\s*\)`, "gs");
+  const saknas: string[] = [];
+  let antal = 0;
+  for (const m of src.matchAll(anrop)) {
+    antal++;
+    const en = m[2];
+    if (en.includes("${")) continue; // infogade värden går genom g4
+    const text = en.startsWith('"') ? JSON.parse(en) : en.slice(1, -1);
+    if (!FRAGOR_DE_ES[text]) saknas.push(text);
+  }
+  assert(antal > 200, `regexen hittade bara ${antal} g()-anrop`);
+  assertEquals(saknas, []);
+});
+
+Deno.test("reservfrågorna på tyska och spanska innehåller ingen engelska ur banken", () => {
+  const engelska = new Set(Object.keys(FRAGOR_DE_ES));
+  for (const locale of ["de", "es"]) {
+    for (const q of reservfragor(LYFT, locale)) {
+      for (const t of [q.label, q.hint ?? "", ...(q.options ?? [])]) {
+        assert(!engelska.has(t) || FRAGOR_DE_ES[t]?.[locale as "de" | "es"] === t, `${locale}: "${t}" är engelska`);
+      }
+    }
+  }
+});

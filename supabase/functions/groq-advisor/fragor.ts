@@ -50,6 +50,7 @@ import {
   needsRodLock, needsSilSafety, needsSpolmiljo, needsValveTerminal, needsVerticalLoad, slagIMeterMm,
 } from "./signals.ts";
 import { kraftIMassaN, langderITexten, MASSENHET, personalUnderLasten } from "./kravbild.ts";
+import { FRAGOR_DE_ES } from "./fragor-sprak.ts";
 
 export type Fraga = {
   id: string;
@@ -229,11 +230,13 @@ export function teknikval(text: string, locale: string): string {
   const precision = extractPrecisionMm(text, {});
   const fart = extractSpeedMs(text, {});
   const slag = extractMinStroke({}, text);
-  const tal = (n: number) => (locale === "sv" ? String(n).replace(".", ",") : String(n));
+  const tal = (n: number) => (locale === "en" ? String(n) : String(n).replace(".", ","));
   let grund: string;
   if (precision > 0 && precision <= 0.5) {
-    grund = g(locale, `±${tal(precision)} mm kräver en servostyrd elaxel — en pneumatisk cylinder stannar bara exakt i sina ändlägen.`,
-      `±${tal(precision)} mm requires a servo-driven electric axis — a pneumatic cylinder only stops precisely at its end positions.`);
+    grund = g4(locale, `±${tal(precision)} mm kräver en servostyrd elaxel — en pneumatisk cylinder stannar bara exakt i sina ändlägen.`,
+      `±${tal(precision)} mm requires a servo-driven electric axis — a pneumatic cylinder only stops precisely at its end positions.`,
+      `±${tal(precision)} mm erfordert eine servogesteuerte elektrische Achse – ein Pneumatikzylinder hält nur in seinen Endlagen genau an.`,
+      `±${tal(precision)} mm requiere un eje eléctrico servoaccionado: un cilindro neumático solo se detiene con precisión en sus posiciones finales.`);
   } else if (/ingen\s+tryckluft|utan\s+tryckluft|saknar\s+tryckluft|bara\s+el\b|endast\s+el\b|no\s+compressed\s+air/i.test(text)) {
     grund = g(locale, "Utan tryckluft blir det en elektrisk axel.", "Without compressed air it will be an electric axis.");
   } else {
@@ -241,9 +244,11 @@ export function teknikval(text: string, locale: string): string {
       "Several stop positions require a servo-driven electric axis — a pneumatic cylinder only has two end positions.");
   }
   if (slag >= 1500 && fart >= 1 && precision > 0) {
-    grund += " " + g(locale,
+    grund += " " + g4(locale,
       `Över ${tal(slag / 1000)} m med ${tal(fart)} m/s talar farten för kuggrem och precisionen för kulskruv — frågorna nedan avgör.`,
-      `Over ${tal(slag / 1000)} m at ${tal(fart)} m/s the speed favours a toothed belt and the precision a ball screw — the questions below decide.`);
+      `Over ${tal(slag / 1000)} m at ${tal(fart)} m/s the speed favours a toothed belt and the precision a ball screw — the questions below decide.`,
+      `Über ${tal(slag / 1000)} m bei ${tal(fart)} m/s spricht die Geschwindigkeit für einen Zahnriemen und die Genauigkeit für einen Kugelgewindetrieb – die Fragen unten entscheiden.`,
+      `En más de ${tal(slag / 1000)} m a ${tal(fart)} m/s, la velocidad favorece una correa dentada y la precisión un husillo de bolas; las preguntas de abajo deciden.`);
   }
   return grund;
 }
@@ -286,8 +291,20 @@ function arDammRisk(text: string): boolean {
     !/atex|zon\s*2[012]|explosi/i.test(text);
 }
 
+/**
+ * Frågebankens text på besökarens språk: svenska och engelska här, tyska och
+ * spanska ur ordlistan fragor-sprak.ts (nycklad på engelskan). Saknas en
+ * översättning visas engelskan.
+ */
 function g(locale: string, sv: string, en: string): string {
-  return locale === "sv" ? sv : en;
+  if (locale === "sv") return sv;
+  if (locale === "de" || locale === "es") return FRAGOR_DE_ES[en]?.[locale] ?? en;
+  return en;
+}
+
+/** Som g, för texter med infogade värden (de kan inte slås upp i ordlistan). */
+function g4(locale: string, sv: string, en: string, de: string, es: string): string {
+  return locale === "sv" ? sv : locale === "de" ? de : locale === "es" ? es : en;
 }
 
 /** Bankens frågor har kända ämnen; modellens tolkas ur id och etikett. */
@@ -834,15 +851,17 @@ export function reservfragor(text: string, locale: string, kod?: Kodvarden): Fra
   // styrs. Inga cylinderfrågor -- ändlägesgivare, kolvstång, slag per minut.
   if (elektrisk) {
     const precision = extractPrecisionMm(text, {});
-    const tal = (n: number) => (locale === "sv" ? String(n).replace(".", ",") : String(n));
+    const tal = (n: number) => (locale === "en" ? String(n) : String(n).replace(".", ","));
     if (!flerLagen) q.push({ id: "antal_lagen", type: "choice",
       label: g(locale, "Hur många lägen ska axeln stanna i?", "How many positions should the axis stop at?"),
       hint: g(locale, "Fasta lägen kan styras med enkla signaler; fritt valda lägen kräver att styrsystemet skickar positioner till drivsteget.", "Fixed positions can be selected with simple signals; freely chosen positions need the control system to send positions to the drive."),
       options: [g(locale, "Bara två ändlägen", "Only two end positions"), g(locale, "3–10 fasta lägen", "3–10 fixed positions"), g(locale, "Fritt valda lägen", "Freely chosen positions")] });
     if (precision > 0 && precision <= 0.5) {
       q.push({ id: "noggrannhet_typ", type: "choice",
-        label: g(locale, `Gäller ±${tal(precision)} mm att axeln hittar samma läge igen, eller att varje läge ligger exakt rätt över hela slaget?`,
-          `Does ±${tal(precision)} mm mean the axis returns to the same position, or that every position is exactly right over the whole stroke?`),
+        label: g4(locale, `Gäller ±${tal(precision)} mm att axeln hittar samma läge igen, eller att varje läge ligger exakt rätt över hela slaget?`,
+          `Does ±${tal(precision)} mm mean the axis returns to the same position, or that every position is exactly right over the whole stroke?`,
+          `Bedeutet ±${tal(precision)} mm, dass die Achse dieselbe Position wieder anfährt, oder dass jede Position über den ganzen Hub exakt stimmt?`,
+          `¿Significa ±${tal(precision)} mm que el eje vuelve a la misma posición, o que cada posición es exacta en toda la carrera?`),
         hint: g(locale, "Samma läge igen (repeterbarhet) klarar en kuggremsaxel. Exakt rätt över hela slaget (absolut noggrannhet) kräver kulskruv eller ett linjärt mätsystem på vagnen.",
           "Returning to the same position (repeatability) is within reach of a toothed belt axis. Exactly right over the whole stroke (absolute accuracy) needs a ball screw or a linear measuring system on the carriage."),
         options: [g(locale, "Samma läge igen (repeterbarhet)", "The same position again (repeatability)"), g(locale, "Exakt rätt över hela slaget (absolut noggrannhet)", "Exactly right over the whole stroke (absolute accuracy)")] });
