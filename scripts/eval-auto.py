@@ -69,6 +69,22 @@ def calc_min_bore(load_kg: float, pressure_bar: float = PRESSURE_BAR) -> float:
     return math.ceil(2 * math.sqrt(area_mm2 / math.pi))
 
 
+def calc_min_bore_presskraft(load_kg: float, pressure_bar: float = PRESSURE_BAR) -> float:
+    """Minsta bore när massan är en presskraft ("pressar 100kg ...").
+
+    Motorn läser en massa direkt efter ett pressverb som en kraft, massa × g,
+    utan säkerhetsfaktor för lyft (kravbild.ts: KRAFT_FORE_MASSA och
+    kraftIMassaN, testet "kraft angiven som massa"). Evalen räknade ändå med
+    lyft × 2 för pressmallarna och underkände Ø63 för "pressar 100kg filter"
+    (CI 2026-11-19, kritikerrundans #458) -- motorn hade valt rätt för sin regel.
+    """
+    if load_kg <= 0:
+        return 0
+    force_n = load_kg * 9.81
+    area_mm2 = force_n / (pressure_bar * 0.1)
+    return math.ceil(2 * math.sqrt(area_mm2 / math.pi))
+
+
 def generate_scenario(rng: random.Random) -> dict:
     """Generera ett slumpmässigt men fysikaliskt meningsfullt scenario."""
     template, direction, is_vertical = rng.choice(APPLICATIONS)
@@ -78,7 +94,8 @@ def generate_scenario(rng: random.Random) -> dict:
     answers = {"slag": f"{stroke} mm", "last": f"{load} kg"}
     if is_vertical:
         answers["riktning"] = "vertikal"
-    min_bore = calc_min_bore(load)
+    presskraft = re.search(r"\bpressa\w*\s+\{load\}", template) is not None
+    min_bore = calc_min_bore_presskraft(load) if presskraft else calc_min_bore(load)
     return {
         "description": desc,
         "answers":     answers,
