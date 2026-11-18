@@ -49,7 +49,7 @@ import {
   needsElectricAxis, needsEndPositionDetection, needsFoodGrade, needsMultiAxis, needsPharmaGmp,
   needsRodLock, needsSilSafety, needsSpolmiljo, needsValveTerminal, needsVerticalLoad, slagIMeterMm,
 } from "./signals.ts";
-import { langderITexten, MASSENHET, personalUnderLasten } from "./kravbild.ts";
+import { kraftIMassaN, langderITexten, MASSENHET, personalUnderLasten } from "./kravbild.ts";
 
 export type Fraga = {
   id: string;
@@ -160,7 +160,8 @@ export function kandaVarden(text: string, kod?: Kodvarden): Kanda {
     slagZ: langderITexten(text).some((l) => l.typ === "lyft" ||
       (l.typ === "slag" && /(?:lyft|höjd|vertikal|z-?ax)\w*\W*(?:slag\w*)?\W*$/i.test(text.slice(Math.max(0, l.index - 20), l.index)))),
     last: new RegExp(String.raw`\d+(?:[.,]\d+)?\s*${MASSENHET}(?![\wåäö])`, "i").test(text),
-    kraft: /\d+(?:[.,]\d+)?\s*k?N\b/.test(text),
+    // "2 ton kraft" är också en angiven kraft (kravbild.ts kraftIMassaN).
+    kraft: /\d+(?:[.,]\d+)?\s*k?N\b/.test(text) || kraftIMassaN(text) > 0,
     takt: /(\d+|en|ett|två|tre|fyra|fem|sex|sju|åtta|nio|tio|tjugo|trettio|hundra)\s*(gånger|ggr|cykler|slag|takter?|st|lyft|rörelser)\s*(per|i|om|\/)\s*(sekund\w*|sek|s\b|minut\w*|min\b|timme\w*|tim\b|h\b|dag\w*|dygn\w*|vecka\w*|skift\w*)|\d+\s*\/\s*(min|h|s)\b|cykeltid|takttid|per\s+minut|i\s+minuten/i.test(text),
     hastighet: extractSpeedMs(text, {}) > 0,
     precision: extractPrecisionMm(text, {}) > 0,

@@ -274,6 +274,31 @@ export function massfaktor(enhet: string): number {
   return e.startsWith("ton") ? 1000 : e === "gram" ? 0.001 : 1;
 }
 
+/**
+ * En kraft angiven som massa: "2 ton kraft", "500 kg presskraft", "pressa med
+ * 2 ton", "presskraft 3 ton". Verkstadsspråkets kilopond: kraften är massan
+ * gånger g. Bara intill ett kraftord eller ett pressverb -- "lyfta 2 ton" är en
+ * last. Provkörning mot drift 2026-11-17: "pres med 2 ton kraft för att pressa
+ * in kullager" fick frågan om kraft igen och en Ø40-cylinder.
+ *
+ * Motorn (signals.ts) och tolkningspanelen läser kraften med samma funktion.
+ */
+const KRAFTORD = String.raw`(?:press|kläm|spänn|tryck|stans)?kraft`;
+export const KRAFT_EFTER_MASSA = new RegExp(String.raw`^\s+${KRAFTORD}(?![\wåäö])`, "i");
+/** Texten före en massa slutar med ett kraftord eller pressverb: "pressa med 2 ton". */
+export const KRAFT_FORE_MASSA = new RegExp(String.raw`(?:\b${KRAFTORD}|\bpressa?\w*)\s+(?:på|om|med|av)?\s*$`, "i");
+/** Är massan vid [start, slut) i texten en kraft och inte en last? */
+export function massanArEnKraft(text: string, start: number, slut: number): boolean {
+  return KRAFT_EFTER_MASSA.test(text.slice(slut)) || KRAFT_FORE_MASSA.test(text.slice(0, start));
+}
+export function kraftIMassaN(text: string): number {
+  const fore = text.match(new RegExp(String.raw`(\d+(?:[.,]\d+)?)\s*(${MASSENHET}|t)\s+${KRAFTORD}(?![\wåäö])`, "i"));
+  const m = fore ?? text.match(new RegExp(String.raw`(?:\b${KRAFTORD}|\bpressa?\w*)\s+(?:på|om|med|av)?\s*(\d+(?:[.,]\d+)?)\s*(${MASSENHET}|t)(?![\wåäö])`, "i"));
+  if (!m) return 0;
+  const massa = tal(m[1]) * (m[2].toLowerCase() === "t" ? 1000 : massfaktor(m[2]));
+  return massa > 0 ? Math.round(massa * 9.81) : 0;
+}
+
 // ── Längder ─────────────────────────────────────────────────────────────────
 // Varje längd i texten får EN läsning, och motorn (extractMinStroke) och
 // tolkningspanelen använder samma. Före 2026-11-12 tog motorn det största
@@ -505,6 +530,8 @@ export function tolkaKravbild(beskrivning: string, svarIn: Record<string, string
       for (const m of normalMassa(s).matchAll(new RegExp(String.raw`(?<![\d.,–—-])(\d+(?:[.,]\d+)?)\s*(${MASSENHET})(?![\wåäö])(?!\s*\/(?!\s*${PER_STYCK}))`, "gi"))) {
         const forre = normalMassa(s).slice(0, m.index ?? 0);
         if (/[–—-]\s*$|\btill\s*$/.test(forre)) continue; // del av ett intervall
+        // "2 ton kraft" är en kraft, ingen last (kraftIMassaN).
+        if (massanArEnKraft(normalMassa(s), m.index ?? 0, (m.index ?? 0) + m[0].length)) continue;
         const max = /\b(?:max|högst|upp till|up to)\s*$/i.test(forre.slice(-12));
         lagg({ objektId: "produkt", egenskap: "massa", varde: Math.round(tal(m[1]) * massfaktor(m[2]) * 1000) / 1000, enhet: "kg", grans: max ? "max" : undefined, ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
       }
@@ -626,6 +653,15 @@ export function tolkaKravbild(beskrivning: string, svarIn: Record<string, string
     for (const m of s.matchAll(/(\d+(?:[.,]\d+)?)\s*(kN|N)\b(?!\s*m)/g)) {
       const n = m[2] === "kN" ? tal(m[1]) * 1000 : tal(m[1]);
       lagg({ objektId: "aktuator", egenskap: "kraft", varde: n, enhet: "N", ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
+    }
+    // Kraft angiven som massa ("2 ton kraft"): massan × g.
+    const kraftMassa = kraftIMassaN(s);
+    if (kraftMassa > 0 && !krav.some((x) => x.egenskap === "kraft" && x.kalla.utdrag === utdrag)) {
+      lagg({
+        objektId: "aktuator", egenskap: "kraft", varde: kraftMassa, enhet: "N",
+        ursprung: "berakning", kalla: { typ: "beskrivning", utdrag },
+        metod: "Angiven som massa: massan × 9,81.",
+      });
     }
 
     // Matning: tryckluft och spänning.
