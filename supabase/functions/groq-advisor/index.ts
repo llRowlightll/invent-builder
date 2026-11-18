@@ -1284,7 +1284,12 @@ async function handleOptions(
   // Lyft eller rörelse med griporgan: rörelsens aktuator är huvudvalet och
   // griporganet läggs som egen rad i stycklistan (lyftMedGriporgan).
   const griporganTillagg = !isMultiAxis && !isSystemScope ? lyftMedGriporgan(description ?? "", combinedText) : null;
-  if (endEffector && !griporganTillagg && (endEffectorExplicitlyAsked(combinedText) || (!isMultiAxis && !isSystemScope))) {
+  // Men har kunden också angett minst två axlar med längd ("x 300 mm, y 150 mm,
+  // z 50 mm") är rörelsen lika uttalad som greppet: då leder axlarna och
+  // greppet blir en rad i stycklistan. Förut gav plock och placera med tre
+  // angivna axlar bara tre sugkoppar (provkörning mot drift 2026-11-17).
+  const axlarAngivna = isMultiAxis && perAxisStrokes.length >= 2;
+  if (endEffector && !griporganTillagg && !axlarAngivna && (endEffectorExplicitlyAsked(combinedText) || (!isMultiAxis && !isSystemScope))) {
     return await handleEndEffectorOptions(endEffector, combinedText, hazards, loadKg, locale, t0, kravbild);
   }
 

@@ -9,7 +9,7 @@ import {
   detectHazards, needsFoodGrade,
   theoreticalForceN, usableForceN, requiredForceN,
   SEAL_EFFICIENCY, LOAD_SAFETY_FACTOR,
-  isMultiFunctionSystem, needsMultiAxis, needsVacuumGrip, needsValveTerminal,
+  isMultiFunctionSystem, needsMultiAxis, needsVacuumGrip, needsValveTerminal, bokstavsaxlarITexten,
   needsAtex, needsAtexDust, needsVerticalLoad, needsHighTemp, needsLowTemp, utanIpProvvillkor,
   isHydraulicApplication, needsVeryHighForce, needsOxygenClean, needsHighCycle,
   needsHighSpeed, needsSilSafety, needsOutdoor, needsPharmaGmp, needsBatteryDryroom,
@@ -1064,4 +1064,18 @@ Deno.test("stopp som substantiv ger stötdämpare; stopp-positioner och nödstop
   assert(!detectCategories("elaxel med tre stopp-positioner, 0,5 m/s, 10 kg").includes("shock-absorber"));
   assert(!detectCategories("cylinder med nödstopp, 0,5 m/s, 10 kg").includes("shock-absorber"));
   assert(!detectCategories("elaxel med fem stopplägen, 1 m/s").includes("shock-absorber"));
+});
+
+// Provkörning mot drift 2026-11-17: plock och placera med x/y/z gav inga axlar.
+Deno.test("axlar som bokstav och längd: x 300 mm, y 150 mm; inte mått eller multiplikation", () => {
+  const pp = "plock och placera av kretskort 200 g, rörelse x 300 mm, y 150 mm och z 50 mm";
+  assert(needsMultiAxis(pp));
+  assertEquals(extractPerAxisStrokes({}, pp).map((a) => `${a.axis}${a.stroke}`), ["X300", "Y150", "Z50"]);
+  assertEquals(bokstavsaxlarITexten("X: 400 mm och Z=120mm"), [{ axis: "X", stroke: 400 }, { axis: "Z", stroke: 120 }]);
+  // Mått och multiplikation är inga axlar; en ensam axel räcker inte.
+  assertEquals(bokstavsaxlarITexten("lådor 300 x 200 x 150 mm"), []);
+  assertEquals(bokstavsaxlarITexten("3 x 300 mm slag"), []);
+  assertEquals(bokstavsaxlarITexten("rörelse x 300 mm"), []);
+  assert(!needsMultiAxis("lådor 300 x 200 x 150 mm, slag 200 mm"));
+  assert(needsMultiAxis("plock & placering av lock"));
 });

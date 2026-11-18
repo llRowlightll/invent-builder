@@ -484,6 +484,15 @@ export function extractPerAxisStrokes(answers: Record<string, string>, descripti
     if (!har.has(axel) && n >= 5 && n <= 15000) { result.push({ axis: axel, stroke: Math.round(n) }); har.add(axel); }
   }
   if (result.length >= 2) return result;
+  // Bara bokstaven: "rörelse x 300 mm, y 150 mm och z 50 mm" (provkörning mot
+  // drift 2026-11-17 gav inga axlar och bara sugkoppar). Inte ett mått eller en
+  // multiplikation ("300 x 200 x 150 mm", "3 x 300 mm"): ingen siffra före
+  // bokstaven. Godtas bara när minst två olika axlar står så.
+  const bokstavsaxlar = bokstavsaxlarITexten(description).filter((a) => !har.has(a.axis));
+  if (new Set([...har, ...bokstavsaxlar.map((a) => a.axis)]).size >= 2) {
+    for (const a of bokstavsaxlar) { result.push(a); har.add(a.axis); }
+    if (result.length >= 2) return result;
+  }
   for (const l of langderITexten(description)) {
     // "lyftslag 600 mm" läses som ett slag; ordet före avgör att det är lyftet.
     const fore = description.slice(Math.max(0, l.index - 16), l.index).toLowerCase();
@@ -494,6 +503,18 @@ export function extractPerAxisStrokes(answers: Record<string, string>, descripti
   return result;
 }
 
+/** "x 300 mm", "Y: 150 mm", "z=50mm" -- axelbokstav följd av en längd, utan siffra före. */
+export function bokstavsaxlarITexten(text: string): { axis: string; stroke: number }[] {
+  const ut: { axis: string; stroke: number }[] = [];
+  const sedda = new Set<string>();
+  for (const m of String(text ?? "").matchAll(/(?<!\d\s*)(?<![\wåäö-])([xyz])\s*[:=]?\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m)\b/gi)) {
+    const axel = m[1].toUpperCase();
+    const n = Number(m[2].replace(",", ".")) * (m[3].toLowerCase() === "cm" ? 10 : m[3].toLowerCase() === "m" ? 1000 : 1);
+    if (!sedda.has(axel) && n >= 5 && n <= 15000) { ut.push({ axis: axel, stroke: Math.round(n) }); sedda.add(axel); }
+  }
+  return ut.length >= 2 ? ut : [];
+}
+
 export function needsMultiAxis(text: string): boolean {
   // Axis patterns must be WORD-BOUNDED axis tokens (x-axel / XYZ / X-Z), NOT bare
   // letters: the old `x.*y|y.*x|x.*z|z.*x` matched any x/y/z across the whole string,
@@ -502,6 +523,8 @@ export function needsMultiAxis(text: string): boolean {
   // Lyft och sidled i samma beskrivning är två axlar (kundgranskningen
   // 2026-11-13: "lyftslag 600 mm, sidled 1200 mm" blev en enda cylinder).
   if (/(?:lyft|höjd|vertikal)\w*[^.]{0,60}\bsidled|\bsidled\w*[^.]{0,60}(?:lyft|höjd|vertikal)/i.test(text)) return true;
+  // "plock och placera" (utan a) och "x 300 mm, y 150 mm" (2026-11-17).
+  if (/\bplock\w*\s+(?:och|&)\s+placer/i.test(text) || bokstavsaxlarITexten(text).length >= 2) return true;
   if (/\b[xyz][-_\s]?ax(el|is|e)|\bxyz\b|\b[xyz]\s*[\/-]\s*[xyz]\b|två axl|två rörel|horisontell.*vertikal|vertikal.*horisontell|pick.and.place|pick.*place|plocka.*placera|plocka.*flytta|plocka.{0,80}\b(ställ|lägg|sätt)(a|er)\b|lyfter.*flytta|flytta.*lyft|2-axl|2 axl|multi.*axl|cartesian|portalsystem|lyfter.*flyttar|lyfter.*och.*flyttar/i.test(text)) return true;
 
   // Adversarial test finding 2026-08-16: "en enda cylinder som SAMTIDIGT lyfter,
