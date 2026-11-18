@@ -1109,8 +1109,13 @@ export function extractStatedForceN(text: string, answers: Record<string, string
   // säkerhetsfaktorn hör hemma (se requiredForceN).
   // Inte "gripkraft 500 N": det är griporganets krav, och med lyftet som
   // huvudval skulle det annars dimensionera lyftcylindern (#369:s granskning).
-  const m = text.match(/(?:\bpress\w*|\bkläm\w*|\bspänn\w*|\bstans\w*|\bnit\w*|(?<!grip|grepp|håll|hålla|vakuum|sug)kraft)[^\d.]{0,12}(\d+(?:[.,]\d+)?)\s*N\b/i);
-  return m ? parseFloat(m[1].replace(",", ".")) : 0;
+  // Upp till 40 tecken mellan ordet och talet, inom samma mening: "klämma fast
+  // trästycken innan borrning, 300 N" lästes som en vikt på 31 kg och
+  // dubblades till 600 N (provkörning mot drift 2026-11-17). Står ett viktord
+  // emellan ("pressa upp en last på 500 N") är newton en vikt, som förut.
+  const m = text.match(/(?:\bpress\w*|\bkläm\w*|\bspänn\w*|\bstans\w*|\bnit\w*|(?<!grip|grepp|håll|hålla|vakuum|sug)kraft)([^\d.]{0,40})(\d+(?:[.,]\d+)?)\s*N\b/i);
+  if (!m || /\b(?:last\w*|vikt\w*|väg\w*|weigh\w*|load\w*|massa?)\b/i.test(m[1])) return 0;
+  return parseFloat(m[2].replace(",", "."));
 }
 
 /** Extract required torque (Nm) for a rotary-actuator request. */

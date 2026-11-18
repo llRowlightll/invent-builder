@@ -1046,3 +1046,11 @@ Deno.test("uttrycklig borrning: talet före ordet läses, föremålets diameter 
   assertEquals(extractExplicitBoreMm("bore size 50, stroke 200", {}), 50);
   assertEquals(extractExplicitBoreMm("borrning: Ø 32", {}), 32);
 });
+
+// Provkörning mot drift 2026-11-17: klämkraften stod för långt från ordet.
+Deno.test("angiven kraft: inom samma mening läses den, en vikt emellan gör den till vikt", () => {
+  assertEquals(extractStatedForceN("klämma fast trästycken innan borrning, 300 N, slag 25 mm, 8 bar i nätet", {}), 300);
+  assertEquals(extractStatedForceN("pressa med 3000 N", {}), 3000);
+  assertEquals(extractStatedForceN("pressa upp en last på 500 N", {}), 0);
+  assertEquals(extractStatedForceN("klämma fast detaljen. Sedan lyfts 300 N", {}), 0, "ny mening");
+});
