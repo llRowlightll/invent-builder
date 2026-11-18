@@ -101,7 +101,59 @@ export interface PhysicsResult {
   warnings: string[];
 }
 
-export function computePhysics(dims: PhysicsDimensions): PhysicsResult {
+type Sprak = "sv" | "en" | "de" | "es";
+
+/**
+ * Raderna i chattens "Teknisk analys" på fyra språk. De var bara svenska, även
+ * under rubriken "Engineering analysis" (kritikerrundan 2026-11-18).
+ */
+const T = {
+  slag: (d: number) => ({ sv: `Kräver slag ≥ ${d} mm`, en: `Requires stroke ≥ ${d} mm`, de: `Erfordert Hub ≥ ${d} mm`, es: `Requiere carrera ≥ ${d} mm` }),
+  last: (m: number, f: number, sf: number, b: number) => ({
+    sv: `Last ${m} kg → kolvkraft ${f} N krävs (SF ${sf}×) → min borr ${b} mm`,
+    en: `Load ${m} kg → piston force ${f} N required (SF ${sf}×) → min bore ${b} mm`,
+    de: `Last ${m} kg → Kolbenkraft ${f} N erforderlich (SF ${sf}×) → min. Bohrung ${b} mm`,
+    es: `Carga ${m} kg → fuerza de pistón ${f} N necesaria (FS ${sf}×) → diámetro mín. ${b} mm`,
+  }),
+  mini: () => ({ sv: "Minicylinder / rundcylinder räcker (borr ≤ 16 mm)", en: "A mini / round cylinder is enough (bore ≤ 16 mm)", de: "Mini-/Rundzylinder reicht aus (Bohrung ≤ 16 mm)", es: "Basta un minicilindro / cilindro redondo (diámetro ≤ 16 mm)" }),
+  // Stod förut "borr 25–50 mm" direkt efter "min borr 50 mm".
+  standard: (b: number) => ({ sv: `Standardprofilcylinder rekommenderas (borr ${b} mm eller större)`, en: `Standard profile cylinder recommended (bore ${b} mm or larger)`, de: `Standard-Profilzylinder empfohlen (Bohrung ${b} mm oder größer)`, es: `Se recomienda un cilindro de perfil estándar (diámetro de ${b} mm o mayor)` }),
+  tung: (b: number) => ({ sv: `Tung profilcylinder krävs (borr ${b} mm eller större) — t.ex. DSBC eller CP96`, en: `Heavy profile cylinder required (bore ${b} mm or larger) — e.g. DSBC or CP96`, de: `Schwerer Profilzylinder erforderlich (Bohrung ${b} mm oder größer) — z. B. DSBC oder CP96`, es: `Se requiere un cilindro de perfil pesado (diámetro de ${b} mm o mayor) — p. ej. DSBC o CP96` }),
+  angivenBorr: (b: number) => ({ sv: `Angiven borrning: ${b} mm`, en: `Specified bore: ${b} mm`, de: `Angegebene Bohrung: ${b} mm`, es: `Diámetro indicado: ${b} mm` }),
+  precision: () => ({
+    sv: "Hög precision / repeterbarhet kräver ELEKTRISK axel (servomotor eller stegmotor). Pneumatik är komprimerbar och kan inte hålla exakt positionen mitt i slagets rörelse.",
+    en: "High precision / repeatability requires an ELECTRIC axis (servo or stepper motor). Air is compressible and cannot hold an exact position mid-stroke.",
+    de: "Hohe Präzision / Wiederholgenauigkeit erfordert eine ELEKTRISCHE Achse (Servo- oder Schrittmotor). Druckluft ist kompressibel und kann keine exakte Position mitten im Hub halten.",
+    es: "La alta precisión / repetibilidad requiere un eje ELÉCTRICO (servomotor o motor paso a paso). El aire es compresible y no puede mantener una posición exacta a mitad de carrera.",
+  }),
+  uteslutsPneumatik: () => ({ sv: "Pneumatiska cylindrar UTESLUTS — de uppnår inte kontrollerad precision mitt i slaget.", en: "Pneumatic cylinders EXCLUDED — they cannot achieve controlled precision mid-stroke.", de: "Pneumatikzylinder AUSGESCHLOSSEN — sie erreichen keine kontrollierte Präzision mitten im Hub.", es: "Cilindros neumáticos EXCLUIDOS — no logran una precisión controlada a mitad de carrera." }),
+  pickPlace: () => ({
+    sv: "Pick & place = SYSTEM med flera komponenter: (1) Linjäraxel/cylinder för horisontell rörelse, (2) Vertikal cylinder/axel för lyft, (3) Gripdon för att hålla komponenten.",
+    en: "Pick & place = SYSTEM with several components: (1) linear axis/cylinder for horizontal movement, (2) vertical cylinder/axis for lifting, (3) gripper to hold the part.",
+    de: "Pick & Place = SYSTEM aus mehreren Komponenten: (1) Linearachse/Zylinder für die horizontale Bewegung, (2) vertikaler Zylinder/Achse zum Heben, (3) Greifer zum Halten des Teils.",
+    es: "Pick & place = SISTEMA con varios componentes: (1) eje lineal/cilindro para el movimiento horizontal, (2) cilindro/eje vertical para elevar, (3) pinza para sujetar la pieza.",
+  }),
+  helaSystemet: () => ({ sv: "Visar hela systemet — gripdon och axlar, inte bara gripdonet.", en: "Shows the whole system — gripper and axes, not just the gripper.", de: "Zeigt das ganze System — Greifer und Achsen, nicht nur den Greifer.", es: "Muestra el sistema completo — pinza y ejes, no solo la pinza." }),
+  grip: () => ({ sv: "Gripapplikation → pneumatiskt gripdon", en: "Gripping application → pneumatic gripper", de: "Greifanwendung → pneumatischer Greifer", es: "Aplicación de agarre → pinza neumática" }),
+  vakuum: () => ({ sv: "Vakuumgrepp → sugkoppar och ejektor", en: "Vacuum grip → suction cups and ejector", de: "Vakuumgreifen → Sauggreifer und Ejektor", es: "Agarre por vacío → ventosas y eyector" }),
+  stanglos: () => ({ sv: "Kolvstångslös cylinder rekommenderas för långa slag", en: "Rodless cylinder recommended for long strokes", de: "Kolbenstangenloser Zylinder für lange Hübe empfohlen", es: "Se recomienda un cilindro sin vástago para carreras largas" }),
+  fart: () => ({
+    sv: "Hög hastighet: överväg kolvstångslös cylinder (DGC, CY1S) eller externa stötdämpare för inbromsning.",
+    en: "High speed: consider a rodless cylinder (DGC, CY1S) or external shock absorbers for deceleration.",
+    de: "Hohe Geschwindigkeit: kolbenstangenlosen Zylinder (DGC, CY1S) oder externe Stoßdämpfer zum Abbremsen erwägen.",
+    es: "Alta velocidad: considere un cilindro sin vástago (DGC, CY1S) o amortiguadores externos para la deceleración.",
+  }),
+  livsmedel: () => ({
+    sv: "Livsmedelsmiljö: välj ett utförande för tvätt – rostfritt, livsmedelsgodkänt fett (NSF H1) och tätningar som tål rengöringsmedlen. Kontrollera det i databladet.",
+    en: "Food environment: choose a washdown version – stainless, food-grade grease (NSF H1) and seals that withstand the cleaning agents. Check the datasheet.",
+    de: "Lebensmittelumgebung: eine abwaschbare Ausführung wählen – Edelstahl, lebensmitteltaugliches Fett (NSF H1) und Dichtungen, die den Reinigungsmitteln standhalten. Im Datenblatt prüfen.",
+    es: "Entorno alimentario: elija una versión apta para lavado – inoxidable, grasa de grado alimentario (NSF H1) y juntas que resistan los productos de limpieza. Compruébelo en la hoja de datos.",
+  }),
+  atex: () => ({ sv: "ATEX-klassad miljö: produkten måste ha Ex-certifiering (ATEX/UKEX).", en: "ATEX-classified environment: the product must be Ex-certified (ATEX/UKEX).", de: "ATEX-klassifizierte Umgebung: das Produkt muss Ex-zertifiziert sein (ATEX/UKEX).", es: "Entorno con clasificación ATEX: el producto debe tener certificación Ex (ATEX/UKEX)." }),
+};
+
+export function computePhysics(dims: PhysicsDimensions, locale = "sv"): PhysicsResult {
+  const l: Sprak = (["sv", "en", "de", "es"].includes(locale) ? locale : "en") as Sprak;
   const result: PhysicsResult = {
     minBore_mm: null,
     minStroke_mm: null,
@@ -115,7 +167,7 @@ export function computePhysics(dims: PhysicsDimensions): PhysicsResult {
   // ─── 1. STROKE ─────────────────────────────────────────────────────────────
   if (dims.distance_mm != null) {
     result.minStroke_mm = dims.distance_mm;
-    result.reasoning.push(`Kräver slag ≥ ${dims.distance_mm} mm`);
+    result.reasoning.push(T.slag(dims.distance_mm)[l]);
   }
 
   // ─── 2. BORE FROM MASS ─────────────────────────────────────────────────────
@@ -124,22 +176,20 @@ export function computePhysics(dims: PhysicsDimensions): PhysicsResult {
     const minBore = minBoreForMass(effectiveMass);
     result.minBore_mm = minBore;
     const force = effectiveMass * 9.81 * SAFETY_FACTOR;
-    result.reasoning.push(
-      `Last ${effectiveMass} kg → kolvkraft ${Math.round(force)} N krävs (SF ${SAFETY_FACTOR}×) → min borr ${minBore} mm`
-    );
+    result.reasoning.push(T.last(effectiveMass, Math.round(force), SAFETY_FACTOR, minBore)[l]);
     if (minBore <= 16) {
-      result.reasoning.push("Minicylinder / rundcylinder räcker (borr ≤ 16 mm)");
+      result.reasoning.push(T.mini()[l]);
     } else if (minBore <= 50) {
-      result.reasoning.push("Standardprofilcylinder rekommenderas (borr 25–50 mm)");
+      result.reasoning.push(T.standard(minBore)[l]);
     } else {
-      result.reasoning.push("Tung profilcylinder krävs (borr 63+ mm) — DSBC, CP96 eller liknande");
+      result.reasoning.push(T.tung(minBore)[l]);
     }
   }
 
   // Override bore if user explicitly stated bore
   if (dims.bore_hint_mm != null) {
     result.minBore_mm = dims.bore_hint_mm;
-    result.reasoning.push(`Användarspecificerat borr: ${dims.bore_hint_mm} mm`);
+    result.reasoning.push(T.angivenBorr(dims.bore_hint_mm)[l]);
   }
 
   // ─── 3. PRECISION → TECHNOLOGY ─────────────────────────────────────────────
@@ -147,13 +197,8 @@ export function computePhysics(dims: PhysicsDimensions): PhysicsResult {
     result.technology = "electric";
     // (servo-actuator had no DB row — servo/stepper axes ARE electric-actuators)
     result.categories = ["electric-actuator", "linear-module"];
-    result.reasoning.push(
-      "Hög precision / repeterbarhet kräver ELEKTRISK axel (servomotor eller stegmotor). " +
-      "Pneumatik är komprimerbar och kan inte hålla exakt positionen mitt i slagets rörelse."
-    );
-    result.warnings.push(
-      "Pneumatiska cylindrar UTESLUTS — de uppnår inte kontrollerad precision mid-stroke."
-    );
+    result.reasoning.push(T.precision()[l]);
+    result.warnings.push(T.uteslutsPneumatik()[l]);
   } else {
     result.technology = "pneumatic";
   }
@@ -168,31 +213,26 @@ export function computePhysics(dims: PhysicsDimensions): PhysicsResult {
         "gripper",             // end effector
         "electric-actuator",   // electric alternative for X
       ];
-      result.reasoning.push(
-        "Pick & place = SYSTEM med flera komponenter: " +
-        "(1) Linjäraxel/cylinder för horisontell rörelse, " +
-        "(2) Vertikal cylinder/axel för lyft, " +
-        "(3) Gripklo för att hålla komponenten."
-      );
+      result.reasoning.push(T.pickPlace()[l]);
       if (!result.warnings.length) {
-        result.warnings.push("Returnerar hela systemet — gripper + axlar, inte bara gripper.");
+        result.warnings.push(T.helaSystemet()[l]);
       }
       break;
 
     case "gripping":
       result.categories = ["gripper"];
-      result.reasoning.push("Gripper-applikation → pneumatisk gripklo");
+      result.reasoning.push(T.grip()[l]);
       break;
 
     case "vacuum_grip":
       result.categories = ["vacuum", "gripper"];
-      result.reasoning.push("Vakuumgrepp → vakuumkoppar + ejektorer");
+      result.reasoning.push(T.vakuum()[l]);
       break;
 
     case "rodless":
       // (rodless-cylinder had no DB row — rodless cylinders live in 'cylinder')
       result.categories = ["cylinder"];
-      result.reasoning.push("Kolvstångslös cylinder rekommenderas för långa slag");
+      result.reasoning.push(T.stanglos()[l]);
       break;
 
     case "rotary":
@@ -210,9 +250,7 @@ export function computePhysics(dims: PhysicsDimensions): PhysicsResult {
   // ─── 5. SPEED HINTS ────────────────────────────────────────────────────────
   if (dims.speed === "very_fast" || dims.speed === "fast") {
     if (result.technology !== "electric") {
-      result.reasoning.push(
-        "Hög hastighet: överväg kolvstångslös cylinder (DGC, CY1S) eller externa stötdämpare för inbromsning."
-      );
+      result.reasoning.push(T.fart()[l]);
     }
   }
 
@@ -220,10 +258,10 @@ export function computePhysics(dims: PhysicsDimensions): PhysicsResult {
   if (dims.environment === "food_grade") {
     // Nämnde förut "SMC CM2 rostfri serie" som exempel. CM2 är en standardcylinder,
     // ingen tvättserie -- och inget i katalogen styrker exemplet. Kraven räcker.
-    result.warnings.push("Livsmedelsmiljö: välj ett utförande för tvätt – rostfritt, livsmedelsgodkänt fett (NSF H1) och tätningar som tål rengöringsmedlen. Kontrollera det i databladet.");
+    result.warnings.push(T.livsmedel()[l]);
   }
   if (dims.environment === "atex") {
-    result.warnings.push("ATEX-klassad miljö: produkten måste ha Ex-certifiering (ATEX/UKEX).");
+    result.warnings.push(T.atex()[l]);
   }
 
   // Ensure we always have at least one category

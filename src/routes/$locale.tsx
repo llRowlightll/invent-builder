@@ -32,8 +32,13 @@ export const Route = createFileRoute("/$locale")({
       sv: "sv_SE", en: "en_US", de: "de_DE", es: "es_ES",
     };
     const denna = karta[params.locale as string] ?? "en_US";
+    // Standardtiteln på sidans språk; varje sida sätter sin egen ovanpå. Sidor
+    // utan egen titel, som 404-sidan, fick rotens engelska (kritikerrundan
+    // 2026-11-18).
+    const t = makeT(params.locale as Locale);
     return {
       meta: [
+        { title: `${t("common.appName")} — ${t("index.metaTitleSuffix")}` },
         { property: "og:locale", content: denna },
         ...Object.values(karta)
           .filter((l) => l !== denna)

@@ -24,3 +24,9 @@ Deno.test("koder, serier och tal rörs inte", () => {
   assertEquals(svensktVarde("10"), null);
   assertEquals(svensktVarde("Luftdämpning, effektiv dämpningslängd 5,8 mm"), null);
 });
+
+Deno.test("givarvärdena från kritikerrundan 2026-11-18 blir svenska", () => {
+  assertEquals(svensktVarde("Optional reed/PNP sensor"), "Reed- eller PNP-givare som tillval");
+  assertEquals(svensktVarde("Magnetic piston, T-slot sensor"), "Magnetkolv, T-spårsgivare");
+  assertEquals(svensktVarde("Proximity sensor; Inductive proximity"), "Närhetsgivare; Induktiv närhetsgivare");
+});

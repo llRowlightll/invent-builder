@@ -1,8 +1,12 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { getGuide, GUIDES } from "@/lib/guides";
 import { SITE, hreflangLinks } from "@/lib/site";
 
 export const Route = createFileRoute("/$locale/guider/$slug")({
+  // En guide som inte finns svarar 404 (se product.$sku.tsx).
+  loader: ({ params }) => {
+    if (!getGuide(params.slug)) throw notFound();
+  },
   head: ({ params }) => {
     const p = params as { slug: string; locale: string };
     const g = getGuide(p.slug);

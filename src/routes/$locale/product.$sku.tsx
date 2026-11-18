@@ -56,7 +56,10 @@ export const Route = createFileRoute("/$locale/product/$sku")({
       const kort = egen.length > 110 ? `${egen.slice(0, 110).replace(/\s+\S*$/, "")}…` : egen;
       desc = `${displayName} (${sku}) — ${categoryName(product.category.slug, locale, product.category.name)}.${kort ? ` ${kort}` : ""} ${ord.erbjudande}`;
     } else {
-      title = `${sku} — ${titleSuffix}`;
+      // Artikeln finns inte (sidan svarar 404): titeln säger det, i stället
+      // för "FINNS-INTE — köp & spec" som om den fanns.
+      const saknas = (SAKNAS[locale] ?? SAKNAS.en).rubrik;
+      title = `${saknas}: ${sku} | Maskinval`;
       ogTitle = `${sku} | Maskinval`;
       desc = `${sku} — ${ord.komponent}. ${ord.erbjudande}`;
     }
@@ -92,6 +95,10 @@ export const Route = createFileRoute("/$locale/product/$sku")({
       .eq("sku", params.sku)
       .eq("status", "active")
       .maybeSingle();
+    // En artikel som inte finns (eller inte är aktiv) ska svara 404, inte
+    // 200 med en tom sida -- en "mjuk 404" som Google kan indexera
+    // (kritikerrundan 2026-11-18). Ett databasfel är inte en saknad artikel.
+    if (!error && !data) throw notFound();
     if (error || !data) return { product: null, pris: null };
     const d = data as unknown as {
       id: string; sku: string; name: string; name_en: string | null; description: string | null; description_en: string | null; description_de: string | null; description_es: string | null; family: string | null;
