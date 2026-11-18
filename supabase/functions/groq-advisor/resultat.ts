@@ -275,8 +275,59 @@ const LAMPLIGHETSPASTAENDE = new RegExp([
   String.raw`\bhög\s+säkerhet|\bhigh\s+(?:level\s+of\s+)?safety\b|\bhohe[rn]?\s+sicherheit|\balta\s+seguridad`,
 ].join("|"), "i");
 
+// Skydd mot fall eller tryckförlust som tillskrivs något annat än en broms
+// (kritikerrundan 2026-11-18): "ISO 15552-cylinder med pålitlig tätning för
+// kontrollerad vertikal lyftning och skydd vid tryckförlust", fast kunden
+// skrivit att personal arbetar under lasten. En cylinder, en tätning eller en
+// backventil håller inte lasten vid slangbrott eller nödstopp. En mening om
+// vad en broms gör står kvar ("Stångbromsen håller lasten vid tryckfall").
+const FALLSKYDDSPASTAENDE = new RegExp([
+  String.raw`\bskydd\w*\s+(?:vid|mot)\s+(?:tryck\w*|luft\w*|fall\w*|ras\b)`,
+  String.raw`\bförhindra\w*\s+(?:att\s+(?:lasten|den)\s+(?:faller|sjunker|rasar)|fall\b|ras\b)`,
+  String.raw`\bprotect\w*\s+(?:against|on|from|in\s+case\s+of)\s+(?:a\s+)?(?:pressure|air|falling|drop)`,
+  String.raw`\bprevent\w*\s+(?:the\s+load\s+from\s+)?(?:falling|dropping)`,
+  String.raw`\bschutz\s+(?:bei|gegen|vor)\s+(?:druck\w*|luft\w*|absturz\w*|herabfallen)`,
+  String.raw`\bverhinder\w*\s+(?:das\s+|ein\s+)?(?:absinken|herabfallen|abstürzen|abstürzen\s+der\s+last)`,
+  String.raw`\bprotecci\S*\s+(?:ante|contra|en\s+caso\s+de)\s+(?:la\s+|una\s+)?(?:pérdida|caída|fallo)`,
+  String.raw`\bevita\w*\s+(?:la\s+caída|que\s+la\s+carga\s+caiga)`,
+].join("|"), "i");
+const BROMS = /broms|rod.?lock|brake|bremse|freno|bloqueo\s+de\s+vástago/i;
+
 export function utanSakerhetspastaenden(text: string): string {
   if (!text) return text;
   const meningar = text.match(/[^.!?]+[.!?]*/g) ?? [text];
-  return meningar.filter((m) => !SAKERHETSPASTAENDE.test(m) && !LAMPLIGHETSPASTAENDE.test(m)).join("").trim();
+  return meningar
+    .filter((m) => !SAKERHETSPASTAENDE.test(m) && !LAMPLIGHETSPASTAENDE.test(m))
+    .filter((m) => !(FALLSKYDDSPASTAENDE.test(m) && !BROMS.test(m)))
+    .join("").trim();
+}
+
+/**
+ * Säkerhetsrutan överst i svaret vid vertikal last (kritikerrundan
+ * 2026-11-18). Kravet på broms stod förut bara i stycklistan och i det
+ * fjärde kortet, medan modellens sammanfattning lovade skydd. Med personal
+ * under lasten räcker ingen backventil: lasten ska hållas mekaniskt, och
+ * säkerhetsnivån bestäms i maskinens riskbedömning, inte av en komponent.
+ */
+export function fallsakerhetstext(locale: string, personalUnder: boolean): string {
+  const t: Record<string, [string, string]> = {
+    sv: [
+      "⚠️ Personal under lasten. En cylinder håller inte lasten när trycket faller, en slang går sönder eller nödstoppet löser ut. Det krävs en mekanisk broms som håller lasten utan luft och ström: stångbroms på en cylinder, hållbroms på en elektrisk axel. En backventil räcker inte ensam. Säkerhetsnivån (PL) och hur säkerhetsfunktionen byggs och valideras bestäms i maskinens riskbedömning.",
+      "⚠️ Vertikal last. En cylinder håller inte lasten när trycket faller. En pilotstyrd backventil håller kvar trycket men inte lasten vid slangbrott eller nödstopp. Får lasten aldrig falla krävs en mekanisk broms: stångbroms på en cylinder, hållbroms på en elektrisk axel.",
+    ],
+    en: [
+      "⚠️ People under the load. A cylinder does not hold the load when pressure drops, a hose bursts or the emergency stop trips. A mechanical brake that holds the load without air or power is required: a rod lock on a cylinder, a holding brake on an electric axis. A check valve alone is not enough. The safety level (PL) and how the safety function is built and validated are set by the machine's risk assessment.",
+      "⚠️ Vertical load. A cylinder does not hold the load when pressure drops. A pilot-operated check valve traps the pressure but does not hold the load through a hose rupture or an emergency stop. If the load must never fall, a mechanical brake is required: a rod lock on a cylinder, a holding brake on an electric axis.",
+    ],
+    de: [
+      "⚠️ Personen unter der Last. Ein Zylinder hält die Last nicht, wenn der Druck abfällt, ein Schlauch platzt oder der Not-Halt auslöst. Erforderlich ist eine mechanische Bremse, die die Last ohne Luft und Strom hält: eine Kolbenstangenbremse am Zylinder, eine Haltebremse an der elektrischen Achse. Ein Rückschlagventil allein reicht nicht. Das Sicherheitsniveau (PL) sowie Aufbau und Validierung der Sicherheitsfunktion ergeben sich aus der Risikobeurteilung der Maschine.",
+      "⚠️ Vertikale Last. Ein Zylinder hält die Last nicht, wenn der Druck abfällt. Ein entsperrbares Rückschlagventil hält den Druck, aber nicht die Last bei Schlauchbruch oder Not-Halt. Darf die Last nie fallen, ist eine mechanische Bremse erforderlich: eine Kolbenstangenbremse am Zylinder, eine Haltebremse an der elektrischen Achse.",
+    ],
+    es: [
+      "⚠️ Personas bajo la carga. Un cilindro no sujeta la carga cuando cae la presión, revienta una manguera o se activa la parada de emergencia. Se requiere un freno mecánico que sujete la carga sin aire ni corriente: un bloqueo de vástago en un cilindro, un freno de mantenimiento en un eje eléctrico. Una válvula antirretorno sola no basta. El nivel de seguridad (PL) y cómo se construye y valida la función de seguridad los determina la evaluación de riesgos de la máquina.",
+      "⚠️ Carga vertical. Un cilindro no sujeta la carga cuando cae la presión. Una válvula antirretorno pilotada retiene la presión, pero no sujeta la carga ante una rotura de manguera o una parada de emergencia. Si la carga nunca debe caer, se requiere un freno mecánico: un bloqueo de vástago en un cilindro, un freno de mantenimiento en un eje eléctrico.",
+    ],
+  };
+  const [personal, vertikal] = t[locale] ?? t.en;
+  return personalUnder ? personal : vertikal;
 }

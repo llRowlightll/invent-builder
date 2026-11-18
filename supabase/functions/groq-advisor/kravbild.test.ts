@@ -274,12 +274,15 @@ Deno.test("personal under lasten står som säkerhetskrav", () => {
     "Operatören står ibland under lyftet",
     "People work underneath the load",
     "Under lasten går personal",
+    "Vertikal lyft av 40 kg, 300 mm slag, personal arbetar ibland under lasten.",
+    "Mitarbeiter stehen manchmal unter der Last",
+    "Hay operarios trabajando debajo de la carga",
   ]) {
     assert(personalUnderLasten(text), text);
     const kb = tolkaKravbild(text);
     assert(hitta(kb, "maskin", "sakerhet").some((k) => k.text === "Personal under lasten: lasten får inte falla"), text);
   }
-  for (const text of ["Personalen lastar lådorna", "Under drift ska ingen personal vara i cellen", "Lasten under 5 kg"]) {
+  for (const text of ["Personalen lastar lådorna", "Under drift ska ingen personal vara i cellen", "Lasten under 5 kg", "Personal belädt die Maschine unter 5 kg", "Las personas cargan menos de 5 kg"]) {
     assert(!personalUnderLasten(text), text);
   }
 });

@@ -46,6 +46,8 @@ interface Msg {
   followups?: string[]; // clickable follow-up suggestion chips
   advisorOptions?: AdvisorOption[];
   advisorRequirements?: AdvisorRequirements | null;
+  /** Säkerhetsrutan vid vertikal last, överst i svaret. */
+  advisorSakerhet?: string;
 }
 
 /** One ranked option from groq-advisor's action:"options" — same shape machine-builder
@@ -76,7 +78,7 @@ interface AdvisorRequirements {
 
 /** Direct call to groq-advisor via the shared client (timeout + 503 handling). */
 function advisorOptionsCall(description: string, locale: string): Promise<{
-  summary: string; options: AdvisorOption[]; requirements: AdvisorRequirements | null;
+  summary: string; options: AdvisorOption[]; requirements: AdvisorRequirements | null; sakerhet?: string;
 }> {
   return callAdvisor({ action: "options", description, answers: {}, locale });
 }
@@ -391,6 +393,7 @@ function ChatPage() {
               text: result.summary,
               advisorOptions: result.options,
               advisorRequirements: result.requirements,
+              advisorSakerhet: result.sakerhet,
             };
             if (idx === -1) return [...m, optMsg];
             return [...m.slice(0, idx), optMsg, ...m.slice(idx + 1)];
@@ -424,6 +427,7 @@ function ChatPage() {
             text: svar.summary,
             advisorOptions: svar.options,
             advisorRequirements: svar.requirements,
+            advisorSakerhet: svar.sakerhet,
           }];
         });
 
@@ -675,6 +679,13 @@ function ChatPage() {
                 <div key={i} className="flex items-start gap-2">
                   <span className="size-6 rounded-full bg-info/15 text-info text-xs flex items-center justify-center shrink-0 mt-0.5">✦</span>
                   <div className="space-y-2 max-w-2xl w-full">
+                    {/* Säkerheten först: vid vertikal last står kravet på broms
+                        här, före sammanfattningen och alternativen. */}
+                    {m.advisorSakerhet && (
+                      <div role="note" className="rounded-xl px-4 py-3 text-sm bg-warning-surface border border-warning-deep text-warning-deep font-medium">
+                        {m.advisorSakerhet}
+                      </div>
+                    )}
                     {m.text && (
                       <div className="rounded-xl px-4 py-3 text-sm bg-surface-alt border border-border text-foreground">
                         {m.text}

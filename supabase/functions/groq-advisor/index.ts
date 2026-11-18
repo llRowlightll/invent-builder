@@ -33,9 +33,9 @@ import {
   repeterbarhetMm,
 } from "./scoring.ts";
 import { LANGRE_SLAG_PRO, rensaSerieslag, rensaPositionsPros, rensaMotsagelser, produktdataText } from "./prosavakt.ts";
-import { delaSvar, tolkaKravbild, type Kravbild, type Tolkningsbeslut } from "./kravbild.ts";
+import { delaSvar, personalUnderLasten, tolkaKravbild, type Kravbild, type Tolkningsbeslut } from "./kravbild.ts";
 import { provaTemperatur, provaTryck, tolkaKravSpanning } from "./kontroller.ts";
-import { byggResultat, utanSakerhetspastaenden } from "./resultat.ts";
+import { byggResultat, fallsakerhetstext, utanSakerhetspastaenden } from "./resultat.ts";
 import { byggGripdonsalternativ, byggVakuumalternativ } from "./griporgan.ts";
 import {
   langName,
@@ -2082,6 +2082,9 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
       })
     : summary) + griporganNot;
 
+  // Säkerhetsrutan överst i chatten vid vertikal last (se fallsakerhetstext).
+  const sakerhet = isVerticalLoad ? fallsakerhetstext(locale, personalUnderLasten(combinedText)) : undefined;
+
   const requirements = {
     load_kg: loadKg > 0 ? loadKg : null,
     required_force_n: requiredForceN > 0 ? requiredForceN : null,
@@ -2126,6 +2129,7 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
     });
     return Response.json({
       summary: `${degradedNote}\n\n${finalSummary}`,
+      sakerhet,
       // Också här: utan modellen är kravstatusen det kunden har att gå på
       // (den tyska kontrollkörningen efter #451 fick den på engelska).
       options: kravstatusPaSprak(finalOptions, locale),
@@ -2136,7 +2140,7 @@ JSON: { "summary": "1-2 sentences: mechanism + safety", "options": [ { "sku": "E
 
   logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: finalOptions[0]?.sku ?? null, option_count: finalOptions.length }, true);
   // Kravstatusen på tyska och spanska (kravstatus-sprak.ts).
-  return Response.json({ summary: finalSummary, options: kravstatusPaSprak(finalOptions, locale), requirements }, { headers: CORS });
+  return Response.json({ summary: finalSummary, sakerhet, options: kravstatusPaSprak(finalOptions, locale), requirements }, { headers: CORS });
 }
 
 /**
