@@ -754,6 +754,25 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     });
   }
 
+  // ── 1. Flera cylindrar på samma last ─────────────────────────────────
+  // Nattestet 2026-11-19: "två cylindrar som ska lyfta ett bord på 80 kg
+  // synkront" fick en cylinder utan förbehåll. Pneumatiska cylindrar går inte
+  // i takt av sig själva; bordet kantar och kärvar utan mekanisk synkning.
+  // Dimensioneringen står kvar på hela lasten per cylinder (säker sida).
+  if (/\b(?:två|2|tre|3|fyra|4|two|three|four|zwei|drei|vier|dos|tres|cuatro)\s+(?:cylindrar|cylinders?|zylinder|cilindros)\b[^.]{0,80}\b(?:synkron\w*|synchron\w*|samtidigt|i takt|simultaneous\w*|together|gleichzeitig|sincroniz\w*|a la vez|al mismo tiempo)/i.test(ctx.griporganText ?? "")) {
+    rows.push({
+      sku: "SPECIFY", quantity: 1,
+      kind: "warning",
+      role: pick(locale, { sv: "⚠️ Flera cylindrar på samma last: synkning krävs", en: "⚠️ Several cylinders on one load: synchronisation required", de: "⚠️ Mehrere Zylinder an einer Last: Synchronisation erforderlich", es: "⚠️ Varios cilindros en una carga: se requiere sincronización" }),
+      reason: pick(locale, {
+        sv: "Pneumatiska cylindrar går inte i takt av sig själva — luften är kompressibel och lasten fördelas sällan jämnt, så bordet kantar och kärvar. Lös det mekaniskt: linjärstyrningar med en synkroniseringsaxel (kuggstång/kugghjul), eller en cylinder i mitten med styrning. Cylindern ovan är dimensionerad för hela lasten.",
+        en: "Pneumatic cylinders do not move in step by themselves — air is compressible and the load is rarely shared evenly, so the table tilts and binds. Solve it mechanically: linear guides with a synchronising shaft (rack and pinion), or one central cylinder with guides. The cylinder above is sized for the whole load.",
+        de: "Pneumatikzylinder laufen nicht von selbst synchron — Luft ist kompressibel und die Last verteilt sich selten gleichmäßig, sodass der Tisch verkantet und klemmt. Mechanisch lösen: Linearführungen mit Synchronwelle (Zahnstange/Ritzel) oder ein mittiger Zylinder mit Führung. Der Zylinder oben ist für die ganze Last ausgelegt.",
+        es: "Los cilindros neumáticos no se mueven sincronizados por sí solos — el aire es compresible y la carga rara vez se reparte por igual, así que la mesa se inclina y se atasca. Resuélvalo mecánicamente: guías lineales con un eje de sincronización (cremallera y piñón) o un cilindro central con guía. El cilindro de arriba está dimensionado para toda la carga.",
+      }),
+    });
+  }
+
   // ── 1a. Griporganet till ett lyft (ägarens beslut 2026-11-12) ─────────
   // Lyftet är huvudvalet och griporganet en egen rad: båda ingår i offerten.
   // Gripdonet väljs som det minsta som når gripkraften (vikt × 100 N eller
@@ -965,9 +984,12 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   // otherwise SPECIFY with the required Ø called out — never a mismatched lock.
   // En kolvstångslös cylinder har ingen kolvstång att låsa (nattestet
   // 2026-11-19): raden ber då om en broms för vagnen i stället.
+  // Namnet ur ctx.primaryName (hämtat för primären); poolen behöver inte
+  // innehålla den (den spanska dörren 2026-11-19 fick en stångbroms ändå).
   const primarProdukt = products.find((p) => p.sku === ctx.primarySku);
-  const primarKolvstangslos = !primarArGriporgan && primarProdukt?.category === "cylinder" &&
-    /rodless|kolvstångslös|stånglös|band cylinder/i.test(`${primarProdukt.name} ${primarProdukt.key_specs?.cylinder_type ?? ""}`);
+  const primarNamn = `${ctx.primaryName ?? primarProdukt?.name ?? ""} ${ctx.primarySpecs?.cylinder_type ?? primarProdukt?.key_specs?.cylinder_type ?? ""}`;
+  const primarKolvstangslos = !primarArGriporgan && (ctx.primaryCategory ?? primarProdukt?.category) === "cylinder" &&
+    /rodless|kolvstångslös|stånglös|band cylinder/i.test(primarNamn);
   if (isRodLock && isPneumatic && lyftetIngar && primarKolvstangslos) {
     rows.push({
       sku: "SPECIFY", quantity: uc,

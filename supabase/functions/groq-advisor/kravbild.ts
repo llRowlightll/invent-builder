@@ -329,7 +329,8 @@ const FYLL = String.raw`(?:\s*(?:är|blir|på|om|av|med|of|is|by|de|von|ca\.?|ci
 // "carrera"/"recorrido" (es): den spanska provkörningen 2026-11-18 fick frågan
 // om slaglängd trots "carrera 200 mm".
 const SLAG_FORE = new RegExp(String.raw`(?:slaglängd\w*|\bslag(?:et)?|\bstroke|\bhub|\bcarrera|\brecorrido|lyfthöjd\w*|lyftslag\w*|\blift height|\btravel|vandring\w*|rörelselängd\w*|\brörelse(?:n|ns)?|\bsträcka\w*)${FYLL}`, "i");
-const SLAG_EFTER = /^\s*(?:slag\w*|stroke)/i;
+// "250 mm Hub", "300 mm de carrera", "300 mm travel" (nattestet 2026-11-19).
+const SLAG_EFTER = /^\s*(?:slag\w*|stroke|hub\b|(?:de\s+)?carrera|(?:de\s+)?recorrido|travel)/i;
 // Ett komma eller en punkt efter talet är skiljetecken, inte decimaler:
 // "slag 200, 6 bar" lästes inte (driftprovet 2026-11-16) och gav Ø50×100
 // som "Bästa valet". Bara [.,] följt av en siffra är en decimal.

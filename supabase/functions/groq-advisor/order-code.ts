@@ -115,7 +115,12 @@ export function resolveOrderCode(
 
   for (const fam of sorted) {
     if (fam.bores.length === 0) continue;
-    const tail = stripFamilyPrefix(code, fam);
+    // SMC skriver magnetkolven som ett D efter C: CDQ2B32-50 är en CQ2 med
+    // magnet, CDJ2 en CJ2 (nattestet 2026-11-19: CDQ2B32-50DZ gav Ø40).
+    const smcMagnet = /^CD[A-Z]/i.test(code) && /^C/i.test(fam.name)
+      ? stripFamilyPrefix("C" + code.slice(2), fam)
+      : null;
+    const tail = stripFamilyPrefix(code, fam) ?? smcMagnet;
     if (tail === null) continue;
 
     const nums = numbersIn(tail);

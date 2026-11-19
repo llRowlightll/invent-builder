@@ -1297,3 +1297,19 @@ Deno.test("pallstopp med stötdämpare får en stoppcylinder (nattestet 2026-11-
   const utan = buildMandatoryBomRows(bomCtx({ primarySku: "SMC-RB2015", primaryCategory: "shock-absorber", griporganText: "Stötdämpare till en linjärenhet" }));
   assert(!utan.some((r) => /Stoppcylinder/.test(r.role)));
 });
+
+Deno.test("vagnbromsen gäller även när primären inte finns i poolen, bara i primaryName", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "R480146987", primaryCategory: "cylinder", primaryName: "AVENTICS RTC-HD Ø50 kolvstångslös cylinder, 600 mm",
+    isVerticalLoad: true, isRodLock: true, primaryBoreMm: 50, locale: "es",
+  }));
+  const lock = rows.find((r) => r.kind === "rod_lock");
+  assert(lock && /carro/i.test(lock.role), lock?.role);
+});
+
+Deno.test("två cylindrar på samma last får en varning om synkning (nattestet 2026-11-19)", () => {
+  const rows = buildMandatoryBomRows(bomCtx({ primarySku: "TEST-PRIMARY", griporganText: "Två cylindrar som ska lyfta ett bord på 80 kg synkront 200 mm" }));
+  assert(rows.some((r) => r.kind === "warning" && /synkning/.test(r.role)), rows.map((r) => r.role).join(" | "));
+  const en = buildMandatoryBomRows(bomCtx({ primarySku: "TEST-PRIMARY", griporganText: "Lift a 50 kg fixture 500 mm" }));
+  assert(!en.some((r) => /synk/i.test(r.role)));
+});

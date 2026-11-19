@@ -1488,7 +1488,7 @@ async function handleOptions(
     .map((f) => begardStandard(`${f.name} ${f.specs?.standard ?? ""}`))
     .find((s): s is string => !!s) ?? null;
   const kravStandard = begardStandard(combinedText) ?? kodStandard;
-  const scoringCtx: ScoringCtx = { requiredStroke: maxRequiredStroke, minBoreMm, requiredForceN, isHighPrecision, isHighSpeed, precisionMm, speedMs, isVertical: isVerticalLoad, isWashdown: needsCorrosionResistant, isAtex, preferredBrands: detectRequestedBrands(combinedText), explicitBoreMm, isFood: hazards.isFoodGrade, begardStandard: kravStandard, enhetBegard: enhetBegard(combinedText) };
+  const scoringCtx: ScoringCtx = { kodFamilj: codeReading.resolved[0]?.familyName ?? null, requiredStroke: maxRequiredStroke, minBoreMm, requiredForceN, isHighPrecision, isHighSpeed, precisionMm, speedMs, isVertical: isVerticalLoad, isWashdown: needsCorrosionResistant, isAtex, preferredBrands: detectRequestedBrands(combinedText), explicitBoreMm, isFood: hazards.isFoodGrade, begardStandard: kravStandard, enhetBegard: enhetBegard(combinedText) };
   // Önskat fabrikat får en plats om det finns i underlaget (scoring.ts).
   // Ventilöar rangordnas också efter fältbussen och antalet platser kunden
   // angett (komponentkrav.ts). "ventilö för 8 cylindrar med PROFINET" fick
