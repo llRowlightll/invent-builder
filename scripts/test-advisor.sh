@@ -24,7 +24,18 @@ FAILURES=()
 #
 # Att pacea proaktivt är långsammare men gör körningen meningsfull. Sätt
 # ADVISOR_PACE_S=0 lokalt när kvoten är ledig.
-PACE_S="${ADVISOR_PACE_S:-16}"
+# Utan AI (standard): motorn svarar som när kvoten är slut -- samma val och
+# stycklista, ingen modellprosa -- och sviten bränner inte besökarnas
+# Groq-kvot vid varje driftsättning (2026-11-19). ADVISOR_UTAN_AI=0 kör med
+# modellen och den gamla takten.
+UTAN_AI="${ADVISOR_UTAN_AI:-1}"
+if [[ "$UTAN_AI" == "1" ]]; then
+  UTAN_AI_HEADER=(-H "x-maskinval-utan-ai: 1")
+  PACE_S="${ADVISOR_PACE_S:-2}"
+else
+  UTAN_AI_HEADER=()
+  PACE_S="${ADVISOR_PACE_S:-16}"
+fi
 FIRST_CALL=1
 # Sätts när dygnskvoten bedöms slut. Skillnaden mot minutkvoten är avgörande:
 # ett TPM-tak släpper efter en minut och är värt att vänta ut, ett TPD-tak
@@ -53,6 +64,7 @@ advisor_call() {
     result=$(curl -s -X POST "$URL" \
       -H "Content-Type: application/json" \
       -H "Authorization: Bearer $KEY" \
+      ${UTAN_AI_HEADER[@]+"${UTAN_AI_HEADER[@]}"} \
       -d "$body")
     if ! echo "$result" | grep -q '"rate_limited"'; then
       CONSECUTIVE_LIMITED=0
@@ -107,9 +119,12 @@ is_rate_limited() {
 try:
   d=json.load(sys.stdin)
   sys.exit(0 if d.get('error')=='rate_limited' else 1)
-except: sys.exit(1)" 2>/dev/null
+except Exception: sys.exit(1)" 2>/dev/null
 }
 
+# Obs: `except Exception`, inte bara `except:`. Ett naket except fångar även
+# sys.exit(1) i try-blocket, så varje giltigt svar räknades som oanvändbart och
+# T01, T04, T04b, T29 och T41 hoppades alltid över (hittat 2026-11-19).
 # Returns exit 0 if an OPTIONS response is unusable — any error, unparseable, or no
 # options at all (e.g. a rate-limit that survived the retry, returning an empty/error
 # body). Caller should SKIP rather than FAIL on these transient/infra responses.
@@ -118,7 +133,7 @@ options_unusable() {
 try:
   d=json.load(sys.stdin)
   sys.exit(0 if (d.get('error') or not d.get('options')) else 1)
-except: sys.exit(0)" 2>/dev/null
+except Exception: sys.exit(0)" 2>/dev/null
 }
 
 # Som check(), men tittar BARA på en BOM-rads artikelnummer.
@@ -714,7 +729,7 @@ print(best.get('sku','NONE'))
 " 2>/dev/null || echo "ERR")
 if options_unusable "$R"; then
   echo "  ⚠️  T29 [SKIP — rate limited / empty response]"; ((SKIP++))
-elif echo "$BEST29" | python3 -c "import sys,re; sys.exit(0 if re.match(r'^(6E-|FESTO-EG|FESTO-EP|FESTO-DNCE|SMC-LE|SMC-MXS|MW-ELK|PARKER-ETH|PARKER-OSPE)',sys.stdin.read().strip(),re.I) else 1)" 2>/dev/null; then
+elif echo "$BEST29" | python3 -c "import sys,re; sys.exit(0 if re.match(r'^(6E-?|FESTO-EG|FESTO-EP|FESTO-DNCE|SMC-LE|SMC-MXS|MW-ELK|PARKER-ETH|PARKER-OSPE)',sys.stdin.read().strip(),re.I) else 1)" 2>/dev/null; then
   echo "  ✅ T29 precision → elektrisk SKU ($BEST29)"; ((PASS++))
 else
   echo "  ❌ T29 precision gav fel/ingen elektrisk ($BEST29)"; ((FAIL++)); FAILURES+=("T29 precision best=$BEST29")
@@ -856,7 +871,8 @@ else
 import sys, json, re
 d = json.load(sys.stdin)
 s = json.dumps(d, ensure_ascii=False)
-bores = [int(x) for x in re.findall(r"Ø\s*(\d{2,3})", s)]
+# "serien finns i Ø32,40,50,..." är seriens storlekar, inget förslag.
+bores = [int(x) for x in re.findall(r"Ø\s*(\d{2,3})(?![,\d–-])", s)]
 bores += [int(x) for x in re.findall(r"bore_mm\D{0,4}(\d{2,3})", s)]
 small = sorted({b for b in bores if b < 50})
 print("SMALLER:" + ",".join(map(str, small)) if small else "OK")

@@ -64,3 +64,34 @@ Deno.test("svenska böjningsfel rättas, t-ord lämnas", () => {
   assertEquals(svenskFix("Ett pneumatiskt gripdon"), "Ett pneumatiskt gripdon");
   assertEquals(svenskFix("Sittar komponenten i livsmedelszonen?"), "Sitter komponenten i livsmedelszonen?");
 });
+
+// ── Omgång 2: rangordningen ──────────────────────────────────────────────────
+import { grovtOverdimensionerad, kodensSerie, rankActuators, type CatalogProduct, type ScoringCtx } from "./scoring.ts";
+
+const ctx = (x: Partial<ScoringCtx>): ScoringCtx => ({
+  requiredStroke: 0, minBoreMm: 0, isHighPrecision: false, isHighSpeed: false, isVertical: false, isWashdown: false, isAtex: false, ...x,
+} as ScoringCtx);
+const cyl = (sku: string, name: string, brand: string, ks: Record<string, unknown>): CatalogProduct => ({ sku, name, brand, category: "cylinder", key_specs: ks });
+
+Deno.test("ett utbyte får kodens egen serie, om den täcker kravet", () => {
+  const dsbc = cyl("FESTO-DSBC", "DSBC – ISO 15552 Standard Cylinder", "festo", { stroke_mm: "2800", bore_mm: "50", is_family: true });
+  const pra = cyl("0822122007", "AVENTICS PRA Ø50 200mm", "aventics", { stroke_mm: "200", bore_mm: "50", force_n: "1178" });
+  const kort = cyl("FESTO-DSBC-K", "DSBC kort", "festo", { stroke_mm: "100", bore_mm: "50" });
+  const c = ctx({ kodFamilj: "DSBC", requiredStroke: 200 });
+  assertEquals(rankActuators([dsbc, pra], c)[0].sku, "0822122007"); // rangordningen själv ändras inte
+  assertEquals(kodensSerie([pra, dsbc, kort], c)?.sku, "FESTO-DSBC");
+  assertEquals(kodensSerie([pra, kort], c), null); // för kort slag täcker inte kravet
+  assertEquals(kodensSerie([pra, dsbc], ctx({ requiredStroke: 200 })), null);
+});
+
+Deno.test("en lagerartikel med tio gånger kraften hamnar efter serien i rätt storlek", () => {
+  const o63 = cyl("90M2A063A200", "Serie 90 – Stainless Steel Cylinder Ø63×200", "camozzi", { stroke_mm: "200", bore_mm: "63", force_n: "1870" });
+  const crd = cyl("FESTO-CRDSNU-12", "Festo CRDSNU-12", "festo", { stroke_mm: "320", bore_mm: "12", force_n: "68", is_family: true });
+  const c = ctx({ requiredStroke: 150, requiredForceN: 39 });
+  assert(grovtOverdimensionerad(o63, c));
+  assertEquals(rankActuators([o63, crd], c).map((p) => p.sku), ["FESTO-CRDSNU-12", "90M2A063A200"]);
+  // En borrning kunden själv angett är ett krav.
+  assert(!grovtOverdimensionerad(o63, ctx({ requiredStroke: 150, requiredForceN: 39, explicitBoreMm: 63 })));
+  // Med en kraft i rätt storleksordning är lagerartikeln fortfarande först.
+  assertEquals(rankActuators([o63, crd], ctx({ requiredStroke: 150, requiredForceN: 800 }))[0].sku, "90M2A063A200");
+});

@@ -262,12 +262,17 @@ def gen_scenario(rng):
 
 
 # ── API ────────────────────────────────────────────────────────────────────────
+# Invarianterna gäller produktvalet, som motorn gör utan AI; utan huvudet brände
+# nattens körning besökarnas Groq-kvot (2026-11-19). ADVISOR_UTAN_AI=0 kör med modellen.
+UTAN_AI_HEADER = [] if os.environ.get("ADVISOR_UTAN_AI", "1") == "0" else ["-H", "x-maskinval-utan-ai: 1"]
+
+
 def call(action, scenario, primary=None, retries=1):
     body = {"action": action, "locale": "sv", "description": scenario["description"], "answers": scenario["answers"]}
     if primary:
         body["primarySku"] = primary
     cmd = ["curl", "-s", "-X", "POST", URL, "-H", "Content-Type: application/json",
-           "-H", f"Authorization: Bearer {KEY}", "-d", json.dumps(body)]
+           "-H", f"Authorization: Bearer {KEY}", *UTAN_AI_HEADER, "-d", json.dumps(body)]
     for attempt in range(retries + 1):
         try:
             out = subprocess.run(cmd, capture_output=True, text=True, timeout=35).stdout
