@@ -1253,3 +1253,47 @@ Deno.test("en ventilterminal som primär får ingen andra ventilterminal (nattes
   assertEquals(rows.filter((r) => r.kind === "valve_terminal").length, 0, rows.map((r) => r.kind).join(","));
   assert(!rows.some((r) => r.kind === "valve"), "ingen enskild ventil heller");
 });
+
+Deno.test("en kolvstångslös primär får en vagnbroms, inte en stångbroms (nattestet 2026-11-19)", () => {
+  const rodless = { ...prod("TEST-RODLESS", "cylinder", "aventics"), name: "AVENTICS RTC-HD Ø40 kolvstångslös cylinder, 400 mm" };
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "TEST-RODLESS", isVerticalLoad: true, isRodLock: true, primaryBoreMm: 40,
+    products: [rodless, { ...prod("TEST-LOCK40", "rod-lock", "festo"), key_specs: { bore_mm: "40" } }],
+  }));
+  const lock = rows.find((r) => r.kind === "rod_lock");
+  assert(lock, rows.map((r) => r.kind).join(","));
+  assert(/vagnen/i.test(lock!.role), lock!.role);
+  assertEquals(lock!.sku, "SPECIFY");
+});
+
+Deno.test("hydraulik får inga tryckluftsrader (nattestet 2026-11-19)", () => {
+  const rows = buildMandatoryBomRows(bomCtx({ primarySku: "CUSTOM-SOLUTION", isHydraulic: true }));
+  for (const k of ["valve", "frl", "silencer", "flow_control", "tubing", "fitting", "check_valve"]) {
+    assert(!rows.some((r) => r.kind === k), `${k}: ${rows.map((r) => r.kind).join(",")}`);
+  }
+});
+
+Deno.test("två elektriska axlar får två motorer, drivare och kablar (nattestet 2026-11-19)", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "TEST-EGSK", isElectric: true, isMultiAxis: true, primaryBrand: "festo",
+    perAxisStrokes: [{ axis: "X", stroke: 400 }, { axis: "Z", stroke: 100 }],
+    products: [prod("TEST-EGSK", "electric-actuator", "festo"), prod("TEST-MOTOR", "servo-motor", "festo"), prod("TEST-DRIVE", "servo-drive", "festo"), prod("TEST-CABLE", "cable", "festo")],
+  }));
+  for (const k of ["motor", "drive", "cable"]) {
+    const r = rows.find((x) => x.kind === k);
+    assert(r, `${k} saknas: ${rows.map((x) => x.kind).join(",")}`);
+    assertEquals(r!.quantity, 2, k);
+    assert(/En per axel \(2 axlar\)/.test(r!.reason), r!.reason);
+  }
+});
+
+Deno.test("pallstopp med stötdämpare får en stoppcylinder (nattestet 2026-11-19)", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "SMC-RB2015", primaryCategory: "shock-absorber",
+    griporganText: "Pallstopp på en rullbana, pallarna väger upp till 800 kg och kommer i 0,3 m/s.",
+  }));
+  assert(/Stötdämpare/.test(rows[0].role), rows[0].role);
+  assert(rows.some((r) => r.kind === "actuator" && r.sku === "SPECIFY" && /Stoppcylinder/.test(r.role)), rows.map((r) => r.role).join(" | "));
+  const utan = buildMandatoryBomRows(bomCtx({ primarySku: "SMC-RB2015", primaryCategory: "shock-absorber", griporganText: "Stötdämpare till en linjärenhet" }));
+  assert(!utan.some((r) => /Stoppcylinder/.test(r.role)));
+});
