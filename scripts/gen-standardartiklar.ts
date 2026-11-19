@@ -24,6 +24,7 @@ import { CQ2_BORES, CQ2_LIMITS, CQ2_SOURCE, cq2BuildCode, cq2ParseCode } from ".
 import { CJ2_BORES, CJ2_LIMITS, CJ2_SOURCE, cj2BuildCode, cj2ParseCode } from "../src/lib/catalog/cj2.ts";
 import { C85_BORES, C85_LIMITS, C85_SOURCE, c85BuildCode, c85ParseCode } from "../src/lib/catalog/c85.ts";
 import { MHZ2_BORES, MHZ2_LIMITS, MHZ2_SOURCE, mhz2BuildCode, mhz2ParseCode } from "../src/lib/catalog/mhz2.ts";
+import { MXS_BORES, MXS_LIMITS, MXS_SOURCE, mxsBuildCode, mxsParseCode } from "../src/lib/catalog/mxs.ts";
 
 type Text4 = { sv: string; en: string; de: string; es: string };
 /**
@@ -285,6 +286,50 @@ function mhz2(): Serie {
   };
 }
 
+// ── SMC MXS (slidbord) ───────────────────────────────────────────────────────
+// Grundutförandet: standardport, ingen ställskruv/stötdämpare utöver
+// standard, inget ändlägeslås, ingen givare (magneten är inbyggd).
+function mxs(): Serie {
+  const rader: Serie["rader"] = [];
+  for (const b of MXS_BORES) {
+    for (const slag of b.strokes) {
+      const kod = mxsBuildCode({ bore: b.code, stroke_mm: slag });
+      if (!kod || mxsParseCode(kod) === null) continue;
+      rader.push({ sku: kod, bore: b.bore_mm, slag, kraft: b.force_out_n_05mpa, port: b.port_label });
+    }
+  }
+  return {
+    familj: "MXS", fabrikat: "smc", kategori: "cylinder", ledtid: 7, rader,
+    namn: {
+      sv: "SMC MXS Ø{bore} slidbord, {slag} mm slag",
+      en: "SMC MXS Ø{bore} air slide table, {slag} mm stroke",
+      de: "SMC MXS Ø{bore} Kompaktschlitten, {slag} mm Hub",
+      es: "SMC MXS Ø{bore} mesa deslizante, carrera {slag} mm",
+    },
+    beskrivning: {
+      sv: "Pneumatiskt slidbord ur SMC serie MXS med inbyggd linjärstyrning och dubbel kolvstång, kolvdiameter Ø{bore} mm, slaglängd {slag} mm, anslutning {port}. Teoretisk kraft utåt {kraft} N vid 0,5 MPa. Inbyggd magnet för givare.",
+      en: "Pneumatic air slide table from SMC series MXS with integrated linear guide and double piston rod, bore Ø{bore} mm, stroke {slag} mm, port {port}. Theoretical output force {kraft} N at 0.5 MPa. Built-in magnet for sensors.",
+      de: "Pneumatischer Kompaktschlitten der SMC-Serie MXS mit integrierter Linearführung und doppelter Kolbenstange, Kolbendurchmesser Ø{bore} mm, Hub {slag} mm, Anschluss {port}. Theoretische Kraft ausfahrend {kraft} N bei 0,5 MPa. Integrierter Magnet für Sensoren.",
+      es: "Mesa deslizante neumática de la serie SMC MXS con guía lineal integrada y doble vástago, diámetro Ø{bore} mm, carrera {slag} mm, conexión {port}. Fuerza teórica de avance {kraft} N a 0,5 MPa. Imán incorporado para sensores.",
+    },
+    specar: [
+      ["bore_mm", "{bore}"],
+      ["stroke_mm", "{slag}"],
+      ["cylinder_type", "Air slide table (guided)"],
+      ["mode_of_operation", "Double-acting"],
+      ["position_sensing", "Magnetic piston"],
+      ["force_out_n_05mpa", "{kraft}"],
+      ["port", "{port}"],
+      ["min_pressure_mpa", String(MXS_LIMITS.pressure_mpa[0])],
+      ["max_pressure", mpaTillBar(MXS_LIMITS.pressure_mpa[1])],
+      ["temp_range", temp(MXS_LIMITS.temp_c)],
+      ["max_speed_mm_s", String(MXS_LIMITS.speed_mm_s[1])],
+      ["series", "MXS"],
+      ["standard_kalla", `${MXS_SOURCE.title}, ${MXS_SOURCE.edition}: standardslag s. 6, kraft s. 7. knowledge_chunks ${MXS_SOURCE.file}`],
+    ],
+  };
+}
+
 // ── SQL ──────────────────────────────────────────────────────────────────────
 const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 
@@ -298,8 +343,8 @@ function mall(m: string, kolumner: string[]): string {
   }).filter(Boolean).join(" || ") || "''";
 }
 
-// CP96, CQ2 (20261119180000), CJ2 och C85 (20261119183000) ligger redan i databasen; --alla tar med dem.
-const serier = (Deno.args.includes("--alla") ? [cp96(), cq2(), cj2(), c85()] : []).concat([mhz2()]);
+// Redan i databasen: CP96, CQ2 (20261119180000), CJ2, C85 (20261119183000), MHZ2 (20261119190000). --alla tar med dem.
+const serier = (Deno.args.includes("--alla") ? [cp96(), cq2(), cj2(), c85(), mhz2()] : []).concat([mxs()]);
 const allaKoder = serier.flatMap((s) => s.rader.map((r) => String(r.sku)));
 const dubbletter = allaKoder.filter((s, i, l) => l.indexOf(s) !== i);
 if (dubbletter.length) throw new Error(`Samma kod två gånger: ${dubbletter.join(", ")}`);
