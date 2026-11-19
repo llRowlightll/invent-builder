@@ -21,6 +21,8 @@
  */
 import { CP96_BORES, CP96_LIMITS, CP96_SOURCE, cp96BuildCode, cp96ParseCode } from "../src/lib/catalog/cp96.ts";
 import { CQ2_BORES, CQ2_LIMITS, CQ2_SOURCE, cq2BuildCode, cq2ParseCode } from "../src/lib/catalog/cq2.ts";
+import { CJ2_BORES, CJ2_LIMITS, CJ2_SOURCE, cj2BuildCode, cj2ParseCode } from "../src/lib/catalog/cj2.ts";
+import { C85_BORES, C85_LIMITS, C85_SOURCE, c85BuildCode, c85ParseCode } from "../src/lib/catalog/c85.ts";
 
 type Text4 = { sv: string; en: string; de: string; es: string };
 /**
@@ -128,6 +130,92 @@ function cq2(): Serie {
   };
 }
 
+// ── SMC CJ2 (rundcylinder ø6–16) ─────────────────────────────────────────────
+// Magnet kräver givarfäste i koden: band (B) passar alla borrningar, skena (A)
+// bara ø10–16 (sida 9). Grundutförande med gummidämpning, ingen luftdämpning.
+function cj2(): Serie {
+  const rader: Serie["rader"] = [];
+  for (const b of CJ2_BORES) {
+    for (const slag of b.standard_strokes) {
+      const kod = cj2BuildCode({ bore: b.code, mounting: "B", stroke_mm: slag, magnet: true, switch_mount: "B" });
+      if (!kod || cj2ParseCode(kod) === null) continue;
+      rader.push({ sku: kod, bore: b.bore_mm, slag, pmin: b.min_pressure_rubber_mpa });
+    }
+  }
+  return {
+    familj: "CJ2", fabrikat: "smc", kategori: "cylinder", ledtid: 7, rader,
+    namn: {
+      sv: "SMC CJ2 Ø{bore} rundcylinder, {slag} mm slag",
+      en: "SMC CJ2 Ø{bore} round cylinder, {slag} mm stroke",
+      de: "SMC CJ2 Ø{bore} Rundzylinder, {slag} mm Hub",
+      es: "SMC CJ2 Ø{bore} cilindro redondo, carrera {slag} mm",
+    },
+    beskrivning: {
+      sv: "Rundcylinder ur SMC serie CJ2 med cylinderrör och kolvstång i rostfritt stål, borrning Ø{bore} mm, slaglängd {slag} mm. Dubbelverkande, inbyggd magnet för givare med givarfäste för band, gummidämpning, basutförande.",
+      en: "Round cylinder from SMC series CJ2 with stainless steel cylinder tube and piston rod, bore Ø{bore} mm, stroke {slag} mm. Double-acting, built-in magnet for sensors with band mounting for the sensor, rubber bumper, basic mounting.",
+      de: "Rundzylinder der SMC-Serie CJ2 mit Zylinderrohr und Kolbenstange aus Edelstahl, Kolbendurchmesser Ø{bore} mm, Hub {slag} mm. Doppeltwirkend, integrierter Magnet für Sensoren mit Bandbefestigung für den Sensor, Gummipuffer, Grundausführung.",
+      es: "Cilindro redondo de la serie SMC CJ2 con tubo y vástago de acero inoxidable, diámetro Ø{bore} mm, carrera {slag} mm. Doble efecto, imán incorporado para sensores con fijación por banda para el sensor, amortiguador de goma, ejecución básica.",
+    },
+    specar: [
+      ["bore_mm", "{bore}"],
+      ["stroke_mm", "{slag}"],
+      ["mode_of_operation", "Double-acting"],
+      ["position_sensing", "Magnetic piston, band-mounted sensor"],
+      ["cylinder_type", "Round cylinder"],
+      ["cushioning_types", "Rubber bumper"],
+      // Materiallistan i katalogen (knowledge_chunks smc-kat-cj2.pdf, chunk 51).
+      ["material", "Cylinder tube and piston rod stainless steel, head cover aluminium alloy"],
+      ["min_pressure_mpa", "{pmin}"],
+      ["max_pressure", mpaTillBar(CJ2_LIMITS.max_pressure_mpa)],
+      ["temp_range", `${temp(CJ2_LIMITS.temp_c.without_switch)} (utan givare), ${temp(CJ2_LIMITS.temp_c.with_switch)} (med givare)`],
+      ["max_speed_mm_s", String(CJ2_LIMITS.speed_mm_s.rubber[1])],
+      ["series", "CJ2"],
+      ["standard_kalla", `${CJ2_SOURCE.title}, ${CJ2_SOURCE.edition}: How to Order och standardslag. knowledge_chunks ${CJ2_SOURCE.file}`],
+    ],
+  };
+}
+
+// ── SMC C85 (ISO 6432, ø8–25) ────────────────────────────────────────────────
+function c85(): Serie {
+  const rader: Serie["rader"] = [];
+  for (const b of C85_BORES) {
+    for (const slag of b.standard_strokes) {
+      const kod = c85BuildCode({ bore: b.code, cover: "N", stroke_mm: slag, magnet: true, switch_mount: "B" });
+      if (!kod || c85ParseCode(kod) === null) continue;
+      rader.push({ sku: kod, bore: b.bore_mm, slag, pmin: b.min_pressure_rubber_mpa });
+    }
+  }
+  return {
+    familj: "C85", fabrikat: "smc", kategori: "cylinder", ledtid: 7, rader,
+    namn: {
+      sv: "SMC C85 Ø{bore} ISO 6432-cylinder, {slag} mm slag",
+      en: "SMC C85 Ø{bore} ISO 6432 cylinder, {slag} mm stroke",
+      de: "SMC C85 Ø{bore} ISO-6432-Zylinder, {slag} mm Hub",
+      es: "SMC C85 Ø{bore} cilindro ISO 6432, carrera {slag} mm",
+    },
+    beskrivning: {
+      sv: "Minicylinder enligt ISO 6432 ur SMC serie C85, borrning Ø{bore} mm, slaglängd {slag} mm. Dubbelverkande, inbyggd magnet för givare med givarfäste för band, gummidämpning, basgavel med integrerat gaffelfäste.",
+      en: "ISO 6432 mini cylinder from SMC series C85, bore Ø{bore} mm, stroke {slag} mm. Double-acting, built-in magnet for sensors with band mounting for the sensor, rubber bumper, basic end cover with integrated clevis.",
+      de: "Minizylinder nach ISO 6432 der SMC-Serie C85, Kolbendurchmesser Ø{bore} mm, Hub {slag} mm. Doppeltwirkend, integrierter Magnet für Sensoren mit Bandbefestigung für den Sensor, Gummipuffer, Grunddeckel mit integriertem Gabelanschluss.",
+      es: "Minicilindro ISO 6432 de la serie SMC C85, diámetro Ø{bore} mm, carrera {slag} mm. Doble efecto, imán incorporado para sensores con fijación por banda para el sensor, amortiguador de goma, tapa básica con horquilla integrada.",
+    },
+    specar: [
+      ["bore_mm", "{bore}"],
+      ["stroke_mm", "{slag}"],
+      ["standard", "ISO 6432"],
+      ["mode_of_operation", "Double-acting"],
+      ["position_sensing", "Magnetic piston, band-mounted sensor"],
+      ["cushioning_types", "Rubber bumper"],
+      ["min_pressure_mpa", "{pmin}"],
+      ["max_pressure", mpaTillBar(C85_LIMITS.max_pressure_mpa)],
+      ["temp_range", `${temp(C85_LIMITS.temp_c.without_switch)} (utan givare), ${temp(C85_LIMITS.temp_c.with_switch)} (med givare)`],
+      ["max_speed_mm_s", String(C85_LIMITS.speed_mm_s[1])],
+      ["series", "C85"],
+      ["standard_kalla", `${C85_SOURCE.title}, ${C85_SOURCE.edition}: How to Order och standardslag. knowledge_chunks ${C85_SOURCE.file}`],
+    ],
+  };
+}
+
 // ── SQL ──────────────────────────────────────────────────────────────────────
 const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 
@@ -141,7 +229,8 @@ function mall(m: string, kolumner: string[]): string {
   }).filter(Boolean).join(" || ") || "''";
 }
 
-const serier = [cp96(), cq2()];
+// CP96 och CQ2 ligger redan i databasen (20261119180000); --alla tar med dem.
+const serier = (Deno.args.includes("--alla") ? [cp96(), cq2()] : []).concat([cj2(), c85()]);
 const allaKoder = serier.flatMap((s) => s.rader.map((r) => String(r.sku)));
 const dubbletter = allaKoder.filter((s, i, l) => l.indexOf(s) !== i);
 if (dubbletter.length) throw new Error(`Samma kod två gånger: ${dubbletter.join(", ")}`);
