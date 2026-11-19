@@ -1313,3 +1313,24 @@ Deno.test("två cylindrar på samma last får en varning om synkning (nattestet 
   const en = buildMandatoryBomRows(bomCtx({ primarySku: "TEST-PRIMARY", griporganText: "Lift a 50 kg fixture 500 mm" }));
   assert(!en.some((r) => /synk/i.test(r.role)));
 });
+
+Deno.test("pneumatisk portal: ventilplats, strypning, givare och kopplingar per axel (nattestet, omgång 4)", () => {
+  const h = detectHazards("Gantry with x 500 mm, y 300 mm, z 150 mm for 2 kg parts, vacuum cups",
+    { andlagesavkanning: "Yes, at both end positions", manovrering: "From a PLC" }, "en");
+  assert(h.isMultiAxis && (h.perAxisStrokes?.length ?? 0) === 3, JSON.stringify(h.perAxisStrokes));
+  const rtc = { sku: "R480147724", name: "AVENTICS RTC-HD Ø16 kolvstångslös cylinder, 500 mm slag", category: "cylinder", brand: "aventics", key_specs: normalizeKeySpecs({ bore_mm: "16", stroke_mm: "500", cylinder_type: "Rodless cylinder, ball rail guide" }) };
+  const rtc600 = { sku: "R480148603", name: "AVENTICS RTC-HD Ø32 kolvstångslös cylinder, 600 mm slag", category: "cylinder", brand: "aventics", key_specs: normalizeKeySpecs({ bore_mm: "32", stroke_mm: "600", cylinder_type: "Rodless cylinder, ball rail guide" }) };
+  const dfm = { sku: "FESTO-DFM", name: "DFM – Guided Drive with Guide Rods", category: "cylinder", brand: "festo", key_specs: normalizeKeySpecs({ bore_mm: "6–100", stroke_mm: "400 mm" }) };
+  const dsbc = { sku: "FESTO-DSBC", name: "DSBC – ISO 15552 Standard Cylinder", category: "cylinder", brand: "festo", key_specs: normalizeKeySpecs({ bore_mm: "32,40,50,63,80,100,125", stroke_mm: "1–2800" }) };
+  const rows = buildMandatoryBomRows(bomCtx({
+    ...h, isEndPosDetect: true, locale: "en", primarySku: rtc.sku, primaryBrand: "aventics", primaryName: rtc.name,
+    products: [rtc, rtc600, dsbc, dfm, prod("TEST-SENSOR", "sensor", "aventics"), prod("TEST-FC", "flow-control", "festo"), prod("TEST-VT", "valve-terminal", "festo")],
+  }));
+  const axel = (a: string) => rows.find((r) => r.kind === "actuator" && new RegExp(`${a}-axis`).test(r.role));
+  assertEquals(axel("Y")?.sku, "FESTO-DSBC", "Y 300 mm: serien, inte 600 mm-artikeln");
+  assertEquals(axel("Z")?.sku, "FESTO-DFM", "Z 150 mm: styrd cylinder");
+  const sensor = rows.find((r) => r.kind === "sensor");
+  assertEquals(sensor?.quantity, 6, "två givare per axel");
+  assertEquals(rows.find((r) => r.kind === "flow_control")?.quantity, 6);
+  assert(/At least 3 valve positions/.test(rows.find((r) => r.kind === "valve_terminal")?.reason ?? ""), "ventilplatser");
+});

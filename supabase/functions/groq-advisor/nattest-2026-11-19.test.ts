@@ -1,6 +1,7 @@
 import { assert, assertEquals } from "jsr:@std/assert@^1";
 import { bokstavsaxlarITexten, detectCategories, detectEndEffectorIntent, extractStatedForceN, needsOutdoor, needsRodLock, needsVerticalLoad } from "./signals.ts";
 import { langderITexten } from "./kravbild.ts";
+import { findAxisActuator } from "./bom-builder.ts";
 import { scoreProduct, type CatalogProduct, type ScoringCtx } from "./scoring.ts";
 import { forfragningstyp, kandaVarden } from "./fragor.ts";
 
@@ -97,4 +98,23 @@ Deno.test("angiven kraft och Hubzylinder (omgång 3)", () => {
   assertEquals(extractStatedForceN("lift a load of 500 N", {}), 0);
   assert(needsVerticalLoad("Hubzylinder für 30 kg, 250 mm Hub"));
   assertEquals(langderITexten("Hubzylinder für 30 kg, 250 mm Hub")[0].typ, "slag");
+});
+
+// Omgång 4: portalen "x 500 mm, y 300 mm, z 150 mm" fick en AVENTICS RTC-HD
+// med 600 mm slag på både Y och Z. Specarna är katalogens egna (normaliserade).
+const RTC32_600: CatalogProduct = { sku: "R480148603", name: "AVENTICS RTC-HD Ø32 kolvstångslös cylinder, 600 mm slag", category: "cylinder", brand: "aventics", key_specs: { bore_mm: "32", stroke_mm: "600 mm", cylinder_type: "Rodless cylinder, ball rail guide" } };
+const AV_320: CatalogProduct = { sku: "AV-320", name: "AVENTICS ICS Ø32 320mm Cylinder", category: "cylinder", brand: "aventics", key_specs: { bore_mm: "32", stroke_mm: "320 mm" } };
+const DSBC: CatalogProduct = { sku: "FESTO-DSBC", name: "DSBC – ISO 15552 Standard Cylinder", category: "cylinder", brand: "festo", key_specs: { bore_mm: "32,40,50,63,80,100,125", stroke_mm: "2800 mm", is_family: true } };
+const DFM: CatalogProduct = { sku: "FESTO-DFM", name: "DFM – Guided Drive with Guide Rods", category: "cylinder", brand: "festo", key_specs: { bore_mm: "6–100", stroke_mm: "400 mm" } };
+
+Deno.test("portalens axlar får närmast passande slag, Z helst styrd (omgång 4)", () => {
+  const pool = [RTC32_600, DSBC, DFM];
+  // Y 300 mm: en serie i valfritt slag före en fast artikel med 600 mm.
+  assertEquals(findAxisActuator(pool, 300, false, { kraftN: 40, vagrat: true, marke: "aventics" })?.sku, "FESTO-DSBC");
+  // Ligger primärens fabrikat nära i slag väljs det.
+  assertEquals(findAxisActuator([AV_320, ...pool], 300, false, { kraftN: 40, vagrat: true, marke: "aventics" })?.sku, "AV-320");
+  // Z 150 mm bär sugkopparna: en styrd cylinder, inte en kolvstångslös.
+  assertEquals(findAxisActuator(pool, 150, false, { kraftN: 40, marke: "aventics", styrd: true })?.sku, "FESTO-DFM");
+  // Finns bara den långa artikeln används den hellre än ingen.
+  assertEquals(findAxisActuator([RTC32_600], 150, false, { kraftN: 40, styrd: true })?.sku, "R480148603");
 });
