@@ -108,12 +108,19 @@ def generate_scenario(rng: random.Random) -> dict:
 
 # ── API-anrop ──────────────────────────────────────────────────────────────────
 
+# Utvärderingen prövar produktvalet, som motorn gör utan AI. Utan huvudet
+# brände nattens körning besökarnas Groq-kvot (2026-11-19). ADVISOR_UTAN_AI=0
+# kör med modellen.
+UTAN_AI_HEADER = [] if os.environ.get("ADVISOR_UTAN_AI", "1") == "0" else ["-H", "x-maskinval-utan-ai: 1"]
+
+
 def call_api(payload: dict, retries: int = 1) -> Optional[dict]:
     body = json.dumps(payload)
     cmd = [
         "curl", "-s", "-X", "POST", URL,
         "-H", "Content-Type: application/json",
         "-H", f"Authorization: Bearer {KEY}",
+        *UTAN_AI_HEADER,
         "-d", body,
     ]
     for attempt in range(retries + 1):

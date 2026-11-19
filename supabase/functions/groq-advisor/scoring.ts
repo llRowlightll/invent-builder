@@ -589,6 +589,22 @@ export function actuatorTier(p: CatalogProduct, requiredStroke: number): number 
  * stroke requirement (requiredStroke === 0); when a stroke is required they are
  * filtered out so they can never be presented as a confirmed match.
  */
+/**
+ * En lagerartikel med tio gånger kraften som krävs är inget bättre val än en
+ * serie i rätt storlek. Tvättmiljöfallet (2 kg, 39 N) fick en rostfri Ø63 med
+ * 1 870 N som första förslag, före en rostfri serie som beställs i rätt slag
+ * (Groq-provet 2026-11-19). En sådan artikel hamnar efter serierna som täcker
+ * kravet, men före allt som inte gör det.
+ */
+export function grovtOverdimensionerad(p: CatalogProduct, ctx: ScoringCtx): boolean {
+  const krav = ctx.requiredForceN ?? 0;
+  const kraft = parseFloat(String(p.key_specs?.force_n ?? "0"));
+  const borr = parseFloat(String(p.key_specs?.bore_mm ?? "0"));
+  // En borrning kunden själv angett är ett krav, ingen överdimensionering.
+  if ((ctx.explicitBoreMm ?? 0) > 0) return false;
+  return krav > 0 && kraft >= 10 * krav && borr >= 40 && !isFamilyProduct(p);
+}
+
 export function rankActuators(candidates: CatalogProduct[], ctx: ScoringCtx): CatalogProduct[] {
   const req = ctx.requiredStroke;
   // Begärd standard först: en ISO 15552-cylinder med slaget valt vid
@@ -601,7 +617,10 @@ export function rankActuators(candidates: CatalogProduct[], ctx: ScoringCtx): Ca
   };
   return candidates
     .filter((p) => parseStrokeFromSpecs(p.key_specs ?? {}) > 0 || req === 0)
-    .map((p) => ({ p, st: std(p), tier: actuatorTier(p, req), s: scoreProduct(p, ctx) }))
+    .map((p) => {
+      const t = actuatorTier(p, req);
+      return { p, st: std(p), tier: t === 0 && grovtOverdimensionerad(p, ctx) ? 1.5 : t, s: scoreProduct(p, ctx) };
+    })
     .sort((a, b) => (a.st - b.st) || (a.tier - b.tier) || (b.s - a.s))
     .map((x) => x.p);
 }
@@ -637,6 +656,22 @@ export function medOnskatFabrikat(
   const basta = rankActuators(kandidater.filter(arOnskat), ctx)[0];
   if (!basta) return { produkter: topp, insatt: null };
   return { produkter: [...topp.slice(0, Math.max(0, antal - 1)), basta], insatt: basta.sku };
+}
+
+/**
+ * Serien som kundens orderkod tillhör, när den täcker kravet. Den som ersätter
+ * en trasig DSBC-50-200 vill i första hand ha en DSBC: Groq-provet 2026-11-19
+ * visade AVENTICS PRA först och Festos DSBC på tredje plats, eftersom en
+ * konkret artikel med rätt slag alltid rangordnas före en serie.
+ */
+export function kodensSerie(kandidater: CatalogProduct[], ctx: ScoringCtx): CatalogProduct | null {
+  const fam = String(ctx.kodFamilj ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (fam.length < 2) return null;
+  const re = new RegExp(`(?<![A-Z0-9])${fam}`);
+  const traffar = kandidater.filter((p) =>
+    re.test(`${p.sku} ${p.name}`.toUpperCase().replace(/[^A-Z0-9 ]/g, " ")) &&
+    actuatorTier(p, ctx.requiredStroke ?? 0) <= 1);
+  return rankActuators(traffar, ctx)[0] ?? null;
 }
 
 /** Standardnumret i en specvärdestext: ISO 6431 och VDMA 24562 är föregångarna till ISO 15552. */

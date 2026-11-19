@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { AsyncLocalStorage } from "node:async_hooks";
 import {
   orderCodeInstruction,
   readOrderCodes,
@@ -29,6 +30,7 @@ import {
   familjeborrning,
   kraftVid6Bar,
   medOnskatFabrikat,
+  kodensSerie,
   fabrikatsnamn,
   repeterbarhetMm,
 } from "./scoring.ts";
@@ -203,7 +205,8 @@ function logAdvisorEvent(
     body: JSON.stringify({
       source: "groq-advisor",
       event,
-      payload,
+      // Testanrop utan AI märks, så att de kan skiljas från besökarnas.
+      payload: utanAiLager.getStore()?.utanAi ? { ...payload, test_utan_ai: true } : payload,
       success,
       error: error ?? null,
     }),
@@ -248,6 +251,12 @@ async function callGroq(
   }
 }
 
+// Våra egna tester (driftsättningens svit, nattens utvärdering) brände
+// besökarnas Groq-kvot: 200 000 tokens per dygn och modell räckte 2026-11-19
+// till fyra besökarflöden. Med "x-maskinval-utan-ai: 1" svarar motorn som när
+// kvoten är slut -- samma deterministiska val och stycklista, ingen modellprosa.
+const utanAiLager = new AsyncLocalStorage<{ utanAi: boolean }>();
+
 async function callGroqEnGang(
   messages: Array<{ role: string; content: string }>,
   maxTokens: number,
@@ -256,6 +265,7 @@ async function callGroqEnGang(
   model: string,
   vantaVidKvottak = true,
 ): Promise<string | null> {
+  if (utanAiLager.getStore()?.utanAi) throw new Error("RATE_LIMITED");
   const tryModel = async (
     m: string,
   ): Promise<{ ok: boolean; text: string; rateLimited: boolean; retryAfter: number | null }> => {
@@ -1531,8 +1541,20 @@ async function handleOptions(
   const rankade = arVentilo && (ventilBuss || ventilBehov > 0)
     ? rankActuators(sortedProducts, scoringCtx).sort((a, b) => ventilpoang(b, ventilBuss, ventilBehov) - ventilpoang(a, ventilBuss, ventilBehov))
     : rankActuators(catalogProducts, scoringCtx);
-  const { produkter: topProducts, insatt: fabrikatsInsatt } =
+  const { produkter: valda, insatt: fabrikatsInsatt } =
     medOnskatFabrikat(rankade, sortedProducts, scoringCtx);
+  // Ett utbyte ("ersätta en trasig DSBC-50-200") får kodens egen serie först,
+  // om den täcker kravet. "Motsvarighet till DSBC från SMC" är inget utbyte.
+  const utbyteAvKod = arUtbyte(combinedText, {
+    slagMm: codeReading.resolved.find((r) => r.strokeMm)?.strokeMm ?? null,
+    borrningMm: codeReading.resolved.find((r) => r.boreMm)?.boreMm ?? null,
+  });
+  const kodserie = utbyteAvKod && !isSystemScope
+    ? kodensSerie(sortedProducts, scoringCtx)
+    : null;
+  const topProducts = kodserie
+    ? [kodserie, ...valda.filter((p) => p.sku !== kodserie.sku)].slice(0, Math.max(3, valda.length))
+    : valda;
 
   // Build server-side option objects (correct data, LLM fills in text)
   const lang = langName(locale);
@@ -1575,7 +1597,11 @@ async function handleOptions(
     const fallbackWhy = [
       bore ? pick(locale, { sv: `Ø${bore} mm borr`, en: `Ø${bore} mm bore`, de: `Ø${bore} mm Bohrung`, es: `Ø${bore} mm de diámetro` }) : "",
       arFamilj ? pick(locale, { sv: `serien finns i Ø${spannTxt} mm`, en: `series available in Ø${spannTxt} mm`, de: `Serie erhältlich in Ø${spannTxt} mm`, es: `serie disponible en Ø${spannTxt} mm` }) : "",
-      ms > 0 ? pick(locale, { sv: `${ms} mm slag`, en: `${ms} mm stroke`, de: `${ms} mm Hub`, es: `${ms} mm de carrera` }) : "",
+      // En serie beställs i det slag som krävs; seriens största slag är inget
+      // slag ("2800 mm slag" om DSBC vid ett utbyte till 100 mm, 2026-11-19).
+      ms > 0 && isFamilyProduct(p) && maxRequiredStroke > 0 && ms >= maxRequiredStroke
+        ? pick(locale, { sv: `${maxRequiredStroke} mm slag (serien upp till ${ms} mm)`, en: `${maxRequiredStroke} mm stroke (series up to ${ms} mm)`, de: `${maxRequiredStroke} mm Hub (Serie bis ${ms} mm)`, es: `${maxRequiredStroke} mm de carrera (serie hasta ${ms} mm)` })
+        : ms > 0 ? pick(locale, { sv: `${ms} mm slag`, en: `${ms} mm stroke`, de: `${ms} mm Hub`, es: `${ms} mm de carrera` }) : "",
       force ? `${force} N` : "",
     ].filter(Boolean).join(", ");
     return {
@@ -1584,6 +1610,8 @@ async function handleOptions(
         ? pick(locale, { sv: "Byggblock – rörelsedel", en: "Building block – motion", de: "Baustein – Bewegungsteil", es: "Componente – parte de movimiento" })
         : i === 0 && boreInexact
         ? pick(locale, { sv: "Närmaste — överdimensionerad", en: "Closest — oversized", de: "Nächstgelegen — überdimensioniert", es: "Más cercano — sobredimensionado" })
+        : p.sku === kodserie?.sku
+        ? pick(locale, { sv: "Samma serie som din kod", en: "Same series as your code", de: "Gleiche Serie wie Ihr Code", es: "Misma serie que su código" })
         : p.sku === fabrikatsInsatt
         // "Nämnde", inte "önskat": "byta bort vår Festo" nämner också ett fabrikat.
         ? pick(locale, { sv: `Fabrikatet du nämnde (${fabrikatsnamn(p.brand)})`, en: `The brand you mentioned (${fabrikatsnamn(p.brand)})`, de: `Von Ihnen genannter Hersteller (${fabrikatsnamn(p.brand)})`, es: `La marca que mencionó (${fabrikatsnamn(p.brand)})` })
@@ -1800,7 +1828,7 @@ JSON: { "summary": "1-2 sentences: the mechanism and how it meets the requiremen
     if (isConfigurable && !tooShort) {
       // Fabrikatet kunden nämnde behåller sitt märke; noten nedan säger ändå
       // att slaget väljs vid order (kontrollkörningen efter #444).
-      if (sku !== fabrikatsInsatt) {
+      if (sku !== fabrikatsInsatt && sku !== kodserie?.sku) {
         opt.badge = pick(locale, { sv: "Konfigurera slag vid order", en: "Configure stroke at order", de: "Hub bei Bestellung konfigurieren", es: "Configurar carrera al pedido" });
       }
       const famB = familjeStorlek.get(sku) ?? 0;
@@ -2596,6 +2624,17 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   try {
     const body = await req.json();
+    const utanAi = req.headers.get("x-maskinval-utan-ai") === "1";
+    return await utanAiLager.run({ utanAi }, () => hanteraBegaran(body));
+  } catch (e) {
+    console.error("groq-advisor error:", e);
+    return Response.json({ error: String(e) }, { status: 500, headers: CORS });
+  }
+});
+
+// deno-lint-ignore no-explicit-any
+async function hanteraBegaran(body: Record<string, any>): Promise<Response> {
+  {
     const { action, description, answers, messages, primarySku, contextQuery, locale } = body;
     const loc = locale ?? "sv";
     if (action === "questions") return handleQuestionsMedAmne(description ?? "", loc, body.fortsatt === true);
@@ -2608,8 +2647,5 @@ Deno.serve(async (req: Request) => {
     if (action === "chat")      return handleChat(messages ?? [], contextQuery);
     if (action === "vision")    return handleVision(body.image ?? "", loc);
     return Response.json({ error: "Unknown action" }, { status: 400, headers: CORS });
-  } catch (e) {
-    console.error("groq-advisor error:", e);
-    return Response.json({ error: String(e) }, { status: 500, headers: CORS });
   }
-});
+}

@@ -3,6 +3,7 @@ import { aiVarning } from "@/lib/ai-varning";
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { makeT, type Locale } from "@/lib/i18n";
+import { SITE, hreflangLinks } from "@/lib/site";
 import { loadCatalog } from "@/lib/catalog";
 import { aiSearchProducts, aiAskKnowledge, aiExtractDimensions, aiVisionChat, type AiSearchResult, type ChatMessage } from "@/lib/ai.functions";
 import { fileToBase64 } from "@/lib/document-ai";
@@ -24,11 +25,24 @@ export const Route = createFileRoute("/$locale/chat")({
     q: typeof search.q === "string" ? search.q : undefined,
   }),
   head: ({ params }) => {
-    const t = makeT(params.locale as Locale);
+    const locale = params.locale;
+    const t = makeT(locale as Locale);
+    // Kanonisk adress och språkversioner saknades (indexeringen 2026-11-19).
+    const beskrivning: Record<string, string> = {
+      sv: "AI-ingenjören hjälper dig hitta rätt industrikomponent. Beskriv din applikation på svenska eller engelska.",
+      en: "The AI engineer helps you find the right industrial component. Describe your application in your own words.",
+      de: "Der KI-Ingenieur hilft Ihnen, die richtige Industriekomponente zu finden. Beschreiben Sie Ihre Anwendung mit eigenen Worten.",
+      es: "El ingeniero de IA le ayuda a encontrar el componente industrial adecuado. Describa su aplicación con sus propias palabras.",
+    };
     return {
       meta: [
         { title: `${t("nav.chat")} — ${t("common.appName")}` },
-        { name: "description", content: "AI-ingenjören hjälper dig hitta rätt industrikomponent. Beskriv din applikation på svenska eller engelska." },
+        { name: "description", content: beskrivning[locale] ?? beskrivning.en },
+        { property: "og:url", content: `${SITE}/${locale}/chat` },
+      ],
+      links: [
+        { rel: "canonical", href: `${SITE}/${locale}/chat` },
+        ...hreflangLinks("chat"),
       ],
     };
   },
