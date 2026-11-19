@@ -911,7 +911,11 @@ async function handleEndEffectorOptions(
     ? byggVakuumalternativ(await fetchEndEffectorProducts("vacuum", 1000), underlag)
     : byggGripdonsalternativ(await fetchEndEffectorProducts("gripper", 1000), underlag);
   logAdvisorEvent("options", { locale, duration_ms: Date.now() - t0, rate_limited: false, top_sku: options[0]?.sku ?? null, option_count: options.length }, true);
-  return Response.json({ summary, options: kravstatusPaSprak(options, locale) }, { headers: CORS });
+  // Säkerhetsrutan också när svaret är ett griporgan: "lyfta lådor med
+  // gripdon" fick ingen (nattestet 2026-11-19). Lyftet väljs separat, men
+  // kravet på att lasten inte faller gäller ändå.
+  const sakerhet = hazards.isVerticalLoad ? fallsakerhetstext(locale, personalUnderLasten(text)) : undefined;
+  return Response.json({ summary, sakerhet, options: kravstatusPaSprak(options, locale) }, { headers: CORS });
 }
 
 // ── ACTION: options (v40) ─────────────────────────────────────────────────────
@@ -929,6 +933,11 @@ async function handleOptions(
   // texten. En uppslagen kod är den starkaste borrningsuppgift som finns --
   // kunden har namngett en exakt produkt, inte beskrivit ett behov.
   const codeReading = readOrderCodes(combinedText, await fetchFamilyBriefs());
+  // Slaglängden i en uppslagen kod gäller också när texten inte säger något
+  // slag: "ersätta en DSBC-50-200-PPVA-N3" gav Ø50 med 100 mm som bästa val,
+  // eftersom bara borrningen användes (nattestet 2026-11-19).
+  const kodSlag = codeReading.resolved.find((r) => r.strokeMm !== null)?.strokeMm ?? 0;
+  if (hazards.requiredStrokeMm <= 0 && kodSlag > 0) hazards.requiredStrokeMm = kodSlag;
 
   // Destructured (not individually re-derived) so every consumer below reads
   // off the one computation detectHazards already did -- the bug class this

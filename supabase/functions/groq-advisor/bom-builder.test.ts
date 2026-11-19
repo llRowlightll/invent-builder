@@ -1244,3 +1244,12 @@ Deno.test("vakuum med lyft- och sidledsaxel: koppar, ejektor, vakuumvakt, ejekto
   assertEquals(x?.sku, "SMC-MY1B", x?.reason);
   assert(!rows.some((r) => r.sku === "0822061004"), "ingen Ø12/100 mm styrd cylinder");
 });
+
+Deno.test("en ventilterminal som primär får ingen andra ventilterminal (nattestet 2026-11-19)", () => {
+  const rows = buildMandatoryBomRows(bomCtx({
+    primarySku: "TEST-VT8", valveTerminal: true, primaryCategory: "valve-terminal",
+    products: [prod("TEST-VT8", "valve-terminal", "festo"), prod("TEST-VT16", "valve-terminal", "festo")],
+  }));
+  assertEquals(rows.filter((r) => r.kind === "valve_terminal").length, 0, rows.map((r) => r.kind).join(","));
+  assert(!rows.some((r) => r.kind === "valve"), "ingen enskild ventil heller");
+});

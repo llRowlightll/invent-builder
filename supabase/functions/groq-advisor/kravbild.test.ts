@@ -217,6 +217,8 @@ Deno.test("lyfthöjden syns som slaglängd, och motorn räknar med samma tal", (
     ["Lyftet är 40 cm", 400],
     ["Lyfta 0,5 m", 500],
     ["Slaglängden är ca 200 mm", 200],
+    // Nattestet 2026-11-19: "högre" lästes som lådans höjd.
+    ["Lyfta lådor på 25 kg från ett transportband upp till en hylla 600 mm högre", 600],
   ];
   for (const [text, mm] of fall) {
     const kb = tolkaKravbild(text);

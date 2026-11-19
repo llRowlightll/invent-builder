@@ -347,11 +347,17 @@ const STANDARDBORR = new Set([8, 10, 12, 16, 20, 25, 32, 40, 50, 63, 80, 100, 12
 // En borrning är cylinderns mått, varken produktens eller ett slag.
 const BORRNING_FORE = /(?:[Øø]|\bborrning\w*|\bbore|kolvdiameter\w*|\bD\s*=)\s*\W{0,2}$/i;
 const MATT_FORE = new RegExp(String.raw`(?:längd|bredd|höjd|diameter|djup|tjocklek|length|width|height|depth|thickness)\w*${FYLL}`, "i");
-const MATT_EFTER = /^\s*(?:lång|bred|hög|djup|tjock|long\b|wide\b|high\b|tall\b|deep\b|thick\b|i diameter|in diameter)/i;
+// "hög", inte "högre": "upp till en hylla 600 mm högre" är lyfthöjden, och
+// frågan om slaglängd ställdes ändå (nattestet 2026-11-19). Samma för
+// "higher" och "längre" (förflyttningen, inte föremålets mått).
+const MATT_EFTER = /^\s*(?:lång(?!re)|bred|hög(?!re)|djup|tjock|long\b|wide\b|high\b|tall\b|deep\b|thick\b|i diameter|in diameter)/i;
 const AVSTAND_FORE = /(?:avstånd\w*|mellanrum\w*|delning\w*|\bpitch|\bgaps?\b|\bspacing|\bc\/c|cc-avstånd\w*)[^.\d]{0,15}$/i;
 const AVSTAND_EFTER = /^\s*(?:avstånd\w*|mellanrum\w*|isär|apart\b|mellan\b)/i;
-const LODRAT_ORD = /(?<![\wåäö])(?:lyft\w*|höj(?!d)\w*|sänk\w*|hissa\w*|vertikal\w*|lodrät\w*|uppåt|nedåt|upp|ned|ner|z-?ax\w*|vertical\w*|lift\w*|raise\w*|lower\w*|up|down)(?![\wåäö])/gi;
-const SIDLED_ORD = /(?<![\wåäö])(?:sidled\w*|sidoförflytt\w*|förflytt\w*|flytta\w*|skjut\w*|flytt\w*|framåt|bakåt|längs|sideways|sidewards|laterally|horisontell\w*|horizontal\w*)(?![\wåäö])/gi;
+// Tyska, spanska och fler engelska ord sedan nattestet 2026-11-19: "15 kg
+// 400 mm anheben", "schiebt ... 100 mm", "levantar ... 300 mm" och
+// "positionera 5 kg 800 mm" fick frågan om slaglängd fast måttet stod där.
+const LODRAT_ORD = /(?<![\wåäö])(?:lyft\w*|höj(?!d)\w*|sänk\w*|hissa\w*|vertikal\w*|lodrät\w*|uppåt|nedåt|upp|ned|ner|z-?ax\w*|vertical\w*|lift\w*|raise\w*|lower\w*|up|down|anheb\w*|hochheb\w*|heb(?:en|t|e)|absenk\w*|senk(?:en|t)|levant\w*|elev(?:a|an|ar)|subir|bajar|descend\w*|hoist\w*)(?![\wåäö])/gi;
+const SIDLED_ORD = /(?<![\wåäö])(?:sidled\w*|sidoförflytt\w*|förflytt\w*|flytta\w*|skjut\w*|flytt\w*|framåt|bakåt|längs|sideways|sidewards|laterally|horisontell\w*|horizontal\w*|positioner\w*|position(?:s|ing)?|posicion\w*|schieb\w*|verschieb\w*|verfahr\w*|seitlich\w*|empuj\w*|desplaz\w*|push(?:es|ed|ing)?|travel\w*|mov(?:e|es|ed|ing))(?![\wåäö])/gi;
 const METERORD = /(?:slag\w*|lyfthöjd|lyft\w*|höj\w*|sänk\w*|flytt\w*|förflytt\w*|skjut\w*|rörelse\w*|vandring|travel|stroke|sträcka|sidled\w*|längs|uppåt|nedåt|upp|ned|ner|vertikal\w*|lodrät\w*)/i;
 
 /** Närmaste rörelseord i satsen: lodrätt eller i sidled. */
@@ -730,9 +736,9 @@ export function tolkaKravbild(beskrivning: string, svarIn: Record<string, string
     if (ip) lagg({ objektId: "maskin", egenskap: "kapslingsklass", text: `IP${ip[1].toUpperCase()}`, ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
 
     // Rörelseriktning: avgör broms, lasthållning och säkerhetsgranskning.
-    if (/\b(?:lodrät\w*|vertikal\w*|lyft\w*|hissa\w*|sänk\w*|upp och ned|vertical\w*|lift\w*)\b/i.test(s)) {
+    if (/\b(?:lodrät\w*|vertikal\w*|lyft\w*|hissa\w*|sänk\w*|upp och ned|vertical\w*|lift\w*|raise[sd]?|hoist\w*|anheb\w*|hochheb\w*|senkrecht\w*|levant\w*|elev(?:a|an|ar))\b/i.test(s)) {
       lagg({ objektId: "aktuator", egenskap: "riktning", text: "Lodrät (lyft)", ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
-    } else if (/\b(?:horisontell\w*|vågrät\w*|i sidled|sidled\w*|horizontal\w*|sideways)\b/i.test(s)) {
+    } else if (/\b(?:horisontell\w*|vågrät\w*|i sidled|sidled\w*|horizontal\w*|sideways|waagerecht\w*|seitlich\w*|lateral\w*)\b/i.test(s)) {
       lagg({ objektId: "aktuator", egenskap: "riktning", text: "Vågrät", ursprung: "anvandare", kalla: { typ: "beskrivning", utdrag } });
     }
 
