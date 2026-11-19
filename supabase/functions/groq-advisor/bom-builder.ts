@@ -1024,7 +1024,10 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
       de: ` Für mindestens ${uc} Ventilpositionen dimensionieren (eine je Station).`,
       es: ` Dimensione para al menos ${uc} posiciones de válvula (una por estación).`,
     }) : "";
-    rows.push({
+    // Är primären själv en ventilterminal läggs ingen till: "ventilterminal
+    // för 8 cylindrar med PROFINET" fick både den valda 8-platsersön och en
+    // 16-platsers ventilö (nattestet 2026-11-19).
+    if (ctx.primaryCategory !== "valve-terminal") rows.push({
       sku: vtMatch?.sku ?? "SPECIFY", quantity: 1,
       kind: "valve_terminal",
       role: pick(locale, { sv: "Ventilramp (ventilterminal)", en: "Valve terminal (manifold)", de: "Ventilinsel (Ventilterminal)", es: "Terminal de válvulas (colector)" }),

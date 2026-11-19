@@ -290,6 +290,12 @@ const FALLSKYDDSPASTAENDE = new RegExp([
   String.raw`\bverhinder\w*\s+(?:das\s+|ein\s+)?(?:absinken|herabfallen|abstürzen|abstürzen\s+der\s+last)`,
   String.raw`\bprotecci\S*\s+(?:ante|contra|en\s+caso\s+de)\s+(?:la\s+|una\s+)?(?:pérdida|caída|fallo)`,
   String.raw`\bevita\w*\s+(?:la\s+caída|que\s+la\s+carga\s+caiga)`,
+  // Nattestet 2026-11-19: "kan lyfta 40 kg vertikalt och hålla lasten vid
+  // tryckförlust" om en vanlig dubbelverkande cylinder.
+  String.raw`\bhåll\w*\s+(?:kvar\s+)?(?:lasten|den)\s+(?:kvar\s+)?(?:vid|under|om)\s+(?:tryck\w*|luft\w*|ström\w*)`,
+  String.raw`\bhold\w*\s+(?:the\s+)?load\s+(?:on|when|during|if|in\s+case\s+of)\s+(?:a\s+)?(?:pressure|air|power)`,
+  String.raw`\bhält\s+die\s+Last\s+(?:auch\s+)?(?:bei|während)\s+(?:Druck\w*|Luft\w*|Strom\w*)`,
+  String.raw`\b(?:sujeta|mantiene|retiene)\w*\s+la\s+carga\s+(?:ante|en\s+caso\s+de|durante)\s+(?:la\s+|una\s+)?(?:pérdida|caída|fallo)`,
 ].join("|"), "i");
 const BROMS = /broms|rod.?lock|brake|bremse|freno|bloqueo\s+de\s+vástago/i;
 

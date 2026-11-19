@@ -137,6 +137,10 @@ Deno.test("skydd mot fall tillskrivs bara en broms (kritikerrundan 2026-11-18)",
     "The valve prevents the load from falling.",
     "Zylinder mit Schutz bei Druckverlust.",
     "Cilindro con protección ante pérdida de presión.",
+    "En dubbelverkande pneumatisk cylinder med rätt slaglängd och tillräcklig kraft kan lyfta 40 kg vertikalt och hålla lasten vid tryckförlust när den styrs från en PLC.",
+    "The cylinder holds the load on pressure loss.",
+    "Der Zylinder hält die Last bei Druckverlust.",
+    "El cilindro mantiene la carga ante pérdida de presión.",
   ];
   for (const m of bort) assertEquals(utanSakerhetspastaenden(`${m} Ø50.`), "Ø50.", m);
   for (const m of [

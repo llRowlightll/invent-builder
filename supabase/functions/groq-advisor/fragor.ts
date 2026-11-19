@@ -171,13 +171,15 @@ export function kandaVarden(text: string, kod?: Kodvarden): Kanda {
     flode: /\d+(?:[.,]\d+)?\s*(n?l\/min|l\/s|m3\/h|m³\/h|nl\/min)/i.test(text),
     temperatur: /-?\d+\s*°\s*c|\bminusgrader|\bfrysrum|\bkylrum|\bugn\b|\bvärmebehandl/i.test(text),
     // En skjutcylinder som skjuter av något från ett band rör sig i sidled.
-    riktning: /vertikal|horisontell|lodrät|vågrät|\blyft|hissa|sänk|uppåt|nedåt|sidled|liggande|stående|\bupp\b|\bner\b|skjut\w*\s+(av|ut|bort|över|in|fram|tillbaka)\b|knuff|sidobana/i.test(text),
+    // Engelska, tyska och spanska sedan nattestet 2026-11-19: "lift ...
+    // vertically", "anheben" och "levantar" fick frågan om riktning ändå.
+    riktning: /vertikal|horisontell|lodrät|vågrät|\blyft|hissa|sänk|uppåt|nedåt|sidled|liggande|stående|\bupp\b|\bner\b|skjut\w*\s+(av|ut|bort|över|in|fram|tillbaka)\b|knuff|sidobana|\blift(?:s|ed|ing)?\b|\bvertical|\bhorizontal|\bsideways|\bhoist|\banheb\w*|\bhochheb\w*|\bsenkrecht|\bwaagerecht|\bseitlich|\blevant\w*|\belev(?:a|an|ar)\b|\bbajar\b|\blateral/i.test(text),
     styrning: /\bplc\b|profinet|ethercat|ethernet.?ip|io-?link|modbus|profibus|devicenet|cc-?link|fältbuss|styrsystem|siemens|beckhoff|omron|allen.?bradley|rockwell|schneider|\brelä|tryckknapp|handventil|fotventil|manuellt/i.test(text),
     faltbuss: /profinet|ethercat|ethernet.?ip|io-?link|modbus|profibus|devicenet|cc-?link/i.test(text),
     spanning: /\d+\s*v\s*(dc|ac)\b|\b(12|24|110|115|230)\s*v\b/i.test(text),
     anslutning: /\bg\s?\d\/\d\b|\bg\s?1\b|\bm5\b|\bnpt\b|\br\s?\d\/\d\b|\d+\s*mm\s*slang|slang\s*\d+\s*mm/i.test(text),
     miljo: /livsmedel|spol|tvätt|damm|smuts|utomhus|salt|rostfri|korros|kemikal|atex|explosion|renrum|cleanroom|fukt|vått|vatten/i.test(text),
-    greppsatt: /sugkopp|vakuum|vacuum|gripdon|gripper|klo|fingrar|backar\b/i.test(text),
+    greppsatt: /sugkopp|vakuum|vacuum|gripdon|gripper|klo|fingrar|backar\b|greifer|sauger|saugnapf|pinza|ventosa|suction/i.test(text),
     givare: needsEndPositionDetection(text),
     vinkel: extractRotationDeg(text, {}) > 0,
     vridmoment: /\d+(?:[.,]\d+)?\s*Nm\b/i.test(text),

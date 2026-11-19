@@ -511,6 +511,13 @@ export function bokstavsaxlarITexten(text: string): { axis: string; stroke: numb
     const n = Number(m[2].replace(",", ".")) * (m[3].toLowerCase() === "cm" ? 10 : m[3].toLowerCase() === "m" ? 1000 : 1);
     if (!sedda.has(axel) && n >= 5 && n <= 15000) { ut.push({ axis: axel, stroke: Math.round(n) }); sedda.add(axel); }
   }
+  // Axeln efter måttet: "400 mm i X", "300 mm X travel", "80 mm Z" (nattestet
+  // 2026-11-19). Inte "300 mm x 200 mm", som är ett mått.
+  for (const m of String(text ?? "").matchAll(/(?<![\d.,])(\d+(?:[.,]\d+)?)\s*(mm|cm|m)\s+(?:i\s+|in\s+|en\s+)?([xyz])(?![\wåäö-])(?!\s*\d)/gi)) {
+    const axel = m[3].toUpperCase();
+    const n = Number(m[1].replace(",", ".")) * (m[2].toLowerCase() === "cm" ? 10 : m[2].toLowerCase() === "m" ? 1000 : 1);
+    if (!sedda.has(axel) && n >= 5 && n <= 15000) { ut.push({ axis: axel, stroke: Math.round(n) }); sedda.add(axel); }
+  }
   return ut.length >= 2 ? ut : [];
 }
 
@@ -547,7 +554,8 @@ export function needsMultiAxis(text: string): boolean {
 }
 
 export function needsVacuumGrip(text: string): boolean {
-  return /kretskort|pcb|elektronik|glas|optik|repas|inte.*repa|skada.*grepp|känslig.*yta|vacuum.grip|sugkopp|suction.cup/i.test(text);
+  // Engelska, tyska och spanska ord sedan nattestet 2026-11-19 ("vacuum cups" gav ingen sugkopp).
+  return /kretskort|pcb|elektronik|glas|optik|repas|inte.*repa|skada.*grepp|känslig.*yta|vacuum.grip|sugkopp|suction.cup|vacuum.?(?:cups?|pads?|grippers?|grip\w*)|suction.?pads?|saugnapf\w*|sauger\b|sauggreifer\w*|vakuumgreifer\w*|vakuumsauger\w*|\bejektor\w*|ventosas?\b|eyector\w*|agarre\s+por\s+vac[ií]o/i.test(text);
 }
 
 export function needsValveTerminal(text: string): boolean {
@@ -596,6 +604,11 @@ export function needsVerticalLoad(textMedOrientering: string): boolean {
     /(?<![\wåäö])med\s+(?:(?:ovan|under|fram|bak)?sidan|etiketten|locket|öppningen|texten|märkningen)\s+(?:uppåt|nedåt)(?![\wåäö])|(?<![\wåäö])lyft(?:ögl|ör|handtag)[\wåäö]*/gi,
     " ",
   );
+  // Nattestet 2026-11-19: "Lift a 50 kg fixture 500 mm vertically", "Kartons
+  // 400 mm anheben" och personal under lasten gav ingen vertikal last -- och
+  // därmed ingen säkerhetsruta, backventil eller stångbroms.
+  if (personalUnderLasten(text)) return true;
+  if (/\blift(?:s|ed|ing)?\b|\bhoist\w*|\bvertical(?:ly)?\b|\banheb\w*|\bhochheb\w*|\bsenkrecht\w*|\blevant\w*|\belev(?:a|an|ar|ación)\b/i.test(text)) return true;
   return /\blyft|\bhissa\b|\bhäng.*last\b|\blast.*häng\b|\bvertikal|\bcylinder.*vertikal\b|\bz[.-]?axel\b|\bz[.-]?axis\b|\bpress.*ner\b|\bpress.*ned\b|\bnedåt\b|\buppåt\b|\bvertical.*load\b|\bhanging.*load\b|\bsuspended.*load\b|\blifting.*cyl\b|\bcylinder.*lyft\b|\bz[.-]?achse\b|\bheben\b|\bhebt\b|\bhängende\s?last\b|\bnach\s?unten\b|\bnach\s?oben\b|\belevar\b|\blevantar\b|\bcarga\s?suspendida\b|\bcarga\s?colgante\b|\beje\s?z\b|\bhacia\s?abajo\b|\bhacia\s?arriba\b/i.test(text);
 }
 
@@ -726,6 +739,9 @@ export function needsSilSafety(text: string): boolean {
 
 /** Outdoor / marine / harsh UV + weather environment. */
 export function needsOutdoor(text: string): boolean {
+  // Saltvatten och båtar sedan nattestet 2026-11-19: "lucka på en båt,
+  // saltvatten och sol" fick vanliga aluminiumcylinder.
+  if (/saltvatten|havsvatten|sjövatten|\bbåt(?:en|ar|ens)?\b|\bfartyg\w*|\bsolljus|salt\s?water|sea\s?water|\bboats?\b|salzwasser|meerwasser|\bboot(?:e|en)?\b|\bschiff\w*|agua\s+salada|agua\s+de\s+mar|\bbarcos?\b|\bbuques?\b/i.test(text)) return true;
   return /\butomhus\b|\boutdoor\b|\bexterior.*install\b|\bsalt.*milj\b|\bmarin\b|\bmarine\b|\boffshore\b|\bsalt.*spray\b|\bsalt.*dimma\b|\bväder.*skydd\b|\buv.*exponering\b|\bregn.*milj\b|\bkorrosiv.*milj\b|\bim\s?freien\b|\baußenbereich\b|\bmaritim\w*\b|\bsalzsprühnebel\b|\bwetterfest\w*\b|\bexterior\b|\bal\s?aire\s?libre\b|\bambiente\s?marino\b|\bmarítim\w*\b|\bniebla\s?salina\b|\bintemperie\b/i.test(text);
 }
 
@@ -855,7 +871,7 @@ export function needsRodLock(text: string): boolean {
   // frågas en gång till (genomgången 2026-11-12 frågade "får lasten sjunka
   // ned?" med svaret "Ja, det gör inget" fast personalen stod under den).
   if (personalUnderLasten(text)) return true;
-  return /stångbroms|stång.?lås|rod.?lock|mekaniskt?\s+lås|fallskydd|spring.?applied|hållbroms|broms.*(strömavbrott|nödstopp|luftbortfall)|inte\s+fall(a|er)\s+(ner|ned)|får\s+inte\s+falla|extern[at]?\s+låsning|lastsäkring|lasthållning|håll[a]?\s+lasten|lås[a]?\s+(lasten|kolvstången|cylindern)|kolbenstangenbremse|mechanische\s?verriegelung|mechanisches\s?schloss|absturzsicherung|darf\s?nicht\s?fallen|externe[rnms]?\s?verriegelung|lastsicherung|freno\s?de\s?vástago|bloqueo\s?mecánico|bloqueo\s?extern[oa]|no\s?debe\s?caer|no\s?puede\s?caer|external\s+lock(ing)?|load\s+holding/i.test(text);
+  return /stångbroms|stång.?lås|rod.?lock|mekaniskt?\s+lås|fallskydd|spring.?applied|hållbroms|broms.*(strömavbrott|nödstopp|luftbortfall)|inte\s+fall(a|er)\s+(ner|ned)|får\s+inte\s+falla|extern[at]?\s+låsning|lastsäkring|lasthållning|håll[a]?\s+lasten|lås[a]?\s+(lasten|kolvstången|cylindern)|kolbenstangenbremse|mechanische\s?verriegelung|mechanisches\s?schloss|absturzsicherung|darf\s?nicht\s?fallen|externe[rnms]?\s?verriegelung|lastsicherung|freno\s?de\s?vástago|bloqueo\s?mecánico|bloqueo\s?extern[oa]|no\s?debe\s?caer|no\s?puede\s?caer|external\s+lock(ing)?|load\s+holding|(?:must|may|should|can)\s*not\s+(?:drop|fall)|mustn't\s+(?:drop|fall)|without\s+dropping|never\s+(?:drop|fall)|nicht\s+(?:herunter|ab)?fallen|nicht\s+absinken|no\s+(?:debe|puede)\s+(?:bajar|descender)/i.test(text);
 }
 
 /**
@@ -1549,13 +1565,15 @@ export function detectConflicts(f: {
 // we stock 50 grippers + 12 vacuum parts. This branch surfaces the right family.
 export function detectEndEffectorIntent(text: string): "gripper" | "vacuum" | null {
   const t = text.toLowerCase();
-  const vacuumAsk = /vakuumgrepp|vakuumgripare|sugkopp|sugkoppar|suction.?cup|\bsugg\b|ejektor|vakuum.{0,12}(plock|grepp|lyft|hanter)/i.test(t);
+  // Engelska, tyska och spanska sedan nattestet 2026-11-19: "vacuum cups" och
+  // "pinza" (gripdon) gav cylindrar i stället för griporgan.
+  const vacuumAsk = /vakuumgrepp|vakuumgripare|sugkopp|sugkoppar|suction.?cup|\bsugg\b|ejektor|vakuum.{0,12}(plock|grepp|lyft|hanter)|vacuum.?(?:cups?|pads?|grippers?|grip\w*)|suction.?pads?|saugnapf\w*|sauger\b|sauggreifer\w*|vakuumgreifer\w*|vakuumsauger\w*|\bejektor\w*|ventosas?\b|eyector\w*|agarre\s+por\s+vac[ií]o/i.test(t);
   // "parallellgrepp" och "vinkelgrepp" saknades till 2026-10-02: bara
   // -gripare-formerna fanns, trots att -grepp är minst lika vanligt på
   // svenska. "Vi ska gripa en detalj med ett parallellgrepp" gav null.
   // "radialgripare" saknades till 2026-10-14: "parallell-" och "vinkel-" fanns,
   // och en radialbegäran fick ejektorer ur cylindervägen (granskningen).
-  const gripperAsk = /gripdon|parallellgrip(are|grepp)?|parallellgrepp|vinkelgrip(are|grepp)?|vinkelgrepp|radialgrip(are|grepp)?|radialgrepp|tregrepp|treback|griparback|\bgripper\b|\bgripare\b|\bgrepp(et|en)?\b|klämback|gripa\s+(och|tag|fast|om)|griper\s+(om|fast|tag|och)/i.test(t);
+  const gripperAsk = /gripdon|parallellgrip(are|grepp)?|parallellgrepp|vinkelgrip(are|grepp)?|vinkelgrepp|radialgrip(are|grepp)?|radialgrepp|tregrepp|treback|griparback|\bgripper\b|\bgripare\b|\bgrepp(et|en)?\b|klämback|gripa\s+(och|tag|fast|om)|griper\s+(om|fast|tag|och)|\bgrippers\b|greifer\b|parallelgreifer\w*|winkelgreifer\w*|\bpinzas?\b/i.test(t);
   // Fragile, flat parts imply vacuum even without the word (glass / PCB / thin sheet).
   const fragileFlat = /\bglas\b|glasskiv|\bwafer\b|kretskort|\bpcb\b|tunn(a|t)?\s*pl(å|a)t|folie|laminat|solcell|\bdisplay\b|\blins(er)?\b/i.test(t)
                       && /plock|lyft|grepp|gripa|hanter|flytta/i.test(t);
@@ -1582,8 +1600,8 @@ export function detectEndEffectorIntent(text: string): "gripper" | "vacuum" | nu
  */
 export function endEffectorExplicitlyAsked(text: string): boolean {
   const t = text.toLowerCase();
-  return /vakuumgrepp|vakuumgripare|sugkopp|sugkoppar|suction.?cup|ejektor|vakuum.{0,12}(plock|grepp|lyft|hanter)/i.test(t)
-    || /gripdon|parallellgrip(are|grepp)?|parallellgrepp|vinkelgrip(are|grepp)?|vinkelgrepp|radialgrip(are|grepp)?|radialgrepp|griparback|\bgripper\b|\bgripare\b|klämback/i.test(t);
+  return /vakuumgrepp|vakuumgripare|sugkopp|sugkoppar|suction.?cup|ejektor|vakuum.{0,12}(plock|grepp|lyft|hanter)|vacuum.?(?:cups?|pads?|grippers?|grip\w*)|suction.?pads?|saugnapf\w*|sauger\b|sauggreifer\w*|vakuumgreifer\w*|vakuumsauger\w*|\bejektor\w*|ventosas?\b|eyector\w*|agarre\s+por\s+vac[ií]o/i.test(t)
+    || /gripdon|parallellgrip(are|grepp)?|parallellgrepp|vinkelgrip(are|grepp)?|vinkelgrepp|radialgrip(are|grepp)?|radialgrepp|griparback|\bgripper\b|\bgripare\b|klämback|\bgrippers\b|greifer\b|parallelgreifer\w*|winkelgreifer\w*|\bpinzas?\b/i.test(t);
 }
 
 /**
