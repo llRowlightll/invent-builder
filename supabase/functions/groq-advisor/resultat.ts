@@ -119,14 +119,24 @@ export function byggResultat(o: {
   const ejektor = greppPrimar === "vacuum" && /eject|ejektor|venturi/.test(namnOchTyp);
   // Bara namnet eller typen avgör: en givarspänning gör inget gripdon elektriskt.
   const elgripdon = greppPrimar === "gripper" && /\belectric|elektrisk|\behps\b|\blehf/.test(namnOchTyp);
-  const princip = greppPrimar === "gripper"
+  // En stötdämpare är ingen cylinder: pallstoppet hette "Pneumatisk cylinder
+  // med styrventil" och räknades på lyftkraft (15 696 N) i stället för
+  // rörelseenergi (Groq-provet 2026-11-19).
+  const dampare = o.primaryCategory === "shock-absorber";
+  const stoppcylinder = dampare && komponenter.some((r) => /stoppcylinder|stop cylinder|Stoppzylinder|cilindro de tope/i.test(r.role ?? ""));
+  const princip = dampare
+    ? (sv ? `Stötdämpare som bromsar lasten${stoppcylinder ? ", och en cylinder som fäller upp och ned stoppet" : ""}`
+          : `Shock absorber that decelerates the load${stoppcylinder ? ", and a cylinder that raises and lowers the stop" : ""}`)
+    : greppPrimar === "gripper"
     ? (elgripdon ? (sv ? "Elektriskt gripdon" : "Electric gripper") : (sv ? `Pneumatiskt gripdon${tillbehor}` : `Pneumatic gripper${tillbehor}`))
     : greppPrimar === "vacuum"
     ? (ejektor ? (sv ? "Vakuumalstring med ejektor" : "Vacuum generation with an ejector") : (sv ? "Vakuumgrepp med sugkoppar" : "Vacuum grip with suction cups"))
     : (o.isElectric
       ? (sv ? "Elektrisk axel med drivsteg och motor" : "Electric axis with drive and motor")
       : (sv ? `Pneumatisk cylinder${tillbehor}` : `Pneumatic cylinder${tillbehor}`));
-  const titel = greppPrimar
+  const titel = dampare
+    ? (sv ? `Stopp med stötdämpare — ${o.primarySku}` : `Stop with shock absorber — ${o.primarySku}`)
+    : greppPrimar
     ? (sv ? `${greppPrimar === "gripper" ? (elgripdon ? "Elektriskt grepp" : "Pneumatiskt grepp") : "Vakuumgrepp"} — ${o.primarySku}` : `${greppPrimar === "gripper" ? (elgripdon ? "Electric grip" : "Pneumatic grip") : "Vacuum grip"} — ${o.primarySku}`)
     : sv
     ? `${o.isElectric ? "Elektrisk" : "Pneumatisk"} ${sortering ? "utskjutare för utsortering" : "rörelse"} — ${o.primarySku}`
@@ -172,6 +182,31 @@ export function byggResultat(o: {
           metod: sv ? "Varken lastens massa eller kraften är angiven." : "Neither the load's mass nor the force is stated.",
           saknas: [sv ? "lastens massa eller gripkraften" : "load mass or grip force"],
         });
+  } else if (dampare) {
+    // Dämparen väljs efter energin per slag: ½ · m · v².
+    const massKrav = kb.krav.find((k) => k.objektId === "produkt" && k.egenskap === "dimensionerande_massa" && typeof k.varde === "number")
+      ?? kb.krav.find((k) => k.egenskap === "massa" && (typeof k.varde === "number" || k.intervall));
+    const m = typeof massKrav?.varde === "number" ? massKrav.varde : (massKrav?.intervall?.max ?? 0);
+    const vKrav = kb.krav.find((k) => k.egenskap === "hastighet" && k.enhet === "m/s" && typeof k.varde === "number");
+    const v = typeof vKrav?.varde === "number" ? vKrav.varde : 0;
+    const namn = sv ? "Rörelseenergi per slag" : "Kinetic energy per stroke";
+    if (m > 0 && v > 0) {
+      const e = Math.round(0.5 * m * v * v * 10) / 10;
+      const tal = (x: number) => (sv ? String(x).replace(".", ",") : String(x));
+      berakningar.push({
+        id: "berakning-energi", namn, status: "preliminar", resultat: `${tal(e)} J`,
+        metod: sv
+          ? `½ · m · v² = ½ · ${tal(m)} kg · (${tal(v)} m/s)². Driver banan lasten vidare under inbromsningen tillkommer drivkraften × dämparens slag.`
+          : `½ · m · v² = ½ · ${m} kg · (${v} m/s)². If the conveyor keeps driving the load during deceleration, add drive force × damper stroke.`,
+        saknas: [],
+      });
+    } else {
+      berakningar.push({
+        id: "berakning-energi", namn, status: "underlag_otillrackligt", resultat: null,
+        metod: sv ? "Kräver lastens massa och hastighet vid anslaget." : "Requires the load's mass and its speed at impact.",
+        saknas: [...(m > 0 ? [] : [sv ? "lastens massa" : "load mass"]), ...(v > 0 ? [] : [sv ? "hastighet vid anslaget" : "speed at impact"])],
+      });
+    }
   } else if (kk && kk.metod !== "ingen" && kk.forceN > 0) {
     berakningar.push({
       id: "berakning-kraft",

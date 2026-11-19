@@ -737,6 +737,12 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     en: ` ⚠️ Product family — order it in Ø${famStorlek}, the smallest size in the series that gives the required force. Specify the full ordering code (bore + stroke + variants) when ordering.`,
     de: ` ⚠️ Produktfamilie — in Ø${famStorlek} bestellen, die kleinste Größe der Serie, die die erforderliche Kraft liefert. Vollständigen Bestellcode (Bohrung + Hub + Varianten) bei der Bestellung angeben.`,
     es: ` ⚠️ Familia de productos — pídalo en Ø${famStorlek}, el tamaño más pequeño de la serie que da la fuerza necesaria. Indique el código de pedido completo (diámetro + carrera + variantes) al realizar el pedido.`,
+  }) : primaryIsFamilyProd && ctx.primaryCategory === "shock-absorber" ? pick(locale, {
+    // En stötdämpare har gänga och slag, ingen borrning (Groq-provet 2026-11-19).
+    sv: " ⚠️ Välj storleken efter energin per slag (se databladet) och ange komplett beställningskod vid order.",
+    en: " ⚠️ Choose the size by energy per stroke (see the datasheet) and specify the full ordering code when ordering.",
+    de: " ⚠️ Größe nach der Energie pro Hub wählen (siehe Datenblatt) und vollständigen Bestellcode bei der Bestellung angeben.",
+    es: " ⚠️ Elija el tamaño según la energía por carrera (vea la hoja de datos) e indique el código de pedido completo al realizar el pedido.",
   }) : primaryIsFamilyProd && isElectric ? pick(locale, {
     // En elaxel har storlek, inte borrning.
     sv: " ⚠️ Produktfamilj — ange komplett beställningskod (storlek + slaglängd + varianter) vid order.",
