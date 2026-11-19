@@ -74,18 +74,22 @@ export type Forfragan = "rorelse" | "vridning" | "luftberedning" | "ventil" | "g
 /** Det en orderkod i förfrågan redan säger (readOrderCodes i order-code.ts). */
 export type Kodvarden = { slagMm: number | null; borrningMm: number | null };
 
-const RORELSE = /\blyft|hissa|sänk[ae]|flytt|förflytt|skjut[ae]|knuff|\btrycka\b|trycker\b|press[ae]|\bpress\b|klämm|spänn[ae]|vrid[ae]|rotera|sväng[ae]|tippa|vippa|positioner|\baxel\b|axlar|elaxel|slaglängd|\bslag\b|pick|plock|placera|grip|greppa|sorter|matning|portal|släde|linjär|\bservo|stegmotor|luckan?\b|dörr|grind/i;
+// Engelska, tyska och spanska rörelseord sedan nattestet 2026-11-19, så att
+// en rörelse vinner även när ventilordet står på ett annat språk.
+const RORELSE = /\blyft|hissa|sänk[ae]|flytt|förflytt|skjut[ae]|knuff|\btrycka\b|trycker\b|press[ae]|\bpress\b|klämm|spänn[ae]|vrid[ae]|rotera|sväng[ae]|tippa|vippa|positioner|\baxel\b|axlar|elaxel|slaglängd|\bslag\b|pick|plock|placera|grip|greppa|sorter|matning|portal|släde|linjär|\bservo|stegmotor|luckan?\b|dörr|grind|\blift\w*|\bpush\w*|\bpull(?:s|ed|ing)?\b|\bclamp\w*|\bpress(?:es|ed|ing)?\b|\bmov(?:e|es|ed|ing)\b|\bstroke\b|\bgantry\b|\bslide\b|\bhoist\w*|\banheb\w*|\bheb(?:en|t|e)\b|\bhub\b|\bhubzylinder\w*|\bschieb\w*|\bverschieb\w*|\bklemm\w*|\bspann(?:en|t|zylinder)\b|\bdrück\w*|\bzieh(?:en|t)\b|\belev(?:a|an|ar|ación)\b|\blevant\w*|\bempuj\w*|\bdesplaz\w*|\bsujet\w*|\bapret\w*|\bmover\b|\bcarrera\b|\bposicion\w*|\bpuerta\b|\btür\b|\bdoor\b/i;
 const LUFTBEREDNING = /luftberedning|\bfrl\b|filterregulator|filter.?regulator|tryckregulator|\bregulator|dimsmörj|smörjare|luftfilter|kondensat|avfukt|lufttork|tryckluftsfilter|mjukstart|avstängningsventil|huvudventil|tryckluftsnät/i;
-const VENTIL = /magnetventil|ventil(?!ation)|ventilterminal|ventilö|ventilblock|manifold|\b[235]\/[23]\b/i;
+// "Terminal de válvulas con PROFINET" blev cylindrar (nattestet 2026-11-19).
+const VENTIL = /magnetventil|ventil(?!ation)|ventilterminal|ventilö|ventilblock|manifold|\b[235]\/[23]\b|\bvalves?\b|\bválvulas?\b|\bvalvulas?\b|\bsolenoid\w*/i;
 const GIVARE = /givare|sensor|tryckvakt|reed|närhets/i;
 const SLANG = /\bslang|koppling|instick|fitting|snabbkoppl|skarv/i;
 
 const CYLINDER = /cylind|aktuator|ställdon/i;
 
 /** En vridning: vrida, rotera, svänga, vända, indexera. */
-const VRIDNING = /\bvrid(a|er|s|ning|enhet|don|bord|cylinder)?\b|\brotera\w*|\brotation\w*|\bsväng(a|er|ning|enhet|cylinder|don)?\b|\bvänd(a|er|ning)\b|\bindexer\w*|\brotary\b|\bswivel\b|\bturntable\b/i;
+// "Pneumatischer Schwenkantrieb 180°" fick frågor om slag och last (nattestet 2026-11-19).
+const VRIDNING = /\bvrid(a|er|s|ning|enhet|don|bord|cylinder)?\b|\brotera\w*|\brotation\w*|\bsväng(a|er|ning|enhet|cylinder|don)?\b|\bvänd(a|er|ning)\b|\bindexer\w*|\brotary\b|\bswivel\b|\bturntable\b|\bschwenk\w*|\bdrehantrieb\w*|\bdrehen\b|\bdreht\b|\bdrehtisch\w*|\bgir(?:ar|o)\b|\bgiratori\w*|\brotativ\w*|\brotat(?:e|es|ing)\b/i;
 /** En linjär rörelse. Står den bredvid en vridning är det en fleraxlig rörelse. */
-const LINJAR = /\blyft|hissa|sänk[ae]|flytt|förflytt|skjut[ae]|knuff|\btrycka\b|trycker\b|press[ae]|\bpress\b|klämm|spänn[ae]|elaxel|slaglängd|\bslag\b|pick|plock|placera|portal|släde|linjär|stopp/i;
+const LINJAR = /\blyft|hissa|sänk[ae]|flytt|förflytt|skjut[ae]|knuff|\btrycka\b|trycker\b|press[ae]|\bpress\b|klämm|spänn[ae]|elaxel|slaglängd|\bslag\b|pick|plock|placera|portal|släde|linjär|stopp|\blift\w*|\bpush\w*|\bpull(?:s|ed|ing)?\b|\bclamp\w*|\bpress(?:es|ed|ing)?\b|\bmov(?:e|es|ed|ing)\b|\bstroke\b|\bgantry\b|\bslide\b|\bhoist\w*|\banheb\w*|\bheb(?:en|t|e)\b|\bhub\b|\bhubzylinder\w*|\bschieb\w*|\bverschieb\w*|\bklemm\w*|\bspann(?:en|t|zylinder)\b|\bdrück\w*|\bzieh(?:en|t)\b|\belev(?:a|an|ar|ación)\b|\blevant\w*|\bempuj\w*|\bdesplaz\w*|\bsujet\w*|\bapret\w*|\bmover\b|\bcarrera\b|\bposicion\w*|\bpuerta\b|\btür\b|\bdoor\b/i;
 
 /** "Anti-rotation" och "får inte vrida sig" handlar om vridskydd, inte om en vridning. */
 function utanVridskydd(text: string): string {
@@ -173,7 +177,7 @@ export function kandaVarden(text: string, kod?: Kodvarden): Kanda {
     // En skjutcylinder som skjuter av något från ett band rör sig i sidled.
     // Engelska, tyska och spanska sedan nattestet 2026-11-19: "lift ...
     // vertically", "anheben" och "levantar" fick frågan om riktning ändå.
-    riktning: /vertikal|horisontell|lodrät|vågrät|\blyft|hissa|sänk|uppåt|nedåt|sidled|liggande|stående|\bupp\b|\bner\b|skjut\w*\s+(av|ut|bort|över|in|fram|tillbaka)\b|knuff|sidobana|\blift(?:s|ed|ing)?\b|\bvertical|\bhorizontal|\bsideways|\bhoist|\banheb\w*|\bhochheb\w*|\bsenkrecht|\bwaagerecht|\bseitlich|\blevant\w*|\belev(?:a|an|ar)\b|\bbajar\b|\blateral/i.test(text),
+    riktning: /vertikal|horisontell|lodrät|vågrät|\blyft|hissa|sänk|uppåt|nedåt|sidled|liggande|stående|\bupp\b|\bner\b|skjut\w*\s+(av|ut|bort|över|in|fram|tillbaka)\b|knuff|sidobana|\blift(?:s|ed|ing)?\b|\bvertical|\bhorizontal|\bsideways|\bhoist|\bhubzylinder|\banheb\w*|\bhochheb\w*|\bsenkrecht|\bwaagerecht|\bseitlich|\blevant\w*|\belev(?:a|an|ar)\b|\bbajar\b|\blateral/i.test(text),
     styrning: /\bplc\b|profinet|ethercat|ethernet.?ip|io-?link|modbus|profibus|devicenet|cc-?link|fältbuss|styrsystem|siemens|beckhoff|omron|allen.?bradley|rockwell|schneider|\brelä|tryckknapp|handventil|fotventil|manuellt/i.test(text),
     faltbuss: /profinet|ethercat|ethernet.?ip|io-?link|modbus|profibus|devicenet|cc-?link/i.test(text),
     spanning: /\d+\s*v\s*(dc|ac)\b|\b(12|24|110|115|230)\s*v\b/i.test(text),

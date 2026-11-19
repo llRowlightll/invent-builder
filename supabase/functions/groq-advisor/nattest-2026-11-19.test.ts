@@ -1,8 +1,8 @@
 import { assert, assertEquals } from "jsr:@std/assert@^1";
-import { bokstavsaxlarITexten, detectEndEffectorIntent, needsOutdoor, needsRodLock, needsVerticalLoad } from "./signals.ts";
+import { bokstavsaxlarITexten, detectCategories, detectEndEffectorIntent, extractStatedForceN, needsOutdoor, needsRodLock, needsVerticalLoad } from "./signals.ts";
 import { langderITexten } from "./kravbild.ts";
 import { scoreProduct, type CatalogProduct, type ScoringCtx } from "./scoring.ts";
-import { kandaVarden } from "./fragor.ts";
+import { forfragningstyp, kandaVarden } from "./fragor.ts";
 
 // Nattestet 2026-11-19: maskinbyggaren mot drift på fyra språk.
 
@@ -70,4 +70,31 @@ Deno.test("vid vertikal last rankas en kolvstångslös under en cylinder med kol
   assert(scoreProduct(iso, ctx) > scoreProduct(kolvstangslos, ctx));
   // Bad kunden om en kolvstångslös gäller det.
   assertEquals(scoreProduct(kolvstangslos, { ...ctx, enhetBegard: true }), scoreProduct(kolvstangslos, { ...ctx, isVertical: false, enhetBegard: true }));
+});
+
+Deno.test("en ersättning går till samma familj som koden", () => {
+  const ctx = { requiredStroke: 100, minBoreMm: 25, isHighPrecision: false, isHighSpeed: false, isVertical: false, isWashdown: false, isAtex: false, kodFamilj: "DSNU" } as ScoringCtx;
+  const dsnu: CatalogProduct = { sku: "FESTO-DSNU-25", name: "Festo DSNU-25 Round Cylinder", category: "cylinder", brand: "festo", key_specs: { bore_mm: 25 } };
+  const crdsnu: CatalogProduct = { sku: "FESTO-CRDSNU-25", name: "Festo CRDSNU-25 Corrosion-Resistant Cylinder", category: "cylinder", brand: "festo", key_specs: { bore_mm: 25 } };
+  assert(scoreProduct(dsnu, ctx) > scoreProduct(crdsnu, ctx));
+  assertEquals(scoreProduct(crdsnu, ctx), scoreProduct(crdsnu, { ...ctx, kodFamilj: null }));
+});
+
+Deno.test("förfrågans typ på engelska, tyska och spanska (omgång 3)", () => {
+  assertEquals(forfragningstyp("Terminal de válvulas con PROFINET para 6 cilindros"), "ventil");
+  assertEquals(forfragningstyp("Valve terminal with 8 valves and IO-Link"), "ventil");
+  assertEquals(forfragningstyp("Pneumatischer Schwenkantrieb 180°, 5 Nm Drehmoment"), "vridning");
+  // En rörelse vinner fortfarande över ventilordet.
+  assertEquals(forfragningstyp("cylinder with a 5/2 valve to push boxes 200 mm"), "rorelse");
+  assertEquals(forfragningstyp("Ventilinsel, Spannung 24 V, 6 Ventile"), "ventil");
+  assert(detectCategories("Terminal de válvulas con PROFINET para 6 cilindros").includes("valve-terminal"));
+});
+
+Deno.test("angiven kraft och Hubzylinder (omgång 3)", () => {
+  assertEquals(extractStatedForceN("I need a cylinder to clamp a part with 800 N, 20 mm stroke", {}), 800);
+  assertEquals(extractStatedForceN("Werkstück mit 600 N klemmen", {}), 600);
+  assertEquals(extractStatedForceN("sujetar una pieza con 300 N", {}), 300);
+  assertEquals(extractStatedForceN("lift a load of 500 N", {}), 0);
+  assert(needsVerticalLoad("Hubzylinder für 30 kg, 250 mm Hub"));
+  assertEquals(langderITexten("Hubzylinder für 30 kg, 250 mm Hub")[0].typ, "slag");
 });

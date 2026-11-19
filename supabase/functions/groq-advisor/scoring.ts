@@ -60,6 +60,10 @@ export interface ScoringCtx {
   // Kunden bad själv om en styrd enhet, släde eller kolvstångslös -- då är
   // enhetstypen ingen avvikelse, bara standardnumret jämförs.
   enhetBegard?: boolean;
+  // Familjen i en uppslagen orderkod ("DSNU" ur DSNU-25-100-PPV-A). Samma
+  // familj går före en annan: "Ersatz für DSNU-25" gav CRDSNU först
+  // (nattestet 2026-11-19).
+  kodFamilj?: string | null;
 }
 
 /** Catalog categories whose products ARE primary linear/rotary actuators.
@@ -536,6 +540,10 @@ export function scoreProduct(p: CatalogProduct, ctx: ScoringCtx): number {
   // a requested brand that doesn't fit still loses to one that does.
   if (ctx.preferredBrands?.length && ctx.preferredBrands.includes(p.brand.toLowerCase())) {
     score += 18;
+  }
+  if (ctx.kodFamilj) {
+    const fam = ctx.kodFamilj.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (fam.length >= 2 && new RegExp(`(?<![A-Z0-9])${fam}`).test(`${p.sku} ${p.name}`.toUpperCase().replace(/[^A-Z0-9 ]/g, " "))) score += 15;
   }
 
   // ── Penalties ────────────────────────────────────────────────────

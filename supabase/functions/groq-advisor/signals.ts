@@ -125,10 +125,10 @@ export function detectCategories(text: string): string[] {
   if (/vakuum|sugg|sugkopp|vacuum|suction|plocka|pick.*place|pick.and.place|lyft.*upp|grepp|grip|känslig|inte.*repa|skada.*inte|kretskort|pcb|elektronik|glas|optik/i.test(t))
     slugs.add("vacuum");
   if (/gripper|klämma|jaw|parallel.grip/i.test(t)) slugs.add("gripper");
-  if (/ventil(?!terminal)|valve(?!.terminal)|solenoid/i.test(t)) slugs.add("valve");
+  if (/ventil(?!terminal)|valve(?!.terminal)|solenoid|v[aá]lvula(?!s?\s+terminal)/i.test(t)) slugs.add("valve");
   // "ventilö" är det svenska ordet för en ventilterminal; det saknades, så
   // "ventilö för 8 cylindrar" blev bara "valve" (2026-11-17).
-  if (/ventilterminal|ventilö|valve.terminal|valve.island|ventilinsel|isla de v[aá]lvulas|vtug|vtsa|mpa\b|cpv\b|ventilblock|manifold|fördelare|ventilramp/i.test(t))
+  if (/ventilterminal|ventilö|valve.terminal|valve.island|ventilinsel|isla de v[aá]lvulas|terminal(?:es)? de v[aá]lvulas|vtug|vtsa|mpa\b|cpv\b|ventilblock|manifold|fördelare|ventilramp/i.test(t))
     slugs.add("valve-terminal");
   if (/sensor|detek|proximity|reed/i.test(t)) slugs.add("sensor");
   // Cleanroom (actual ISO-class rooms): switch to electric-only
@@ -561,7 +561,7 @@ export function needsVacuumGrip(text: string): boolean {
 export function needsValveTerminal(text: string): boolean {
   return (
     needsMultiAxis(text) ||
-    /ventilterminal|valve.terminal|valve.island|ventilö|ventilinsel|isla de válvulas|vtug|vtsa|mpa\b|cpv\b|ventilblock|manifold|ventilramp/i.test(text) ||
+    /ventilterminal|valve.terminal|valve.island|ventilö|ventilinsel|isla de válvulas|terminal(?:es)? de v[aá]lvulas|vtug|vtsa|mpa\b|cpv\b|ventilblock|manifold|ventilramp/i.test(text) ||
     /tre.*cylindr|fyra.*cylindr|3\s*cylindr|4\s*cylindr|3\s*cyl|4\s*cyl|several.*actuat|multiple.*actuat|multiple.*cyl|två.*cylindr|två cyl/i.test(text)
   );
 }
@@ -608,7 +608,7 @@ export function needsVerticalLoad(textMedOrientering: string): boolean {
   // 400 mm anheben" och personal under lasten gav ingen vertikal last -- och
   // därmed ingen säkerhetsruta, backventil eller stångbroms.
   if (personalUnderLasten(text)) return true;
-  if (/\blift(?:s|ed|ing)?\b|\bhoist\w*|\bvertical(?:ly)?\b|\banheb\w*|\bhochheb\w*|\bsenkrecht\w*|\blevant\w*|\belev(?:a|an|ar|ación)\b/i.test(text)) return true;
+  if (/\bhubzylinder\w*|\bhubeinheit\w*|\bhubtisch\w*|\bhubwerk\w*|\blift(?:s|ed|ing)?\b|\bhoist\w*|\bvertical(?:ly)?\b|\banheb\w*|\bhochheb\w*|\bsenkrecht\w*|\blevant\w*|\belev(?:a|an|ar|ación)\b/i.test(text)) return true;
   return /\blyft|\bhissa\b|\bhäng.*last\b|\blast.*häng\b|\bvertikal|\bcylinder.*vertikal\b|\bz[.-]?axel\b|\bz[.-]?axis\b|\bpress.*ner\b|\bpress.*ned\b|\bnedåt\b|\buppåt\b|\bvertical.*load\b|\bhanging.*load\b|\bsuspended.*load\b|\blifting.*cyl\b|\bcylinder.*lyft\b|\bz[.-]?achse\b|\bheben\b|\bhebt\b|\bhängende\s?last\b|\bnach\s?unten\b|\bnach\s?oben\b|\belevar\b|\blevantar\b|\bcarga\s?suspendida\b|\bcarga\s?colgante\b|\beje\s?z\b|\bhacia\s?abajo\b|\bhacia\s?arriba\b/i.test(text);
 }
 
@@ -1154,8 +1154,14 @@ export function extractStatedForceN(text: string, answers: Record<string, string
   // trästycken innan borrning, 300 N" lästes som en vikt på 31 kg och
   // dubblades till 600 N (provkörning mot drift 2026-11-17). Står ett viktord
   // emellan ("pressa upp en last på 500 N") är newton en vikt, som förut.
-  const m = text.match(/(?:\bpress\w*|\bkläm\w*|\bspänn\w*|\bstans\w*|\bnit\w*|(?<!grip|grepp|håll|hålla|vakuum|sug)kraft)([^\d.]{0,40})(\d+(?:[.,]\d+)?)\s*N\b/i);
-  if (!m || /\b(?:last\w*|vikt\w*|väg\w*|weigh\w*|load\w*|massa?)\b/i.test(m[1])) return 0;
+  // Engelska, tyska och spanska sedan nattestet 2026-11-19: "clamp a part
+  // with 800 N" lästes som en vikt och dubblades till 1600 N.
+  const m = text.match(/(?:\bpress\w*|\bkläm\w*|\bspänn\w*|\bstans\w*|\bnit\w*|(?<!grip|grepp|håll|hålla|vakuum|sug)kraft|\bclamp\w*|\bpunch\w*|(?<!grip |holding |gripping )\bforce\b|\bklemm\w*|\bdrück\w*|\bfuerza\b|\bapret\w*|\bsujet\w*|\bprens\w*)([^\d.]{0,40})(\d+(?:[.,]\d+)?)\s*N\b/i);
+  if (!m || /\b(?:last\w*|vikt\w*|väg\w*|weigh\w*|load\w*|massa?|gewicht\w*|carga\w*|peso\w*)\b/i.test(m[1])) {
+    // Tyskt verb sist: "Werkstück mit 600 N klemmen".
+    const efter = text.match(/(\d+(?:[.,]\d+)?)\s*N\s+(?:[\wäöüß]+\s+){0,2}(?:klemm\w*|drück\w*|press\w*|spann(?:en|t)|stanz\w*)\b/i);
+    return !m && efter ? parseFloat(efter[1].replace(",", ".")) : 0;
+  }
   return parseFloat(m[2].replace(",", "."));
 }
 

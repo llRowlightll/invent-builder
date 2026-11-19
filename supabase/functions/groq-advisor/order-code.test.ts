@@ -145,3 +145,12 @@ Deno.test("utan fakta låses ändå måtten", () => {
   const s = orderCodeInstruction(readOrderCodes("DSBC-50-100", FAMILJER), "sv");
   assert(s.includes("EXAKT Ø50 mm"));
 });
+
+Deno.test("SMC:s magnetkolv (CD...) hittar familjen (nattestet 2026-11-19)", () => {
+  const r = resolveOrderCode("CDQ2B32-50DZ", FAMILJER);
+  assertEquals(r?.familySlug, "cq2");
+  assertEquals(r?.boreMm, 32);
+  assertEquals(r?.strokeMm, 50);
+  // Utan D som förut.
+  assertEquals(resolveOrderCode("CQ2B32-50DZ", FAMILJER)?.boreMm, 32);
+});
