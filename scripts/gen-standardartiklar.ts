@@ -23,6 +23,7 @@ import { CP96_BORES, CP96_LIMITS, CP96_SOURCE, cp96BuildCode, cp96ParseCode } fr
 import { CQ2_BORES, CQ2_LIMITS, CQ2_SOURCE, cq2BuildCode, cq2ParseCode } from "../src/lib/catalog/cq2.ts";
 import { CJ2_BORES, CJ2_LIMITS, CJ2_SOURCE, cj2BuildCode, cj2ParseCode } from "../src/lib/catalog/cj2.ts";
 import { C85_BORES, C85_LIMITS, C85_SOURCE, c85BuildCode, c85ParseCode } from "../src/lib/catalog/c85.ts";
+import { MHZ2_BORES, MHZ2_LIMITS, MHZ2_SOURCE, mhz2BuildCode, mhz2ParseCode } from "../src/lib/catalog/mhz2.ts";
 
 type Text4 = { sv: string; en: string; de: string; es: string };
 /**
@@ -216,6 +217,74 @@ function c85(): Serie {
   };
 }
 
+// ── SMC MHZ2 (parallellgripdon) ──────────────────────────────────────────────
+// Katalogen anger gripkraft PER FINGER vid 0,5 MPa (sida 499). Motorn läser
+// grip_force_5bar_N som gripdonets totala kraft, som Festos rader (DHPS anger
+// summan för båda backarna), så totalen är två fingrar × katalogvärdet. Normalt
+// stängd (C) griper inåt: den inre kraften får en egen nyckel, som motorn inte
+// prövar som yttre grepp.
+function mhz2(): Serie {
+  const rader: Serie["rader"] = [];
+  for (const b of MHZ2_BORES) {
+    for (const verkan of ["D", "S", "C"]) {
+      const kod = mhz2BuildCode({ bore: b.code, action: verkan });
+      if (!kod || mhz2ParseCode(kod) === null) continue;
+      const perFinger = verkan === "D" ? b.force_d[0] : verkan === "S" ? b.force_no : b.force_nc;
+      const tryck = verkan === "D" ? b.pressure_d : b.pressure_s;
+      rader.push({
+        sku: kod, bore: b.bore_mm, slag: b.stroke_mm, port: b.port,
+        verkan_sv: verkan === "D" ? "dubbelverkande" : verkan === "S" ? "enkelverkande, normalt öppen (yttre grepp)" : "enkelverkande, normalt stängd (inre grepp)",
+        verkan_en: verkan === "D" ? "double-acting" : verkan === "S" ? "single-acting, normally open (external grip)" : "single-acting, normally closed (internal grip)",
+        verkan_de: verkan === "D" ? "doppeltwirkend" : verkan === "S" ? "einfachwirkend, normal offen (Außengreifen)" : "einfachwirkend, normal geschlossen (Innengreifen)",
+        verkan_es: verkan === "D" ? "doble efecto" : verkan === "S" ? "simple efecto, normalmente abierta (agarre exterior)" : "simple efecto, normalmente cerrada (agarre interior)",
+        mode: verkan === "D" ? "Double-acting" : verkan === "S" ? "Single-acting, normally open" : "Single-acting, normally closed",
+        finger: perFinger,
+        yttre_total: verkan === "C" ? "" : String(Math.round(perFinger * 2 * 10) / 10),
+        inre_total: verkan === "C" ? String(Math.round(perFinger * 2 * 10) / 10) : "",
+        inre_finger_d: verkan === "D" ? String(b.force_d[1]) : "",
+        pmin: tryck[0], pmax: tryck[1],
+        vikt: verkan === "D" ? b.weight_g[0] : b.weight_g[1],
+        rep: b.repeatability_mm, cpm: b.max_frequency_cpm,
+      });
+    }
+  }
+  return {
+    familj: "MHZ2", fabrikat: "smc", kategori: "gripper", ledtid: 7, rader,
+    namn: {
+      sv: "SMC MHZ2 Ø{bore} parallellgripdon, {verkan_sv}",
+      en: "SMC MHZ2 Ø{bore} parallel gripper, {verkan_en}",
+      de: "SMC MHZ2 Ø{bore} Parallelgreifer, {verkan_de}",
+      es: "SMC MHZ2 Ø{bore} pinza paralela, {verkan_es}",
+    },
+    beskrivning: {
+      sv: "Parallellgripdon med två fingrar ur SMC serie MHZ2, kolvdiameter Ø{bore} mm, {verkan_sv}. Slag {slag} mm (öppning och stängning, båda sidor), gripkraft {finger} N per finger vid 0,5 MPa, repeterbarhet ±{rep} mm, anslutning {port}.",
+      en: "Two-finger parallel gripper from SMC series MHZ2, bore Ø{bore} mm, {verkan_en}. Stroke {slag} mm (opening and closing, both sides), gripping force {finger} N per finger at 0.5 MPa, repeatability ±{rep} mm, port {port}.",
+      de: "Zweifinger-Parallelgreifer der SMC-Serie MHZ2, Kolbendurchmesser Ø{bore} mm, {verkan_de}. Hub {slag} mm (Öffnen und Schließen, beide Seiten), Greifkraft {finger} N pro Finger bei 0,5 MPa, Wiederholgenauigkeit ±{rep} mm, Anschluss {port}.",
+      es: "Pinza paralela de dos dedos de la serie SMC MHZ2, diámetro Ø{bore} mm, {verkan_es}. Carrera {slag} mm (apertura y cierre, ambos lados), fuerza de agarre {finger} N por dedo a 0,5 MPa, repetibilidad ±{rep} mm, conexión {port}.",
+    },
+    specar: [
+      ["bore_mm", "{bore}"],
+      ["gripper_type", "Parallel gripper, 2 fingers"],
+      ["mode_of_operation", "{mode}"],
+      ["stroke_mm", "{slag}"],
+      ["gripping_force_per_finger_05mpa_N", "{finger}"],
+      ["grip_force_5bar_N", "{yttre_total}"],
+      ["grip_force_internal_5bar_N", "{inre_total}"],
+      ["gripping_force_internal_per_finger_05mpa_N", "{inre_finger_d}"],
+      ["repeatability_mm", "{rep}"],
+      ["max_frequency_cpm", "{cpm}"],
+      ["weight_g", "{vikt}"],
+      ["port", "{port}"],
+      ["min_pressure_mpa", "{pmin}"],
+      ["max_pressure", mpaTillBar(MHZ2_LIMITS.max_pressure_mpa)],
+      ["temp_range", temp(MHZ2_LIMITS.temp_c)],
+      ["position_sensing", "Magnetic piston (sensor bracket " + MHZ2_LIMITS.switch_bracket + ")"],
+      ["series", "MHZ2"],
+      ["standard_kalla", `${MHZ2_SOURCE.title}, ${MHZ2_SOURCE.edition}: specifikationer och gripkraft s. 499. knowledge_chunks ${MHZ2_SOURCE.file}`],
+    ],
+  };
+}
+
 // ── SQL ──────────────────────────────────────────────────────────────────────
 const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 
@@ -229,8 +298,8 @@ function mall(m: string, kolumner: string[]): string {
   }).filter(Boolean).join(" || ") || "''";
 }
 
-// CP96 och CQ2 ligger redan i databasen (20261119180000); --alla tar med dem.
-const serier = (Deno.args.includes("--alla") ? [cp96(), cq2()] : []).concat([cj2(), c85()]);
+// CP96, CQ2 (20261119180000), CJ2 och C85 (20261119183000) ligger redan i databasen; --alla tar med dem.
+const serier = (Deno.args.includes("--alla") ? [cp96(), cq2(), cj2(), c85()] : []).concat([mhz2()]);
 const allaKoder = serier.flatMap((s) => s.rader.map((r) => String(r.sku)));
 const dubbletter = allaKoder.filter((s, i, l) => l.indexOf(s) !== i);
 if (dubbletter.length) throw new Error(`Samma kod två gånger: ${dubbletter.join(", ")}`);
@@ -275,7 +344,7 @@ join products p on p.sku = t.sku and p.status = 'draft'
 cross join lateral (values
 ${s.specar.map(([k, v]) => `  (${q(k)}, ${mall(v, kolumner)})`).join(",\n")}
 ) as s(key, value)
-where not exists (select 1 from product_specs x where x.product_id = p.id and x.key = s.key);
+where s.value <> '' and not exists (select 1 from product_specs x where x.product_id = p.id and x.key = s.key);
 `);
 }
 ut.push("commit;");
