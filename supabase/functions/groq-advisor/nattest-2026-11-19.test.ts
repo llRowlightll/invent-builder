@@ -1,6 +1,7 @@
 import { assert, assertEquals } from "jsr:@std/assert@^1";
 import { bokstavsaxlarITexten, detectEndEffectorIntent, needsOutdoor, needsRodLock, needsVerticalLoad } from "./signals.ts";
 import { langderITexten } from "./kravbild.ts";
+import { scoreProduct, type CatalogProduct, type ScoringCtx } from "./scoring.ts";
 import { kandaVarden } from "./fragor.ts";
 
 // Nattestet 2026-11-19: maskinbyggaren mot drift på fyra språk.
@@ -60,4 +61,13 @@ Deno.test("måttet läses som slag med rörelseord på tyska och spanska, och ax
   assertEquals(bokstavsaxlarITexten("300 mm X travel and 80 mm Z"), [{ axis: "X", stroke: 300 }, { axis: "Z", stroke: 80 }]);
   assertEquals(bokstavsaxlarITexten("400 mm i X och 100 mm i Z"), [{ axis: "X", stroke: 400 }, { axis: "Z", stroke: 100 }]);
   assertEquals(bokstavsaxlarITexten("låda 300 mm x 200 mm, lyfta 2 kg"), []);
+});
+
+Deno.test("vid vertikal last rankas en kolvstångslös under en cylinder med kolvstång", () => {
+  const ctx = { requiredStroke: 400, minBoreMm: 32, requiredForceN: 294, isHighPrecision: false, isHighSpeed: false, isVertical: true, isWashdown: false, isAtex: false } as ScoringCtx;
+  const kolvstangslos: CatalogProduct = { sku: "R1", name: "AVENTICS RTC-HD Ø32 kolvstångslös cylinder, 400 mm", category: "cylinder", brand: "aventics", key_specs: { bore_mm: 32, stroke_mm: 400 } };
+  const iso: CatalogProduct = { sku: "P1", name: "AVENTICS PRA Ø40 400mm ISO 15552 Cylinder", category: "cylinder", brand: "aventics", key_specs: { bore_mm: 40, stroke_mm: 400 } };
+  assert(scoreProduct(iso, ctx) > scoreProduct(kolvstangslos, ctx));
+  // Bad kunden om en kolvstångslös gäller det.
+  assertEquals(scoreProduct(kolvstangslos, { ...ctx, enhetBegard: true }), scoreProduct(kolvstangslos, { ...ctx, isVertical: false, enhetBegard: true }));
 });

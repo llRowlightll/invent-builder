@@ -445,6 +445,16 @@ export function scoreProduct(p: CatalogProduct, ctx: ScoringCtx): number {
     score -= 5; // no stroke spec = accessory/family
   }
 
+  // ── Vertikal last: kolvstångslös sist ─────────────────────────────
+  // Nattestet 2026-11-19: lyft med personal under lasten fick en kolvstångslös
+  // cylinder som bästa val, och stycklistan bad ändå om en stångbroms. En
+  // kolvstångslös har ingen kolvstång att låsa, och en magnetkopplad kan
+  // släppa vagnen vid stöt. Bad kunden själv om en kolvstångslös gäller det.
+  if (ctx.isVertical && !ctx.enhetBegard && p.category === "cylinder" &&
+      /rodless|kolvstångslös|stånglös|band cylinder|magnetkopplad|magnetically coupled/i.test(`${p.name} ${p.key_specs?.cylinder_type ?? ""}`)) {
+    score -= 20;
+  }
+
   // ── Technology match (±25 points) ────────────────────────────────
   const isBallScrew = isBallScrewProduct(p);
   const isBelt     = isBeltDrivenProduct(p);

@@ -2009,6 +2009,18 @@ JSON: { "summary": "1-2 sentences: the mechanism and how it meets the requiremen
   const saknarGrund = loadKg <= 0 && requiredForceN <= 0 && hazards.torqueNm <= 0;
   const orsak = hazards.conflicts.length > 0 ? "kravkonflikt" : saknarGrund ? "otillrackligt_underlag" : !catalogCanHandle ? "ingen_katalogmatchning" : "alternativ";
   finalOptions.push({ ...buildCustomSolutionOption(maxRequiredStroke, locale, maxCatalogStroke, catalogCanHandle, hazards), orsak });
+  // Bryter varje katalogalternativ mot ett krav kommer kundlösningen först,
+  // och inget av dem kallas "Bästa valet" (nattestet 2026-11-19: ugnslucka i
+  // 150 °C, där alla tre cylindrarna var gjorda för 80 °C).
+  const bryterKrav = (o: Record<string, unknown>) =>
+    ((o.kravstatus as Array<{ utfall?: string }> | undefined) ?? []).some((k) => k.utfall === "ej_uppfyllt");
+  const katalogAlt = finalOptions.filter((o) => o.sku !== "CUSTOM-SOLUTION");
+  const kundAlt = finalOptions.find((o) => o.sku === "CUSTOM-SOLUTION");
+  if (kundAlt && katalogAlt.length > 0 && katalogAlt.every(bryterKrav)) {
+    finalOptions = [kundAlt, ...katalogAlt.map((o) => /^(Bästa valet|Best choice|Beste Wahl|Mejor opción)$/.test(String(o.badge ?? ""))
+      ? { ...o, badge: pick(locale, { sv: "Närmaste – klarar inte alla krav", en: "Closest – does not meet every requirement", de: "Nächstgelegen – erfüllt nicht alle Anforderungen", es: "Más cercano – no cumple todos los requisitos" }) }
+      : o)];
+  }
 
   // When no real catalog product matched (only CUSTOM-SOLUTION remains), the LLM
   // summary tends to hallucinate that our products meet the requirement (e.g.

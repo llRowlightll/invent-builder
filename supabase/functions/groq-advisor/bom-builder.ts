@@ -652,7 +652,9 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
           isMounting, isGuided, isArticulated, isRodLock, primaryBoreMm, primaryBrand: primaryBrandFetched, isHighTemp, isWashdown, isSilSafety, isHydraulic, isVeryHighForce,
           isSpolmiljo, isFoodGrade, sakerhetsniva,
           isMultiAxis, perAxisStrokes, isBatteryDryroom, unitCount } = ctx;
-  const isPneumatic = !isElectric && !isAtex && !isAtexDust;
+  // Hydraulik är inte pneumatik: "hydraulcylinder 200 bar" fick en 5/2-
+  // magnetventil, luftberedning och tryckluftsslang (nattestet 2026-11-19).
+  const isPneumatic = !isElectric && !isAtex && !isAtexDust && !isHydraulic;
   // Found 2026-08-28 (adversarial test): a "6 identiska cylinderstationer"
   // request got a BOM sized for exactly 1 -- every row below was a hardcoded
   // literal with no concept of station count at all. unitCount defaults to 1
@@ -683,6 +685,12 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     ? perAxisStrokes.reduce((best, a, i, arr) => (a.stroke > arr[best].stroke ? i : best), 0)
     : -1;
   const primaryAxisLabel = (isMultiAxis && primaryAxisIdx >= 0) ? perAxisStrokes[primaryAxisIdx].axis.toUpperCase() : "";
+  // Varje elektrisk axel har sin egen motor, drivare och kabel: plock och
+  // placera med X- och Z-axel fick en av varje (nattestet 2026-11-19).
+  const elAxlar = isElectric && isMultiAxis && perAxisStrokes.length >= 2 && !primarArGriporgan ? perAxisStrokes.length : 1;
+  const perAxelNot = elAxlar > 1 ? pick(locale, {
+    sv: ` En per axel (${elAxlar} axlar).`, en: ` One per axis (${elAxlar} axes).`, de: ` Eine je Achse (${elAxlar} Achsen).`, es: ` Uno por eje (${elAxlar} ejes).`,
+  }) : "";
   // Varje pneumatisk axel ska orka lasten: lyftet 2 × tyngden, och i sidled
   // samma tumregel som motorn använder för en cylinder i sidled (signals.ts).
   // En vågrät axel tas dessutom helst kolvstångslös.
@@ -720,10 +728,31 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
       ? (ctx.primaryCategory === "vacuum"
         ? pick(locale, { sv: "Griporgan — vakuum", en: "End effector — vacuum", de: "Greiforgan — Vakuum", es: "Efector final — vacío" })
         : pick(locale, { sv: "Griporgan — gripdon", en: "End effector — gripper", de: "Greiforgan — Greifer", es: "Efector final — pinza" }))
-      : pick(locale, { sv: "Primär aktuator", en: "Primary actuator", de: "Primäraktuator", es: "Actuador primario" }))
+      : ctx.primaryCategory === "shock-absorber"
+        ? pick(locale, { sv: "Stötdämpare (bromsar lasten)", en: "Shock absorber (decelerates the load)", de: "Stoßdämpfer (bremst die Last)", es: "Amortiguador (frena la carga)" })
+        : pick(locale, { sv: "Primär aktuator", en: "Primary actuator", de: "Primäraktuator", es: "Actuador primario" }))
       + (primaryAxisLabel ? pick(locale, { sv: ` — ${primaryAxisLabel}-axel`, en: ` — ${primaryAxisLabel}-axis`, de: ` — ${primaryAxisLabel}-Achse`, es: ` — eje ${primaryAxisLabel}` }) : ""),
     reason: pick(locale, { sv: "Vald primär aktuator", en: "Selected primary actuator", de: "Ausgewählter Primäraktuator", es: "Actuador primario seleccionado" }) + famNote,
   });
+
+  // ── 1. Stoppcylindern till ett stopp med stötdämpare ─────────────────
+  // Nattestet 2026-11-19: pallstoppet fick stötdämparen, magnetventil, givare
+  // och luftberedning -- men ingen cylinder som fäller stoppet. Raden är en
+  // lucka (SPECIFY): stoppcylindern väljs efter massan och sidokraften.
+  const stoppIText = /\bstopp(?:et|en|er|ar)?\b(?!\s*-\s*(?:position|läge|punkt))|\bstopper\b|pallstopp|pallet\s+stop|stop\s+gate|vereinzel\w*|anschlag\w*|\btope\b/i.test(ctx.griporganText ?? "");
+  if (ctx.primaryCategory === "shock-absorber" && stoppIText) {
+    rows.push({
+      sku: "SPECIFY", quantity: uc,
+      kind: "actuator",
+      role: pick(locale, { sv: "Stoppcylinder (fäller upp och ned stoppet)", en: "Stopper cylinder (raises and lowers the stop)", de: "Stopperzylinder (hebt und senkt den Anschlag)", es: "Cilindro de tope (sube y baja el tope)" }),
+      reason: pick(locale, {
+        sv: "Stötdämparen bromsar lasten; stoppet fälls upp och ned av en cylinder. Välj stoppcylindern efter lastens massa och sidokraften vid anslaget — tillverkarnas stoppcylindrar är gjorda för det. Ventil, givare och luftberedning nedan hör till den.",
+        en: "The shock absorber decelerates the load; the stop is raised and lowered by a cylinder. Choose the stopper cylinder by the load's mass and the side force at impact — manufacturers' stopper cylinders are made for this. The valve, sensors and air preparation below belong to it.",
+        de: "Der Stoßdämpfer bremst die Last; der Anschlag wird von einem Zylinder gehoben und gesenkt. Den Stopperzylinder nach Masse der Last und Querkraft beim Anschlag wählen — die Stopperzylinder der Hersteller sind dafür gemacht. Ventil, Sensoren und Druckluftaufbereitung unten gehören dazu.",
+        es: "El amortiguador frena la carga; el tope lo sube y baja un cilindro. Elija el cilindro de tope según la masa de la carga y la fuerza lateral en el impacto — los cilindros de tope de los fabricantes están hechos para ello. La válvula, los sensores y el tratamiento de aire de abajo le corresponden.",
+      }),
+    });
+  }
 
   // ── 1a. Griporganet till ett lyft (ägarens beslut 2026-11-12) ─────────
   // Lyftet är huvudvalet och griporganet en egen rad: båda ingår i offerten.
@@ -810,7 +839,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
       // Hard-coding "Servomotor" produced the stepper/servo mix-up users flagged.
       const stepperMotor = /steg|stepper/i.test(`${motorMatch!.name} ${motorMatch!.sku}`);
       rows.push({
-        sku: motorMatch!.sku, quantity: uc,
+        sku: motorMatch!.sku, quantity: uc * elAxlar,
         kind: "motor",
         role: isVerticalLoad
           ? pick(locale, { sv: "Bromsmotor (vertikal säkerhet)", en: "Brake motor (vertical safety)", de: "Bremsmotor (vertikale Sicherheit)", es: "Motor con freno (seguridad vertical)" })
@@ -882,7 +911,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     const bU = primaryBrand ? primaryBrand.toUpperCase() : "";
     const stepperDrive = !!driveMatch && /steg|stepper/i.test(`${driveMatch.name} ${driveMatch.sku}`);
     rows.push({
-      sku: sameBrandDrive ? driveMatch!.sku : "SPECIFY", quantity: uc,
+      sku: sameBrandDrive ? driveMatch!.sku : "SPECIFY", quantity: uc * elAxlar,
       kind: "drive",
       role: pick(locale, stepperDrive
         ? { sv: "Stegmotordrivare (drivsteg)", en: "Stepper drive (driver)", de: "Schrittmotortreiber (Endstufe)", es: "Controlador de motor paso a paso" }
@@ -934,7 +963,24 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   // lock holds the load through a broken hose or e-stop venting. Same matching
   // rule as mountings: a real SKU only when its bore equals the primary's,
   // otherwise SPECIFY with the required Ø called out — never a mismatched lock.
-  if (isRodLock && isPneumatic && lyftetIngar) {
+  // En kolvstångslös cylinder har ingen kolvstång att låsa (nattestet
+  // 2026-11-19): raden ber då om en broms för vagnen i stället.
+  const primarProdukt = products.find((p) => p.sku === ctx.primarySku);
+  const primarKolvstangslos = !primarArGriporgan && primarProdukt?.category === "cylinder" &&
+    /rodless|kolvstångslös|stånglös|band cylinder/i.test(`${primarProdukt.name} ${primarProdukt.key_specs?.cylinder_type ?? ""}`);
+  if (isRodLock && isPneumatic && lyftetIngar && primarKolvstangslos) {
+    rows.push({
+      sku: "SPECIFY", quantity: uc,
+      kind: "rod_lock",
+      role: pick(locale, { sv: "Broms för vagnen (kolvstångslös cylinder)", en: "Carriage brake (rodless cylinder)", de: "Schlittenbremse (kolbenstangenloser Zylinder)", es: "Freno del carro (cilindro sin vástago)" }),
+      reason: pick(locale, {
+        sv: "OBLIGATORISK när lasten inte får falla — en kolvstångslös cylinder har ingen kolvstång att låsa. Ange tillverkarens broms- eller klämenhet för vagnen, fjäderbelastad så att den håller vid luftbortfall, eller välj en cylinder med kolvstång och stångbroms.",
+        en: "MANDATORY when the load must not fall — a rodless cylinder has no piston rod to lock. Specify the manufacturer's brake or clamping unit for the carriage, spring-applied so it holds on air loss, or choose a cylinder with a piston rod and a rod lock.",
+        de: "ZWINGEND ERFORDERLICH, wenn die Last nicht fallen darf — ein kolbenstangenloser Zylinder hat keine Kolbenstange zum Verriegeln. Brems- oder Klemmeinheit des Herstellers für den Schlitten angeben, federbetätigt, damit sie bei Luftausfall hält, oder einen Zylinder mit Kolbenstange und Kolbenstangenbremse wählen.",
+        es: "OBLIGATORIO cuando la carga no debe caer — un cilindro sin vástago no tiene vástago que bloquear. Indique la unidad de freno o de bloqueo del fabricante para el carro, accionada por resorte para que sujete ante pérdida de aire, o elija un cilindro con vástago y bloqueo de vástago.",
+      }),
+    });
+  } else if (isRodLock && isPneumatic && lyftetIngar) {
     // Griporganets borrning är inte lyftaxelns: med ett griporgan som primär
     // matchas stångbromsen mot Z-axelns artikel (samma val som raden nedan).
     const zAxel = lyftaxel ? findAxisActuator(brandSorted, perAxisStrokes.find(a => a.axis === "Z")?.stroke ?? 0, isElectric, axelkrav("Z")) : null;
@@ -1425,7 +1471,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
     const cableMatch = findCatalogProductByType("cable", products);
     if (cableMatch) {
       rows.push({
-        sku: cableMatch.sku, quantity: uc,
+        sku: cableMatch.sku, quantity: uc * elAxlar,
         kind: "cable",
         role: pick(locale, { sv: "Motorkabel", en: "Motor cable", de: "Motorkabel", es: "Cable de motor" }),
         reason: pick(locale, {
@@ -1826,6 +1872,7 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   }
 
   satteVerifiering(rows, ctx);
+  if (perAxelNot) for (const r of rows) if (r.kind === "motor" || r.kind === "drive" || r.kind === "cable") r.reason += perAxelNot;
   return rows;
 }
 
