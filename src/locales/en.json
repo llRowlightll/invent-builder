@@ -716,7 +716,10 @@
     "altHintBest": "Highest force/stroke — meets requirements",
     "altHintCompact": "Smallest footprint — meets requirements",
     "altSwappedBadge": "↓ Alternative",
-    "altResetSwap": "↩ Reset AI selection"
+    "altResetSwap": "↩ Reset AI selection",
+    "offTopicTitle": "Is this about a machine?",
+    "offTopicContinue": "Continue anyway",
+    "directAnswerTitle": "Answer to your question"
   },
   "wizardPage": {
     "generateButton": "Generate",

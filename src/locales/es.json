@@ -716,7 +716,10 @@
     "altHintBest": "Mayor fuerza/carrera — cumple requisitos",
     "altHintCompact": "Menor tamaño — cumple requisitos",
     "altSwappedBadge": "↓ Alternativa",
-    "altResetSwap": "↩ Restablecer selección IA"
+    "altResetSwap": "↩ Restablecer selección IA",
+    "offTopicTitle": "¿Se trata de una máquina?",
+    "offTopicContinue": "Continuar de todos modos",
+    "directAnswerTitle": "Respuesta a su pregunta"
   },
   "wizardPage": {
     "generateButton": "Generar",

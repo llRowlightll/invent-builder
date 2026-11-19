@@ -210,6 +210,10 @@ function MachineBuilderPage() {
   const [step, setStep] = useState<Step>("describe");
   const [description, setDescription] = useUtkast("maskinbyggare.beskrivning", "");
   const [qSummary, setQSummary] = useState("");
+  // Besked när texten inte gäller automation, och det räknade svaret på en
+  // ren kraftfråga (groq-advisor/amne.ts).
+  const [utanforAmne, setUtanforAmne] = useState("");
+  const [direktsvar, setDirektsvar] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [optionsSummary, setOptionsSummary] = useState("");
@@ -391,12 +395,19 @@ function MachineBuilderPage() {
   }
 
   // Step 1 → questions
-  async function handleDescribe(text: string = description) {
+  async function handleDescribe(text: string = description, fortsatt = false) {
     if (!text.trim()) return;
     setError("");
+    setUtanforAmne("");
     setStep("q_loading");
     try {
-      const data = await advisorCall({ action: "questions", description: text, locale });
+      const data = await advisorCall({ action: "questions", description: text, locale, ...(fortsatt ? { fortsatt: true } : {}) });
+      if (data.utanforAmne) {
+        setUtanforAmne(String(data.summary ?? ""));
+        setStep("describe");
+        return;
+      }
+      setDirektsvar(typeof data.direktsvar === "string" ? data.direktsvar : "");
       // Never advance to the questions step with nothing to answer: `allAnswered`
       // requires questions.length > 0, so an empty list disables the continue
       // button forever and strands the user with no error and no way forward.
@@ -580,6 +591,19 @@ function MachineBuilderPage() {
 
           <div key={step} className="rorelse-fram">
       {/* ── Step: Describe ── */}
+      {step === "describe" && utanforAmne && (
+        <div role="status" className="mb-4 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm">
+          <p className="font-semibold text-foreground">{t("machineBuilder.offTopicTitle")}</p>
+          <p className="mt-1 text-muted-foreground">{utanforAmne}</p>
+          <button
+            type="button"
+            onClick={() => handleDescribe(description, true)}
+            className="mt-2 text-sm font-medium text-primary underline underline-offset-2 hover:no-underline"
+          >
+            {t("machineBuilder.offTopicContinue")}
+          </button>
+        </div>
+      )}
       {step === "describe" && (
         <DescribeStep
           t={t}
@@ -594,6 +618,12 @@ function MachineBuilderPage() {
       {step === "q_loading" && <LoadingCard message={t("machineBuilder.analysingApp")} form="fragor" locale={locale} />}
 
       {/* ── Step: Questions ── */}
+      {step === "questions" && direktsvar && (
+        <div className="mb-4 rounded-lg border border-border bg-card px-4 py-3 text-sm">
+          <p className="font-semibold text-foreground">{t("machineBuilder.directAnswerTitle")}</p>
+          <p className="mt-1 text-muted-foreground">{direktsvar}</p>
+        </div>
+      )}
       {step === "questions" && (
         <QuestionsStep
           t={t}

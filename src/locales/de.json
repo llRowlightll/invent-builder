@@ -716,7 +716,10 @@
     "altHintBest": "Höchste Kraft/Hub — erfüllt Anforderungen",
     "altHintCompact": "Kleinster Einbauraum — erfüllt Anforderungen",
     "altSwappedBadge": "↓ Alternative",
-    "altResetSwap": "↩ KI-Auswahl zurücksetzen"
+    "altResetSwap": "↩ KI-Auswahl zurücksetzen",
+    "offTopicTitle": "Geht es um eine Maschine?",
+    "offTopicContinue": "Trotzdem fortfahren",
+    "directAnswerTitle": "Antwort auf Ihre Frage"
   },
   "wizardPage": {
     "generateButton": "Generieren",

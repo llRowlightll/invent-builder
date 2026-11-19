@@ -12,7 +12,7 @@
 
 import { basta, gangaAv, normGanga, slangOdAv, stammer } from "./porter.ts";
 import { provaGripkraft, provaSpanning, provaTryck, SPANNINGSSATTA, TRYCKSATTA, type Kontroll, type Spanning, provaIp } from "./kontroller.ts";
-import { type CatalogProduct, arBorrningsspann, borrningstal, familjeborrning, isAtexCapableProduct, isBeltDrivenProduct, isElectricActuator, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
+import { type CatalogProduct, arBorrningsspann, borrningstal, familjeborrning, isAtexCapableProduct, isBeltDrivenProduct, isElectricActuator, isFamilyProduct, isPneumaticActuatorProduct, parseStrokeFromSpecs } from "./scoring.ts";
 import { type HazardFlags, SEAL_EFFICIENCY, requiredForceN, griporgansKrav, onskadGripdonstyp, pick, isPneumaticByDrive, isNonArticulatingActuator, tolkaTempSpann } from "./signals.ts";
 
 export function buildCustomSolutionOption(
@@ -386,7 +386,7 @@ function griporgansRad(ctx: BomCtx, uc: number): BomRow {
  */
 export function findAxisActuator(
   products: CatalogProduct[], strokeMm: number, isElectric: boolean,
-  krav: { kraftN?: number; vagrat?: boolean } = {},
+  krav: { kraftN?: number; vagrat?: boolean; marke?: string; styrd?: boolean } = {},
 ): CatalogProduct | null {
   const cands = products.filter(p => isElectric
     ? isElectricActuator(p) && !isPneumaticByDrive(p)
@@ -401,11 +401,34 @@ export function findAxisActuator(
     return true;
   });
   if (racker.length === 0) return null;
+  // Nattestet 2026-11-19 (portal x 500, y 300, z 150 mm): Y- och Z-axeln fick
+  // båda en AVENTICS RTC-HD med 600 mm slag, den första artikeln i primärens
+  // fabrikat vars slag räckte. Nu går närmast passande slag före: en serie som
+  // beställs i valfritt slag räknas som exakt, en fast artikel efter sitt
+  // överskott. Samma fabrikat väljs bara bland de som ligger nära. En lodrät
+  // pneumatisk axel som bär ett griporgan tas helst styrd (vridskydd, tål
+  // sidokraft), inte kolvstångslös.
+  const overskott = (p: CatalogProduct) =>
+    isFamilyProduct(p) ? 0 : parseStrokeFromSpecs(p.key_specs ?? {}) - strokeMm;
+  const nara = (p: CatalogProduct) => overskott(p) <= Math.max(50, strokeMm * 0.5);
+  const marke = krav.marke?.toLowerCase();
+  const sammaMarke = (p: CatalogProduct) => !!marke && p.brand?.toLowerCase() === marke;
+  const styrdArtikel = (p: CatalogProduct) => {
+    const t = `${p.name} ${p.sku} ${p.key_specs?.cylinder_type ?? ""}`;
+    return /guide|styrd|führung|slide|linjärslid/i.test(t) && !/rodless|kolvstångslös|stånglös/i.test(t);
+  };
+  const vilStyrd = !!krav.styrd && !isElectric;
+  const rang = (p: CatalogProduct) =>
+    (nara(p) ? 0 : 4) + (vilStyrd && !styrdArtikel(p) ? 2 : 0) + (sammaMarke(p) ? 0 : 1);
+  const ordnade = racker
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => rang(a.p) - rang(b.p) || overskott(a.p) - overskott(b.p) || a.i - b.i)
+    .map(({ p }) => p);
   if (krav.vagrat && strokeMm >= 500) {
-    const stanglos = racker.find(p => /rodless|kolvstångslös|stånglös|linear drive|linjärenhet|band cylinder/i.test(`${p.name} ${p.key_specs?.cylinder_type ?? ""}`) || p.category === "linear-module");
+    const stanglos = ordnade.find(p => /rodless|kolvstångslös|stånglös|linear drive|linjärenhet|band cylinder/i.test(`${p.name} ${p.key_specs?.cylinder_type ?? ""}`) || p.category === "linear-module");
     if (stanglos) return stanglos;
   }
-  return racker[0];
+  return ordnade[0];
 }
 
 /**
@@ -691,12 +714,17 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
   const perAxelNot = elAxlar > 1 ? pick(locale, {
     sv: ` En per axel (${elAxlar} axlar).`, en: ` One per axis (${elAxlar} axes).`, de: ` Eine je Achse (${elAxlar} Achsen).`, es: ` Uno por eje (${elAxlar} ejes).`,
   }) : "";
+  // Samma sak för en pneumatisk portal: x 500, y 300, z 150 mm fick ventil,
+  // strypbackventiler, givare och kopplingar för en cylinder (nattestet,
+  // omgång 4). Varje axel är en egen cylinder med egen ventilplats.
+  const pnAxlar = isPneumatic && isMultiAxis && perAxisStrokes.length >= 2 && !primarArGriporgan ? perAxisStrokes.length : 1;
   // Varje pneumatisk axel ska orka lasten: lyftet 2 × tyngden, och i sidled
   // samma tumregel som motorn använder för en cylinder i sidled (signals.ts).
   // En vågrät axel tas dessutom helst kolvstångslös.
-  const axelkrav = (axel: string): { kraftN?: number; vagrat?: boolean } => {
+  const axelkrav = (axel: string): { kraftN?: number; vagrat?: boolean; marke?: string; styrd?: boolean } => {
     const kraftN = requiredForceN(ctx.loadKg ?? 0, ctx.statedForceN ?? 0);
-    return /^z$/i.test(axel) ? { kraftN } : { kraftN, vagrat: true };
+    const marke = primaryBrandFetched || undefined;
+    return /^z$/i.test(axel) ? { kraftN, marke, styrd: true } : { kraftN, vagrat: true, marke };
   };
   const famStorlek = primarArFamiljespann(ctx) && !primarArGriporgan ? primaryBoreMm : 0;
   const famNote = primaryIsFamilyProd && primarArGriporgan ? pick(locale, {
@@ -1895,6 +1923,23 @@ export function buildMandatoryBomRows(ctx: BomCtx): BomRow[] {
 
   satteVerifiering(rows, ctx);
   if (perAxelNot) for (const r of rows) if (r.kind === "motor" || r.kind === "drive" || r.kind === "cable") r.reason += perAxelNot;
+  if (pnAxlar > 1) {
+    const perCylinder = pick(locale, {
+      sv: ` Räknat för ${pnAxlar} axlar.`, en: ` Counted for ${pnAxlar} axes.`, de: ` Gerechnet für ${pnAxlar} Achsen.`, es: ` Calculado para ${pnAxlar} ejes.`,
+    });
+    const ventilplatser = pick(locale, {
+      sv: ` Minst ${pnAxlar * uc} ventilplatser (en per axel).`, en: ` At least ${pnAxlar * uc} valve positions (one per axis).`,
+      de: ` Mindestens ${pnAxlar * uc} Ventilplätze (einer je Achse).`, es: ` Al menos ${pnAxlar * uc} posiciones de válvula (una por eje).`,
+    });
+    const andlage = /ändläge|end-position|Endlagen|fin de carrera/i;
+    for (const r of rows) {
+      const perAxel = r.kind === "flow_control" || r.kind === "fitting" ||
+        (r.kind === "sensor" && andlage.test(r.role)) ||
+        (r.kind === "valve" && /5\/2/.test(r.role));
+      if (perAxel) { r.quantity *= pnAxlar; r.reason += perCylinder; }
+      else if (r.kind === "valve_terminal") r.reason += ventilplatser;
+    }
+  }
   return rows;
 }
 

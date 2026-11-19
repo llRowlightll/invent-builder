@@ -716,7 +716,10 @@
     "altHintBest": "Högst kraft/slag — uppfyller krav",
     "altHintCompact": "Minst byggmått — uppfyller krav",
     "altSwappedBadge": "↓ Alternativ",
-    "altResetSwap": "↩ Återställ AI-val"
+    "altResetSwap": "↩ Återställ AI-val",
+    "offTopicTitle": "Gäller det här en maskin?",
+    "offTopicContinue": "Fortsätt ändå",
+    "directAnswerTitle": "Svar på frågan"
   },
   "wizardPage": {
     "generateButton": "Generera",

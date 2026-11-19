@@ -85,6 +85,7 @@ import {
 import { dokumentInomBudget, forStorBegaran, lasTpmTak, STANDARD_TPM_TAK, UTDRAGSSKILJE } from "./tokenbudget.ts";
 import { begardaVentilplatser, begardFaltbuss, dampenergiJ, provaDampenergi, provaFaltbuss, provaVentilplatser, valjDampare, ventilpoang } from "./komponentkrav.ts";
 import { kravstatusPaSprak } from "./kravstatus-sprak.ts";
+import { amnesbedomning, kraftsvar, utanforAmnetText } from "./amne.ts";
 
 // v51 — Engineering-correctness pass (reported via boss-tests): (1) multi-axis precision
 //        hole — applyPrecisionFilter no longer disables on multi-axis non-vertical, so a
@@ -887,6 +888,25 @@ async function handleQuestions(description: string, locale: string): Promise<Res
   }
 }
 
+
+/**
+ * Frågesteget med ämneskontroll och direktsvar (amne.ts). En text utan något
+ * om rörelse, komponent, maskin, mått eller artikelnummer får ett besked i
+ * stället för cylinderfrågor, utan att Groq anropas; besökaren kan fortsätta
+ * ändå (fortsatt). En ren kraftfråga ("hur mycket kraft ger en Ø63 vid 6
+ * bar?") får svaret räknat ovanför frågorna.
+ */
+async function handleQuestionsMedAmne(description: string, locale: string, fortsatt: boolean): Promise<Response> {
+  if (!fortsatt && amnesbedomning(description) === "utanfor") {
+    logAdvisorEvent("questions", { locale, utanfor_amne: true, duration_ms: 0 }, true);
+    return Response.json({ summary: utanforAmnetText(locale), questions: [], utanforAmne: true }, { headers: CORS });
+  }
+  const res = await handleQuestions(description, locale);
+  const direktsvar = kraftsvar(description, locale);
+  if (!direktsvar || !res.ok) return res;
+  const data = await res.json();
+  return Response.json({ ...data, direktsvar }, { status: res.status, headers: CORS });
+}
 
 async function handleEndEffectorOptions(
   intent: "gripper" | "vacuum", text: string, hazards: HazardFlags, loadKg: number,
@@ -2563,7 +2583,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const { action, description, answers, messages, primarySku, contextQuery, locale } = body;
     const loc = locale ?? "sv";
-    if (action === "questions") return handleQuestions(description ?? "", loc);
+    if (action === "questions") return handleQuestionsMedAmne(description ?? "", loc, body.fortsatt === true);
     // Tolkningsbesluten ("tolkning:<krav-id>") skiljs från svaren här, på ett
     // ställe: detektorerna läser svaren som text och får aldrig se ett beslut
     // som "transportband" som om kunden skrivit ordet (kravbild.ts).
