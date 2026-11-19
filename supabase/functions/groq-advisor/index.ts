@@ -32,7 +32,7 @@ import {
   fabrikatsnamn,
   repeterbarhetMm,
 } from "./scoring.ts";
-import { LANGRE_SLAG_PRO, rensaSerieslag, rensaPositionsPros, rensaMotsagelser, produktdataText } from "./prosavakt.ts";
+import { LANGRE_SLAG_PRO, rensaSerieslag, rensaPositionsPros, rensaMotsagelser, produktdataText, svarForPrompt, utanSvarsId, svenskFix } from "./prosavakt.ts";
 import { delaSvar, personalUnderLasten, tolkaKravbild, type Kravbild, type Tolkningsbeslut } from "./kravbild.ts";
 import { provaTemperatur, provaTryck, tolkaKravSpanning } from "./kontroller.ts";
 import { byggResultat, fallsakerhetstext, utanSakerhetspastaenden } from "./resultat.ts";
@@ -903,9 +903,20 @@ async function handleQuestionsMedAmne(description: string, locale: string, forts
   }
   const res = await handleQuestions(description, locale);
   const direktsvar = kraftsvar(description, locale);
-  if (!direktsvar || !res.ok) return res;
+  if (!res.ok || (!direktsvar && locale !== "sv")) return res;
   const data = await res.json();
-  return Response.json({ ...data, direktsvar }, { status: res.status, headers: CORS });
+  // Modellens frågor på svenska kan ha böjningsfel ("Sittar komponenten ...").
+  if (locale === "sv") {
+    if (typeof data.summary === "string") data.summary = svenskFix(data.summary);
+    if (Array.isArray(data.questions)) {
+      data.questions = data.questions.map((q: Record<string, unknown>) => ({
+        ...q,
+        ...(typeof q.label === "string" ? { label: svenskFix(q.label) } : {}),
+        ...(Array.isArray(q.options) ? { options: (q.options as unknown[]).map((x) => typeof x === "string" ? svenskFix(x) : x) } : {}),
+      }));
+    }
+  }
+  return Response.json({ ...data, ...(direktsvar ? { direktsvar } : {}) }, { status: res.status, headers: CORS });
 }
 
 async function handleEndEffectorOptions(
@@ -1682,7 +1693,7 @@ async function handleOptions(
   // for a confident, specific engineering justification — it did. The BOM action
   // already has correct, server-injected ATEX warning text; this path had none.
   const atexWarning = (isAtex || isAtexDust) ? `
-5. ATEX/Ex-zone request detected. These 3 products are STANDARD catalog items — NONE are ATEX/IECEx zone-certified (verify: no catalog product carries explosion-protection certification). You MUST NOT state or imply that any of them is ATEX-rated, explosion-proof, or zone-safe. "why" and "summary" MUST explicitly say these are standard, non-certified components shown for dimensioning/reference only, and that genuine ATEX/IECEx-certified equivalents (e.g. Parker P1X ATEX, SMC CDQMB-ATEX, Norgren Excelon ATEX-series) must be sourced and verified against the stated zone before purchase — recommend contacting us for a certified solution rather than ordering these directly.` : "";
+6. ATEX/Ex-zone request detected. These 3 products are STANDARD catalog items — NONE are ATEX/IECEx zone-certified (verify: no catalog product carries explosion-protection certification). You MUST NOT state or imply that any of them is ATEX-rated, explosion-proof, or zone-safe. "why" and "summary" MUST explicitly say these are standard, non-certified components shown for dimensioning/reference only, and that genuine ATEX/IECEx-certified equivalents (e.g. Parker P1X ATEX, SMC CDQMB-ATEX, Norgren Excelon ATEX-series) must be sourced and verified against the stated zone before purchase — recommend contacting us for a certified solution rather than ordering these directly.` : "";
 
   // SECURITY/CORRECTNESS: adversarial-tested 2026-08-17 — even a completely
   // ordinary, non-adversarial request ("cylinder for a stop function on a
@@ -1702,12 +1713,13 @@ MANDATORY RULES:
 1. Use EXACTLY these SKUs: ${topProducts.map(p => p.sku).join(", ")} — do NOT change them. Call each product the actuator type its name and category say: a pneumatic cylinder is never "hydraulic" (a pallet stop summary called three pneumatic ISO cylinders hydraulic, 2026-11-17)
 2. "why" = engineering justification grounded ONLY in the specs actually given for that product below (its specs:{...} JSON — bore, stroke, force, pressure, temperature, etc). Cite real numbers from there. Do NOT invent material, weight, coatings, heat treatment, integrated safety features (e.g. "built-in pressure relief"), or certifications that aren't listed — if a product's data doesn't cover something, leave it out rather than guessing. A short, fully-grounded "why" is correct; a longer one padded with invented details is not.
 3. pros/cons: same rule — only claims backed by the listed specs. 2-3 pros, 0-2 cons. A con must be a real drawback for THIS application: a stroke longer than required, a force margin below 1.2×, or a requirement the data does not cover. Never list a value that meets the requirement as a con ("only max 10 bar" when 6 bar is used, "only 300 mm stroke" when 300 mm is required). With no real drawback, return "cons": [].
-4. NEVER recalculate force, pressure or load. force_n_at_6bar is ALREADY the force at 6 bar — do not scale it by any pressure ratio. Use "Erforderlig kraft" from Requirements verbatim as the requirement; do not derive your own from the mass. Quote both numbers exactly as given, or omit them. An invented calculation is the worst possible error here: an engineer who checks it stops trusting everything else on the page.${atexWarning}${codeNote ? "\n\n" + codeNote : ""}
+4. NEVER recalculate force, pressure or load. force_n_at_6bar is ALREADY the force at 6 bar — do not scale it by any pressure ratio. Use "Erforderlig kraft" from Requirements verbatim as the requirement; do not derive your own from the mass. Quote both numbers exactly as given, or omit them. An invented calculation is the worst possible error here: an engineer who checks it stops trusting everything else on the page. The force is at 6 bar, never "at max pressure": max_pressure is only the pressure rating (a "why" said "Ø50 gives the force at max 10 bar", 2026-11-19).
+5. End-position sensing is done with a magnetic piston and separate sensors, and the sensors are listed in the parts list. A product whose specs mention a magnetic piston, a sensor or position sensing meets that requirement: never list it as a con. Do not call sensing "built-in" or "integrated" unless the specs say so.${atexWarning}${codeNote ? "\n\n" + codeNote : ""}
 Do NOT output a badge field — badges are assigned server-side and must not be set by you.
 
 JSON: { "summary": "1-2 sentences: the mechanism and how it meets the requirements. No safety claims: safety requirements are shown to the customer separately.", "options": [ { "sku": "EXACT_SKU", "why": "...", "pros": [...], "cons": [...] } ] }`;
 
-  const optUserUtanDok = `Application: ${description}\nRequirements: ${reqSummary || "standard"}\n${Object.entries(answers).map(([k,v])=>`${k}: ${v}`).join(", ")}\n\nPre-selected products (write descriptions for these ONLY):\n${preselectedStr}`;
+  const optUserUtanDok = `Application: ${description}\nRequirements: ${reqSummary || "standard"}\n${svarForPrompt(answers)}\n\nPre-selected products (write descriptions for these ONLY):\n${preselectedStr}`;
   // Hela begäran måste rymmas under minutstaket; dokumenten kortas, aldrig
   // kravet, produkterna eller säkerhetsreglerna (tokenbudget.ts).
   const optDok = dokumentInomBudget(pdfCtx, optSystem + optUserUtanDok, OPT_MAX_TOKENS, TPM_TAK);
@@ -1736,7 +1748,10 @@ JSON: { "summary": "1-2 sentences: the mechanism and how it meets the requiremen
     try {
       const llm = JSON.parse(rawOptions);
       // Sammanfattningen är modellskriven prosa precis som motiveringarna.
-      llmSummary = typeof llm.summary === "string" ? utanSakerhetspastaenden(llm.summary) : "";
+      // Interna svarsnycklar och svenska böjningsfel rättas i all modellprosa.
+      const svarsId = Object.keys(answers);
+      const putsa = (t: string) => { const u = utanSvarsId(t, svarsId, locale); return locale === "sv" ? svenskFix(u) : u; };
+      llmSummary = typeof llm.summary === "string" ? putsa(utanSakerhetspastaenden(llm.summary)) : "";
       const llmBySkuMap = new Map<string, Record<string, unknown>>();
       for (const o of (llm.options ?? [])) if (o?.sku) llmBySkuMap.set(o.sku as string, o);
       finalOptions = finalOptions.map(opt => {
@@ -1753,9 +1768,9 @@ JSON: { "summary": "1-2 sentences: the mechanism and how it meets the requiremen
         return {
           ...opt,
           // Modellen skriver prosan men får aldrig påstå säkerhet (manualen 5.5).
-          why:   (typeof llmOpt.why === "string" && llmOpt.why)     ? (utanSakerhetspastaenden(llmOpt.why) || opt.why) : opt.why,
-          pros:  (Array.isArray(llmOpt.pros) && llmOpt.pros.length) ? (llmOpt.pros as unknown[]).map(x => utanSakerhetspastaenden(String(x))).filter(Boolean) : opt.pros,
-          cons:  (Array.isArray(llmOpt.cons) && llmOpt.cons.length) ? (llmOpt.cons as unknown[]).map(x => utanSakerhetspastaenden(String(x))).filter(Boolean) : opt.cons,
+          why:   (typeof llmOpt.why === "string" && llmOpt.why)     ? (putsa(utanSakerhetspastaenden(llmOpt.why)) || opt.why) : opt.why,
+          pros:  (Array.isArray(llmOpt.pros) && llmOpt.pros.length) ? (llmOpt.pros as unknown[]).map(x => putsa(utanSakerhetspastaenden(String(x)))).filter(Boolean) : opt.pros,
+          cons:  (Array.isArray(llmOpt.cons) && llmOpt.cons.length) ? (llmOpt.cons as unknown[]).map(x => putsa(utanSakerhetspastaenden(String(x)))).filter(Boolean) : opt.cons,
         };
       });
     } catch (e) { console.error("options: failed to parse LLM JSON, using grounded server defaults:", e); }

@@ -545,7 +545,10 @@ export function tolkaKravbild(beskrivning: string, svarIn: Record<string, string
       // "1 kg/st" och "1 kg/flaska" är en massa per styck; "5 kg/m" är det inte.
       for (const m of normalMassa(s).matchAll(new RegExp(String.raw`(?<![\d.,–—-])(\d+(?:[.,]\d+)?)\s*(${MASSENHET})(?![\wåäö])(?!\s*\/(?!\s*${PER_STYCK}))`, "gi"))) {
         const forre = normalMassa(s).slice(0, m.index ?? 0);
-        if (/[–—-]\s*$|\btill\s*$/.test(forre)) continue; // del av ett intervall
+        // Del av ett intervall ("2–5 kg", "2 till 5 kg") -- men "upp till 800 kg"
+        // är en övre gräns, inget intervall. Pallstoppet för "pallarna väger upp
+        // till 800 kg" fick "Öppna frågor: Lastens massa" (Groq-provet 2026-11-19).
+        if (/[–—-]\s*$/.test(forre) || (/\btill\s*$/.test(forre) && !/\b(?:upp|ända)\s+till\s*$/i.test(forre))) continue;
         // "2 ton kraft" är en kraft, ingen last (kraftIMassaN).
         if (massanArEnKraft(normalMassa(s), m.index ?? 0, (m.index ?? 0) + m[0].length)) continue;
         const max = /\b(?:max|högst|upp till|up to)\s*$/i.test(forre.slice(-12));

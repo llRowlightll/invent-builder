@@ -75,13 +75,22 @@ const NEJ_MAGNET = new RegExp(`${NEG}[^.;:]{0,30}${MAGNETKOLV}`, "i");
 const NEJ_JUSTERBAR = new RegExp(`${NEG}[^.;:]{0,20}${JUSTERBAR}[^.;:]{0,20}${DAMPNING}`, "i");
 const NEJ_DAMPNING = new RegExp(`${NEG}[^.;:]{0,20}${DAMPNING}`, "i");
 
+// Groq-provet 2026-11-19: "Ingen positionsavkänning i båda ändlägena (krav på
+// andlagesavkanning saknas i katalogen)" om AVENTICS PRA ("Optional reed/PNP
+// sensor") och Camozzi 63 ("Magnetic piston, T-slot sensor"). Ändlägena
+// avkänns med magnetkolv och separata givare, och givarna står i stycklistan.
+const LAGESAVKANNING = String.raw`(?:(?:positions|läges|ändläges)avkänning|givare|position\s+(?:sensing|detection|feedback)|end-position\s+sensing|sensor\w*|positionserfassung|endlagenabfrage|detecci[oó]n\s+de\s+(?:posici[oó]n|fin\s+de\s+carrera))`;
+const NEJ_LAGE = new RegExp(`${NEG}[^.;:]{0,30}${LAGESAVKANNING}`, "i");
+
 export function rensaMotsagelser(cons: string[], data: string): string[] {
   const d = String(data ?? "");
   const harMagnet = /magnet/i.test(d) && !/non-?magnetic|without magnet|utan magnet|ingen magnet/i.test(d);
+  const harGivare = harMagnet || /\b(?:reed|sensor|position)/i.test(d);
   const harJusterbar = new RegExp(JUSTERBAR, "i").test(d);
   const harDampning = new RegExp(DAMPNING, "i").test(d) && !/no cushion|without cushion|ingen dämpning|utan dämpning/i.test(d);
   return cons.filter((c) => {
     if (harMagnet && NEJ_MAGNET.test(c)) return false;
+    if (harGivare && NEJ_LAGE.test(c)) return false;
     if (harJusterbar && NEJ_JUSTERBAR.test(c)) return false;
     if (harDampning && !NEJ_JUSTERBAR.test(c) && NEJ_DAMPNING.test(c)) return false;
     return true;
@@ -98,4 +107,59 @@ export function produktdataText(namn: string, specar: Record<string, unknown>): 
     const s = String(v ?? "");
     return /cushion|dämp|damp/i.test(k) && s.trim() && !/^(none|ingen|no|-)$/i.test(s.trim()) ? `cushioning ${s}` : s;
   })].join(" ; ");
+}
+
+/**
+ * Svarens id ("andlagesavkanning", "slaglangd_mm") är interna nycklar. Modellen
+ * fick dem som de var och skrev "krav på andlagesavkanning saknas i katalogen"
+ * för en kund (Groq-provet 2026-11-19). Prompten får ämnet i klartext, och en
+ * nyckel som ändå slinker igenom byts mot ämnet på kundens språk.
+ */
+type Fyra = { sv: string; en: string; de: string; es: string };
+const SVARSAMNE: Record<string, Fyra> = {
+  andlagesavkanning: { sv: "lägesavkänning i ändlägena", en: "end-position sensing", de: "Endlagenabfrage", es: "detección de fin de carrera" },
+  takt: { sv: "takt", en: "cycle rate", de: "Taktrate", es: "frecuencia de ciclo" },
+  manovrering: { sv: "styrning", en: "how it is controlled", de: "Ansteuerung", es: "mando" },
+  miljo: { sv: "miljö", en: "environment", de: "Umgebung", es: "entorno" },
+  slaglangd_mm: { sv: "slaglängd (mm)", en: "stroke (mm)", de: "Hub (mm)", es: "carrera (mm)" },
+  last_kg: { sv: "last (kg)", en: "load (kg)", de: "Last (kg)", es: "carga (kg)" },
+  kraft_n: { sv: "kraft (N)", en: "force (N)", de: "Kraft (N)", es: "fuerza (N)" },
+  rorelseriktning: { sv: "rörelseriktning", en: "direction of motion", de: "Bewegungsrichtung", es: "dirección del movimiento" },
+  lasthallning: { sv: "lasthållning", en: "load holding", de: "Lasthaltung", es: "retención de la carga" },
+  livsmedelskontakt: { sv: "livsmedelskontakt", en: "food contact", de: "Lebensmittelkontakt", es: "contacto con alimentos" },
+  korrosion: { sv: "korrosion", en: "corrosion", de: "Korrosion", es: "corrosión" },
+  greppsatt: { sv: "greppsätt", en: "grip type", de: "Greifart", es: "tipo de agarre" },
+  precision: { sv: "precision", en: "precision", de: "Präzision", es: "precisión" },
+};
+
+export function svarsamne(id: string, locale: string): string {
+  const t = SVARSAMNE[id];
+  if (t) return t[(locale as keyof Fyra)] ?? t.en;
+  return id.replace(/_/g, " ");
+}
+
+/** Svaren som prompten ser dem: ämne i klartext, aldrig den interna nyckeln. */
+export function svarForPrompt(svar: Record<string, string>): string {
+  return Object.entries(svar ?? {}).map(([k, v]) => `${svarsamne(k, "en")}: ${v}`).join(", ");
+}
+
+export function utanSvarsId(text: string, ids: string[], locale: string): string {
+  let t = String(text ?? "");
+  for (const id of ids) {
+    if (!/^[a-z][a-z0-9_]{4,}$/.test(id) || !t.includes(id)) continue;
+    t = t.replace(new RegExp(String.raw`\b${id}\b`, "g"), svarsamne(id, locale));
+  }
+  return t;
+}
+
+/**
+ * Böjningsfel modellen gör på svenska: "En dubbelverkande pneumatiskt
+ * cylinder" (två gånger i Groq-provet 2026-11-19) och frågan "Sittar
+ * komponenten i livsmedelszonen?". Cylinder, ventil, axel och aktuator är
+ * n-ord; ett gripdon är t-ord och lämnas.
+ */
+export function svenskFix(text: string): string {
+  return String(text ?? "")
+    .replace(/\b(pneumatisk|elektrisk|hydraulisk)t(\s+(?:cylinder|ventil|axel|aktuator|ventilö|linjärenhet)(?![\wåäö]))/gi, "$1$2")
+    .replace(/\bSittar\b/g, "Sitter").replace(/\bsittar\b/g, "sitter");
 }

@@ -31,7 +31,7 @@ export function langName(locale: string): string {
  */
 export function sprakregler(locale: string): string {
   return locale === "sv"
-    ? ` Swedish terminology: write "cylinder" (never "kolonn"), "dubbelverkande"/"enkelverkande" (never "dubbelaktuell"), "tätning" (never "Dichtung"), "kraft" (not "force"), "slaglängd" (not "stroke"), "kolvdiameter" or "borrning" (not "bore"), "fett" or "smörjmedel" (never "grepp").`
+    ? ` Swedish terminology: write "cylinder" (never "kolonn"), "dubbelverkande"/"enkelverkande" (never "dubbelaktuell"), "tätning" (never "Dichtung"), "kraft" (not "force"), "slaglängd" (not "stroke"), "kolvdiameter" or "borrning" (not "bore"), "fett" or "smörjmedel" (never "grepp"). Inflect adjectives for n-words: "en pneumatisk cylinder" (never "pneumatiskt cylinder"). Every word in Swedish (never English words such as "barrel" or "wash-down" in a Swedish sentence).`
     : "";
 }
 
