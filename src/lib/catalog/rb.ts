@@ -85,6 +85,8 @@ export interface RBModel {
   freq_per_min: number;
   /** Största tillåtna axialkraft [N]. */
   thrust_n: number;
+  /** Egen kollisionshastighet [m/s] där modellen avviker från seriens (RB0604: 0,3–1,0, sida 1299). */
+  speed_m_s?: [number, number];
   /** Returfjäderns kraft utskjuten/intryckt [N]. */
   spring_ext_n: number;
   spring_ret_n: number;
@@ -119,7 +121,7 @@ const m = (series: string, size: string, thread: string, stroke: number, energy:
 });
 /** Data sida 1299 (RB), 1306 (RBL), 1310 (RBQ); delar sida 1302, 1307, 1311. */
 export const RB_MODELS: RBModel[] = [
-  m("RB", "0604", "M6 x 0,75", 4, 0.5, 80, 150, 3.05, 5.59, 5.5, null, [null, null, null]),
+  { ...m("RB", "0604", "M6 x 0,75", 4, 0.5, 80, 150, 3.05, 5.59, 5.5, null, [null, null, null]), speed_m_s: [0.3, 1.0] },
   m("RB", "0805", "M8 x 1,0", 5, 0.98, 80, 245, 1.96, 3.83, 15, 16, ["RBC08C", "RB08S", "RB08-X331"]),
   m("RB", "0806", "M8 x 1,0", 6, 2.94, 80, 245, 1.96, 4.22, 15, 16, ["RBC08C", "RB08S", "RB08-X331"]),
   m("RB", "1006", "M10 x 1,0", 6, 3.92, 70, 422, 4.22, 6.18, 23, 25, ["RBC10C", "RB10S", "RB10-X331"]),
