@@ -25,6 +25,8 @@ import { CJ2_BORES, CJ2_LIMITS, CJ2_SOURCE, cj2BuildCode, cj2ParseCode } from ".
 import { C85_BORES, C85_LIMITS, C85_SOURCE, c85BuildCode, c85ParseCode } from "../src/lib/catalog/c85.ts";
 import { MHZ2_BORES, MHZ2_LIMITS, MHZ2_SOURCE, mhz2BuildCode, mhz2ParseCode } from "../src/lib/catalog/mhz2.ts";
 import { MXS_BORES, MXS_LIMITS, MXS_SOURCE, mxsBuildCode, mxsParseCode } from "../src/lib/catalog/mxs.ts";
+import { CM2_BORES, CM2_LIMITS, CM2_SOURCE, CM2_STANDARD_STROKES, cm2BuildCode, cm2ParseCode } from "../src/lib/catalog/cm2.ts";
+import { MB_BORES, MB_LIMITS, MB_SOURCE, mbBuildCode, mbParseCode } from "../src/lib/catalog/mb.ts";
 
 type Text4 = { sv: string; en: string; de: string; es: string };
 /**
@@ -331,6 +333,91 @@ function mxs(): Serie {
 }
 
 // ── SQL ──────────────────────────────────────────────────────────────────────
+// ── SMC CM2 (Z1, rundcylinder ø20–40) ────────────────────────────────────────
+function cm2(): Serie {
+  const rader: Serie["rader"] = [];
+  for (const b of CM2_BORES) {
+    for (const slag of CM2_STANDARD_STROKES) {
+      const kod = cm2BuildCode({ bore: b.code, mounting: "B", stroke_mm: slag, magnet: true });
+      if (!kod || cm2ParseCode(kod) === null) continue;
+      rader.push({ sku: kod, bore: b.bore_mm, slag });
+    }
+  }
+  return {
+    familj: "CM2", fabrikat: "smc", kategori: "cylinder", ledtid: 28, rader,
+    namn: {
+      sv: "SMC CM2 Ø{bore} rundcylinder, {slag} mm slag",
+      en: "SMC CM2 Ø{bore} round cylinder, {slag} mm stroke",
+      de: "SMC CM2 Ø{bore} Rundzylinder, {slag} mm Hub",
+      es: "SMC CM2 Ø{bore} cilindro redondo, carrera {slag} mm",
+    },
+    beskrivning: {
+      sv: "Rundcylinder ur SMC serie CM2 (Z1) med cylinderrör i rostfritt stål, borrning Ø{bore} mm, slaglängd {slag} mm. Dubbelverkande, inbyggd magnet för givare, gummidämpning, basutförande. Rc-gänga som standard; G-gänga beställs med TF i koden.",
+      en: "Round cylinder from SMC series CM2 (Z1) with stainless steel cylinder tube, bore Ø{bore} mm, stroke {slag} mm. Double-acting, built-in magnet for sensors, rubber bumper, basic mounting. Rc port thread as standard; G thread is ordered with TF in the code.",
+      de: "Rundzylinder der SMC-Serie CM2 (Z1) mit Zylinderrohr aus Edelstahl, Kolbendurchmesser Ø{bore} mm, Hub {slag} mm. Doppeltwirkend, integrierter Magnet für Sensoren, Gummipuffer, Grundausführung. Anschlussgewinde Rc als Standard; G-Gewinde wird mit TF im Code bestellt.",
+      es: "Cilindro redondo de la serie SMC CM2 (Z1) con tubo de acero inoxidable, diámetro Ø{bore} mm, carrera {slag} mm. Doble efecto, imán incorporado para sensores, amortiguador de goma, ejecución básica. Rosca de conexión Rc de serie; la rosca G se pide con TF en el código.",
+    },
+    specar: [
+      ["bore_mm", "{bore}"],
+      ["stroke_mm", "{slag}"],
+      ["mode_of_operation", "Double-acting"],
+      ["position_sensing", "Magnetic piston"],
+      ["cylinder_type", "Round cylinder"],
+      ["cushioning_types", "Rubber bumper"],
+      // Materiallistan i katalogen (knowledge_chunks smc-kat-cm2-z1.pdf, chunk 53).
+      ["material", "Cylinder tube stainless steel, piston rod carbon steel hard chrome plated, covers aluminium alloy"],
+      ["min_pressure_mpa", String(CM2_LIMITS.min_pressure_mpa)],
+      ["max_pressure", mpaTillBar(CM2_LIMITS.max_pressure_mpa)],
+      ["temp_range", `${temp(CM2_LIMITS.temp_c.without_switch)} (utan givare), ${temp(CM2_LIMITS.temp_c.with_switch)} (med givare)`],
+      ["max_speed_mm_s", String(CM2_LIMITS.speed_mm_s.rubber[1])],
+      ["series", "CM2"],
+      ["standard_kalla", `${CM2_SOURCE.title}, ${CM2_SOURCE.edition}: How to Order s. 5, data och standardslag s. 6. knowledge_chunks ${CM2_SOURCE.file}`],
+    ],
+  };
+}
+
+// ── SMC MB (dragstångscylinder ø32–125) ──────────────────────────────────────
+function mb(): Serie {
+  const rader: Serie["rader"] = [];
+  for (const b of MB_BORES) {
+    for (const slag of b.standard) {
+      const kod = mbBuildCode({ bore: b.code, mounting: "B", stroke_mm: slag, magnet: true });
+      if (!kod || mbParseCode(kod) === null) continue;
+      rader.push({ sku: kod, bore: b.bore_mm, slag, port: b.port });
+    }
+  }
+  return {
+    familj: "MB", fabrikat: "smc", kategori: "cylinder", ledtid: 28, rader,
+    namn: {
+      sv: "SMC MB Ø{bore} dragstångscylinder, {slag} mm slag",
+      en: "SMC MB Ø{bore} tie-rod cylinder, {slag} mm stroke",
+      de: "SMC MB Ø{bore} Zugankerzylinder, {slag} mm Hub",
+      es: "SMC MB Ø{bore} cilindro con tirantes, carrera {slag} mm",
+    },
+    beskrivning: {
+      sv: "Dragstångscylinder ur SMC serie MB, borrning Ø{bore} mm, slaglängd {slag} mm, anslutning {port}. Dubbelverkande, inbyggd magnet för givare, luftdämpning, basutförande. G-gänga beställs med TF i koden.",
+      en: "Tie-rod cylinder from SMC series MB, bore Ø{bore} mm, stroke {slag} mm, port {port}. Double-acting, built-in magnet for sensors, air cushion, basic mounting. G thread is ordered with TF in the code.",
+      de: "Zugankerzylinder der SMC-Serie MB, Kolbendurchmesser Ø{bore} mm, Hub {slag} mm, Anschluss {port}. Doppeltwirkend, integrierter Magnet für Sensoren, Luftdämpfung, Grundausführung. G-Gewinde wird mit TF im Code bestellt.",
+      es: "Cilindro con tirantes de la serie SMC MB, diámetro Ø{bore} mm, carrera {slag} mm, conexión {port}. Doble efecto, imán incorporado para sensores, amortiguación neumática, ejecución básica. La rosca G se pide con TF en el código.",
+    },
+    specar: [
+      ["bore_mm", "{bore}"],
+      ["stroke_mm", "{slag}"],
+      ["mode_of_operation", "Double-acting"],
+      ["position_sensing", "Magnetic piston"],
+      ["cylinder_type", "Tie-rod cylinder"],
+      ["cushioning_types", "Air cushion"],
+      ["port", "{port}"],
+      ["min_pressure_mpa", String(MB_LIMITS.min_pressure_mpa)],
+      ["max_pressure", mpaTillBar(MB_LIMITS.max_pressure_mpa)],
+      ["temp_range", `${temp(MB_LIMITS.temp_c)} (utan givare), ${temp(MB_LIMITS.temp_switch_c)} (med givare)`],
+      ["max_speed_mm_s", String(MB_LIMITS.speed_mm_s[1])],
+      ["series", "MB"],
+      ["standard_kalla", `${MB_SOURCE.title}, ${MB_SOURCE.edition}: How to Order s. 482, data och standardslag s. 483. knowledge_chunks ${MB_SOURCE.file}`],
+    ],
+  };
+}
+
 const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 
 /** "Ø{bore} mm" -> 'Ø' || t.bore::text || ' mm'. Okänd kolumn är ett fel, inte tom text. */
@@ -343,8 +430,9 @@ function mall(m: string, kolumner: string[]): string {
   }).filter(Boolean).join(" || ") || "''";
 }
 
-// Redan i databasen: CP96, CQ2 (20261119180000), CJ2, C85 (20261119183000), MHZ2 (20261119190000). --alla tar med dem.
-const serier = (Deno.args.includes("--alla") ? [cp96(), cq2(), cj2(), c85(), mhz2()] : []).concat([mxs()]);
+// Redan i databasen: CP96, CQ2 (20261119180000), CJ2, C85 (20261119183000), MHZ2 (20261119190000),
+// MXS (20261119191500). --alla tar med dem.
+const serier = (Deno.args.includes("--alla") ? [cp96(), cq2(), cj2(), c85(), mhz2(), mxs()] : []).concat([cm2(), mb()]);
 const allaKoder = serier.flatMap((s) => s.rader.map((r) => String(r.sku)));
 const dubbletter = allaKoder.filter((s, i, l) => l.indexOf(s) !== i);
 if (dubbletter.length) throw new Error(`Samma kod två gånger: ${dubbletter.join(", ")}`);
