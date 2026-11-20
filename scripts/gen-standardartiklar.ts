@@ -30,6 +30,7 @@ import { MB_BORES, MB_LIMITS, MB_SOURCE, mbBuildCode, mbParseCode } from "../src
 import { CY1_SERIES, cy1BuildCode, cy1ParseCode, cy1Strokes } from "../src/lib/catalog/cy1.ts";
 import { CJ1_ACTIONS, CJ1_BORES, CJ1_LIMITS, CJ1_MODELS, CJ1_SOURCE, cj1BuildCode, cj1ParseCode } from "../src/lib/catalog/cj1.ts";
 import { CJP_BORES, CJP_LIMITS, CJP_SOURCE, CJP_STROKES, cjpBuildCode, cjpParseCode } from "../src/lib/catalog/cjp.ts";
+import { RB_LIMITS, RB_MODELS, RB_SERIES, rbBuildCode, rbParseCode } from "../src/lib/catalog/rb.ts";
 
 type Text4 = { sv: string; en: string; de: string; es: string };
 /**
@@ -41,7 +42,7 @@ type Serie = {
   familj: string;
   fabrikat: string; // brands.slug
   kategori: string; // categories.slug
-  ledtid: number;
+  ledtid: number | null; // null = okänd (familjeraden saknar den också)
   rader: Array<Record<string, string | number>>; // måste ha "sku"
   namn: Text4;
   beskrivning: Text4;
@@ -613,6 +614,59 @@ function cjp(): Serie {
   };
 }
 
+// ── SMC RB/RBL/RBQ (hydrauliska stötdämpare) ────────────────────────────────
+// Nyckeln är sluten: modelltabellen (sida 1299, 1306, 1310) är hela serien. Bastypen utan kåpa och tillval.
+const RB_TYP: Record<string, { sv: string; en: string; de: string; es: string; muttrar: boolean }> = {
+  RB: { sv: "standardtyp", en: "standard type", de: "Standardausführung", es: "tipo estándar", muttrar: true },
+  RBL: {
+    sv: "kylvätsketålig typ (för icke vattenlöslig skärolja)", en: "coolant-resistant type (for non-water-soluble cutting oil)",
+    de: "kühlmittelbeständige Ausführung (für nicht wasserlösliches Schneidöl)", es: "tipo resistente al refrigerante (para aceite de corte no soluble en agua)",
+    muttrar: false,
+  },
+  RBQ: { sv: "kort typ, tillåten excentricitet 5°", en: "short type, allowable eccentricity 5°", de: "kurze Ausführung, zulässige Exzentrizität 5°", es: "tipo corto, excentricidad admisible 5°", muttrar: true },
+};
+function rb(serie: "RB" | "RBL" | "RBQ"): Serie {
+  const def = RB_SERIES.find((x) => x.code === serie)!;
+  const typ = RB_TYP[serie];
+  const rader: Serie["rader"] = [];
+  for (const m of RB_MODELS.filter((x) => x.series === serie)) {
+    const kod = rbBuildCode({ series: serie, size: m.size });
+    if (!kod || rbParseCode(kod) === null) continue;
+    rader.push({
+      sku: kod, ganga: m.thread.replace(",", "."), ganga_spec: m.thread, hast: (m.speed_m_s ?? def.speed_m_s).join("–"), slag: m.stroke_mm, energi: m.energy_j, frekvens: m.freq_per_min, kraft: m.thrust_n,
+      // "2 Hexagon nuts are attached for the RB series and standard models RBQ" (sida 1295); RBL nämns inte.
+      mutter_sv: typ.muttrar ? " Två sexkantmuttrar medföljer." : "", mutter_en: typ.muttrar ? " Two hexagon nuts are included." : "",
+      mutter_de: typ.muttrar ? " Zwei Sechskantmuttern werden mitgeliefert." : "", mutter_es: typ.muttrar ? " Se suministran dos tuercas hexagonales." : "",
+    });
+  }
+  return {
+    familj: serie, fabrikat: "smc", kategori: "shock-absorber", ledtid: null, rader,
+    namn: {
+      sv: "SMC {sku} stötdämpare {ganga}, {slag} mm slag",
+      en: "SMC {sku} shock absorber {ganga}, {slag} mm stroke",
+      de: "SMC {sku} Stoßdämpfer {ganga}, {slag} mm Hub",
+      es: "SMC {sku} amortiguador {ganga}, carrera {slag} mm",
+    },
+    beskrivning: {
+      sv: `Hydraulisk stötdämpare ur SMC serie ${serie}, ${typ.sv}, gänga {ganga}, slag {slag} mm. Största energiupptagning {energi} J per slag, högst {frekvens} slag/min, största axialkraft {kraft} N, kollisionshastighet {hast} m/s.{mutter_sv}`,
+      en: `Hydraulic shock absorber from SMC series ${serie}, ${typ.en}, thread {ganga}, stroke {slag} mm. Maximum energy absorption {energi} J per stroke, up to {frekvens} cycles/min, maximum thrust {kraft} N, collision speed {hast} m/s.{mutter_en}`,
+      de: `Hydraulischer Stoßdämpfer der SMC-Serie ${serie}, ${typ.de}, Gewinde {ganga}, Hub {slag} mm. Maximale Energieaufnahme {energi} J pro Hub, höchstens {frekvens} Zyklen/min, maximale Axialkraft {kraft} N, Aufprallgeschwindigkeit {hast} m/s.{mutter_de}`,
+      es: `Amortiguador hidráulico de la serie SMC ${serie}, ${typ.es}, rosca {ganga}, carrera {slag} mm. Absorción máxima de energía {energi} J por carrera, hasta {frekvens} ciclos/min, empuje máximo {kraft} N, velocidad de impacto {hast} m/s.{mutter_es}`,
+    },
+    specar: [
+      ["thread", "{ganga_spec}"], // som familjeraderna: "M8 x 1,0"
+      ["stroke_mm", "{slag}"],
+      ["energy_j", "{energi}"],
+      ["max_freq_per_min", "{frekvens}"],
+      ["max_thrust_n", "{kraft}"],
+      ["collision_speed_m_s", "{hast}"],
+      ["temp_range", temp(RB_LIMITS.temp_c)],
+      ["series", serie],
+      ["standard_kalla", `SMC Shock Absorber RB Series / RBQ Series, katalogsidor 1295–1317: How to Order och data s. ${def.page}. knowledge_chunks smc-kat-rb.pdf`],
+    ],
+  };
+}
+
 const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 
 /**
@@ -625,13 +679,16 @@ function mall(m: string, kolumner: string[], komma = false): string {
   return delar.map((d, i) => {
     if (i % 2 === 0) return d ? q(d) : "";
     if (!kolumner.includes(d)) throw new Error(`Okänd kolumn {${d}} i mallen "${m}"`);
-    return komma ? `replace(t.${d}::text, '.', ',')` : `t.${d}::text`;
+    // Bara punkt mellan siffror: en mening i en kolumn behåller sin slutpunkt.
+    return komma ? `regexp_replace(t.${d}::text, '([0-9])\\.([0-9])', '\\1,\\2', 'g')` : `t.${d}::text`;
   }).filter(Boolean).join(" || ") || "''";
 }
 
 // Redan i databasen: CP96, CQ2 (20261119180000), CJ2, C85 (20261119183000), MHZ2 (20261119190000),
-// MXS (20261119191500), CM2 och MB (20261120003000), CY1S och CY1H (20261120010000). --alla tar med dem.
-const serier = (Deno.args.includes("--alla") ? [cp96(), cq2(), cj2(), c85(), mhz2(), mxs(), cm2(), mb(), cy1s(), cy1h()] : []).concat([cj1(), cjp()]);
+// MXS (20261119191500), CM2 och MB (20261120003000), CY1S och CY1H (20261120010000),
+// CJ1 och CJP (20261120013000). --alla tar med dem.
+const serier = (Deno.args.includes("--alla") ? [cp96(), cq2(), cj2(), c85(), mhz2(), mxs(), cm2(), mb(), cy1s(), cy1h(), cj1(), cjp()] : [])
+  .concat([rb("RB"), rb("RBL"), rb("RBQ")]);
 const allaKoder = serier.flatMap((s) => s.rader.map((r) => String(r.sku)));
 const dubbletter = allaKoder.filter((s, i, l) => l.indexOf(s) !== i);
 if (dubbletter.length) throw new Error(`Samma kod två gånger: ${dubbletter.join(", ")}`);
@@ -665,7 +722,7 @@ select t.sku, ${mall(s.namn.sv, kolumner, true)}, ${mall(s.namn.en, kolumner)},
   ${mall(s.beskrivning.de, kolumner, true)},
   ${mall(s.beskrivning.es, kolumner, true)},
   ${q(s.familj)}, (select id from brands where slug = ${q(s.fabrikat)}), (select id from categories where slug = ${q(s.kategori)}),
-  'order', ${s.ledtid}, 'draft'
+  'order', ${s.ledtid ?? "null"}, 'draft'
 from ${tmp} t
 -- Redan inlagd med fabrikatsprefix (t.ex. SMC-CJ1B2-10SU4)? Då ingen dubblett.
 where not exists (select 1 from products x where regexp_replace(x.sku, '^(SMC|FESTO|FE)-', '') = t.sku and x.sku <> t.sku)

@@ -57,7 +57,7 @@ export function buildRbDbRules(): RBDbRule[] {
   // ── råd per modell ─────────────────────────────────────────────────────
   for (const x of RB_MODELS) {
     const s = RB_SERIES.find((y) => y.code === x.series)!;
-    const speed = x.size === "0604" ? [0.3, 1.0] : s.speed_m_s;
+    const speed = x.speed_m_s ?? s.speed_m_s;
     const delar = [
       x.foot_part ? `fotfäste ${x.foot_part} beställs separat` : null,
       x.stopper_part ? `stoppmutter ${x.stopper_part}` : null,
