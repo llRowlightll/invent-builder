@@ -28,6 +28,8 @@ import { MXS_BORES, MXS_LIMITS, MXS_SOURCE, mxsBuildCode, mxsParseCode } from ".
 import { CM2_BORES, CM2_LIMITS, CM2_SOURCE, CM2_STANDARD_STROKES, cm2BuildCode, cm2ParseCode } from "../src/lib/catalog/cm2.ts";
 import { MB_BORES, MB_LIMITS, MB_SOURCE, mbBuildCode, mbParseCode } from "../src/lib/catalog/mb.ts";
 import { CY1_SERIES, cy1BuildCode, cy1ParseCode, cy1Strokes } from "../src/lib/catalog/cy1.ts";
+import { CJ1_ACTIONS, CJ1_BORES, CJ1_LIMITS, CJ1_MODELS, CJ1_SOURCE, cj1BuildCode, cj1ParseCode } from "../src/lib/catalog/cj1.ts";
+import { CJP_BORES, CJP_LIMITS, CJP_SOURCE, CJP_STROKES, cjpBuildCode, cjpParseCode } from "../src/lib/catalog/cjp.ts";
 
 type Text4 = { sv: string; en: string; de: string; es: string };
 /**
@@ -516,21 +518,120 @@ function cy1h(): Serie {
   };
 }
 
+// ── SMC CJ1 (stiftcylinder ø2,5 och ø4) ──────────────────────────────────────
+// Nyckeln är sluten: tre modeller och deras standardslag (sida 15–18) är hela serien.
+function cj1(): Serie {
+  const rader: Serie["rader"] = [];
+  for (const m of CJ1_MODELS) {
+    const b = CJ1_BORES.find((x) => x.code === m.bore)!;
+    const a = CJ1_ACTIONS.find((x) => x.code === m.action)!;
+    const enkel = m.action === "S";
+    for (const slag of m.strokes) {
+      const kod = cj1BuildCode({ bore: m.bore, stroke: String(slag), action: m.action });
+      if (!kod || cj1ParseCode(kod) === null) continue;
+      rader.push({
+        sku: kod, bore: b.bore_mm, slag, kraft: m.force_out_05_n, pmin: a.pressure_mpa[0],
+        funk_sv: enkel ? "enkelverkande med fjäderretur" : "dubbelverkande",
+        funk_en: enkel ? "single-acting with spring return" : "double-acting",
+        funk_de: enkel ? "einfachwirkend mit Federrückstellung" : "doppeltwirkend",
+        funk_es: enkel ? "de simple efecto con retorno por muelle" : "de doble efecto",
+        mode: enkel ? "Single-acting, spring return" : "Double-acting",
+      });
+    }
+  }
+  return {
+    familj: "CJ1", fabrikat: "smc", kategori: "cylinder", ledtid: 10, rader,
+    namn: {
+      sv: "SMC CJ1 Ø{bore} stiftcylinder, {slag} mm slag, {funk_sv}",
+      en: "SMC CJ1 Ø{bore} pin cylinder, {slag} mm stroke, {funk_en}",
+      de: "SMC CJ1 Ø{bore} Stiftzylinder, {slag} mm Hub, {funk_de}",
+      es: "SMC CJ1 Ø{bore} cilindro de pin, carrera {slag} mm, {funk_es}",
+    },
+    beskrivning: {
+      sv: "Stiftcylinder ur SMC serie CJ1, borrning Ø{bore} mm, slaglängd {slag} mm, {funk_sv}. Teoretisk kraft ut {kraft} N vid 0,5 MPa. Bastyp med slanganslutning för ø4/ø2,5-slang, utan dämpning och utan givare.",
+      en: "Pin cylinder from SMC series CJ1, bore Ø{bore} mm, stroke {slag} mm, {funk_en}. Theoretical output force {kraft} N at 0.5 MPa. Basic style with connection for ø4/ø2.5 tubing, without cushion and without sensor.",
+      de: "Stiftzylinder der SMC-Serie CJ1, Kolbendurchmesser Ø{bore} mm, Hub {slag} mm, {funk_de}. Theoretische Kraft ausfahrend {kraft} N bei 0,5 MPa. Grundausführung mit Anschluss für Schlauch ø4/ø2,5, ohne Dämpfung und ohne Sensor.",
+      es: "Cilindro de pin de la serie SMC CJ1, diámetro Ø{bore} mm, carrera {slag} mm, {funk_es}. Fuerza teórica de avance {kraft} N a 0,5 MPa. Ejecución básica con conexión para tubo ø4/ø2,5, sin amortiguación y sin sensor.",
+    },
+    specar: [
+      ["bore_mm", "{bore}"],
+      ["stroke_mm", "{slag}"],
+      ["mode_of_operation", "{mode}"],
+      ["cylinder_type", "Pin cylinder"],
+      ["cushioning_types", "None"],
+      ["force_out_05mpa_n", "{kraft}"],
+      ["min_pressure_mpa", "{pmin}"],
+      ["max_pressure", "7 bar"],
+      ["temp_range", temp(CJ1_LIMITS.temp_c)],
+      ["max_speed_mm_s", String(CJ1_LIMITS.speed_mm_s[1])],
+      ["series", "CJ1"],
+      ["standard_kalla", `${CJ1_SOURCE.title}, ${CJ1_SOURCE.edition}: How to Order och data s. 16 och 18. knowledge_chunks ${CJ1_SOURCE.file}`],
+    ],
+  };
+}
+
+// ── SMC CJP (stiftcylinder ø4–16, enkelverkande fjäderretur) ─────────────────
+function cjp(): Serie {
+  const rader: Serie["rader"] = [];
+  for (const b of CJP_BORES) {
+    for (const slag of CJP_STROKES) {
+      const kod = cjpBuildCode({ bore: b.code, mounting: "B", stroke_mm: slag });
+      if (!kod || cjpParseCode(kod) === null) continue;
+      rader.push({ sku: kod, bore: b.bore_mm, slag, kraft: b.force_out_05_n, fjader: b.force_in_n, pmin: b.min_pressure_mpa });
+    }
+  }
+  return {
+    familj: "CJP", fabrikat: "smc", kategori: "cylinder", ledtid: 10, rader,
+    namn: {
+      sv: "SMC CJP Ø{bore} stiftcylinder, {slag} mm slag",
+      en: "SMC CJP Ø{bore} pin cylinder, {slag} mm stroke",
+      de: "SMC CJP Ø{bore} Stiftzylinder, {slag} mm Hub",
+      es: "SMC CJP Ø{bore} cilindro de pin, carrera {slag} mm",
+    },
+    beskrivning: {
+      sv: "Stiftcylinder ur SMC serie CJP för panelmontage, borrning Ø{bore} mm, slaglängd {slag} mm. Enkelverkande med fjäderretur, teoretisk kraft ut {kraft} N vid 0,5 MPa, fjäderns returkraft {fjader} N. Gängad kolvstång, utan dämpning.",
+      en: "Pin cylinder from SMC series CJP for panel mounting, bore Ø{bore} mm, stroke {slag} mm. Single-acting with spring return, theoretical output force {kraft} N at 0.5 MPa, spring return force {fjader} N. Threaded piston rod, without cushion.",
+      de: "Stiftzylinder der SMC-Serie CJP für Schalttafeleinbau, Kolbendurchmesser Ø{bore} mm, Hub {slag} mm. Einfachwirkend mit Federrückstellung, theoretische Kraft ausfahrend {kraft} N bei 0,5 MPa, Federrückstellkraft {fjader} N. Kolbenstange mit Gewinde, ohne Dämpfung.",
+      es: "Cilindro de pin de la serie SMC CJP para montaje en panel, diámetro Ø{bore} mm, carrera {slag} mm. Simple efecto con retorno por muelle, fuerza teórica de avance {kraft} N a 0,5 MPa, fuerza de retorno del muelle {fjader} N. Vástago roscado, sin amortiguación.",
+    },
+    specar: [
+      ["bore_mm", "{bore}"],
+      ["stroke_mm", "{slag}"],
+      ["mode_of_operation", "Single-acting, spring return"],
+      ["cylinder_type", "Pin cylinder"],
+      ["mounting", "Panel mount"],
+      ["cushioning_types", "None"],
+      ["force_out_05mpa_n", "{kraft}"],
+      ["spring_return_force_n", "{fjader}"],
+      ["min_pressure_mpa", "{pmin}"],
+      ["max_pressure", mpaTillBar(CJP_LIMITS.max_pressure_mpa)],
+      ["temp_range", temp(CJP_LIMITS.temp_c)],
+      ["max_speed_mm_s", String(CJP_LIMITS.speed_mm_s[1])],
+      ["series", "CJP"],
+      ["standard_kalla", `${CJP_SOURCE.title}, ${CJP_SOURCE.edition}: How to Order och data s. 1, kraft s. 2. knowledge_chunks ${CJP_SOURCE.file}`],
+    ],
+  };
+}
+
 const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 
-/** "Ø{bore} mm" -> 'Ø' || t.bore::text || ' mm'. Okänd kolumn är ett fel, inte tom text. */
-function mall(m: string, kolumner: string[]): string {
+/**
+ * "Ø{bore} mm" -> 'Ø' || t.bore::text || ' mm'. Okänd kolumn är ett fel, inte tom text.
+ * komma: svensk, tysk och spansk text skriver decimaltal med komma (19,6 N; M3 x 0,5).
+ * Specvärdena behåller punkten -- de läses av motorn, inte av människor.
+ */
+function mall(m: string, kolumner: string[], komma = false): string {
   const delar = m.split(/\{(\w+)\}/);
   return delar.map((d, i) => {
     if (i % 2 === 0) return d ? q(d) : "";
     if (!kolumner.includes(d)) throw new Error(`Okänd kolumn {${d}} i mallen "${m}"`);
-    return `t.${d}::text`;
+    return komma ? `replace(t.${d}::text, '.', ',')` : `t.${d}::text`;
   }).filter(Boolean).join(" || ") || "''";
 }
 
 // Redan i databasen: CP96, CQ2 (20261119180000), CJ2, C85 (20261119183000), MHZ2 (20261119190000),
-// MXS (20261119191500), CM2 och MB (20261120003000). --alla tar med dem.
-const serier = (Deno.args.includes("--alla") ? [cp96(), cq2(), cj2(), c85(), mhz2(), mxs(), cm2(), mb()] : []).concat([cy1s(), cy1h()]);
+// MXS (20261119191500), CM2 och MB (20261120003000), CY1S och CY1H (20261120010000). --alla tar med dem.
+const serier = (Deno.args.includes("--alla") ? [cp96(), cq2(), cj2(), c85(), mhz2(), mxs(), cm2(), mb(), cy1s(), cy1h()] : []).concat([cj1(), cjp()]);
 const allaKoder = serier.flatMap((s) => s.rader.map((r) => String(r.sku)));
 const dubbletter = allaKoder.filter((s, i, l) => l.indexOf(s) !== i);
 if (dubbletter.length) throw new Error(`Samma kod två gånger: ${dubbletter.join(", ")}`);
@@ -558,14 +659,16 @@ ${varden}
 ) as ${tabell};
 
 insert into products (sku, name, name_en, description, description_en, description_de, description_es, family, brand_id, category_id, availability, lead_time_days, status)
-select t.sku, ${mall(s.namn.sv, kolumner)}, ${mall(s.namn.en, kolumner)},
-  ${mall(s.beskrivning.sv, kolumner)},
+select t.sku, ${mall(s.namn.sv, kolumner, true)}, ${mall(s.namn.en, kolumner)},
+  ${mall(s.beskrivning.sv, kolumner, true)},
   ${mall(s.beskrivning.en, kolumner)},
-  ${mall(s.beskrivning.de, kolumner)},
-  ${mall(s.beskrivning.es, kolumner)},
+  ${mall(s.beskrivning.de, kolumner, true)},
+  ${mall(s.beskrivning.es, kolumner, true)},
   ${q(s.familj)}, (select id from brands where slug = ${q(s.fabrikat)}), (select id from categories where slug = ${q(s.kategori)}),
   'order', ${s.ledtid}, 'draft'
 from ${tmp} t
+-- Redan inlagd med fabrikatsprefix (t.ex. SMC-CJ1B2-10SU4)? Då ingen dubblett.
+where not exists (select 1 from products x where regexp_replace(x.sku, '^(SMC|FESTO|FE)-', '') = t.sku and x.sku <> t.sku)
 on conflict (sku) do nothing;
 
 insert into product_specs (product_id, key, value)
