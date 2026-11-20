@@ -27,6 +27,7 @@ import { MHZ2_BORES, MHZ2_LIMITS, MHZ2_SOURCE, mhz2BuildCode, mhz2ParseCode } fr
 import { MXS_BORES, MXS_LIMITS, MXS_SOURCE, mxsBuildCode, mxsParseCode } from "../src/lib/catalog/mxs.ts";
 import { CM2_BORES, CM2_LIMITS, CM2_SOURCE, CM2_STANDARD_STROKES, cm2BuildCode, cm2ParseCode } from "../src/lib/catalog/cm2.ts";
 import { MB_BORES, MB_LIMITS, MB_SOURCE, mbBuildCode, mbParseCode } from "../src/lib/catalog/mb.ts";
+import { CY1_SERIES, cy1BuildCode, cy1ParseCode, cy1Strokes } from "../src/lib/catalog/cy1.ts";
 
 type Text4 = { sv: string; en: string; de: string; es: string };
 /**
@@ -418,6 +419,103 @@ function mb(): Serie {
   };
 }
 
+// ── SMC CY1S (kolvstångslös, slidtyp med glidlager ø6–40) ────────────────────
+function cy1s(): Serie {
+  const def = CY1_SERIES.cy1s;
+  const rader: Serie["rader"] = [];
+  for (const b of def.bores) {
+    for (const slag of cy1Strokes("cy1s", b)?.standard ?? []) {
+      const kod = cy1BuildCode("cy1s", { bore: b.code, stroke_mm: slag });
+      if (!kod || cy1ParseCode(kod)?.series !== "cy1s") continue;
+      rader.push({ sku: kod, bore: b.bore_mm, slag, hall: b.holding_n });
+    }
+  }
+  const [pmin, pmax] = def.limits.pressure_mpa;
+  return {
+    familj: "CY1S", fabrikat: "smc", kategori: "cylinder", ledtid: 35, rader,
+    namn: {
+      sv: "SMC CY1S Ø{bore} kolvstångslös cylinder, {slag} mm slag",
+      en: "SMC CY1S Ø{bore} rodless cylinder, {slag} mm stroke",
+      de: "SMC CY1S Ø{bore} kolbenstangenloser Zylinder, {slag} mm Hub",
+      es: "SMC CY1S Ø{bore} cilindro sin vástago, carrera {slag} mm",
+    },
+    beskrivning: {
+      sv: "Magnetkopplad kolvstångslös cylinder ur SMC serie CY1S, slidtyp med glidlager, borrning Ø{bore} mm, slaglängd {slag} mm, magnetisk hållkraft {hall} N. Dubbelverkande, gummibuffert i båda ändar, inbyggd magnet för givare.",
+      en: "Magnetically coupled rodless cylinder from SMC series CY1S, slider type with slide bearing, bore Ø{bore} mm, stroke {slag} mm, magnetic holding force {hall} N. Double-acting, rubber bumper at both ends, built-in magnet for sensors.",
+      de: "Magnetisch gekoppelter kolbenstangenloser Zylinder der SMC-Serie CY1S, Schlittenausführung mit Gleitlager, Kolbendurchmesser Ø{bore} mm, Hub {slag} mm, magnetische Haltekraft {hall} N. Doppeltwirkend, Gummipuffer an beiden Enden, integrierter Magnet für Sensoren.",
+      es: "Cilindro sin vástago de acoplamiento magnético de la serie SMC CY1S, tipo carro con cojinete de deslizamiento, diámetro Ø{bore} mm, carrera {slag} mm, fuerza de retención magnética {hall} N. Doble efecto, amortiguador de goma en ambos extremos, imán incorporado para sensores.",
+    },
+    specar: [
+      ["bore_mm", "{bore}"],
+      ["stroke_mm", "{slag}"],
+      ["mode_of_operation", "Double-acting"],
+      ["cylinder_type", "Rodless cylinder, magnetically coupled"],
+      ["guide_type", "Slide bearing"],
+      ["magnetic_holding_force_n", "{hall}"],
+      ["position_sensing", "Magnetic piston"],
+      ["cushioning_types", "Rubber bumper"],
+      ["min_pressure_mpa", String(pmin)],
+      ["max_pressure", mpaTillBar(pmax)],
+      ["temp_range", temp(def.limits.temp_c)],
+      ["max_speed_mm_s", String(def.limits.speed_mm_s[1])],
+      ["series", "CY1S"],
+      ["standard_kalla", `${def.source.title}, katalogsidor ${def.source.pages}: How to Order s. ${def.source.key_page}, data och standardslag s. ${def.source.spec_page}. knowledge_chunks ${def.source.file}`],
+    ],
+  };
+}
+
+// ── SMC CY1H (kolvstångslös med linjärstyrning ø10–32) ───────────────────────
+function cy1h(): Serie {
+  const def = CY1_SERIES.cy1h;
+  const rader: Serie["rader"] = [];
+  for (const b of def.bores) {
+    // Enaxlig styrning där den finns (ø10–25), annars tvåaxlig T (ø32): seriens grundutförande per borrning.
+    const guide = b.one_axis ? "" : "T";
+    for (const slag of cy1Strokes("cy1h", b, guide)?.standard ?? []) {
+      const kod = cy1BuildCode("cy1h", { bore: b.code, stroke_mm: slag, guide: guide || undefined });
+      if (!kod || cy1ParseCode(kod)?.series !== "cy1h") continue;
+      const tva = guide === "T";
+      rader.push({
+        sku: kod, bore: b.bore_mm, slag, hall: b.holding_n,
+        axel_sv: tva ? "tvåaxlig" : "enaxlig", axel_en: tva ? "two-axis" : "single-axis",
+        axel_de: tva ? "zweiachsiger" : "einachsiger", axel_es: tva ? "de dos ejes" : "de un eje",
+      });
+    }
+  }
+  const [pmin, pmax] = def.limits.pressure_mpa;
+  return {
+    familj: "CY1H", fabrikat: "smc", kategori: "cylinder", ledtid: 35, rader,
+    namn: {
+      sv: "SMC CY1H Ø{bore} kolvstångslös cylinder med linjärstyrning, {slag} mm slag",
+      en: "SMC CY1H Ø{bore} rodless cylinder with linear guide, {slag} mm stroke",
+      de: "SMC CY1H Ø{bore} kolbenstangenloser Zylinder mit Linearführung, {slag} mm Hub",
+      es: "SMC CY1H Ø{bore} cilindro sin vástago con guía lineal, carrera {slag} mm",
+    },
+    beskrivning: {
+      sv: "Magnetkopplad kolvstångslös cylinder ur SMC serie CY1H med {axel_sv} linjärstyrning, borrning Ø{bore} mm, slaglängd {slag} mm, magnetisk hållkraft {hall} N. Dubbelverkande, justerbult med uretanbuffert i båda ändar, inbyggd magnet för givare.",
+      en: "Magnetically coupled rodless cylinder from SMC series CY1H with {axel_en} linear guide, bore Ø{bore} mm, stroke {slag} mm, magnetic holding force {hall} N. Double-acting, adjusting bolt with urethane bumper at both ends, built-in magnet for sensors.",
+      de: "Magnetisch gekoppelter kolbenstangenloser Zylinder der SMC-Serie CY1H mit {axel_de} Linearführung, Kolbendurchmesser Ø{bore} mm, Hub {slag} mm, magnetische Haltekraft {hall} N. Doppeltwirkend, Einstellschraube mit Urethanpuffer an beiden Enden, integrierter Magnet für Sensoren.",
+      es: "Cilindro sin vástago de acoplamiento magnético de la serie SMC CY1H con guía lineal {axel_es}, diámetro Ø{bore} mm, carrera {slag} mm, fuerza de retención magnética {hall} N. Doble efecto, perno de ajuste con amortiguador de uretano en ambos extremos, imán incorporado para sensores.",
+    },
+    specar: [
+      ["bore_mm", "{bore}"],
+      ["stroke_mm", "{slag}"],
+      ["mode_of_operation", "Double-acting"],
+      ["cylinder_type", "Rodless cylinder, magnetically coupled"],
+      ["guide_type", "Linear guide, {axel_en}"],
+      ["magnetic_holding_force_n", "{hall}"],
+      ["position_sensing", "Magnetic piston"],
+      ["cushioning_types", "Adjusting bolt with urethane bumper"],
+      ["min_pressure_mpa", String(pmin)],
+      ["max_pressure", mpaTillBar(pmax)],
+      ["temp_range", temp(def.limits.temp_c)],
+      ["max_speed_mm_s", String(def.limits.speed_mm_s[1])],
+      ["series", "CY1H"],
+      ["standard_kalla", `${def.source.title}, katalogsidor ${def.source.pages}: How to Order s. ${def.source.key_page}, data och standardslag s. ${def.source.spec_page}. knowledge_chunks ${def.source.file}`],
+    ],
+  };
+}
+
 const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 
 /** "Ø{bore} mm" -> 'Ø' || t.bore::text || ' mm'. Okänd kolumn är ett fel, inte tom text. */
@@ -431,8 +529,8 @@ function mall(m: string, kolumner: string[]): string {
 }
 
 // Redan i databasen: CP96, CQ2 (20261119180000), CJ2, C85 (20261119183000), MHZ2 (20261119190000),
-// MXS (20261119191500). --alla tar med dem.
-const serier = (Deno.args.includes("--alla") ? [cp96(), cq2(), cj2(), c85(), mhz2(), mxs()] : []).concat([cm2(), mb()]);
+// MXS (20261119191500), CM2 och MB (20261120003000). --alla tar med dem.
+const serier = (Deno.args.includes("--alla") ? [cp96(), cq2(), cj2(), c85(), mhz2(), mxs(), cm2(), mb()] : []).concat([cy1s(), cy1h()]);
 const allaKoder = serier.flatMap((s) => s.rader.map((r) => String(r.sku)));
 const dubbletter = allaKoder.filter((s, i, l) => l.indexOf(s) !== i);
 if (dubbletter.length) throw new Error(`Samma kod två gånger: ${dubbletter.join(", ")}`);
